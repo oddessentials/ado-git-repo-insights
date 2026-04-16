@@ -125,6 +125,9 @@ the change must be treated as a design break and escalated.
 25. **Backfill mode must be tested.**
     There must be a test proving that a late change (e.g., reviewer vote update) is corrected after a backfill run.
 
+26. **Shared-floor tests must have collection-stable definitions.**
+    If a Python test contributes to a ratcheted collected-count floor, it must be defined unconditionally across supported interpreter/OS lanes. Environment-specific behavior may be handled inside the test body (for example, `pytest.skip(...)`), but import-time gating that adds or removes `def test_*` definitions is forbidden because it breaks local/CI collection parity.
+
 ---
 
 ## Decision Log (Locked)

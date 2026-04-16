@@ -33,7 +33,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 492,
+      "line": 590,
       "code": "completed = subprocess.run(",
       "reason": "CommandSpec-driven command list from build_commands()"
     },
@@ -48,18 +48,6 @@
       "line": 192,
       "code": "result = subprocess.run(",
       "reason": "staged_file_content(): git show with repo-owned path"
-    },
-    {
-      "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 144,
-      "code": "build_result = subprocess.run(",
-      "reason": "Test runner: trusted script invocation"
-    },
-    {
-      "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 159,
-      "code": "validate_result = subprocess.run(",
-      "reason": "Test runner: second trusted script call site"
     },
     {
       "file": "tests/demo/test_regeneration.py",

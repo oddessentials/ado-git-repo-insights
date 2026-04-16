@@ -10,7 +10,7 @@
 import type { Rollup } from "../../dataset-loader";
 import type { DataAvailabilitySignal, DistributionData } from "../../types";
 import type { FilterState } from "../filters";
-import { clearChartTooltips } from "../charts";
+import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
 import { renderTruncationIndicator } from "../shared/chart-layout";
@@ -279,9 +279,11 @@ export function renderCycleTimeTrend(
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
-            <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
+            <!-- Dots. data-tooltip="true" is required so addChartTooltips()
+                 in charts.ts can attach hover/tap listeners — without it the
+                 tooltip callback below is never invoked. -->
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
 
@@ -319,4 +321,24 @@ export function renderCycleTimeTrend(
     container,
     `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`,
   );
+
+  // Attach hover/tap tooltips to every .line-chart-dot. Each circle carries
+  // data-tooltip="true" plus data-week/data-value/data-metric, so the
+  // contentFn can read them directly via `as string` narrowing — we emit
+  // those attributes ourselves a few lines above, so the narrowing is
+  // guaranteed at runtime.
+  addChartTooltips(container, (dot: HTMLElement) => {
+    const week = dot.dataset["week"] as string;
+    const value = parseFloat(dot.dataset["value"] as string);
+    const metric = dot.dataset["metric"] as string;
+    const legendClass = metric === "P50" ? "legend-p50" : "legend-p90";
+    return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+            <div class="chart-tooltip-row">
+              <span class="chart-tooltip-label">
+                <span class="chart-tooltip-dot ${legendClass}"></span>
+                ${escapeHtml(metric)}
+              </span>
+              <span>${formatDuration(value)}</span>
+            </div>`;
+  });
 }

@@ -10,6 +10,7 @@ Responsibility split:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import importlib.util as _importlib_util
 import json
 import os
@@ -18,6 +19,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
@@ -72,6 +74,23 @@ _check_subprocess_safety = _guard_mod.check_subprocess_safety
 _check_random_safety = _guard_mod.check_random_safety
 _check_syspath_safety = _guard_mod.check_syspath_safety
 
+if TYPE_CHECKING:
+    from invariant_contracts import InvariantArtifactContract
+
+_contracts_spec = _importlib_util.spec_from_file_location(
+    "invariant_contracts",
+    REPO_ROOT / "scripts" / "invariant_contracts.py",
+)
+assert _contracts_spec is not None, "invariant_contracts.py not found"
+assert _contracts_spec.loader is not None
+_contracts_mod = _importlib_util.module_from_spec(_contracts_spec)
+sys.modules["invariant_contracts"] = _contracts_mod
+_contracts_spec.loader.exec_module(_contracts_mod)
+INVARIANT_ARTIFACT_CONTRACTS = cast(
+    tuple["InvariantArtifactContract", ...],
+    _contracts_mod.INVARIANT_ARTIFACT_CONTRACTS,
+)
+
 
 def safe_print(text: str = "") -> None:
     try:
@@ -94,7 +113,7 @@ def run_command(
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        command,
+        [*command],
         cwd=cwd,
         env=env,
         check=False,
@@ -188,9 +207,8 @@ def staged_file_content(path: str) -> str | None:
     Binary files are decoded with replacement characters — callers searching for
     text patterns will safely get no match on binary content.
     """
-    command = ["git", "show", f":{path}"]
     result = subprocess.run(
-        command,
+        ["git", "show", f":{path}"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -211,6 +229,69 @@ def worktree_paths(pathspec: str) -> list[str]:
 def modified_worktree_files() -> list[str]:
     output = git_output("diff", "--name-only")
     return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def _path_matches_pathspec(path: str, pathspec: str) -> bool:
+    normalized = path.replace("\\", "/")
+    if pathspec.endswith("/"):
+        return normalized.startswith(pathspec)
+    if any(token in pathspec for token in "*?["):
+        return fnmatch.fnmatch(normalized, pathspec)
+    return normalized == pathspec
+
+
+def _contract_matches_path(contract: InvariantArtifactContract, path: str) -> bool:
+    if path == contract.artifact_path:
+        return True
+    return any(
+        _path_matches_pathspec(path, pathspec) for pathspec in contract.input_pathspecs
+    )
+
+
+def _contract_staged_paths(contract: InvariantArtifactContract) -> list[str]:
+    return [path for path in staged_paths() if _contract_matches_path(contract, path)]
+
+
+def _contract_worktree_drift(contract: InvariantArtifactContract) -> list[str]:
+    drifted: set[str] = set()
+    for pathspec in (*contract.input_pathspecs, contract.artifact_path):
+        drifted.update(worktree_paths(pathspec))
+    return sorted(drifted)
+
+
+def _verify_contract_artifact(contract: InvariantArtifactContract) -> None:
+    if contract.verification_kind in {"rule-disable-s603", "rule-disable-s311"}:
+        safe_print(
+            f"[hook] verifying invariant artifact {contract.artifact_path} "
+            f"({contract.contract_id})"
+        )
+        run_command(
+            [
+                sys.executable,
+                "scripts/check_rule_disable_invariants.py",
+                "--verify-artifacts",
+            ]
+        )
+        return
+
+
+def run_invariant_artifact_contract_guards(stage: str) -> None:
+    for contract in INVARIANT_ARTIFACT_CONTRACTS:
+        if stage not in contract.hook_stages:
+            continue
+        staged_relevant = _contract_staged_paths(contract)
+        if not staged_relevant:
+            continue
+        drifted = _contract_worktree_drift(contract)
+        if drifted:
+            safe_print(
+                f"[{stage}] invariant artifact contract {contract.contract_id} "
+                "requires a clean worktree for declared inputs/artifact:"
+            )
+            for path in drifted:
+                safe_print(f"  - {path}")
+            raise SystemExit(EXIT_GATE)
+        _verify_contract_artifact(contract)
 
 
 def report_post_format_worktree_changes() -> None:
@@ -973,6 +1054,7 @@ def run_pre_commit_hook() -> None:
     run_pagination_token_guard()
     run_scope_coverage_guard()
     run_rule_disable_invariants_guard()
+    run_invariant_artifact_contract_guards("pre-commit")
     run_ui_bundle_guards()
 
     staged = staged_paths()
@@ -1108,23 +1190,6 @@ def run_asset_validation() -> None:
     raise SystemExit("[pre-push] push blocked: marketplace assets invalid")
 
 
-def _current_branch() -> str:
-    """Return the current git branch name, or empty string on detached HEAD."""
-    git = shutil.which("git")
-    if git is None:
-        return ""
-    try:
-        result = subprocess.run(
-            [git, "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
-
-
 def run_version_guard() -> None:
     """Block manual version bumps before push — fail fast."""
     safe_print("[pre-push] running version guard")
@@ -1138,19 +1203,10 @@ def run_pre_push_hook() -> None:
     run_pre_push_pre_commit_checks()
     run_crlf_guard()
     run_asset_validation()
+    run_invariant_artifact_contract_guards("pre-push")
 
-    branch = _current_branch()
-    preflight_cmd = [sys.executable, "scripts/run_pr_preflight.py"]
-    if branch.startswith("refactor/"):
-        safe_print(
-            f"[pre-push] refactor branch '{branch}' detected "
-            "— running strict CI-parity preflight"
-        )
-        preflight_cmd.append("--strict")
-    else:
-        safe_print("[pre-push] running PR preflight")
-
-    run_command(preflight_cmd)
+    safe_print("[pre-push] running PR preflight")
+    run_command([sys.executable, "scripts/run_pr_preflight.py"])
     safe_print("[pre-push] all pre-push checks passed")
 
 

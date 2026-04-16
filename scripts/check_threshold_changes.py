@@ -79,7 +79,11 @@ def check_threshold_changes(base_ref: str) -> int:
 
     print("")
     print("Coverage threshold changed without [threshold-update] marker")
-    print("Add [threshold-update] to a commit message if this change is intentional")
+    print(
+        "Add [threshold-update] to a commit SUBJECT line if this change "
+        "is intentional (scanned via `git log --oneline`; markers in "
+        "commit bodies are NOT honored)."
+    )
     print("")
     print("See: extension/COVERAGE_RATCHET.md for threshold update policy")
     return 1

@@ -149,6 +149,93 @@ def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | No
     return baseline_path
 
 
+def resolve_pr_base_ref(*, strict: bool = False) -> str:
+    """Return the ``origin/<branch>`` ref this PR's gates should scan against.
+
+    Existence rationale: the ratchet-bump guard (and any future gate
+    that scans a commit range) must use the *same* base ref locally in
+    preflight and remotely in the CI job, or their commit-range scans
+    diverge. CI's ``ratchet-bump-guard`` job uses
+    ``origin/${github.base_ref}`` (see ``.github/workflows/ci.yml`` —
+    env var name ``BASE_REF``). This resolver lets local preflight
+    honor the same ``BASE_REF`` convention, so a developer running
+    ``python scripts/run_pr_preflight.py`` on a branch whose PR
+    targets ``release-101.7`` scans the release-branch range and
+    matches what CI will do when the same PR is submitted.
+
+    Resolution order (highest precedence first):
+
+    1. ``BASE_REF`` environment variable — the same name CI uses at
+       ``ci.yml:1072``. Developers who set it locally get exact
+       parity with CI without learning a second variable.
+    2. ``GITHUB_BASE_REF`` — set automatically by GitHub Actions in PR
+       context. Included as a safety net in case preflight is ever
+       invoked from inside a CI job (e.g., a self-test of preflight).
+    3. Non-strict local default: if neither environment variable is
+       set and ``strict`` is false, fall back to ``origin/main`` so
+       repo-default local entrypoints (``python scripts/run_pr_preflight.py``,
+       ``pnpm run test:ci``, ``.husky/pre-push``) keep working without
+       extra shell setup.
+    4. **Fail closed in strict mode.** If neither environment variable
+       is set and ``strict`` is true the resolver raises via
+       :func:`fail_setup`. This preserves an explicit CI-parity mode
+       for callers that need exact PR-target matching, including
+       release-branch-targeting work.
+
+    Pure + deterministic: only reads ``os.environ``, returns literal
+    strings, no subprocess, no network, no filesystem, no ``gh`` CLI.
+    Raises :class:`SystemExit` via ``fail_setup`` on the strict
+    fail-closed branch only.
+
+    Returns a full ``origin/<branch>`` ref, not a bare branch name,
+    so downstream gates can pass it straight through to
+    ``git log``/``git rev-list``/``--base-ref`` without additional
+    prefixing logic.
+    """
+
+    def normalize_base_ref(value: str) -> str:
+        normalized = value.strip()
+        if normalized.startswith("origin/"):
+            return normalized
+        return f"origin/{normalized}"
+
+    explicit = os.environ.get("BASE_REF", "").strip()
+    if explicit:
+        return normalize_base_ref(explicit)
+
+    ci_base = os.environ.get("GITHUB_BASE_REF", "").strip()
+    if ci_base:
+        return normalize_base_ref(ci_base)
+
+    if not strict:
+        return "origin/main"
+
+    raise fail_setup(
+        "Ratchet bump guard (#280): PR base ref cannot be resolved.\n"
+        "  BASE_REF env var: unset\n"
+        "  GITHUB_BASE_REF env var: unset\n"
+        "\n"
+        "  Fix (local): export BASE_REF=<target-branch> before "
+        "running preflight. Examples:\n"
+        "    BASE_REF=main python scripts/run_pr_preflight.py\n"
+        "    BASE_REF=release-101.7 python scripts/run_pr_preflight.py\n"
+        "\n"
+        "  Fix (CI): GITHUB_BASE_REF is set automatically by GitHub "
+        "Actions in PR context; no action required there.\n"
+        "\n"
+        "  Rationale: the Ratchet bump guard scans "
+        "origin/${BASE_REF}..HEAD for bypass markers and must scan "
+        "the same commit range as CI's ratchet-bump-guard job "
+        "(ci.yml:1072). Silently defaulting to origin/main would "
+        "make local preflight accept or reject a "
+        "[ratchet-realignment] / [ratchet-test-removal] marker that "
+        "CI sees differently — the exact parity hole #280 was filed "
+        "to close. Set BASE_REF once in your shell profile (e.g. "
+        "~/.bashrc) and every subsequent preflight run will match "
+        "whichever branch the PR targets."
+    )
+
+
 def build_commands(
     suppression_baseline: Path | None,
     *,
@@ -202,7 +289,15 @@ def build_commands(
         ),
         CommandSpec(
             "Python type check",
-            ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
+            (
+                "__PYTHON__",
+                "-m",
+                "mypy",
+                "src/",
+                "tests/",
+                "scripts/",
+                ".github/scripts/",
+            ),
         ),
         CommandSpec(
             "No typing.Any in src/, tests/, scripts/ (QG-40)",
@@ -361,7 +456,10 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1621",
+                "--min-collected-artifact",
+                ".test-floor-contract.json",
+                "--suite",
+                "python",
                 "--max-skips=0",
             ),
         ),
@@ -376,8 +474,33 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "extension/test-results.xml",
-                "--min-collected=2314",
+                "--min-collected-artifact",
+                ".test-floor-contract.json",
+                "--suite",
+                "extension",
                 "--max-skips=0",
+            ),
+        ),
+        CommandSpec(
+            "Test floor contract validation",
+            (
+                "__PYTHON__",
+                "scripts/check_test_floor_contract.py",
+                "--contract",
+                ".test-floor-contract.json",
+                "--extension-junit",
+                "extension/test-results.xml",
+            ),
+        ),
+        CommandSpec(
+            "Ratchet bump guard",
+            (
+                "__PYTHON__",
+                "scripts/check_ratchet_bump.py",
+                "--base-ref",
+                resolve_pr_base_ref(strict=strict),
+                "--junit-extension",
+                "extension/test-results.xml",
             ),
         ),
         CommandSpec(
@@ -399,7 +522,7 @@ def build_commands(
                 "__PYTHON__",
                 "scripts/check_patch_coverage.py",
                 "--base-ref",
-                "origin/main",
+                resolve_pr_base_ref(strict=strict),
                 "--python-coverage",
                 "coverage.xml",
                 "--ts-coverage",
@@ -490,7 +613,7 @@ def run_subprocess(
     # SECURITY: command lists are composed only from repo-owned CommandSpec entries
     # plus locally resolved tool paths; shell=False is preserved throughout.
     completed = subprocess.run(
-        command,
+        [*command],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -515,6 +638,22 @@ def render_command(command: tuple[str, ...] | list[str]) -> str:
 def is_node_dependent_command(spec: CommandSpec) -> bool:
     return bool(spec.command) and (
         PNPM_SENTINEL in spec.command or spec.command[0] == "node"
+    )
+
+
+def is_extension_dependent_command(spec: CommandSpec) -> bool:
+    """Return True when a spec requires extension tooling or artifacts.
+
+    Degraded local preflight intentionally skips extension-backed gates when
+    Node/pnpm is unavailable. That includes both direct Node/pnpm entrypoints
+    and Python wrappers that consume files produced by skipped extension steps,
+    such as ``extension/test-results.xml`` or coverage artifacts.
+    """
+    if is_node_dependent_command(spec) or spec.cwd == EXTENSION_ROOT:
+        return True
+
+    return any(
+        arg == "extension" or arg.startswith("extension/") for arg in spec.command
     )
 
 
@@ -797,7 +936,7 @@ def parse_args() -> argparse.Namespace:
         "--strict",
         action="store_true",
         help="Run in strict CI-parity mode: suppression increases block the push "
-        "(no --allow-pending-approval). Automatically enabled for refactor/* branches.",
+        "(no --allow-pending-approval).",
     )
     parser.add_argument(
         "--allow-local-degraded",
@@ -858,11 +997,13 @@ def main() -> int:
     )
     degraded_skips: list[str] = []
     for spec in commands:
-        # Degraded mode may skip Node-dependent commands when local Node is broken.
+        # Degraded mode may skip extension-dependent commands when local Node
+        # is broken because those gates either run via Node/pnpm directly or
+        # consume extension artifacts those skipped steps would have produced.
         if (
             args.allow_local_degraded
             and not node_ok
-            and is_node_dependent_command(spec)
+            and is_extension_dependent_command(spec)
         ):
             degraded_skips.append(spec.name)
             continue

@@ -233,6 +233,92 @@ describe("cycle-time module", () => {
         expect(dot.getAttribute("data-value")).not.toBeNull();
       });
     });
+
+    it("emits data-tooltip on every trend dot so addChartTooltips can attach", () => {
+      // Regression lock for commit ff42968a (Jan 2026): when addChartTooltips
+      // was moved into modules/charts.ts, its selector changed from
+      // `.line-chart-dot` to `[data-tooltip]`. Cycle-time circles stopped
+      // being picked up and hover tooltips silently broke for three months.
+      // Every dot must carry data-tooltip="true" or the listeners never bind.
+      renderCycleTimeTrend(container, createRollups(4));
+      const dots = container.querySelectorAll(".line-chart-dot");
+      expect(dots.length).toBeGreaterThan(0);
+      dots.forEach((dot) => {
+        expect(dot.getAttribute("data-tooltip")).toBe("true");
+      });
+    });
+  });
+
+  describe("hover tooltip interactions", () => {
+    afterEach(() => {
+      // Dismiss any chart-tooltip nodes that a hover test may have appended
+      // to document.body so they do not leak across tests.
+      document
+        .querySelectorAll(".chart-tooltip")
+        .forEach((node) => node.remove());
+    });
+
+    function createTrendRollups() {
+      return Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10 + i * 5,
+        cycle_time_p50: 60 + i * 10, // 60, 70, 80, 90 minutes
+        cycle_time_p90: 120 + i * 20, // 120, 140, 160, 180 minutes
+        authors_count: 5 + i,
+        reviewers_count: 3 + i,
+        by_repository: null,
+        by_team: null,
+      }));
+    }
+
+    it("renders a tooltip with week + duration when hovering a P50 dot", () => {
+      renderCycleTimeTrend(container, createTrendRollups());
+      const p50Dot = container.querySelector(
+        '.line-chart-dot[data-metric="P50"]',
+      ) as HTMLElement | null;
+      expect(p50Dot).not.toBeNull();
+
+      p50Dot!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+      const tooltip = document.querySelector(".chart-tooltip");
+      expect(tooltip).not.toBeNull();
+      expect(tooltip!.innerHTML).toContain("2025-W01");
+      expect(tooltip!.innerHTML).toContain("P50");
+      expect(tooltip!.innerHTML).toContain("legend-p50");
+    });
+
+    it("renders a tooltip with the P90 legend class when hovering a P90 dot", () => {
+      renderCycleTimeTrend(container, createTrendRollups());
+      const p90Dot = container.querySelector(
+        '.line-chart-dot[data-metric="P90"]',
+      ) as HTMLElement | null;
+      expect(p90Dot).not.toBeNull();
+
+      p90Dot!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+      const tooltip = document.querySelector(".chart-tooltip");
+      expect(tooltip).not.toBeNull();
+      expect(tooltip!.innerHTML).toContain("P90");
+      expect(tooltip!.innerHTML).toContain("legend-p90");
+      // Both metric sides must escape the week string via the shared escapeHtml
+      // helper — the template literal already runs it, so the raw value lands
+      // verbatim for a safe ISO-week fixture.
+      expect(tooltip!.innerHTML).toContain("2025-W01");
+    });
+
+    it("dismisses the tooltip on mouseleave", () => {
+      renderCycleTimeTrend(container, createTrendRollups());
+      const dot = container.querySelector(
+        ".line-chart-dot",
+      ) as HTMLElement | null;
+      expect(dot).not.toBeNull();
+
+      dot!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+      expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+
+      dot!.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+      expect(document.querySelector(".chart-tooltip")).toBeNull();
+    });
   });
 
   describe("classifier integration paths", () => {

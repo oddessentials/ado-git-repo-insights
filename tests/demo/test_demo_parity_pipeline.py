@@ -1,6 +1,7 @@
 """Tests for the canonical enterprise demo build and promotion pipeline."""
 
 import atexit
+import fnmatch
 import importlib.util
 import json
 import os
@@ -237,31 +238,81 @@ class TestCanonicalArtifactRoot:
         assert (ARTIFACT_REPORT / "startup-parity.json").exists()
         assert (ARTIFACT_METADATA / "demo-profile.json").exists()
 
-    if _IS_BASELINE_PYTHON:
+    def test_docs_promotion_matches_canonical_bytes(self) -> None:
+        # Keep collection identical across Python versions without introducing
+        # skips. Baseline Python exercises the real promotion path; non-baseline
+        # interpreters must still assert that validate-only rebuilds the
+        # committed published dataset byte-for-byte into the isolated artifact
+        # root.
+        if not _IS_BASELINE_PYTHON:
+            run_demo_build()
 
-        def test_docs_promotion_matches_canonical_bytes(self) -> None:
-            # Promotion exercises the canonical publishing path and is covered
-            # only on the approved baseline interpreter. Non-baseline jobs
-            # validate the non-promoting artifact boundary instead.
-            promoted_dir = make_scratch_dir("published-demo")
-            run_demo_build(promote=True, promote_dir=promoted_dir)
+            committed_data_root = REPO_ROOT / "docs" / "data"
+            manifest = json.loads(
+                (committed_data_root / "dataset-manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            declared_direct = set(manifest["published_files"]["direct"])
+            declared_globs = manifest["published_files"]["globs"]
+            indexed_files = {
+                entry["path"] for entry in manifest["aggregate_index"]["weekly_rollups"]
+            } | {
+                entry["path"] for entry in manifest["aggregate_index"]["distributions"]
+            }
 
-            canonical_files = sorted(
+            committed_files = sorted(
+                path.relative_to(committed_data_root)
+                for path in committed_data_root.rglob("*")
+                if path.is_file()
+                and (
+                    str(path.relative_to(committed_data_root)).replace("\\", "/")
+                    in declared_direct
+                    or str(path.relative_to(committed_data_root)).replace("\\", "/")
+                    in indexed_files
+                    or any(
+                        fnmatch.fnmatch(
+                            str(path.relative_to(committed_data_root)).replace(
+                                "\\", "/"
+                            ),
+                            pattern,
+                        )
+                        for pattern in declared_globs
+                    )
+                )
+            )
+            rebuilt_files = sorted(
                 path.relative_to(ARTIFACT_DATA)
                 for path in ARTIFACT_DATA.rglob("*")
                 if path.is_file()
             )
-            promoted_files = sorted(
-                path.relative_to(promoted_dir)
-                for path in promoted_dir.rglob("*")
-                if path.is_file()
-            )
 
-            assert canonical_files == promoted_files
-            for rel_path in canonical_files:
-                assert (ARTIFACT_DATA / rel_path).read_bytes() == (
-                    promoted_dir / rel_path
+            assert committed_files == rebuilt_files
+            for rel_path in committed_files:
+                assert (committed_data_root / rel_path).read_bytes() == (
+                    ARTIFACT_DATA / rel_path
                 ).read_bytes()
+            return
+
+        promoted_dir = make_scratch_dir("published-demo")
+        run_demo_build(promote=True, promote_dir=promoted_dir)
+
+        canonical_files = sorted(
+            path.relative_to(ARTIFACT_DATA)
+            for path in ARTIFACT_DATA.rglob("*")
+            if path.is_file()
+        )
+        promoted_files = sorted(
+            path.relative_to(promoted_dir)
+            for path in promoted_dir.rglob("*")
+            if path.is_file()
+        )
+
+        assert canonical_files == promoted_files
+        for rel_path in canonical_files:
+            assert (ARTIFACT_DATA / rel_path).read_bytes() == (
+                promoted_dir / rel_path
+            ).read_bytes()
 
     def test_promotion_cleans_stale_files(self) -> None:
         run_demo_build()

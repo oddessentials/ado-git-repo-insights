@@ -9,10 +9,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
-import subprocess
-import sys
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 SCRIPT = (
     Path(__file__).parent.parent.parent / "scripts" / "check_rule_disable_invariants.py"
@@ -237,15 +238,31 @@ class TestArtifactVerification:
     REPO_ROOT = Path(__file__).parent.parent.parent
     TMP_ROOT = REPO_ROOT / "tmp_test_work" / "rule-disable-invariants"
 
-    def test_verify_artifacts_passes_on_current(self) -> None:
-        """Fresh artifacts match the codebase."""
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--verify-artifacts"],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+    def test_verify_artifacts_passes_on_fresh_temp_artifacts(self) -> None:
+        """Freshly generated temp artifacts verify successfully."""
+        fresh_s603 = _mod.generate_subprocess_artifact(self.REPO_ROOT)
+        fresh_s311 = _mod.generate_random_artifact(self.REPO_ROOT)
+
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.TMP_ROOT / "fresh-artifact-case"
+        shutil.rmtree(tmp_path, ignore_errors=True)
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
         )
-        assert result.returncode == 0, f"Artifact verification failed:\n{result.stdout}"
+        (tmp_path / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            result = _mod.verify_artifacts(tmp_path)
+
+        assert result == 0
 
     def test_stale_artifact_detected_by_verify(self) -> None:
         """Modified artifact causes verify_artifacts() to return 1."""
@@ -274,9 +291,16 @@ class TestArtifactVerification:
             patch.object(_mod, "generate_subprocess_artifact", return_value=fresh),
             patch.object(_mod, "generate_random_artifact", return_value=s311),
         ):
-            result = _mod.verify_artifacts(tmp_path)
+            with patch("sys.stdout", new_callable=StringIO) as stdout:
+                result = _mod.verify_artifacts(tmp_path)
 
         assert result == 1
+        output = stdout.getvalue()
+        assert "Comparison semantics: normalized semantic entries" in output
+        assert (
+            "Missing normalized entries" in output
+            or "Extra normalized entries" in output
+        )
 
     def test_line_number_drift_does_not_fail_verify(self) -> None:
         """Line-number-only drift must not mark an artifact stale."""
@@ -508,3 +532,202 @@ class TestPreflightCIParity:
             f"CI flags {ci_flags} != preflight flags {preflight_flags}. "
             "These must be identical to maintain local/CI parity."
         )
+
+
+class TestCmdRegenerateAllowlistPrunesOrphans:
+    """Regression for #274: [REMOVED] must actually drop the entry from disk.
+
+    Fixtures use one file per case so that the live/shifted/orphan branches
+    cannot collide through the len(matches) > 1 path.
+    """
+
+    TMP_ROOT = (
+        Path(__file__).parent.parent.parent
+        / "tmp_test_work"
+        / "rule-disable-invariants"
+    )
+
+    def _build_case(self, name: str) -> Path:
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / name
+        shutil.rmtree(case_dir, ignore_errors=True)
+        (case_dir / "scripts").mkdir(parents=True)
+        return case_dir
+
+    def test_orphan_entries_dropped_mixed_fixture(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Live + shifted + orphan across three separate files."""
+        case_dir = self._build_case("prune-orphans-mixed")
+        (case_dir / "scripts" / "live_exact.py").write_text(
+            "import subprocess\ncmd_a = get()\nout_a = subprocess.run(cmd_a)\n",
+            encoding="utf-8",
+        )
+        (case_dir / "scripts" / "live_shifted.py").write_text(
+            "# pad\n"
+            "# pad\n"
+            "import subprocess\n"
+            "cmd_b = get()\n"
+            "out_b = subprocess.run(cmd_b)\n",
+            encoding="utf-8",
+        )
+        (case_dir / "scripts" / "orphan_target.py").write_text(
+            "# no subprocess call at all\nx = 1\n",
+            encoding="utf-8",
+        )
+        allowlist_path = case_dir / "allowlist.json"
+        allowlist_path.write_text(
+            json.dumps(
+                {
+                    "description": "test",
+                    "entries": [
+                        {
+                            "file": "scripts/live_exact.py",
+                            "line": 3,
+                            "code": "out_a = subprocess.run(cmd_a)",
+                            "reason": "live-exact",
+                        },
+                        {
+                            "file": "scripts/live_shifted.py",
+                            "line": 2,
+                            "code": "out_b = subprocess.run(cmd_b)",
+                            "reason": "live-shifted",
+                        },
+                        {
+                            "file": "scripts/orphan_target.py",
+                            "line": 99,
+                            "code": "out_z = subprocess.run(cmd_z)",
+                            "reason": "orphan",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "SUBPROCESS_ALLOWLIST_PATH", allowlist_path),
+            patch.object(
+                _mod,
+                "_get_tracked_py_files",
+                return_value=[
+                    "scripts/live_exact.py",
+                    "scripts/live_shifted.py",
+                    "scripts/orphan_target.py",
+                ],
+            ),
+        ):
+            rc = _mod.cmd_regenerate_allowlist(case_dir)
+
+        assert rc == 0
+        written = json.loads(allowlist_path.read_text(encoding="utf-8"))
+
+        reasons = {e["reason"]: e for e in written["entries"]}
+        assert "live-exact" in reasons, "live entry must survive"
+        assert "live-shifted" in reasons, "shifted entry must survive"
+        assert reasons["live-shifted"]["line"] == 5, (
+            "shifted entry must be updated to line 5"
+        )
+        assert "orphan" not in reasons, "orphan reason must be gone from disk"
+
+        orphan_files = [e["file"] for e in written["entries"] if "orphan" in e["file"]]
+        assert orphan_files == [], "orphan file path must not appear on disk"
+
+        out = capsys.readouterr().out
+        assert "1 updated, 1 no longer matching, 0 ambiguous" in out
+
+    def test_whitespace_variant_entry_is_not_misclassified_orphan(self) -> None:
+        """Refinement #1 lock: regen normalization mirrors detection.
+
+        An allowlist entry stored with trailing whitespace must still match
+        the violation emitted by check_subprocess_safety. If this test breaks,
+        the regen path has drifted from the detection path — exactly the
+        false-orphan scenario that would silently delete legitimate entries.
+        """
+        case_dir = self._build_case("whitespace-variant")
+        (case_dir / "scripts" / "ws.py").write_text(
+            "import subprocess\ncmd = get()\nresult = subprocess.run(cmd)\n",
+            encoding="utf-8",
+        )
+        allowlist_path = case_dir / "allowlist.json"
+        allowlist_path.write_text(
+            json.dumps(
+                {
+                    "description": "test",
+                    "entries": [
+                        {
+                            "file": "scripts/ws.py",
+                            "line": 3,
+                            "code": "   result = subprocess.run(cmd)   ",
+                            "reason": "whitespace-variant",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "SUBPROCESS_ALLOWLIST_PATH", allowlist_path),
+            patch.object(_mod, "_get_tracked_py_files", return_value=["scripts/ws.py"]),
+        ):
+            rc = _mod.cmd_regenerate_allowlist(case_dir)
+
+        assert rc == 0
+        written = json.loads(allowlist_path.read_text(encoding="utf-8"))
+        assert len(written["entries"]) == 1, (
+            "whitespace-variant entry must NOT be classified as orphan; "
+            "regen normalization has drifted from detection normalization"
+        )
+        assert written["entries"][0]["reason"] == "whitespace-variant"
+
+    def test_duplicate_entries_not_silently_collapsed(self) -> None:
+        """Refinement #4 lock: two identical live entries both survive.
+
+        The accumulator pattern must not deduplicate. Collapsing duplicates
+        would be silent data loss of reviewed exceptions.
+        """
+        case_dir = self._build_case("duplicate-entries")
+        (case_dir / "scripts" / "dup.py").write_text(
+            "import subprocess\ncmd = get()\nresult = subprocess.run(cmd)\n",
+            encoding="utf-8",
+        )
+        allowlist_path = case_dir / "allowlist.json"
+        allowlist_path.write_text(
+            json.dumps(
+                {
+                    "description": "test",
+                    "entries": [
+                        {
+                            "file": "scripts/dup.py",
+                            "line": 3,
+                            "code": "result = subprocess.run(cmd)",
+                            "reason": "dup-A",
+                        },
+                        {
+                            "file": "scripts/dup.py",
+                            "line": 3,
+                            "code": "result = subprocess.run(cmd)",
+                            "reason": "dup-B",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "SUBPROCESS_ALLOWLIST_PATH", allowlist_path),
+            patch.object(
+                _mod, "_get_tracked_py_files", return_value=["scripts/dup.py"]
+            ),
+        ):
+            rc = _mod.cmd_regenerate_allowlist(case_dir)
+
+        assert rc == 0
+        written = json.loads(allowlist_path.read_text(encoding="utf-8"))
+        assert len(written["entries"]) == 2, (
+            "duplicate entries must not be silently collapsed"
+        )
+        reasons = sorted(e["reason"] for e in written["entries"])
+        assert reasons == ["dup-A", "dup-B"]

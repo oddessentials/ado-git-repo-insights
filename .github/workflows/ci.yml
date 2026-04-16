@@ -13,6 +13,8 @@ env:
   # Python artifacts (uploaded from test job, ubuntu-latest/3.12 matrix leg only)
   ARTIFACT_PYTHON_COVERAGE: coverage-ubuntu-latest-3.12
   ARTIFACT_PYTHON_TESTS: test-results-ubuntu-latest-3.12
+  ARTIFACT_PYTHON_COLLECTION_PARITY_UBUNTU: python-collection-parity-ubuntu-latest-3.12
+  ARTIFACT_PYTHON_COLLECTION_PARITY_WINDOWS: python-collection-parity-windows-latest-3.12
   # TypeScript artifacts (uploaded from extension-tests job)
   ARTIFACT_TS_COVERAGE: extension-coverage
   ARTIFACT_TS_TESTS: extension-test-results
@@ -417,14 +419,17 @@ jobs:
           [ -n "$JEST_THRESHOLD" ] && echo "  Jest: $JEST_THRESHOLD"
           [ -n "$PY_THRESHOLD" ] && echo "  Python: $PY_THRESHOLD"
 
-          # Require explicit [threshold-update] marker in any commit message
+          # Require explicit [threshold-update] marker in a commit SUBJECT
+          # line. Scan is via `git log --oneline` (subjects only), so
+          # markers placed in commit bodies are NOT honored.
           MARKER_FOUND=$(git log --oneline "origin/${BASE_REF}..HEAD" | \
             grep -F "[threshold-update]" || true)
 
           if [ -z "$MARKER_FOUND" ]; then
             echo ""
             echo "::error::Coverage threshold changed without [threshold-update] marker"
-            echo "::error::Add [threshold-update] to a commit message if this change is intentional"
+            echo "::error::Add [threshold-update] to a commit SUBJECT line if this change is intentional"
+            echo "::error::(scanned via \`git log --oneline\`; markers in commit bodies are NOT honored)"
             echo ""
             echo "See: extension/COVERAGE_RATCHET.md for threshold update policy"
             echo "Formula: threshold = floor(actual_coverage - 2.0)"
@@ -592,14 +597,28 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: must match --min-collected below (cross-platform minimum)
-          # Windows collects 4 more (test_*_windows.py); conftest.py excludes them
-          # on non-Windows so they are never skipped — only uncollected.
+          # MIN_COLLECTED: cross-platform minimum (Windows-filtered). Sourced
+          # from scripts/_platform_test_filters.py::PLATFORM_CONDITIONAL_IGNORE_GLOBS
+          # which both tests/conftest.py and scripts/check_ratchet_bump.py import
+          # so the gate's filter, conftest's collect_ignore_glob, and this floor
+          # all agree. Windows cells collect additional test_*_windows.py items;
+          # the ratchet-bump guard's `Windows hermetic full count (no platform
+          # filter)` output line reports the un-filtered hermetic number for
+          # disambiguation (same hermetic code path as the floor, just without
+          # --ignore-glob applied — matches what Windows CI cells actually see).
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1621 \
+            --min-collected-artifact .test-floor-contract.json \
+            --suite python \
             --max-skips=0
+        shell: bash
+
+      - name: Generate Python collection parity artifact
+        if: matrix.python-version == '3.12' && (matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest')
+        run: |
+          python scripts/check_python_collection_parity.py generate \
+            --output python-collection-parity.json
         shell: bash
 
       - name: Upload Python Coverage
@@ -628,6 +647,64 @@ jobs:
           path: test-results.xml
           retention-days: 1
 
+      - name: Upload Python collection parity artifact (Ubuntu)
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COLLECTION_PARITY_UBUNTU }}
+          path: python-collection-parity.json
+          retention-days: 1
+
+      - name: Upload Python collection parity artifact (Windows)
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12' && matrix.os == 'windows-latest'
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COLLECTION_PARITY_WINDOWS }}
+          path: python-collection-parity.json
+          retention-days: 1
+
+  python-collection-parity:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Assert Python matrix parity legs succeeded
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          set -euo pipefail
+          if [ "$TEST_RESULT" != "success" ]; then
+            echo "::error::Upstream 'test' job result=$TEST_RESULT; cannot compare Python collection parity artifacts"
+            exit 1
+          fi
+          echo "[OK] Upstream Python test matrix succeeded"
+        shell: bash
+
+      - name: Download Ubuntu Python collection parity artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COLLECTION_PARITY_UBUNTU }}
+          path: ./artifacts/python-parity/ubuntu
+
+      - name: Download Windows Python collection parity artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COLLECTION_PARITY_WINDOWS }}
+          path: ./artifacts/python-parity/windows
+
+      - name: Compare Python collection parity artifacts
+        run: |
+          python scripts/check_python_collection_parity.py compare \
+            --left ./artifacts/python-parity/ubuntu/python-collection-parity.json \
+            --right ./artifacts/python-parity/windows/python-collection-parity.json
+        shell: bash
+
 
   # Python Type Safety Gate (FR-001, FR-002)
   # Immutable invariant: mypy MUST pass on all Python source files
@@ -649,8 +726,8 @@ jobs:
 
       - name: Run mypy type check
         run: |
-          echo "Running mypy on src/ tests/ scripts/ with strict mode per pyproject.toml..."
-          mypy src/ tests/ scripts/
+          echo "Running mypy on src/ tests/ scripts/ .github/scripts/ with strict mode per pyproject.toml..."
+          mypy src/ tests/ scripts/ .github/scripts/
           echo "[OK] mypy type check passed - all Python type errors resolved"
 
       - name: No typing.Any in src/, tests/, scripts/ (QG-40)
@@ -958,7 +1035,8 @@ jobs:
           # MAX_SKIPS: Zero tolerance — no skips allowed (parity with Python gate)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=2314 \
+            --min-collected-artifact .test-floor-contract.json \
+            --suite extension \
             --max-skips=0
         shell: bash
 
@@ -999,6 +1077,99 @@ jobs:
           path: extension/test-artifacts/smoke/
           retention-days: 7
           if-no-files-found: ignore
+
+  # Guard: Per-commit min-collected ratchet-bump discipline (#280)
+  # Strict-equality gate. At HEAD, actual collected test counts MUST equal
+  # the committed .test-floor-contract.json floors consumed by both
+  # scripts/run_pr_preflight.py and this workflow. Python count is measured
+  # in-job via a subprocess-isolated pytest collector (same code path as local
+  # preflight); Extension count is parsed from the ARTIFACT_TS_TESTS JUnit XML
+  # uploaded by the extension-tests job. Bypass markers: [ratchet-realignment] or
+  # [ratchet-test-removal] in a commit SUBJECT line in origin/main..HEAD
+  # (scanned via `git log --oneline`; markers in bodies are NOT honored).
+  ratchet-bump-guard:
+    runs-on: ubuntu-latest
+    needs: [test, extension-tests, python-collection-parity]
+    # Defense-in-depth: run even if a sibling job fails/skips so the
+    # "Assert sibling jobs succeeded" step below can surface the reason
+    # explicitly rather than silently skipping via needs-propagation.
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Assert sibling jobs succeeded (liveness)
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          EXTENSION_RESULT: ${{ needs.extension-tests.result }}
+          PYTHON_PARITY_RESULT: ${{ needs.python-collection-parity.result }}
+        run: |
+          set -euo pipefail
+          if [ "$TEST_RESULT" != "success" ]; then
+            echo "::error::Upstream 'test' job result=$TEST_RESULT; cannot validate Python ratchet drift"
+            exit 1
+          fi
+          if [ "$EXTENSION_RESULT" != "success" ]; then
+            echo "::error::Upstream 'extension-tests' job result=$EXTENSION_RESULT; cannot validate Extension ratchet drift"
+            exit 1
+          fi
+          if [ "$PYTHON_PARITY_RESULT" != "success" ]; then
+            echo "::error::Upstream 'python-collection-parity' job result=$PYTHON_PARITY_RESULT; canonical Python floor is not proven cross-OS"
+            exit 1
+          fi
+          echo "[OK] Python/Extension sibling jobs and Python parity proof succeeded"
+        shell: bash
+
+      - name: Download Extension JUnit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_TS_TESTS }}
+          path: ./artifacts/ts
+
+      - name: Assert Extension JUnit artifact present
+        run: |
+          set -euo pipefail
+          if [ ! -s "./artifacts/ts/test-results.xml" ]; then
+            echo "::error::Extension JUnit artifact missing or empty"
+            echo "::error::Expected: ./artifacts/ts/test-results.xml"
+            echo "::error::Upstream 'extension-tests' must have uploaded ARTIFACT_TS_TESTS"
+            exit 1
+          fi
+          python -c "from defusedxml.ElementTree import parse; root = parse('./artifacts/ts/test-results.xml').getroot(); assert root.tag in ('testsuites','testsuite'), f'unexpected junit root: {root.tag}'; print('[OK] extension junit parseable')"
+        shell: bash
+
+      - name: Validate test floor contract
+        run: |
+          python scripts/check_test_floor_contract.py \
+            --contract .test-floor-contract.json \
+            --extension-junit ./artifacts/ts/test-results.xml
+        shell: bash
+
+      - name: Run ratchet bump guard
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+          MARKER_RANGE: ${{ github.event_name == 'push' && format('{0}..{1}', github.event.before, github.sha) || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "${MARKER_RANGE}" ]; then
+            python scripts/check_ratchet_bump.py \
+              --base-ref "origin/${BASE_REF}" \
+              --marker-range "${MARKER_RANGE}" \
+              --junit-extension ./artifacts/ts/test-results.xml
+          else
+            python scripts/check_ratchet_bump.py \
+              --base-ref "origin/${BASE_REF}" \
+              --junit-extension ./artifacts/ts/test-results.xml
+          fi
+        shell: bash
 
   # Scalability Tests (024-dashboard-scalability)
   # Generates enterprise-scale synthetic data (156 weeks, 200 users, comments)

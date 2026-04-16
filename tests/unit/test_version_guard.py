@@ -186,9 +186,36 @@ class TestVersionGuardIsolated:
         assert "task.json" in out
 
     def test_output_includes_bypass_instructions(self, monkeypatch, capsys) -> None:
-        """When guard fails, output must tell the developer how to bypass."""
+        """When guard fails, output must tell the developer how to bypass.
+
+        The remediation must name the correct placement site (commit
+        SUBJECT line) and reference the scan command so users can
+        self-verify the contract. The legacy "commit message" phrasing
+        is forbidden because the scan is subject-only via
+        `git log --oneline` — placing the marker in a commit body
+        would fail the gate, making the old wording a false-negative
+        trap. This test mirrors the ratchet-bump-guard T25 convention
+        lock so enforcement and remediation stay aligned everywhere.
+        """
         rc = self._run_main(marker=False, monkeypatch=monkeypatch, capsys=capsys)
         assert rc == 1
         out = capsys.readouterr().out
         assert MARKER in out
-        assert "commit message" in out.lower()
+        # Positive: the hint must name the correct placement site.
+        assert "commit subject" in out.lower(), (
+            "Bypass instructions must tell users the marker goes in a "
+            f"commit SUBJECT line (not just 'a commit message'); got: {out!r}"
+        )
+        # Positive: the hint must reference the scan command so users
+        # can self-verify the contract.
+        assert "git log --oneline" in out.lower(), (
+            "Bypass instructions must reference `git log --oneline` so "
+            "users can confirm the subject-only scan contract; "
+            f"got: {out!r}"
+        )
+        # Negative: the legacy misleading phrase must not appear.
+        assert "to a commit message" not in out.lower(), (
+            "Bypass instructions must not say 'to a commit message' — "
+            "the scan reads only commit subjects via `git log --oneline`, "
+            f"so that phrasing is misleading. Current output: {out!r}"
+        )

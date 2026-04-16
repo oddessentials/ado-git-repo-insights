@@ -174,6 +174,27 @@ def reset_canonical_artifact_root() -> None:
     ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def prepare_validate_only_artifact_root() -> None:
+    """Prepare an isolated validate-only artifact root from committed docs/data.
+
+    Validate-only mode treats ``docs/data`` as the committed source of truth and
+    rebuilds the artifact surface from that snapshot. The copy step must exclude
+    gitignored files such as local ``*.sqlite`` extraction remnants, otherwise
+    manifest addressability checks would fail on files that are not part of the
+    canonical published demo surface.
+    """
+    _remove_tree(ARTIFACT_DATA_DIR)
+    _remove_tree(ARTIFACT_REPORT_DIR)
+    _remove_tree(ARTIFACT_METADATA_DIR)
+    shutil.copytree(
+        DOCS_DATA_DIR,
+        ARTIFACT_DATA_DIR,
+        ignore=_gitignored_copytree_ignore(DOCS_DATA_DIR),
+    )
+    ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
 def _resolve_pnpm() -> str:
     """Resolve pnpm from PATH for canonical demo surface publication."""
     for candidate in ("pnpm.cmd", "pnpm"):
@@ -1061,18 +1082,13 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "--validate-only cannot be used with promotion; rerun with --no-promote"
         )
-    reset_canonical_artifact_root()
 
     if args.validate_only:
+        prepare_validate_only_artifact_root()
         print("[demo-build] validate-only: using committed docs/data")
-        shutil.copytree(
-            DOCS_DATA_DIR,
-            ARTIFACT_DATA_DIR,
-            dirs_exist_ok=True,
-            ignore=_gitignored_copytree_ignore(DOCS_DATA_DIR),
-        )
         active_mode = VALIDATED_COMMITTED_DEMO_MODE
     else:
+        reset_canonical_artifact_root()
         require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
         for script_name in GENERATOR_STEPS:
             print(f"[demo-build] running {script_name}")

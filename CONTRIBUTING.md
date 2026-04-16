@@ -160,6 +160,9 @@ To run the repo-owned hooks directly:
 ```bash
 python scripts/run_repo_hook.py pre-commit
 python scripts/run_repo_hook.py pre-push
+
+# Optional: strict preflight with explicit base ref (hook runs non-strict by default)
+BASE_REF=main python scripts/run_pr_preflight.py --strict
 ```
 
 **Details:** [UI Bundle Sync Guide](docs/development/ui-bundle-sync.md)

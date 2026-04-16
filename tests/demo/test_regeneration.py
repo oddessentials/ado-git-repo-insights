@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+from itertools import count
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,8 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent.parent
 DOCS_DATA = REPO_ROOT / "docs" / "data"
 ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
+TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
+_SCRATCH_COUNTER = count()
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 BUILD_SCRIPT = SCRIPTS_DIR / "build-demo-dataset.py"
 MANIFEST_PATH = DOCS_DATA / "dataset-manifest.json"
@@ -73,11 +77,33 @@ def compute_all_file_hashes(directory: Path) -> dict[str, str]:
     hashes = {}
     for file_path in sorted(path for path in directory.rglob("*") if path.is_file()):
         rel_path = file_path.relative_to(directory)
-        hashes[str(rel_path).replace("\\", "/")] = compute_file_hash(file_path)
+        rel_path_str = str(rel_path).replace("\\", "/")
+        if rel_path_str == "metadata/demo-profile.json":
+            profile = json.loads(file_path.read_text(encoding="utf-8"))
+            profile["profile"]["artifact_root"] = "<artifact-root>"
+            hashes[rel_path_str] = hashlib.sha256(
+                (json.dumps(profile, sort_keys=True, indent=2) + "\n").encode("utf-8")
+            ).hexdigest()
+            continue
+        if rel_path_str == "report/generation-summary.md":
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+            normalized_lines = [
+                "- Canonical output: `<artifact-root>`"
+                if line.startswith("- Canonical output: `")
+                else line
+                for line in lines
+            ]
+            hashes[rel_path_str] = hashlib.sha256(
+                ("\n".join(normalized_lines) + "\n").encode("utf-8")
+            ).hexdigest()
+            continue
+        hashes[rel_path_str] = compute_file_hash(file_path)
     return hashes
 
 
-def run_non_promoting_canonical_data_build() -> None:
+def run_non_promoting_canonical_data_build(
+    artifact_root: Path | None = None,
+) -> Path:
     """Run the canonical committed-demo data pipeline up to artifacts only.
 
     This test helper intentionally stops at the non-promoting artifact boundary
@@ -85,18 +111,53 @@ def run_non_promoting_canonical_data_build() -> None:
     separately by the dedicated demo workflow, so Python matrix jobs do not
     depend on Node/pnpm availability.
     """
-    args = [sys.executable, str(BUILD_SCRIPT), "--no-promote"]
+    env = os.environ.copy()
+    resolved_artifact_root = ARTIFACT_ROOT
     if not _IS_BASELINE_PYTHON:
-        args.append("--validate-only")
-    result = subprocess.run(
-        args,
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
+        if artifact_root is None:
+            raise AssertionError(
+                "artifact_root is required for non-baseline validate-only runs"
+            )
+        resolved_artifact_root = artifact_root
+        env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(BUILD_SCRIPT),
+                "--no-promote",
+                "--validate-only",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            env=env,
+        )
+    else:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(BUILD_SCRIPT),
+                "--no-promote",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            env=env,
+        )
     assert result.returncode == 0, (
         f"non-promoting build-demo-dataset.py failed: {result.stderr or result.stdout}"
     )
+    return resolved_artifact_root
+
+
+def make_repo_local_artifact_root(prefix: str) -> Path:
+    """Allocate a repo-local scratch artifact root for subprocess builds."""
+    TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    artifact_root = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    while artifact_root.exists():
+        artifact_root = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    artifact_root.mkdir(parents=True, exist_ok=False)
+    return artifact_root
 
 
 def _set_manifest_feature_flag(flag_name: str, value: bool) -> None:
@@ -126,7 +187,9 @@ class TestDeterministicRegeneration:
 
         if not _IS_BASELINE_PYTHON:
             # Validate committed data integrity via validate-only build
-            run_non_promoting_canonical_data_build()
+            run_non_promoting_canonical_data_build(
+                make_repo_local_artifact_root("validate-only-artifacts")
+            )
             manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
             assert manifest["generation_provenance"]["generation_mode"] == (
                 CANONICAL_COMMITTED_DEMO_MODE
@@ -166,12 +229,16 @@ class TestDeterministicRegeneration:
         On baseline Python: verifies full generation determinism.
         On non-baseline: verifies validate-only mode is deterministic.
         """
-        run_non_promoting_canonical_data_build()
-        first_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
+        artifact_root = run_non_promoting_canonical_data_build(
+            make_repo_local_artifact_root("validate-only-artifacts-run-1")
+        )
+        first_hashes = compute_all_file_hashes(artifact_root)
         assert first_hashes, "Canonical artifact root must contain generated files"
 
-        run_non_promoting_canonical_data_build()
-        second_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
+        artifact_root = run_non_promoting_canonical_data_build(
+            make_repo_local_artifact_root("validate-only-artifacts-run-2")
+        )
+        second_hashes = compute_all_file_hashes(artifact_root)
 
         assert first_hashes == second_hashes, (
             "Artifact build output is not deterministic across repeated runs"

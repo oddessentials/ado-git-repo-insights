@@ -5,34 +5,53 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
+import pytest
 import yaml
-
-_MIN_COLLECTED_RE = re.compile(r"--min-collected=(\d+)")
-
-
-def _extract_min_collected(text: str) -> int:
-    """Extract the integer value from a ``--min-collected=N`` token in
-    arbitrary command text. Works for both the preflight ``CommandSpec``
-    (where the tuple is space-joined into one string) and the CI YAML
-    ``run`` block (multi-line shell script)."""
-    match = _MIN_COLLECTED_RE.search(text)
-    assert match is not None, (
-        f"No --min-collected=N token found in the command text. "
-        f"Inspected text: {text!r}"
-    )
-    return int(match.group(1))
-
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
 REPO_HOOK_SCRIPT = REPO_ROOT / "scripts" / "run_repo_hook.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 PARITY_BASELINE_PATH = Path("parity-artifacts") / "main-baseline.json"
+TEST_FLOOR_ARTIFACT = REPO_ROOT / ".test-floor-contract.json"
+INVARIANT_CONTRACTS_SCRIPT = REPO_ROOT / "scripts" / "invariant_contracts.py"
+
+
+class FloorSuiteEntry(TypedDict):
+    min_collected: int
+    authority: str
+
+
+class FloorContractPayload(TypedDict):
+    schema_version: int
+    python: FloorSuiteEntry
+    extension: FloorSuiteEntry
+
+
+@pytest.fixture(autouse=True)
+def _default_base_ref_for_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Module-level default: set ``BASE_REF=main`` so the resolver resolves.
+
+    Most tests in this module exercise ``_normalized_preflight_commands``
+    which internally calls ``build_commands`` -> ``resolve_pr_base_ref``.
+    Post the #280 fail-closed refactor, the resolver raises SystemExit
+    when neither ``BASE_REF`` nor ``GITHUB_BASE_REF`` is set. Pinning
+    ``BASE_REF=main`` as the default gives every test a deterministic
+    resolver return value without each test having to set it by hand.
+    The ``test_preflight_has_ratchet_bump_guard_command_spec`` test
+    already asserts against this exact value; the T38 AST lock reads
+    source directly and does not care about the env.
+    """
+    monkeypatch.setenv("BASE_REF", "main")
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
 
 HOOK_FUNCTION_TO_GATE = {
     "run_extension_typecheck": "Extension build check",
@@ -76,6 +95,43 @@ def _load_preflight_module():
     sys.modules["run_pr_preflight"] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_invariant_contracts_module():
+    spec = importlib.util.spec_from_file_location(
+        "invariant_contracts", INVARIANT_CONTRACTS_SCRIPT
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["invariant_contracts"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_test_floor_contract() -> FloorContractPayload:
+    raw = json.loads(TEST_FLOOR_ARTIFACT.read_text(encoding="utf-8"))
+    assert isinstance(raw, dict)
+    assert isinstance(raw.get("schema_version"), int)
+    python_entry = raw.get("python")
+    extension_entry = raw.get("extension")
+    assert isinstance(python_entry, dict)
+    assert isinstance(extension_entry, dict)
+    assert isinstance(python_entry.get("min_collected"), int)
+    assert isinstance(python_entry.get("authority"), str)
+    assert isinstance(extension_entry.get("min_collected"), int)
+    assert isinstance(extension_entry.get("authority"), str)
+    return {
+        "schema_version": raw["schema_version"],
+        "python": {
+            "min_collected": python_entry["min_collected"],
+            "authority": python_entry["authority"],
+        },
+        "extension": {
+            "min_collected": extension_entry["min_collected"],
+            "authority": extension_entry["authority"],
+        },
+    }
 
 
 def _normalized_preflight_commands(
@@ -247,6 +303,7 @@ class TestPrecommitParity:
 
         assert "run_staged_suppression_diff_guard" in called_functions
         assert "run_staged_suppression_justification_guard" in called_functions
+        assert "run_invariant_artifact_contract_guards" in called_functions
         guard_calls = _extract_called_function_names(
             "run_staged_suppression_diff_guard"
         )
@@ -673,51 +730,582 @@ class TestPartialBranchesParity:
 
 
 class TestTestCountRatchetParity:
-    """Parity lock for the ``--min-collected`` test-count ratchet.
+    """Parity lock for the committed test-floor contract and parity proof job."""
 
-    The ratchet lives in exactly two authoritative locations that must
-    stay in sync:
-
-    - ``scripts/run_pr_preflight.py`` — local preflight ``CommandSpec``
-    - ``.github/workflows/ci.yml`` — CI job shell steps
-
-    Drift between these two surfaces means a test-count regression could
-    pass locally while failing in CI (or vice versa) — exactly the kind of
-    manual-discipline gap the parity suite is designed to catch. This test
-    extracts the Python and Jest ``--min-collected`` values from both
-    sides and asserts they match.
-
-    If this test fails, update BOTH sites in the same commit to the new
-    floor. There is no other authoritative location.
-    """
-
-    def test_min_collected_matches_between_preflight_and_ci(self) -> None:
+    def test_preflight_and_ci_read_same_committed_floor_artifact(self) -> None:
         preflight = _normalized_preflight_commands()
+        floor_contract = _load_test_floor_contract()
 
-        preflight_python = _extract_min_collected(
-            preflight.get("Python test count validation", "")
+        preflight_python = preflight.get("Python test count validation", "")
+        preflight_extension = preflight.get("Extension test count validation", "")
+        assert preflight_python == (
+            "__PYTHON__ .github/scripts/validate-test-results.py "
+            "test-results.xml --min-collected-artifact .test-floor-contract.json "
+            "--suite python --max-skips=0"
         )
-        preflight_extension = _extract_min_collected(
-            preflight.get("Extension test count validation", "")
+        assert preflight_extension == (
+            "__PYTHON__ .github/scripts/validate-test-results.py "
+            "extension/test-results.xml --min-collected-artifact "
+            ".test-floor-contract.json --suite extension --max-skips=0"
         )
 
         ci_python_step = _find_ci_step("test", "Validate Test Results (Python)")
-        ci_python = _extract_min_collected(str(ci_python_step.get("run", "")))
+        ci_python_run = str(ci_python_step.get("run", ""))
+        assert "--min-collected-artifact .test-floor-contract.json" in ci_python_run
+        assert "--suite python" in ci_python_run
 
         ci_extension_step = _find_ci_step(
             "extension-tests", "Validate Test Results (Extension)"
         )
-        ci_extension = _extract_min_collected(str(ci_extension_step.get("run", "")))
+        ci_extension_run = str(ci_extension_step.get("run", ""))
+        assert "--min-collected-artifact .test-floor-contract.json" in ci_extension_run
+        assert "--suite extension" in ci_extension_run
 
-        assert (preflight_python, preflight_extension) == (
-            ci_python,
-            ci_extension,
+        assert floor_contract["schema_version"] == 1
+        assert floor_contract["python"]["min_collected"] == 1782
+        assert floor_contract["extension"]["min_collected"] > 0
+
+    def test_preflight_and_ci_require_explicit_floor_contract_validation(self) -> None:
+        preflight = _normalized_preflight_commands()
+        assert preflight["Test floor contract validation"] == (
+            "__PYTHON__ scripts/check_test_floor_contract.py --contract "
+            ".test-floor-contract.json --extension-junit extension/test-results.xml"
+        )
+
+        ci_step = _find_ci_step("ratchet-bump-guard", "Validate test floor contract")
+        ci_run = str(ci_step.get("run", ""))
+        assert "scripts/check_test_floor_contract.py" in ci_run
+        assert "--contract .test-floor-contract.json" in ci_run
+        assert "--extension-junit ./artifacts/ts/test-results.xml" in ci_run
+
+    def test_python_ci_includes_cross_os_collection_parity_job(self) -> None:
+        job = _load_ci_jobs().get("python-collection-parity")
+        assert isinstance(job, dict), (
+            "CI must define a dedicated 'python-collection-parity' job so the "
+            "canonical filtered collector is proven identical on ubuntu and windows "
+            "before the Python floor artifact is treated as authoritative."
+        )
+        needs = job.get("needs")
+        assert needs == "test" or needs == ["test"], (
+            "python-collection-parity must depend on the Python test matrix so "
+            "it compares artifacts emitted by the canonical collector legs."
+        )
+
+        compare_step = _find_ci_step(
+            "python-collection-parity", "Compare Python collection parity artifacts"
+        )
+        compare_run = str(compare_step.get("run", ""))
+        assert "scripts/check_python_collection_parity.py compare" in compare_run
+        assert (
+            "artifacts/python-parity/ubuntu/python-collection-parity.json"
+            in compare_run
+        )
+        assert (
+            "artifacts/python-parity/windows/python-collection-parity.json"
+            in compare_run
+        )
+
+        ratchet_job = _load_ci_jobs()["ratchet-bump-guard"]
+        ratchet_needs = ratchet_job.get("needs", [])
+        assert "python-collection-parity" in ratchet_needs, (
+            "ratchet-bump-guard must depend on python-collection-parity so the "
+            "committed Python floor is not trusted before cross-OS parity is green."
+        )
+
+    def test_python_collection_parity_script_does_not_import_ratchet_gate(self) -> None:
+        parity_script = REPO_ROOT / "scripts" / "check_python_collection_parity.py"
+        tree = ast.parse(parity_script.read_text(encoding="utf-8"))
+
+        forbidden_imports: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "check_ratchet_bump":
+                        forbidden_imports.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in {"check_ratchet_bump", "scripts.check_ratchet_bump"}:
+                    forbidden_imports.add(node.module)
+
+        assert not forbidden_imports, (
+            "check_python_collection_parity.py must not import check_ratchet_bump; "
+            "the CI parity job has a lighter dependency surface and must not depend "
+            f"on ratchet-only imports. Found: {sorted(forbidden_imports)}"
+        )
+
+
+class TestInvariantContractInventory:
+    def test_invariant_artifact_contracts_declare_explicit_inputs(self) -> None:
+        contracts_module = _load_invariant_contracts_module()
+        contracts = contracts_module.INVARIANT_ARTIFACT_CONTRACTS
+        assert contracts, "Expected at least one invariant artifact contract manifest."
+        for contract in contracts:
+            assert contract.artifact_path
+            assert contract.input_pathspecs, (
+                f"{contract.contract_id} must declare authoritative input pathspecs."
+            )
+            assert all(
+                isinstance(pathspec, str) and pathspec
+                for pathspec in contract.input_pathspecs
+            ), f"{contract.contract_id} input pathspecs must be non-empty strings."
+            assert contract.snapshot_mode in {"index-filesystem", "clean-worktree"}
+
+    def test_typescript_gate_inventory_has_hard_disposition_for_each_reviewed_gate(
+        self,
+    ) -> None:
+        contracts_module = _load_invariant_contracts_module()
+        reviews = {
+            review.gate_name: review
+            for review in contracts_module.TYPESCRIPT_GATE_REVIEWS
+        }
+        expected_gates = {
+            "Extension build check",
+            "Extension test type check",
+            "Extension test config parity",
+            "Extension lint",
+            "Extension test lint",
+            "Extension format check",
+            "Extension test count validation",
+            "Partial-branch ratchet",
+            "Extension smoke tests",
+            "Extension VSIX artifact inspection",
+        }
+        assert set(reviews) == expected_gates, (
+            "TypeScript parity rollout must enumerate every reviewed TS gate with "
+            "an explicit disposition; add/remove entries here in the same commit as "
+            "the workflow change."
+        )
+        for review in reviews.values():
+            assert review.disposition in {
+                "environment-insensitive-by-construction",
+                "single-platform-canonical",
+                "not-an-artifacted-invariant",
+            }
+            assert review.authoritative_runner
+            assert review.reason
+
+
+class TestPythonTypeCheckParity:
+    """Lock the mypy scope for repo-owned Python automation."""
+
+    def test_preflight_python_type_check_includes_github_scripts(self) -> None:
+        preflight = _normalized_preflight_commands()
+        assert preflight["Python type check"] == (
+            "__PYTHON__ -m mypy src/ tests/ scripts/ .github/scripts/"
         ), (
-            "Test-count ratchet drift between preflight and CI:\n"
-            f"  Python:    preflight={preflight_python}, CI={ci_python}\n"
-            f"  Extension: preflight={preflight_extension}, CI={ci_extension}\n"
-            "Both --min-collected values must match exactly between "
-            "scripts/run_pr_preflight.py and .github/workflows/ci.yml. "
-            "If you're raising the floor, update both sites in the same "
-            "commit."
+            "Preflight mypy must cover .github/scripts/ alongside src/, tests/, "
+            "and scripts/. CI-owned Python automation should not sit outside the "
+            "authoritative typed gate."
+        )
+
+    def test_ci_python_type_check_matches_preflight_scope(self) -> None:
+        step = _find_ci_step("mypy", "Run mypy type check")
+        run_block = str(step.get("run", ""))
+        assert "mypy src/ tests/ scripts/ .github/scripts/" in run_block, (
+            "CI mypy must match local preflight scope exactly, including "
+            ".github/scripts/, or local/CI parity is broken."
+        )
+
+
+class TestPythonCollectionDefinitionParity:
+    """Lock shared-floor tests against interpreter-version collection drift."""
+
+    def test_demo_parity_tests_are_not_conditionally_defined_by_python_version(
+        self,
+    ) -> None:
+        targets = (
+            REPO_ROOT / "tests" / "demo" / "test_demo_parity_pipeline.py",
+            REPO_ROOT / "tests" / "demo" / "test_regeneration.py",
+        )
+        violations: list[str] = []
+
+        for target in targets:
+            tree = ast.parse(target.read_text(encoding="utf-8"), filename=str(target))
+
+            def visit_block(
+                nodes: list[ast.stmt], guarded: bool, target_name: str
+            ) -> None:
+                for node in nodes:
+                    next_guarded = guarded
+                    if isinstance(node, ast.If) and (
+                        (
+                            isinstance(node.test, ast.Name)
+                            and node.test.id == "_IS_BASELINE_PYTHON"
+                        )
+                        or (
+                            isinstance(node.test, ast.UnaryOp)
+                            and isinstance(node.test.op, ast.Not)
+                            and isinstance(node.test.operand, ast.Name)
+                            and node.test.operand.id == "_IS_BASELINE_PYTHON"
+                        )
+                    ):
+                        visit_block(node.body, True, target_name)
+                        visit_block(node.orelse, True, target_name)
+                        continue
+
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+                        node.name.startswith("test_") and guarded
+                    ):
+                        violations.append(f"{target_name}:{node.name}")
+
+                    child_body = getattr(node, "body", None)
+                    if isinstance(child_body, list):
+                        visit_block(child_body, next_guarded, target_name)
+                    child_orelse = getattr(node, "orelse", None)
+                    if isinstance(child_orelse, list):
+                        visit_block(child_orelse, next_guarded, target_name)
+
+            visit_block(tree.body, False, target.name)
+
+        assert not violations, (
+            "Shared-floor demo tests must not be conditionally defined behind "
+            "_IS_BASELINE_PYTHON. Define the test unconditionally and skip inside "
+            f"the body so collection remains interpreter-stable. Violations: {violations}"
+        )
+
+
+class TestRatchetBumpGuardParity:
+    """Parity lock for the per-commit ratchet-bump discipline gate (#280).
+
+    The gate ships as ``scripts/check_ratchet_bump.py`` and must be wired
+    into both ``run_pr_preflight.py`` (CommandSpec) and ``ci.yml`` (a
+    dedicated top-level job). These tests pin the exact shapes so a
+    future edit cannot silently drop one surface or change the gate's
+    exemption semantics.
+    """
+
+    def test_preflight_has_ratchet_bump_guard_command_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Pin BASE_REF=main so the resolver returns a deterministic
+        # value and we can check the normalized command string. We
+        # can NOT use the empty-env path here: as of the fail-closed
+        # refactor, empty env raises SystemExit via fail_setup, and
+        # the resolver never returns. Setting BASE_REF=main exercises
+        # the happy path for the main-targeting-PR case, which is
+        # what most developers will run against.
+        monkeypatch.setenv("BASE_REF", "main")
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        preflight = _normalized_preflight_commands()
+        assert "Ratchet bump guard" in preflight, (
+            "Preflight must declare a 'Ratchet bump guard' CommandSpec "
+            "(issue #280). It enforces actual == --min-collected floor "
+            "at HEAD for Python and Extension and inter-file parity "
+            "between run_pr_preflight.py and ci.yml."
+        )
+        assert preflight["Ratchet bump guard"] == (
+            "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main "
+            "--junit-extension extension/test-results.xml"
+        ), (
+            "Preflight 'Ratchet bump guard' command must invoke "
+            "check_ratchet_bump.py with --base-ref origin/main when "
+            "BASE_REF=main is set; got: "
+            f"{preflight['Ratchet bump guard']!r}"
+        )
+
+    def test_t38_preflight_ratchet_bump_routes_base_ref_through_resolver(
+        self,
+    ) -> None:
+        """The CommandSpec MUST call ``resolve_pr_base_ref()`` for its ``--base-ref``
+        argument, not hardcode a string literal.
+
+        This is the AST-level lock that closes the preflight-vs-CI
+        parity hole. The earlier shape test above only verifies the
+        *default* value (``origin/main``) that the resolver returns
+        when no env vars are set — a future refactor could silently
+        revert the CommandSpec back to a hardcoded ``"origin/main"``
+        string literal and that shape test would still pass, because
+        the normalized command text is identical either way.
+
+        Walking the AST instead of the runtime value is the only way
+        to lock the *mechanism*: the ``--base-ref`` argument in the
+        ``CommandSpec(...)`` tuple must be a ``Call`` node whose
+        callee is named ``resolve_pr_base_ref``. If anyone replaces
+        it with an ``ast.Constant`` string, this test fails immediately
+        with a message naming the exact regression.
+        """
+        source = PREFLIGHT_SCRIPT.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(PREFLIGHT_SCRIPT))
+
+        ratchet_specs: list[ast.Call] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Name) and func.id == "CommandSpec"):
+                continue
+            if not node.args:
+                continue
+            name_arg = node.args[0]
+            if not (
+                isinstance(name_arg, ast.Constant)
+                and isinstance(name_arg.value, str)
+                and name_arg.value == "Ratchet bump guard"
+            ):
+                continue
+            ratchet_specs.append(node)
+
+        assert len(ratchet_specs) == 1, (
+            f"Expected exactly one CommandSpec named 'Ratchet bump "
+            f"guard' in {PREFLIGHT_SCRIPT.name}; found "
+            f"{len(ratchet_specs)}. If the gate was renamed or moved, "
+            "update this test."
+        )
+
+        command_tuple = ratchet_specs[0].args[1]
+        assert isinstance(command_tuple, ast.Tuple), (
+            "Ratchet bump guard CommandSpec second arg must be a tuple "
+            "literal (not a variable) so static analysis can verify "
+            f"its shape. Got: {type(command_tuple).__name__}"
+        )
+
+        # Find the --base-ref flag and its value.
+        flag_index: int | None = None
+        for i, element in enumerate(command_tuple.elts):
+            if (
+                isinstance(element, ast.Constant)
+                and isinstance(element.value, str)
+                and element.value == "--base-ref"
+            ):
+                flag_index = i
+                break
+        assert flag_index is not None, (
+            "Ratchet bump guard CommandSpec must pass a `--base-ref` "
+            "flag; none found in the tuple literal."
+        )
+        assert flag_index + 1 < len(command_tuple.elts), (
+            "`--base-ref` flag has no value element after it in the CommandSpec tuple."
+        )
+        value_node = command_tuple.elts[flag_index + 1]
+
+        # Negative assertion first — the exact regression we are
+        # locking against is a string-literal base ref.
+        assert not (
+            isinstance(value_node, ast.Constant) and isinstance(value_node.value, str)
+        ), (
+            "Ratchet bump guard --base-ref MUST NOT be a hardcoded "
+            "string literal. Hardcoding breaks preflight-vs-CI parity "
+            "for any PR targeting a non-main branch: CI uses "
+            "`origin/${github.base_ref}` but preflight would scan "
+            "whatever literal is baked in. Route the value through "
+            "`resolve_pr_base_ref()` so local preflight and the CI "
+            "ratchet-bump-guard job compute the same commit range. "
+            f"Current value node: {ast.dump(value_node)}"
+        )
+
+        # Positive assertion — it must be a Call to resolve_pr_base_ref.
+        assert isinstance(value_node, ast.Call), (
+            "Ratchet bump guard --base-ref must be a Call node "
+            "(to resolve_pr_base_ref); got "
+            f"{type(value_node).__name__}: {ast.dump(value_node)}"
+        )
+        callee = value_node.func
+        assert isinstance(callee, ast.Name), (
+            "Ratchet bump guard --base-ref Call must be to a bare "
+            f"function name; got: {ast.dump(callee)}"
+        )
+        assert callee.id == "resolve_pr_base_ref", (
+            "Ratchet bump guard --base-ref must be routed through "
+            "`resolve_pr_base_ref()` (issue #280 local/CI parity lock). "
+            f"Got a call to: {callee.id!r}"
+        )
+
+
+class TestPatchCoverageParity:
+    """Parity lock for the local patch-coverage preview gate (#281).
+
+    ``check_patch_coverage.py`` is intentionally local-only, but it still
+    must compute its diff against the same PR base ref a contributor's real
+    target branch implies. Hardcoding ``origin/main`` silently breaks preview
+    accuracy for release/hotfix PRs, so the CommandSpec must route through the
+    same base-ref resolver as the ratchet gate.
+    """
+
+    def test_preflight_has_patch_coverage_parity_command_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BASE_REF", "main")
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        preflight = _normalized_preflight_commands()
+
+        assert "Local patch coverage parity" in preflight, (
+            "Preflight must declare a 'Local patch coverage parity' CommandSpec "
+            "(issue #281) so contributors can preview Codecov-style patch "
+            "coverage against the same PR base branch they will submit to."
+        )
+        assert preflight["Local patch coverage parity"] == (
+            "__PYTHON__ scripts/check_patch_coverage.py --base-ref origin/main "
+            "--python-coverage coverage.xml --ts-coverage extension/coverage/lcov.info"
+        ), (
+            "Preflight 'Local patch coverage parity' command must invoke "
+            "check_patch_coverage.py with --base-ref origin/main when "
+            "BASE_REF=main is set; got: "
+            f"{preflight['Local patch coverage parity']!r}"
+        )
+
+    def test_t39_preflight_patch_coverage_routes_base_ref_through_resolver(
+        self,
+    ) -> None:
+        source = PREFLIGHT_SCRIPT.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(PREFLIGHT_SCRIPT))
+
+        patch_specs: list[ast.Call] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Name) and func.id == "CommandSpec"):
+                continue
+            if not node.args:
+                continue
+            name_arg = node.args[0]
+            if not (
+                isinstance(name_arg, ast.Constant)
+                and isinstance(name_arg.value, str)
+                and name_arg.value == "Local patch coverage parity"
+            ):
+                continue
+            patch_specs.append(node)
+
+        assert len(patch_specs) == 1, (
+            f"Expected exactly one CommandSpec named 'Local patch coverage "
+            f"parity' in {PREFLIGHT_SCRIPT.name}; found {len(patch_specs)}. "
+            "If the gate was renamed or moved, update this test."
+        )
+
+        command_tuple = patch_specs[0].args[1]
+        assert isinstance(command_tuple, ast.Tuple), (
+            "Local patch coverage parity CommandSpec second arg must be a tuple "
+            "literal (not a variable) so static analysis can verify its shape. "
+            f"Got: {type(command_tuple).__name__}"
+        )
+
+        flag_index: int | None = None
+        for i, element in enumerate(command_tuple.elts):
+            if (
+                isinstance(element, ast.Constant)
+                and isinstance(element.value, str)
+                and element.value == "--base-ref"
+            ):
+                flag_index = i
+                break
+
+        assert flag_index is not None, (
+            "Local patch coverage parity CommandSpec must pass a `--base-ref` "
+            "flag; none found in the tuple literal."
+        )
+        assert flag_index + 1 < len(command_tuple.elts), (
+            "`--base-ref` flag has no value element after it in the CommandSpec tuple."
+        )
+        value_node = command_tuple.elts[flag_index + 1]
+
+        assert not (
+            isinstance(value_node, ast.Constant) and isinstance(value_node.value, str)
+        ), (
+            "Local patch coverage parity --base-ref MUST NOT be a hardcoded "
+            "string literal. Hardcoding breaks the local patch-coverage preview "
+            "for non-main-targeting PRs by diffing against the wrong base range. "
+            "Route the value through `resolve_pr_base_ref()` so the preview uses "
+            "the contributor's actual PR target branch. "
+            f"Current value node: {ast.dump(value_node)}"
+        )
+
+        assert isinstance(value_node, ast.Call), (
+            "Local patch coverage parity --base-ref must be a Call node "
+            "(to resolve_pr_base_ref); got "
+            f"{type(value_node).__name__}: {ast.dump(value_node)}"
+        )
+        callee = value_node.func
+        assert isinstance(callee, ast.Name), (
+            "Local patch coverage parity --base-ref Call must be to a bare "
+            f"function name; got: {ast.dump(callee)}"
+        )
+        assert callee.id == "resolve_pr_base_ref", (
+            "Local patch coverage parity --base-ref must be routed through "
+            "`resolve_pr_base_ref()` (issue #281 local parity lock). "
+            f"Got a call to: {callee.id!r}"
+        )
+
+    def test_ci_ratchet_bump_guard_job_is_wired_correctly(self) -> None:
+        jobs = _load_ci_jobs()
+        assert "ratchet-bump-guard" in jobs, (
+            "CI workflow must declare a 'ratchet-bump-guard' top-level "
+            "job (issue #280). Local parity lives in the 'Ratchet bump "
+            "guard' preflight CommandSpec; CI parity is this dedicated "
+            "job so a failing/skipped sibling cannot silently unguard "
+            "the gate."
+        )
+        job = jobs["ratchet-bump-guard"]
+
+        needs = job.get("needs")
+        assert needs == ["test", "extension-tests", "python-collection-parity"], (
+            "ratchet-bump-guard must declare `needs: [test, extension-tests, "
+            "python-collection-parity]` so the gate cannot run before both "
+            "test baselines AND the cross-OS Python parity proof are green; "
+            f"got: {needs!r}"
+        )
+
+        if_expr = str(job.get("if", "")).strip()
+        assert if_expr == "always() && !cancelled()", (
+            "ratchet-bump-guard must use `if: always() && !cancelled()` so "
+            "the liveness-assert step runs even when a sibling fails, "
+            "surfacing the reason instead of silently skipping via "
+            f"needs-propagation; got: {if_expr!r}"
+        )
+
+        step_names: list[str] = []
+        for step in job.get("steps", []):
+            if isinstance(step, dict):
+                name = step.get("name")
+                if isinstance(name, str):
+                    step_names.append(name)
+
+        for required in (
+            "Assert sibling jobs succeeded (liveness)",
+            "Download Extension JUnit artifact",
+            "Assert Extension JUnit artifact present",
+            "Run ratchet bump guard",
+        ):
+            assert required in step_names, (
+                f"ratchet-bump-guard missing required step {required!r}; "
+                f"have: {step_names}"
+            )
+
+        assert not any(
+            "Python JUnit" in name or "Python artifact" in name for name in step_names
+        ), (
+            "ratchet-bump-guard MUST NOT download or assert the Python "
+            "JUnit artifact — the gate measures Python in-job via the "
+            "subprocess-isolated pytest collector, identical to local "
+            "preflight. Asserting an unused artifact would create false "
+            "failures unrelated to the gate's logic. Offending steps: "
+            f"{[n for n in step_names if 'Python' in n]}"
+        )
+
+        gate_step = _find_ci_step("ratchet-bump-guard", "Run ratchet bump guard")
+        run_block = str(gate_step.get("run", ""))
+        commands = _extract_shell_commands(run_block)
+        assert len(commands) == 2, (
+            "ratchet-bump-guard 'Run ratchet bump guard' step must expose "
+            "exactly two allowed shell command shapes: one PR/default path "
+            "without --marker-range and one push path with --marker-range; "
+            f"got: {commands!r}"
+        )
+        expected_common_prefix = (
+            'python scripts/check_ratchet_bump.py --base-ref "origin/${BASE_REF}" '
+        )
+        expected_common_suffix = "--junit-extension ./artifacts/ts/test-results.xml"
+        expected_without_marker = expected_common_prefix + expected_common_suffix
+        expected_with_marker = (
+            expected_common_prefix
+            + '--marker-range "${MARKER_RANGE}" '
+            + expected_common_suffix
+        )
+        assert sorted(commands) == sorted(
+            [expected_without_marker, expected_with_marker]
+        ), (
+            "ratchet-bump-guard invocation must allow exactly the two "
+            "command shapes locked by the workflow plan: shared --base-ref "
+            "and --junit-extension flags in both branches, with "
+            "--marker-range present only in the push branch; "
+            f"got: {commands!r}"
         )

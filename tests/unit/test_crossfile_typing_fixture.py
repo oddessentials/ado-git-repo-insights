@@ -1,6 +1,6 @@
 """Cross-file typing fixture: proves mypy enforces load_json_file return type.
 
-This file is checked by mypy as part of `mypy src/ tests/ scripts/`.
+This file is checked by mypy as part of `mypy src/ tests/ scripts/ .github/scripts/`.
 If demo_generation_common were still in ignore_missing_imports, mypy would
 treat load_json_file as returning Any and this file would pass silently.
 With the fix, mypy resolves the real return type (dict[str, JSONValue])

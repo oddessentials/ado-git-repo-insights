@@ -14,14 +14,35 @@ Dependencies:
     pip install -e ".[dev]"
 """
 
+import json
 import sys
 from pathlib import Path
+from typing import TypedDict, TypeGuard, cast
 
 from defusedxml.ElementTree import ParseError as XMLParseError
 from defusedxml.ElementTree import parse as parse_xml
 
 
-def parse_junit_xml(xml_path: str) -> dict:
+class ParsedJUnitMetrics(TypedDict):
+    collected: int
+    failures: int
+    errors: int
+    skipped: int
+    time: float
+
+
+class ParsedJUnitError(TypedDict):
+    error: str
+
+
+ParsedJUnitResult = ParsedJUnitMetrics | ParsedJUnitError
+
+
+def is_junit_error(result: ParsedJUnitResult) -> TypeGuard[ParsedJUnitError]:
+    return "error" in result
+
+
+def parse_junit_xml(xml_path: str) -> ParsedJUnitResult:
     """Parse JUnit XML and extract test metrics.
 
     Handles multiple JUnit XML formats:
@@ -80,7 +101,7 @@ def parse_junit_xml(xml_path: str) -> dict:
 
 
 def validate_results(
-    results: dict,
+    results: ParsedJUnitMetrics,
     min_collected: int,
     max_skips: int = 0,
     allow_deselect: bool = False,
@@ -93,9 +114,6 @@ def validate_results(
     """
     messages = []
     passed = True
-
-    if "error" in results:
-        return False, [f"::error::Parse error: {results['error']}"]
 
     collected = results["collected"]
     failures = results["failures"]
@@ -144,16 +162,42 @@ def validate_results(
     return passed, messages
 
 
-def main():
+def load_min_collected_from_artifact(artifact_path: Path, suite: str) -> int:
+    """Load a suite floor from the committed test floor artifact."""
+    try:
+        data = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"artifact not found: {artifact_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"artifact is not valid JSON: {artifact_path}") from exc
+
+    suite_data = data.get(suite)
+    if not isinstance(suite_data, dict):
+        raise ValueError(f"artifact missing suite {suite!r}: {artifact_path}")
+    value = suite_data.get("min_collected")
+    if not isinstance(value, int):
+        raise ValueError(
+            f"artifact suite {suite!r} must define integer min_collected: {artifact_path}"
+        )
+    return value
+
+
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Validate pytest JUnit XML results")
     parser.add_argument("xml_file", help="Path to JUnit XML file")
     parser.add_argument(
-        "--min-collected",
-        type=int,
+        "--min-collected-artifact",
+        type=Path,
         required=True,
-        help="Minimum expected test count",
+        help="Path to committed test floor artifact (.test-floor-contract.json)",
+    )
+    parser.add_argument(
+        "--suite",
+        choices=("python", "extension"),
+        required=True,
+        help="Suite key to read from --min-collected-artifact",
     )
     parser.add_argument(
         "--max-skips",
@@ -173,15 +217,23 @@ def main():
         print(f"::error::JUnit XML file not found: {args.xml_file}")
         sys.exit(2)
 
-    results = parse_junit_xml(args.xml_file)
-
-    if "error" in results:
-        print(f"::error::{results['error']}")
+    try:
+        min_collected = load_min_collected_from_artifact(
+            args.min_collected_artifact, args.suite
+        )
+    except ValueError as exc:
+        print(f"::error::{exc}")
         sys.exit(2)
 
+    results = parse_junit_xml(args.xml_file)
+
+    if is_junit_error(results):
+        print(f"::error::{results['error']}")
+        sys.exit(2)
+    metrics = cast(ParsedJUnitMetrics, results)
     passed, messages = validate_results(
-        results,
-        min_collected=args.min_collected,
+        metrics,
+        min_collected=min_collected,
         max_skips=args.max_skips,
     )
 
@@ -189,14 +241,14 @@ def main():
     print(f"\n{'=' * 60}")
     print("Test Results Summary")
     print(f"{'=' * 60}")
-    print(f"  Collected: {results['collected']}")
+    print(f"  Collected: {metrics['collected']}")
     print(
-        f"  Passed:    {results['collected'] - results['failures'] - results['errors'] - results['skipped']}"
+        f"  Passed:    {metrics['collected'] - metrics['failures'] - metrics['errors'] - metrics['skipped']}"
     )
-    print(f"  Failed:    {results['failures']}")
-    print(f"  Errors:    {results['errors']}")
-    print(f"  Skipped:   {results['skipped']}")
-    print(f"  Time:      {results['time']:.2f}s")
+    print(f"  Failed:    {metrics['failures']}")
+    print(f"  Errors:    {metrics['errors']}")
+    print(f"  Skipped:   {metrics['skipped']}")
+    print(f"  Time:      {metrics['time']:.2f}s")
     print(f"{'=' * 60}\n")
 
     # Print validation messages

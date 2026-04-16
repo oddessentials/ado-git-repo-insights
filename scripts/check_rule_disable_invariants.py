@@ -116,6 +116,17 @@ def _get_code_lines(content: str) -> list[tuple[int, str]]:
 # =============================================================================
 
 
+def _normalize_allowlist_code(code: str | int) -> str:
+    """Canonical code-field normalization for allowlist matching.
+
+    Both the detection path (check_subprocess_safety, _match_allowlist) and
+    the regen path (cmd_regenerate_allowlist) MUST funnel through this
+    function so a whitespace-variant entry cannot be misclassified as an
+    orphan and silently deleted. See issue #274.
+    """
+    return str(code).strip()
+
+
 def _load_subprocess_allowlist() -> set[tuple[str, int, str]]:
     """Load the committed subprocess allowlist — (file, line, code) triples.
 
@@ -133,7 +144,11 @@ def _load_subprocess_allowlist() -> set[tuple[str, int, str]]:
         with open(SUBPROCESS_ALLOWLIST_PATH, encoding="utf-8") as f:
             data = json.load(f)
         return {
-            (entry["file"], int(entry["line"]), entry["code"].strip())
+            (
+                entry["file"],
+                int(entry["line"]),
+                _normalize_allowlist_code(entry["code"]),
+            )
             for entry in data.get("entries", [])
         }
     except (OSError, json.JSONDecodeError, KeyError, ValueError):
@@ -152,7 +167,7 @@ def _match_allowlist(
     return (
         str(violation["file"]),
         int(violation["line"]),
-        str(violation["code"]).strip(),
+        _normalize_allowlist_code(violation["code"]),
     ) in allowlist
 
 
@@ -577,22 +592,20 @@ def verify_artifacts(repo_root: Path) -> int:
                 print(f"    committed: {committed_meta}")
                 print(f"    current:   {fresh_meta}")
             if committed_entries != fresh_entries:
-                mismatch_index = next(
-                    (
-                        index
-                        for index, (committed_entry, fresh_entry) in enumerate(
-                            zip(committed_entries, fresh_entries, strict=False)
-                        )
-                        if committed_entry != fresh_entry
-                    ),
-                    None,
+                print(
+                    "  Comparison semantics: normalized semantic entries "
+                    "(file, code, safety/purpose); line numbers are ignored."
                 )
-                if mismatch_index is not None:
-                    print(f"  First differing entry at index {mismatch_index}:")
-                    print(f"    committed: {committed_entries[mismatch_index]}")
-                    print(f"    current:   {fresh_entries[mismatch_index]}")
-                elif len(committed_entries) != len(fresh_entries):
-                    print("  Entry count differs between committed and regenerated.")
+                missing_entries = sorted(set(committed_entries) - set(fresh_entries))
+                extra_entries = sorted(set(fresh_entries) - set(committed_entries))
+                if missing_entries:
+                    print("  Missing normalized entries from regenerated artifact:")
+                    for entry in missing_entries:
+                        print(f"    {entry}")
+                if extra_entries:
+                    print("  Extra normalized entries in regenerated artifact:")
+                    for entry in extra_entries:
+                        print(f"    {entry}")
             print(
                 "  Run: python scripts/check_rule_disable_invariants.py "
                 "--generate-artifacts"
@@ -652,42 +665,62 @@ def cmd_regenerate_allowlist(repo_root: Path) -> int:
     removed = 0
     exit_code = 0
 
+    # Accumulator pattern (issue #274): entries_out collects only the entries
+    # that belong in the regenerated file. Orphans are intentionally never
+    # appended so they get pruned on write. The ambiguous branch also does
+    # not append — combined with the write-branch-scoped data["entries"]
+    # assignment below, this defends against any future refactor that might
+    # remove the outer "if ambiguous: skip write" guard.
+    entries_out: list[dict[str, str | int]] = []
+
     for entry in entries:
         file_key = entry["file"]
-        code_key = entry["code"].strip()
+        code_key = _normalize_allowlist_code(entry["code"])
 
-        # Find violations in this file matching this code snippet
+        # Find violations in this file matching this code snippet. Both sides
+        # of the comparison MUST funnel through _normalize_allowlist_code so
+        # whitespace-variant entries cannot be misclassified as orphans.
         file_viols = violations_by_file.get(file_key, [])
-        matches = [v for v in file_viols if str(v["code"]).strip() == code_key]
+        matches = [
+            v for v in file_viols if _normalize_allowlist_code(v["code"]) == code_key
+        ]
 
         old_line = entry.get("line", 0)
 
         if len(matches) == 0:
-            # Entry no longer matches any violation — may be resolved
+            # Entry no longer matches any violation — drop from entries_out.
             print(f"  [REMOVED] {file_key}:{old_line}: no matching violation")
             removed += 1
-        elif len(matches) == 1:
+            continue
+
+        if len(matches) == 1:
             new_line = int(matches[0]["line"])
             if new_line != old_line:
                 entry["line"] = new_line
                 print(f"  [UPDATED] {file_key}:{old_line} -> {new_line}")
                 updated += 1
-        else:
-            # Multiple violations with same (file, code).
-            # Check if the current line number still matches one of them.
-            exact_match = any(int(m["line"]) == old_line for m in matches)
-            if exact_match:
-                pass  # Current line is still valid — no update needed
-            else:
-                # Line shifted but we can't determine which match is right
-                print(
-                    f"  [AMBIGUOUS] {file_key}:{old_line}: {len(matches)} violations "
-                    f"match '{code_key[:60]}' — manual review required"
-                )
-                for m in matches:
-                    print(f"    line {m['line']}: {str(m['code'])[:80]}")
-                ambiguous += 1
-                exit_code = 1
+            entries_out.append(entry)
+            continue
+
+        # Multiple violations with same (file, code).
+        # Check if the current line number still matches one of them.
+        if any(int(m["line"]) == old_line for m in matches):
+            # Current line is still valid — preserve as-is.
+            entries_out.append(entry)
+            continue
+
+        # Line shifted but we can't determine which match is right.
+        # Intentionally NOT appended to entries_out: the outer skip-write
+        # guard keeps the file untouched today, and this leaves no path
+        # for a future refactor to silently write stale data.
+        print(
+            f"  [AMBIGUOUS] {file_key}:{old_line}: {len(matches)} violations "
+            f"match '{code_key[:60]}' — manual review required"
+        )
+        for m in matches:
+            print(f"    line {m['line']}: {str(m['code'])[:80]}")
+        ambiguous += 1
+        exit_code = 1
 
     if ambiguous:
         print(
@@ -695,7 +728,9 @@ def cmd_regenerate_allowlist(repo_root: Path) -> int:
             "Split them into entries with unique code snippets."
         )
     else:
-        # Write updated allowlist
+        # Only mutate data["entries"] on the write path so the ambiguous
+        # branch cannot accidentally leave entries_out dangling in data.
+        data["entries"] = entries_out
         with open(SUBPROCESS_ALLOWLIST_PATH, "w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
             f.write("\n")
