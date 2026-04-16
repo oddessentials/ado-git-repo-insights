@@ -10,7 +10,7 @@ Entry points:
   --check-subprocess  Detect unsafe subprocess patterns (compensates S603/S607)
   --check-random      Detect unsafe random patterns (compensates S311)
   --check-syspath     Detect sys.path.insert/append (enforces importlib-only)
-  --verify-artifacts  Verify committed proof artifacts match codebase
+  --verify-artifacts  Verify proof artifacts and subprocess allowlist match codebase
   --generate-artifacts Generate proof artifacts for rule-disable justification
 
 All checks use tokenize.generate_tokens for accuracy (no string-literal
@@ -547,11 +547,132 @@ def _normalize_entries(
     )
 
 
+def verify_subprocess_allowlist_entries(
+    repo_root: Path,
+) -> list[dict[str, str | int]]:
+    """Verify each .subprocess-allowlist.json entry points at a live unsafe call.
+
+    Returns a list of orphan descriptors, one per stale entry.  Three categories:
+      file-removed        — target file no longer exists
+      line-shifted        — file exists but code snippet is not on the expected line
+      refactored-to-safe  — code is on the line but check_subprocess_safety() no
+                            longer classifies it as unsafe
+    """
+    allowlist_path = repo_root / ".subprocess-allowlist.json"
+    if not allowlist_path.exists():
+        return []
+
+    # Let parse errors propagate — the caller in verify_artifacts() catches
+    # them and reports [FAIL].  Swallowing here would be fail-open: a corrupt
+    # allowlist silently passes verification.
+    with open(allowlist_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"top-level value must be an object, got {type(data).__name__}"
+        )
+
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        raise ValueError(f"'entries' must be a list, got {type(entries).__name__}")
+    if not entries:
+        return []
+
+    # Cache per-file content and violations to avoid redundant I/O + scanning
+    file_cache: dict[str, tuple[list[str], list[dict[str, str | int]]]] = {}
+    orphans: list[dict[str, str | int]] = []
+
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"entries[{i}] must be an object, got {type(entry).__name__}"
+            )
+        file_key = str(entry["file"])
+        line_num = int(entry["line"])
+        code_key = _normalize_allowlist_code(entry["code"])
+        reason = str(entry.get("reason", ""))
+        full_path = repo_root / file_key
+
+        # Category 1: file removed
+        if not full_path.exists():
+            orphans.append(
+                {
+                    "file": file_key,
+                    "line": line_num,
+                    "code": code_key,
+                    "reason": reason,
+                    "category": "file-removed",
+                }
+            )
+            continue
+
+        # Load and cache file lines + violations
+        if file_key not in file_cache:
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                orphans.append(
+                    {
+                        "file": file_key,
+                        "line": line_num,
+                        "code": code_key,
+                        "reason": reason,
+                        "category": "file-removed",
+                    }
+                )
+                continue
+            file_cache[file_key] = (
+                content.splitlines(),
+                check_subprocess_safety(file_key, content),
+            )
+
+        lines, violations = file_cache[file_key]
+
+        # Category 2: line shifted (code snippet not on expected line)
+        if (
+            line_num < 1
+            or line_num > len(lines)
+            or code_key not in lines[line_num - 1].strip()
+        ):
+            orphans.append(
+                {
+                    "file": file_key,
+                    "line": line_num,
+                    "code": code_key,
+                    "reason": reason,
+                    "category": "line-shifted",
+                }
+            )
+            continue
+
+        # Category 3: refactored to safe (code present but no matching violation)
+        has_matching_violation = any(
+            int(v["line"]) == line_num
+            and _normalize_allowlist_code(v["code"]) == code_key
+            for v in violations
+        )
+        if not has_matching_violation:
+            orphans.append(
+                {
+                    "file": file_key,
+                    "line": line_num,
+                    "code": code_key,
+                    "reason": reason,
+                    "category": "refactored-to-safe",
+                }
+            )
+
+    return orphans
+
+
 def verify_artifacts(repo_root: Path) -> int:
     """Verify committed proof artifacts match current codebase (FR-020).
 
     Verification is exact for artifact metadata and semantic entry content,
     while tolerating line-number-only churn from formatting or nearby edits.
+    Also verifies that every .subprocess-allowlist.json entry still corresponds
+    to a live unsafe call site (issue #273).
     """
     exit_code = 0
     artifact_configs: list[tuple[str, Callable[[Path], dict[str, object]], str]] = [
@@ -616,6 +737,37 @@ def verify_artifacts(repo_root: Path) -> int:
                 f"[PASS] {rule} artifact matches codebase "
                 f"({len(fresh_raw)} entries, semantic match)"
             )
+
+    # Verify subprocess allowlist entries (issue #273).
+    # verify_subprocess_allowlist_entries() intentionally does NOT swallow parse
+    # errors — catch them here so a corrupt allowlist produces [FAIL], not a
+    # traceback.  The entry-access path (KeyError/ValueError) is also caught so
+    # malformed entries fail closed rather than crash.
+    allowlist_path = repo_root / ".subprocess-allowlist.json"
+    if allowlist_path.exists():
+        try:
+            orphans = verify_subprocess_allowlist_entries(repo_root)
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+            print(f"[FAIL] .subprocess-allowlist.json is malformed: {exc}")
+            exit_code = 1
+        else:
+            if orphans:
+                print(f"[FAIL] {len(orphans)} orphan(s) in .subprocess-allowlist.json:")
+                for o in orphans:
+                    print(f"  {o['file']}:{o['line']}: {o['category']}")
+                    print(f"    code: {o['code']}")
+                    print(f"    reason: {o['reason']}")
+                print(
+                    "  Run: python scripts/check_rule_disable_invariants.py "
+                    "--regenerate-allowlist"
+                )
+                exit_code = 1
+            else:
+                with open(allowlist_path, encoding="utf-8") as f:
+                    count = len(json.load(f).get("entries", []))
+                print(
+                    f"[PASS] Subprocess allowlist verified ({count} entries, all live)"
+                )
 
     return exit_code
 
@@ -769,7 +921,7 @@ def main() -> int:
     parser.add_argument(
         "--verify-artifacts",
         action="store_true",
-        help="Verify committed proof artifacts match codebase",
+        help="Verify proof artifacts and subprocess allowlist match codebase",
     )
     parser.add_argument(
         "--generate-artifacts",

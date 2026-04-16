@@ -731,3 +731,336 @@ class TestCmdRegenerateAllowlistPrunesOrphans:
         )
         reasons = sorted(e["reason"] for e in written["entries"])
         assert reasons == ["dup-A", "dup-B"]
+
+
+class TestAllowlistOrphanDetection:
+    """Issue #273: verify_subprocess_allowlist_entries detects stale entries.
+
+    Three orphan categories:
+      file-removed        — target file deleted
+      line-shifted        — file exists but code not on expected line
+      refactored-to-safe  — code on line but call is now safe (literal list)
+    """
+
+    TMP_ROOT = (
+        Path(__file__).parent.parent.parent / "tmp_test_work" / "allowlist-orphan"
+    )
+
+    def _build_case(
+        self,
+        name: str,
+        entries: list[dict[str, str | int]],
+        files: dict[str, str] | None = None,
+    ) -> Path:
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / name
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True)
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            json.dumps({"description": "test", "entries": entries}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        for rel_path, content in (files or {}).items():
+            full = case_dir / rel_path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content, encoding="utf-8")
+        return case_dir
+
+    def test_file_removed_detected(self) -> None:
+        """Entry pointing at a non-existent file is category file-removed."""
+        case_dir = self._build_case(
+            "file-removed",
+            [
+                {
+                    "file": "gone.py",
+                    "line": 1,
+                    "code": "subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "file-removed"
+        assert orphans[0]["file"] == "gone.py"
+
+    def test_line_shifted_detected(self) -> None:
+        """Entry with wrong line number is category line-shifted."""
+        case_dir = self._build_case(
+            "line-shifted",
+            [
+                {
+                    "file": "s.py",
+                    "line": 1,
+                    "code": "result = subprocess.run(cmd)",
+                    "reason": "test",
+                }
+            ],
+            files={
+                "s.py": "import subprocess\n# padding\nresult = subprocess.run(cmd)\n"
+            },
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "line-shifted"
+
+    def test_refactored_to_safe_detected(self) -> None:
+        """Entry where call was refactored to literal list is refactored-to-safe."""
+        case_dir = self._build_case(
+            "refactored-safe",
+            [
+                {
+                    "file": "s.py",
+                    "line": 2,
+                    "code": "result = subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+            files={
+                "s.py": (
+                    "import subprocess\n"
+                    "result = subprocess.run(\n"
+                    '    ["git", "status"],\n'
+                    ")\n"
+                ),
+            },
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "refactored-to-safe"
+
+    def test_live_entry_not_flagged(self) -> None:
+        """Entry matching a real unsafe violation returns empty list."""
+        case_dir = self._build_case(
+            "live",
+            [
+                {
+                    "file": "s.py",
+                    "line": 2,
+                    "code": "result = subprocess.run(cmd)",
+                    "reason": "test",
+                }
+            ],
+            files={"s.py": "import subprocess\nresult = subprocess.run(cmd)\n"},
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 0
+
+    def test_missing_allowlist_returns_empty(self) -> None:
+        """No allowlist file returns empty list, not an error."""
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / "no-allowlist"
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True)
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert orphans == []
+
+    def test_malformed_json_raises(self) -> None:
+        """Malformed JSON propagates instead of silently returning []."""
+        case_dir = self._build_case("malformed-raises", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            "not valid json{{{", encoding="utf-8"
+        )
+        with pytest.raises(json.JSONDecodeError):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"entries": {}}',
+            '{"entries": ""}',
+            '{"entries": null}',
+            '{"entries": 0}',
+            "{}",
+        ],
+        ids=["dict", "string", "null", "number", "missing-key"],
+    )
+    def test_non_list_entries_raises(self, payload: str) -> None:
+        """Entries that are not a list raise ValueError, not silent pass."""
+        case_dir = self._build_case("non-list-entries", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        with pytest.raises(ValueError, match="must be a list"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
+    @pytest.mark.parametrize(
+        "bad_entry",
+        [None, 1, "string", []],
+        ids=["null", "number", "string", "array"],
+    )
+    def test_non_dict_entry_raises(self, bad_entry: object) -> None:
+        """Non-object items in entries raise ValueError, not TypeError."""
+        case_dir = self._build_case("non-dict-entry", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            json.dumps({"entries": [bad_entry]}), encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="must be an object"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["[]", "null", '"x"', "42", "true"],
+        ids=["array", "null", "string", "number", "bool"],
+    )
+    def test_non_object_toplevel_raises(self, payload: str) -> None:
+        """Top-level JSON that is not an object raises ValueError."""
+        case_dir = self._build_case("non-object-toplevel", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        with pytest.raises(ValueError, match="must be an object"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
+    def test_committed_allowlist_is_clean(self) -> None:
+        """The repo's committed .subprocess-allowlist.json has zero orphans."""
+        repo_root = Path(__file__).parent.parent.parent
+        orphans = _mod.verify_subprocess_allowlist_entries(repo_root)
+        assert orphans == [], (
+            f"Committed allowlist has {len(orphans)} orphan(s): "
+            + ", ".join(f"{o['file']}:{o['line']} ({o['category']})" for o in orphans)
+        )
+
+    def test_verify_artifacts_fails_on_orphan(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--verify-artifacts returns non-zero when orphans exist."""
+        case_dir = self._build_case(
+            "verify-integration",
+            [
+                {
+                    "file": "gone.py",
+                    "line": 1,
+                    "code": "subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+        )
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "orphan" in out.lower()
+        assert "--regenerate-allowlist" in out
+
+    def test_verify_artifacts_handles_malformed_allowlist(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Malformed allowlist JSON produces [FAIL], not a traceback."""
+        case_dir = self._build_case("malformed", [])
+        # Overwrite with invalid JSON
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            "not valid json{{{", encoding="utf-8"
+        )
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"entries": {}}',
+            '{"entries": null}',
+            '{"entries": [null]}',
+            '{"entries": [1]}',
+        ],
+        ids=["entries-dict", "entries-null", "null-item", "int-item"],
+    )
+    def test_verify_artifacts_fails_on_structural_malformation(
+        self,
+        payload: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Structurally invalid allowlist shapes produce [FAIL], not traceback."""
+        case_dir = self._build_case("structural-malform", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["[]", "null", '"x"', "42", "true"],
+        ids=["array", "null", "string", "number", "bool"],
+    )
+    def test_verify_artifacts_fails_on_non_object_toplevel(
+        self,
+        payload: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Non-object top-level JSON hits [FAIL] path, no traceback escapes."""
+        case_dir = self._build_case("toplevel-malform", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+        assert "AttributeError" not in captured.out
+        assert "AttributeError" not in captured.err
