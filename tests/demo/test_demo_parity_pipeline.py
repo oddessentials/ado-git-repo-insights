@@ -237,31 +237,36 @@ class TestCanonicalArtifactRoot:
         assert (ARTIFACT_REPORT / "startup-parity.json").exists()
         assert (ARTIFACT_METADATA / "demo-profile.json").exists()
 
-    if _IS_BASELINE_PYTHON:
-
-        def test_docs_promotion_matches_canonical_bytes(self) -> None:
-            # Promotion exercises the canonical publishing path and is covered
-            # only on the approved baseline interpreter. Non-baseline jobs
-            # validate the non-promoting artifact boundary instead.
-            promoted_dir = make_scratch_dir("published-demo")
-            run_demo_build(promote=True, promote_dir=promoted_dir)
-
-            canonical_files = sorted(
-                path.relative_to(ARTIFACT_DATA)
-                for path in ARTIFACT_DATA.rglob("*")
-                if path.is_file()
-            )
-            promoted_files = sorted(
-                path.relative_to(promoted_dir)
-                for path in promoted_dir.rglob("*")
-                if path.is_file()
+    def test_docs_promotion_matches_canonical_bytes(self) -> None:
+        # Keep collection identical across Python versions. Promotion remains
+        # baseline-only behavior, but the test must always be defined so the
+        # canonical collected floor does not drift by interpreter version.
+        if not _IS_BASELINE_PYTHON:
+            pytest.skip(
+                "Promotion byte-parity is covered only on the approved baseline "
+                "Python interpreter; non-baseline jobs validate the non-promoting "
+                "artifact boundary instead."
             )
 
-            assert canonical_files == promoted_files
-            for rel_path in canonical_files:
-                assert (ARTIFACT_DATA / rel_path).read_bytes() == (
-                    promoted_dir / rel_path
-                ).read_bytes()
+        promoted_dir = make_scratch_dir("published-demo")
+        run_demo_build(promote=True, promote_dir=promoted_dir)
+
+        canonical_files = sorted(
+            path.relative_to(ARTIFACT_DATA)
+            for path in ARTIFACT_DATA.rglob("*")
+            if path.is_file()
+        )
+        promoted_files = sorted(
+            path.relative_to(promoted_dir)
+            for path in promoted_dir.rglob("*")
+            if path.is_file()
+        )
+
+        assert canonical_files == promoted_files
+        for rel_path in canonical_files:
+            assert (ARTIFACT_DATA / rel_path).read_bytes() == (
+                promoted_dir / rel_path
+            ).read_bytes()
 
     def test_promotion_cleans_stale_files(self) -> None:
         run_demo_build()

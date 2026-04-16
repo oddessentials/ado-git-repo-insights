@@ -762,7 +762,7 @@ class TestTestCountRatchetParity:
         assert "--suite extension" in ci_extension_run
 
         assert floor_contract["schema_version"] == 1
-        assert floor_contract["python"]["min_collected"] == 1780
+        assert floor_contract["python"]["min_collected"] == 1782
         assert floor_contract["extension"]["min_collected"] > 0
 
     def test_preflight_and_ci_require_explicit_floor_contract_validation(self) -> None:
@@ -903,6 +903,63 @@ class TestPythonTypeCheckParity:
         assert "mypy src/ tests/ scripts/ .github/scripts/" in run_block, (
             "CI mypy must match local preflight scope exactly, including "
             ".github/scripts/, or local/CI parity is broken."
+        )
+
+
+class TestPythonCollectionDefinitionParity:
+    """Lock shared-floor tests against interpreter-version collection drift."""
+
+    def test_demo_parity_tests_are_not_conditionally_defined_by_python_version(
+        self,
+    ) -> None:
+        targets = (
+            REPO_ROOT / "tests" / "demo" / "test_demo_parity_pipeline.py",
+            REPO_ROOT / "tests" / "demo" / "test_regeneration.py",
+        )
+        violations: list[str] = []
+
+        for target in targets:
+            tree = ast.parse(target.read_text(encoding="utf-8"), filename=str(target))
+
+            def visit_block(
+                nodes: list[ast.stmt], guarded: bool, target_name: str
+            ) -> None:
+                for node in nodes:
+                    next_guarded = guarded
+                    if isinstance(node, ast.If) and (
+                        (
+                            isinstance(node.test, ast.Name)
+                            and node.test.id == "_IS_BASELINE_PYTHON"
+                        )
+                        or (
+                            isinstance(node.test, ast.UnaryOp)
+                            and isinstance(node.test.op, ast.Not)
+                            and isinstance(node.test.operand, ast.Name)
+                            and node.test.operand.id == "_IS_BASELINE_PYTHON"
+                        )
+                    ):
+                        visit_block(node.body, True, target_name)
+                        visit_block(node.orelse, True, target_name)
+                        continue
+
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+                        node.name.startswith("test_") and guarded
+                    ):
+                        violations.append(f"{target_name}:{node.name}")
+
+                    child_body = getattr(node, "body", None)
+                    if isinstance(child_body, list):
+                        visit_block(child_body, next_guarded, target_name)
+                    child_orelse = getattr(node, "orelse", None)
+                    if isinstance(child_orelse, list):
+                        visit_block(child_orelse, next_guarded, target_name)
+
+            visit_block(tree.body, False, target.name)
+
+        assert not violations, (
+            "Shared-floor demo tests must not be conditionally defined behind "
+            "_IS_BASELINE_PYTHON. Define the test unconditionally and skip inside "
+            f"the body so collection remains interpreter-stable. Violations: {violations}"
         )
 
 
