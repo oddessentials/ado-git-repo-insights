@@ -171,18 +171,15 @@ def main():
     parser = argparse.ArgumentParser(description="Validate pytest JUnit XML results")
     parser.add_argument("xml_file", help="Path to JUnit XML file")
     parser.add_argument(
-        "--min-collected",
-        type=int,
-        help="Minimum expected test count",
-    )
-    parser.add_argument(
         "--min-collected-artifact",
         type=Path,
-        help="Path to committed test floor artifact",
+        required=True,
+        help="Path to committed test floor artifact (.test-floor-contract.json)",
     )
     parser.add_argument(
         "--suite",
         choices=("python", "extension"),
+        required=True,
         help="Suite key to read from --min-collected-artifact",
     )
     parser.add_argument(
@@ -199,29 +196,17 @@ def main():
 
     args = parser.parse_args()
 
-    if args.min_collected is None and args.min_collected_artifact is None:
-        parser.error("one of --min-collected or --min-collected-artifact is required")
-    if args.min_collected is not None and args.min_collected_artifact is not None:
-        parser.error(
-            "--min-collected and --min-collected-artifact are mutually exclusive"
-        )
-    if args.min_collected_artifact is not None and args.suite is None:
-        parser.error("--suite is required with --min-collected-artifact")
-
     if not Path(args.xml_file).exists():
         print(f"::error::JUnit XML file not found: {args.xml_file}")
         sys.exit(2)
 
-    if args.min_collected_artifact is not None:
-        try:
-            min_collected = load_min_collected_from_artifact(
-                args.min_collected_artifact, args.suite
-            )
-        except ValueError as exc:
-            print(f"::error::{exc}")
-            sys.exit(2)
-    else:
-        min_collected = args.min_collected
+    try:
+        min_collected = load_min_collected_from_artifact(
+            args.min_collected_artifact, args.suite
+        )
+    except ValueError as exc:
+        print(f"::error::{exc}")
+        sys.exit(2)
 
     results = parse_junit_xml(args.xml_file)
 

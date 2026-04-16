@@ -152,8 +152,8 @@ The commit/push workflow currently includes:
 
 | Hook | Purpose |
 |------|---------|
-| `pre-commit` | Python formatting/lint checks, ACL health on Windows, VSS SDK drift sync, compiled artifact guard, managed UI/demo artifact sync when UI files are staged |
-| `pre-push` | baseline integrity, `pre-commit --all-files`, CRLF guard, marketplace asset validation, and local PR preflight |
+| `pre-commit` | Python formatting/lint checks, ACL health on Windows, VSS SDK drift sync, compiled artifact guard, invariant artifact contract verification, managed UI/demo artifact sync when UI files are staged |
+| `pre-push` | version guard, baseline integrity, `pre-commit --all-files`, CRLF guard, marketplace asset validation, invariant artifact contract verification, and local PR preflight |
 
 ### Manual Run
 
@@ -161,7 +161,7 @@ The commit/push workflow currently includes:
 python scripts/run_repo_hook.py pre-commit
 python scripts/run_repo_hook.py pre-push
 
-# Explicit strict preflight outside the repo-owned hook still needs a base ref
+# Optional: strict preflight with explicit base ref (hook runs non-strict by default)
 BASE_REF=main python scripts/run_pr_preflight.py --strict
 
 # Or via the extension package scripts
