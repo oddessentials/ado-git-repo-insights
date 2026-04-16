@@ -812,6 +812,26 @@ class TestTestCountRatchetParity:
             "committed Python floor is not trusted before cross-OS parity is green."
         )
 
+    def test_python_collection_parity_script_does_not_import_ratchet_gate(self) -> None:
+        parity_script = REPO_ROOT / "scripts" / "check_python_collection_parity.py"
+        tree = ast.parse(parity_script.read_text(encoding="utf-8"))
+
+        forbidden_imports: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "check_ratchet_bump":
+                        forbidden_imports.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in {"check_ratchet_bump", "scripts.check_ratchet_bump"}:
+                    forbidden_imports.add(node.module)
+
+        assert not forbidden_imports, (
+            "check_python_collection_parity.py must not import check_ratchet_bump; "
+            "the CI parity job has a lighter dependency surface and must not depend "
+            f"on ratchet-only imports. Found: {sorted(forbidden_imports)}"
+        )
+
 
 class TestInvariantContractInventory:
     def test_invariant_artifact_contracts_declare_explicit_inputs(self) -> None:

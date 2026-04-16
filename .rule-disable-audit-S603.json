@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 88,
+  "total_call_sites": 89,
   "unsafe_count": 8,
   "call_sites": [
     {
@@ -118,6 +118,14 @@
     {
       "file": "scripts/check_patch_coverage.py",
       "line": 47,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_python_collection_parity.py",
+      "line": 88,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

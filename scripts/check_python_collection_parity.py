@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Generate and compare hermetic Python collection parity artifacts.
-
-This script reuses :mod:`scripts.check_ratchet_bump`'s canonical hermetic
-collector so parity proofs exercise the same runner the ratchet gate trusts.
-"""
+"""Generate and compare hermetic Python collection parity artifacts."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
+import tempfile
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import check_ratchet_bump as ratchet
 
 if TYPE_CHECKING:
     from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
@@ -23,12 +22,141 @@ else:
     except ImportError:
         from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
 
+_CLEANUP_RETRY_ATTEMPTS = 3
+_CLEANUP_RETRY_SLEEP_SECONDS = 0.05
+
+
+class ParitySetupError(RuntimeError):
+    """Raised when parity collection cannot produce a verdict."""
+
+
+@dataclass(frozen=True)
+class PythonCollectionSnapshot:
+    count: int
+    node_ids: tuple[str, ...]
+    platform_filters_applied: bool
+
+
+def collect_python_snapshot(
+    *, apply_platform_filters: bool
+) -> PythonCollectionSnapshot:
+    """Collect Python node IDs via the hermetic pytest subprocess."""
+    fd, count_path_str = tempfile.mkstemp(
+        prefix=f"parity-count-{os.getpid()}-", suffix=".txt"
+    )
+    os.close(fd)
+    count_file = Path(count_path_str)
+    nodeids_fd, nodeids_path_str = tempfile.mkstemp(
+        prefix=f"parity-nodeids-{os.getpid()}-", suffix=".json"
+    )
+    os.close(nodeids_fd)
+    nodeids_file = Path(nodeids_path_str)
+
+    def _best_effort_unlink(path: Path) -> None:
+        for attempt in range(_CLEANUP_RETRY_ATTEMPTS):
+            try:
+                path.unlink(missing_ok=True)
+                break
+            except PermissionError:
+                if attempt + 1 < _CLEANUP_RETRY_ATTEMPTS:
+                    time.sleep(_CLEANUP_RETRY_SLEEP_SECONDS)
+
+    try:
+        scrubbed_env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"PYTEST_ADDOPTS", "PYTEST_PLUGINS"}
+        }
+        scrubbed_env.update(
+            {
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "RATCHET_COUNT_OUTPUT": str(count_file),
+                "RATCHET_NODEIDS_OUTPUT": str(nodeids_file),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "COVERAGE_PROCESS_START": "",
+                "COVERAGE_RCFILE": os.devnull,
+            }
+        )
+        ignore_args: tuple[str, ...] = (
+            tuple(
+                f"--ignore-glob={pattern}"
+                for pattern in PLATFORM_CONDITIONAL_IGNORE_GLOBS
+            )
+            if apply_platform_filters
+            else ()
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--collect-only",
+                "--no-header",
+                "-q",
+                "-o",
+                "addopts=",
+                "-p",
+                "no:cacheprovider",
+                "-p",
+                "no:randomly",
+                "-p",
+                "no:xdist",
+                "-p",
+                "no:sugar",
+                "-p",
+                "no:forked",
+                "-p",
+                "scripts._pytest_count_collector",
+                "--import-mode=importlib",
+                *ignore_args,
+                "tests/",
+            ],
+            env=scrubbed_env,
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ParitySetupError(
+                "Hermetic pytest --collect-only failed with exit code "
+                f"{result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+        try:
+            count = int(count_file.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError) as exc:
+            raise ParitySetupError(
+                f"Collector count output malformed or unreadable: {count_file}"
+            ) from exc
+        try:
+            node_ids_raw = json.loads(nodeids_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ParitySetupError(
+                f"Collector node ID output malformed or unreadable: {nodeids_file}"
+            ) from exc
+        if not isinstance(node_ids_raw, list) or not all(
+            isinstance(node_id, str) for node_id in node_ids_raw
+        ):
+            raise ParitySetupError(
+                "Collector node ID output must be a JSON array of strings"
+            )
+        return PythonCollectionSnapshot(
+            count=count,
+            node_ids=tuple(sorted(node_ids_raw)),
+            platform_filters_applied=apply_platform_filters,
+        )
+    finally:
+        _best_effort_unlink(count_file)
+        _best_effort_unlink(nodeids_file)
+
 
 def generate_artifact(output_path: Path) -> int:
     """Write the canonical filtered Python collection artifact."""
     try:
-        snapshot = ratchet.collect_python_snapshot(apply_platform_filters=True)
-    except ratchet.RatchetSetupError as exc:
+        snapshot = collect_python_snapshot(apply_platform_filters=True)
+    except ParitySetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return 2
 
