@@ -229,6 +229,8 @@ The base package must function without ML dependencies.
 
 ## Governance
 
+Internal development principles (for agents and maintainers):
+
 | Document | Description |
 |----------|-------------|
 | [Invariants](agents/INVARIANTS.md) | Non-negotiable system invariants |

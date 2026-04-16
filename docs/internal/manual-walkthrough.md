@@ -12,9 +12,18 @@ were verified against their package definitions.
 ## Prerequisites
 
 - Python 3.12+
-- Node.js 22+ and pnpm 9.15.0
+- [uv](https://docs.astral.sh/uv/) package manager
+- `uv sync --extra dev` (installs all dev dependencies into the project venv)
 - Azure DevOps PAT (scope depends on section -- see inline notes)
-- `pip install -e ".[dev]"` or `uv tool install -e .`
+
+Sections 1-4 and 6 need only the Python setup above. Sections 5 and 7
+also require Node tooling:
+
+- Node.js 22+ and pnpm 9.15.0
+- `pnpm install` (repo root -- activates Husky git hooks)
+- `cd extension && pnpm install && cd ..` (extension dependencies)
+
+See [Development Setup](../development/setup.md) for the full environment guide.
 
 ---
 
@@ -24,7 +33,7 @@ Proves the dashboard renders from the canonical enterprise demo dataset.
 No PAT or network access needed.
 
 ```powershell
-ado-insights dashboard --dataset ./docs/data --open
+uv run ado-insights dashboard --dataset ./docs/data --open
 ```
 
 Verify: Dashboard loads with review time data, filters work, all tabs render.
@@ -41,19 +50,19 @@ Proves extract -> build-aggregates -> dashboard works against a real org.
 $env:PAT="<your-pat>"
 
 # Step 1: Extract (single project, with comments)
-ado-insights extract `
+uv run ado-insights extract `
   --organization oddessentials `
   --projects oddessentials `
   --include-comments `
   --pat $env:PAT
 
 # Step 2: Build aggregates from the extracted database
-ado-insights build-aggregates `
+uv run ado-insights build-aggregates `
   --db ado-insights.sqlite `
   --out ./run_artifacts
 
 # Step 3: View dashboard
-ado-insights dashboard --dataset ./run_artifacts --open
+uv run ado-insights dashboard --dataset ./run_artifacts --open
 ```
 
 Verify: SQLite created, aggregates generated, dashboard shows real data.
@@ -68,7 +77,7 @@ Proves multi-project extraction and comment caps work correctly.
 
 ```powershell
 # Bounded extraction (50 PRs with comments)
-python -m ado_git_repo_insights extract `
+uv run ado-insights extract `
   --pat $env:PAT `
   --organization oddessentials `
   --projects hospitality,marketing,engineering,oddessentials `
@@ -77,7 +86,7 @@ python -m ado_git_repo_insights extract `
   --comments-max-threads-per-pr 0
 
 # Full extraction (all PRs with comments, no cap)
-python -m ado_git_repo_insights extract `
+uv run ado-insights extract `
   --pat $env:PAT `
   --organization oddessentials `
   --projects hospitality,marketing,engineering,oddessentials `
@@ -86,11 +95,11 @@ python -m ado_git_repo_insights extract `
   --comments-max-threads-per-pr 0
 
 # Build and view
-python -m ado_git_repo_insights build-aggregates `
+uv run ado-insights build-aggregates `
   --db ado-insights.sqlite `
   --out ./run_artifacts
 
-python -m ado_git_repo_insights dashboard `
+uv run ado-insights dashboard `
   --dataset ./run_artifacts --open
 ```
 
@@ -106,7 +115,7 @@ dashboard run info.
 Proves the stage-artifacts -> dashboard flow works against a real ADO pipeline.
 
 ```powershell
-ado-insights stage-artifacts `
+uv run ado-insights stage-artifacts `
   --org oddessentials `
   --project oddessentials `
   --pipeline-id 15 `
@@ -124,7 +133,7 @@ Verify: Artifacts downloaded, dashboard auto-opens, data matches pipeline run.
 ### 5a. Pre-check (local PR preflight)
 
 ```powershell
-python scripts/run_pr_preflight.py
+uv run python scripts/run_pr_preflight.py
 ```
 
 Verify: All gates pass (mypy, tests, lint, parity, extension checks).
@@ -138,20 +147,12 @@ pnpm run package:vsix:dev
 
 Verify: `.vsix` file produced in `extension/` directory.
 
-### 5c. Performance Baseline Update
-
-```powershell
-cd extension
-pnpm run perf:update-baseline
-```
-
-Verify: Baselines updated in `extension/tests/fixtures/perf-baselines.json`.
-
 ---
 
-## 6. CLI Package Install Test
+## 6. Standalone CLI Install Test
 
-Proves the package installs and runs from a tool environment.
+Proves the package installs and runs as a standalone tool (outside the repo venv).
+This is a separate context from the `uv sync` development environment used above.
 
 ```powershell
 uv tool install -e .
@@ -160,6 +161,26 @@ ado-insights doctor
 ```
 
 Verify: Version prints, doctor shows no conflicts.
+
+---
+
+## 7. Maintenance Tasks (main branch only)
+
+> These tasks are for **main-branch stewardship after merge**, not part of the
+> normal contributor verification flow. Do not run them on feature branches.
+
+### 7a. Performance Baseline Update
+
+Update performance baselines after confirming all perf tests pass on main.
+See `extension/scripts/update-perf-baseline.ts` for details.
+
+```powershell
+cd extension
+pnpm run perf:update-baseline
+```
+
+Verify: Baselines updated in `extension/tests/fixtures/perf-baselines.json`.
+Commit the updated file.
 
 ---
 

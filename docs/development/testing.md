@@ -136,10 +136,10 @@ jest.mock('azure-devops-extension-sdk', () => ({
 
 ### Python CI Matrix
 
-Tests run across all supported operating systems and Python versions
-(see `.github/workflows/ci.yml` for the current matrix):
-- Operating systems: Ubuntu, Windows, macOS
-- Python versions: see `requires-python` in `pyproject.toml`
+Tests run across the full OS x Python version matrix defined in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml). The
+`requires-python` floor in `pyproject.toml` defines packaging
+compatibility; CI validates a specific subset of that range.
 
 ### Local CI Parity
 
