@@ -2,6 +2,91 @@
   =============================================================================
   SYNC IMPACT REPORT
   =============================================================================
+  Version Change: 1.4.0 → 1.5.0 (collection stability + test discipline +
+  entry point alignment + bypass marker discipline + build architecture +
+  security scan parity)
+
+  Modified Principles:
+  - Added Principle XXVI (Collection-Stable Test Definitions) — mirrors the
+    new invariant #26 added to agents/INVARIANTS.md; Core Principles count
+    updated from 25 to 26
+
+  Added Sections:
+  - Test Discipline Gates (QG-43 through QG-46)
+  - Entry Point Alignment Gates (QG-47 through QG-49)
+  - Change Acknowledgement Gates (QG-50 through QG-52)
+  - Build Architecture Gates (QG-53 through QG-55)
+  - Security Scan Gates (QG-56)
+  - Local/CI Parity Verification (VR-28 through VR-30)
+
+  Updated Items:
+  - QG-05 wording refined to match agents/definition-of-done.md §1.3
+    (dynamic fixtures, no committed fixture files)
+  - VR-03 mypy scope expanded from `mypy src/` to
+    `mypy src/ tests/ scripts/ .github/scripts/` (matches preflight and
+    LOCAL_CI_PARITY_INVARIANTS.md Row 10)
+  - VR-02a added for extension Prettier `format:check`
+
+  Rationale:
+  The architecture documented in LOCAL_CI_PARITY_INVARIANTS.md has matured
+  substantially since v1.3.0 introduced QG-35 through QG-38. The invariants
+  now codified at constitution level are:
+  - Test floor discipline is per-commit, first-parent, subject-line-gated
+  - `.test-floor-contract.json` is the single source of truth for both
+    Python and Extension `--min-collected` floors (no hardcoded integers)
+  - Cross-OS Python collection parity is CI-enforced via the
+    `python-collection-parity` job
+  - Platform-conditional tests use file-name-pattern exclusion with a
+    shared `PLATFORM_CONDITIONAL_IGNORE_GLOBS` constant (never
+    `pytest.mark.skip`)
+  - Pre-commit trigger scope must match or exceed gate compilation scope
+  - Worktree-reading pre-commit gates require clean-worktree guards
+  - Each gate is defined once and invoked by name everywhere
+    (pre-commit, pre-push, `pnpm test:ci`, CI)
+  - Bypass markers live in commit subject lines only (bodies ignored)
+  - Extension uses split tsconfig (ES2022 type-check vs CommonJS build);
+    `dist/ui/` owned exclusively by esbuild
+  - Prettier invoked only via authoritative `format:check` script
+  - Gitleaks parity: preflight fails fast if gitleaks unavailable
+
+  Additionally, agents/INVARIANTS.md added invariant #26 (collection-stable
+  test definitions), which now appears as Core Principle XXVI.
+
+  Evidence Files:
+  - agents/INVARIANTS.md (invariant #26)
+  - agents/definition-of-done.md §1.3, §6.1
+  - LOCAL_CI_PARITY_INVARIANTS.md (authoritative Tier 1 / Tier 2 matrix,
+    Governance section, Platform-Conditional Test Collection section)
+  - .test-floor-contract.json
+  - .coverage-baseline.json
+  - .suppression-baseline.json
+  - scripts/run_repo_hook.py, scripts/run_pr_preflight.py
+  - scripts/check_ratchet_bump.py, scripts/_platform_test_filters.py
+  - scripts/check-version-unchanged.py, scripts/check_threshold_changes.py
+  - scripts/check_coverage_delta.py
+  - scripts/audit-suppressions.py
+  - extension/tsconfig.json, extension/tsconfig.build.json
+  - extension/tests/meta/build-output-format-guard.test.ts
+  - tests/unit/test_hook_triggers.py, tests/unit/test_ci_parity_drift.py
+  - tests/unit/test_platform_conditional_collection.py
+  - .github/workflows/ci.yml (python-collection-parity, ratchet-bump-guard)
+
+  Templates Updated:
+  - .specify/templates/plan-template.md: ✅ Compatible (generic
+    Constitution Check placeholder)
+  - .specify/templates/spec-template.md: ✅ Compatible
+  - .specify/templates/tasks-template.md: ✅ Compatible
+
+  Follow-up TODOs:
+  - Keep LOCAL_CI_PARITY_INVARIANTS.md in lockstep when adding new gates;
+    constitution codifies governance, LOCAL_CI_PARITY_INVARIANTS.md owns
+    the operational contract
+  - Whenever a new bypass marker is introduced, add it to the QG-50
+    enumeration and prove subject-line-only enforcement
+  - When extending `PLATFORM_CONDITIONAL_IGNORE_GLOBS` (e.g., Linux/macOS
+    patterns), update QG-46 evidence and regenerate the cross-OS floor
+  =============================================================================
+
   Version Change: 1.3.0 → 1.4.0 (code quality invariants addition)
 
   Modified Principles: None (Core Principles unchanged)
@@ -106,7 +191,7 @@ If a principle cannot be satisfied, the change MUST be escalated as a design bre
 
 ## Core Principles (Immutable)
 
-The following 25 principles are immutable. Any modification requires a MAJOR version bump
+The following 26 principles are immutable. Any modification requires a MAJOR version bump
 and explicit migration plan with stakeholder approval.
 
 ### I. CSV Schema Contract
@@ -249,6 +334,23 @@ The extraction → SQLite → CSV pipeline is testable without live API access.
 There MUST be a test proving that a late change (e.g., reviewer vote update) is corrected
 after a backfill run. Backfill convergence is a verified capability.
 
+### XXVI. Collection-Stable Test Definitions
+
+Shared-floor tests MUST have collection-stable definitions across all supported interpreter
+and OS lanes. Any Python test that contributes to a ratcheted `--min-collected` floor MUST
+be defined unconditionally at module scope:
+- No `if version_condition:` wrappers around `def test_*`
+- No decorators that add or remove test definitions based on environment
+- No module-level or class-level import-time gating of test definitions
+
+Environment-specific behavior MUST be handled inside the test body (e.g.,
+`pytest.skip(...)` on non-baseline interpreters), because import-time gating breaks
+collection parity between local and CI and causes the shared floor to drift by
+interpreter version or OS lane. Platform-conditional files MUST use the file-name-pattern
+exclusion mechanism (`test_*_windows.py`, etc.) with the shared
+`PLATFORM_CONDITIONAL_IGNORE_GLOBS` constant — never `pytest.mark.skip` or runtime
+`pytest.skip()` at collection time, because `--max-skips=0` treats both as violations.
+
 ## Quality Gates
 
 Work is not complete until the following gates pass. These gates derive from the
@@ -262,7 +364,7 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-02 | CSV column order matches exactly | `tests/unit/test_csv_contract.py` |
 | QG-03 | CSV headers contain no extras/missing | `tests/unit/test_csv_contract.py` |
 | QG-04 | Deterministic output (identical on re-run) | `tests/unit/test_csv_determinism.py` |
-| QG-05 | Golden fixture compatibility | `tests/integration/test_golden_outputs.py` |
+| QG-05 | Golden output determinism with dynamic fixtures (no committed fixture files) | `tests/integration/test_golden_outputs.py` |
 
 ### Persistence Gates
 
@@ -351,6 +453,45 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-41 | Zero inline suppression comments (`# noqa`, `# type: ignore`, `// eslint-disable`, `// @ts-ignore`) unless backed by a committed proof artifact, compensating guardrail, and explicit stakeholder approval. | `scripts/audit-suppressions.py --diff`, `.suppression-baseline.json` |
 | QG-42 | Every new feature, gate, guardrail, and refactor MUST have enterprise-grade test coverage in both Python (pytest) and TypeScript (Jest) as applicable. No untested code paths in new work. | `--min-collected` ratchet, `--max-skips=0`, coverage thresholds |
 
+### Test Discipline Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-43 | Every commit that adds N tests MUST bump the shared floor in `.test-floor-contract.json` by exactly N in the same commit. Per-commit enforcement walks the first-parent range (`{base}..HEAD`) and compares each commit's `floor_delta` against its `actual_delta`; drift on any commit fails the gate. | `scripts/check_ratchet_bump.py`, `.github/workflows/ci.yml` `ratchet-bump-guard` job |
+| QG-44 | `.test-floor-contract.json` is the single source of truth for both Python and Extension `--min-collected` floors. `scripts/run_pr_preflight.py` and `.github/workflows/ci.yml` MUST both read via `--min-collected-artifact`; no hardcoded integer floors are permitted in either entry point. Inter-file parity is a non-waivable assertion. | `.test-floor-contract.json`, `scripts/run_pr_preflight.py`, `.github/workflows/ci.yml` |
+| QG-45 | The Python floor MUST be the cross-platform minimum collected count (what Linux/macOS and Windows-filtered cells agree on). Cross-OS parity is enforced by the `python-collection-parity` CI job which compares exact node_id sets between Ubuntu and Windows; the ratchet-bump-guard depends on this job passing. | `.github/workflows/ci.yml` `python-collection-parity` and `ratchet-bump-guard` jobs |
+| QG-46 | Platform-conditional tests MUST use file-name-pattern exclusion (`test_*_windows.py`, and equivalents for other OSes when added). The glob patterns live in a shared constant `PLATFORM_CONDITIONAL_IGNORE_GLOBS` imported by BOTH `tests/conftest.py` and `scripts/check_ratchet_bump.py` — either site dropping the import fails the AST-level parity test. `pytest.mark.skip`, `pytest.mark.skipIf`, and runtime `pytest.skip()` at collection time are forbidden (`--max-skips=0`). | `scripts/_platform_test_filters.py`, `tests/unit/test_platform_conditional_collection.py`, `tests/unit/test_platform_conditional_collection_windows.py` |
+
+### Entry Point Alignment Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-47 | Pre-commit trigger scope MUST match or exceed the effective compilation/audit scope of the gate it guards. Triggers are defined by what the compiler or tool reads (e.g., every path in a tsconfig `include`), not by what the developer intends to change. Any path a gate reads MUST have a corresponding trigger. | `tests/unit/test_hook_triggers.py`, `tests/unit/test_hook_guards.py` |
+| QG-48 | Every pre-commit gate that reads the worktree (tsc, parity scripts, etc.) MUST have a corresponding clean-worktree guard covering its full input scope. The guard MUST block commit if unstaged changes exist in any path the gate reads, ensuring the gate validates the staged snapshot. Current guards: `require_clean_ui_sources()`, `require_clean_test_compilation_scope()`, `require_clean_tsconfigs()`. | `scripts/run_repo_hook.py` `require_clean_*()` functions |
+| QG-49 | Each gate MUST be defined exactly once as an authoritative command (e.g., an npm/pnpm script or a named CommandSpec) and invoked by name from every entry point: pre-commit, pre-push preflight, `pnpm test:ci`, and CI. `pnpm test:ci` is the documented local equivalent of the CI gate chain; if they diverge, the gate is broken. Direct invocation of underlying tools (e.g., calling `prettier` directly instead of the `format:check` script) is forbidden. | `package.json` `test:ci`, `scripts/run_pr_preflight.py` CommandSpecs, `.github/workflows/ci.yml`, `tests/unit/test_ci_parity_drift.py` |
+
+### Change Acknowledgement Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-50 | All bypass markers (`[version-override-acknowledged]`, `[threshold-update]`, `[ratchet-realignment]`, `[ratchet-test-removal]`) MUST appear in a commit SUBJECT LINE within the PR range (`{base}..HEAD`). Markers placed in commit bodies, PR descriptions, or cover notes are NOT honored. Scans use `git log --oneline` (subjects only). This prevents feature-documentation prose from accidentally disarming gates and keeps the marker surface auditable from `git log` alone. | `scripts/check-version-unchanged.py`, `scripts/check_threshold_changes.py`, `scripts/check_ratchet_bump.py` |
+| QG-51 | Any change to extension or task manifest version fields MUST carry `[version-override-acknowledged]` in a branch-local commit subject line. The local pre-push hook runs version-guard FIRST (fail-fast before expensive gates) using the identical script that CI runs. Direct pushes to `main` are NEVER bypassed by any marker. Local and CI enforcement are fully symmetric. | `scripts/check-version-unchanged.py`, `scripts/run_repo_hook.py` `run_version_guard()` |
+| QG-52 | Python + TypeScript coverage totals MUST NOT drop more than 2% vs `.coverage-baseline.json` on any metric (matching Codecov `project` `target: auto`, `threshold: 2%`). Baseline updates use the `--update` flag. Baseline-change acknowledgement shares the `[threshold-update]` subject-line marker defined in QG-50. | `scripts/check_coverage_delta.py`, `.coverage-baseline.json` |
+
+### Build Architecture Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-53 | The extension uses split tsconfigs: `tsconfig.json` (module: `ES2022`, moduleResolution: `bundler`) for type checking, and `tsconfig.build.json` (module: `CommonJS`, moduleResolution: `bundler`) for `dist/` emission. Node-executed scripts in `dist/` require CJS runtime semantics (`__dirname`, `require()`). The `build:tsc` script MUST reference `tsconfig.build.json` explicitly. | `extension/tsconfig.json`, `extension/tsconfig.build.json`, `extension/tests/meta/build-output-format-guard.test.ts` |
+| QG-54 | `dist/ui/` is owned exclusively by esbuild (`build:ui`). `tsconfig.build.json` MUST NOT include `ui/` paths — otherwise `build:tsc` silently overwrites IIFE bundles with CJS, breaking browser runtime. The guard pins module + moduleResolution for each config, the build-script entry point, and the `ui/` exclusion. | `extension/tests/meta/build-output-format-guard.test.ts` |
+| QG-55 | Prettier is invoked ONLY via the `format:check` script declared in `extension/package.json`. The script owns every flag (`--check`, `--ignore-path ../.prettierignore`, the `**/*.{ts,js,json,md}` glob). Direct Prettier invocation from any entry point (pre-commit, preflight, `test:ci`, CI workflow) is forbidden. Parity-drift regression locks the script flags, the per-entry-point invocation form, and the negative allowlist. | `extension/package.json`, `tests/unit/test_ci_parity_drift.py` `TestFormatCheckParity` |
+
+### Security Scan Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-56 | Pre-push preflight MUST run `gitleaks detect --config=.gitleaks.toml` with the same config CI enforces. If `gitleaks` is unavailable locally, authoritative preflight MUST fail fast rather than silently skipping (`--allow-local-degraded` is diagnostic-only and does not count as parity). The pre-commit `detect-private-key` framework hook is a supplementary staged-file check, not a substitute. | `scripts/run_pr_preflight.py` CommandSpec "Secret scan (gitleaks)", `.gitleaks.toml` |
+
 ## Verification Requirements
 
 A phase is not complete until every verification step passes without manual intervention.
@@ -361,8 +502,9 @@ These requirements derive from Victory Gates and define the final "are we done?"
 | Checkpoint | Command | Pass Criteria |
 |------------|---------|---------------|
 | VR-01 | Environment setup | `pip install -e .[dev]` succeeds |
-| VR-02 | Lint/format | `ruff check . && ruff format --check .` passes |
-| VR-03 | Type checking | `mypy src/` passes |
+| VR-02 | Lint/format (Python) | `ruff check . && ruff format --check .` passes |
+| VR-02a | Format (Extension) | `pnpm --dir extension run format:check` passes |
+| VR-03 | Type checking | `mypy src/ tests/ scripts/ .github/scripts/` passes |
 | VR-04 | Unit tests | `pytest tests/unit` all pass, no skipped contract tests |
 | VR-05 | Golden outputs | `pytest tests/integration/test_golden_outputs.py` hashes stable |
 | VR-06 | Incremental run | `pytest tests/integration/test_incremental_run.py` no duplicates |
@@ -423,6 +565,14 @@ These requirements derive from Victory Gates and define the final "are we done?"
 | VR-26 | Startup-state parity | `artifacts/demo-enterprise/report/startup-parity.json` reports `parity_passed = true` |
 | VR-27 | Published demo parity | `docs/data/` is byte-identical to promoted canonical output and remains generated-only |
 
+### Local/CI Parity Verification
+
+| Checkpoint | Command | Pass Criteria |
+|------------|---------|---------------|
+| VR-28 | Full pre-push hook | `python scripts/run_repo_hook.py pre-push` completes with exit code 0 (runs version-guard first, then full preflight) |
+| VR-29 | Authoritative preflight | `python scripts/run_pr_preflight.py` returns 0; every CommandSpec passes without `--allow-local-degraded` |
+| VR-30 | Ratchet-bump parity | `python scripts/check_ratchet_bump.py --base-ref origin/main --junit-extension extension/test-results.xml` reports floor == actual on both Python and Extension suites, and inter-file parity (`.test-floor-contract.json` vs preflight vs ci.yml) holds on every commit in the range |
+
 ## Governance
 
 ### Amendment Procedure
@@ -454,4 +604,4 @@ These decisions are final and may not be revisited without MAJOR version change:
 - **Historical migration**: No MongoDB migration (fresh extraction from configured start date)
 - **Output compatibility**: 100% PowerBI CSV parity is mandatory
 
-**Version**: 1.4.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-04-02
+**Version**: 1.5.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-04-16
