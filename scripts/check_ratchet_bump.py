@@ -219,7 +219,7 @@ class CommitFailure:
 
 
 def read_preflight_floors(
-    preflight_path: Path, *, repo_root: Path = REPO_ROOT
+    preflight_path: Path, *, repo_root: Path | None = None
 ) -> FloorReadings:
     """Parse ``--min-collected`` floors from ``run_pr_preflight.py``.
 
@@ -229,6 +229,7 @@ def read_preflight_floors(
     spec names, and extracts the ``--min-collected=N`` token from the
     second-argument tuple literal.
     """
+    resolved_repo_root = REPO_ROOT if repo_root is None else repo_root
     try:
         source = preflight_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -277,7 +278,7 @@ def read_preflight_floors(
             source=preflight_path,
             context=f"CommandSpec {spec_name!r}",
             suite=suite_key,
-            repo_root=repo_root,
+            repo_root=resolved_repo_root,
         )
         if spec_name == _PYTHON_SPEC_NAME:
             py_floor = value
@@ -306,8 +307,14 @@ def _join_tuple_literal(command_node: ast.Tuple) -> str:
 
 
 def _extract_min_collected(
-    text: str, *, source: Path, context: str, suite: str, repo_root: Path = REPO_ROOT
+    text: str,
+    *,
+    source: Path,
+    context: str,
+    suite: str,
+    repo_root: Path | None = None,
 ) -> int:
+    resolved_repo_root = REPO_ROOT if repo_root is None else repo_root
     match = _MIN_COLLECTED_RE.search(text)
     if match is not None:
         return int(match.group(1))
@@ -320,7 +327,7 @@ def _extract_min_collected(
         )
     try:
         artifact_index = tokens.index("--min-collected-artifact")
-        artifact_path = repo_root / tokens[artifact_index + 1]
+        artifact_path = resolved_repo_root / tokens[artifact_index + 1]
     except (IndexError, ValueError) as exc:
         raise RatchetSetupError(
             f"{source}: {context} has malformed --min-collected-artifact usage"
@@ -355,7 +362,9 @@ def _extract_min_collected(
 # ---------------------------------------------------------------------------
 
 
-def read_ci_floors(ci_yaml_path: Path, *, repo_root: Path = REPO_ROOT) -> FloorReadings:
+def read_ci_floors(
+    ci_yaml_path: Path, *, repo_root: Path | None = None
+) -> FloorReadings:
     """Parse ``--min-collected`` floors from the two validate-test-results steps.
 
     Navigates the YAML defensively via
@@ -366,6 +375,7 @@ def read_ci_floors(ci_yaml_path: Path, *, repo_root: Path = REPO_ROOT) -> FloorR
     backslash-continuation flags are not silently lost before the
     regex search.
     """
+    resolved_repo_root = REPO_ROOT if repo_root is None else repo_root
     try:
         py_run = _ci_parser.load_ci_run_block(ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP)
         ext_run = _ci_parser.load_ci_run_block(ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP)
@@ -374,10 +384,18 @@ def read_ci_floors(ci_yaml_path: Path, *, repo_root: Path = REPO_ROOT) -> FloorR
 
     try:
         py_floor = _extract_ci_flag(
-            py_run, ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP, repo_root=repo_root
+            py_run,
+            ci_yaml_path,
+            _CI_PY_JOB,
+            _CI_PY_STEP,
+            repo_root=resolved_repo_root,
         )
         ext_floor = _extract_ci_flag(
-            ext_run, ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP, repo_root=repo_root
+            ext_run,
+            ci_yaml_path,
+            _CI_EXT_JOB,
+            _CI_EXT_STEP,
+            repo_root=resolved_repo_root,
         )
     except _ci_parser.CiYamlParseError as exc:
         raise RatchetSetupError(str(exc)) from exc
@@ -391,8 +409,9 @@ def _extract_ci_flag(
     job_name: str,
     step_name: str,
     *,
-    repo_root: Path = REPO_ROOT,
+    repo_root: Path | None = None,
 ) -> int:
+    resolved_repo_root = REPO_ROOT if repo_root is None else repo_root
     commands = _ci_parser.extract_shell_commands(run_block)
     if not commands:
         raise _ci_parser.CiYamlParseError(
@@ -406,7 +425,7 @@ def _extract_ci_flag(
         source=ci_yaml_path,
         context=f"job {job_name!r} step {step_name!r}",
         suite=suite,
-        repo_root=repo_root,
+        repo_root=resolved_repo_root,
     )
 
 
@@ -415,7 +434,7 @@ def _extract_ci_flag(
 # ---------------------------------------------------------------------------
 
 
-def measure_python_count(*, repo_root: Path = REPO_ROOT) -> int:
+def measure_python_count(*, repo_root: Path | None = None) -> int:
     """Invoke ``pytest --collect-only`` via a hermetic subprocess.
 
     Returns the **cross-platform minimum** — the count pytest sees when
@@ -441,7 +460,7 @@ def measure_python_count(*, repo_root: Path = REPO_ROOT) -> int:
     ).count
 
 
-def measure_windows_full_count(*, repo_root: Path = REPO_ROOT) -> int | None:
+def measure_windows_full_count(*, repo_root: Path | None = None) -> int | None:
     """Return the Windows hermetic full count (no platform filter), ``None`` elsewhere.
 
     On Windows, runs the same hermetic ``--collect-only`` subprocess as
@@ -480,7 +499,7 @@ def measure_windows_full_count(*, repo_root: Path = REPO_ROOT) -> int | None:
 
 
 def collect_python_snapshot(
-    *, apply_platform_filters: bool, repo_root: Path = REPO_ROOT
+    *, apply_platform_filters: bool, repo_root: Path | None = None
 ) -> PythonCollectionSnapshot:
     """Return the hermetic collected count and node IDs for the Python suite.
 
@@ -509,6 +528,7 @@ def collect_python_snapshot(
     ``try/finally`` lets cleanup happen outside any context manager so
     it cannot mask the measurement verdict.
     """
+    resolved_repo_root = REPO_ROOT if repo_root is None else repo_root
     fd, count_path_str = tempfile.mkstemp(
         prefix=f"ratchet-count-{os.getpid()}-", suffix=".txt"
     )
@@ -601,7 +621,7 @@ def collect_python_snapshot(
                     "tests/",
                 ],
                 env=scrubbed_env,
-                cwd=repo_root,
+                cwd=resolved_repo_root,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -1464,6 +1484,13 @@ def run_gate(
                 "on both dimensions.",
             )
             return EXIT_OK
+        print(
+            f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
+            f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "
+            f"{display_range} (scanned via `git log --oneline`; "
+            "markers in commit bodies are NOT honored).",
+            file=sys.stderr,
+        )
         return EXIT_DRIFT
 
     print(
