@@ -34,7 +34,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 - [ ] **T001** Add `FetchOutcome` frozen dataclass + required imports in `src/ado_git_repo_insights/cli.py`
   - Location: between `_extract_comments` (ends at line 662) and `_dropped_threads_all_stored` (starts at line 960) — the natural insertion point per plan §1.
-  - Declare: `@dataclass(frozen=True) class FetchOutcome:` with fields `status: Literal["ok", "failed"]`, `truncated: bool`, `dropped_threads: list[AdoThread]`.
+  - Declare: `@dataclass(frozen=True) class FetchOutcome:` with fields `status: Literal["ok", "failed"]`, `truncated: bool`, `dropped_threads: list[AdoThread]`, `threads_upserted: int`, `comments_upserted: int`. **Amendment rationale**: the original 3-field shape proved incomplete against FR-034 (extract tests assert on `stats["threads"]` / `stats["comments"]` at test file lines 337, 371). Carrying the counts on the outcome preserves the single-return / no-mutated-parameter boundary without coupling the helper to caller-owned stats aggregation.
   - Add module imports as needed: `Literal` from `typing`, `Mapping` from `collections.abc`, `dataclass` from `dataclasses`. **Pass 3 verified**: `AdoThread` is a `TypedDict` defined in `src/ado_git_repo_insights/types.py:143`; cli.py already imports it at line 28 (inside `if TYPE_CHECKING:`). cli.py has `from __future__ import annotations` at line 3, so the TYPE_CHECKING import suffices for the `list[AdoThread]` annotation on `FetchOutcome.dropped_threads` (no runtime import needed). Reuse the existing import site; do NOT declare a local alias.
   - FR refs: **FR-015b** helper shape. INV refs: **INV-6**, **INV-7**.
   - Gates: **QG-40** (precise types — no `Any`), **QG-41** (no suppressions).

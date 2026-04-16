@@ -192,10 +192,17 @@ class FetchOutcome:
 
     Carries enough information for the caller to apply its own
     coverage-marker stamp decision and commit/rollback policy.
+
+    Thread/comment counts are carried on the outcome so the helper remains a
+    single-return, no-mutated-parameter boundary while preserving extract's
+    existing ``stats["threads"]`` / ``stats["comments"]`` contract
+    (FR-034 regression lock: tests/unit/test_extract_comments.py:337, 371).
     """
     status: Literal["ok", "failed"]
     truncated: bool
     dropped_threads: list[AdoThread]
+    threads_upserted: int
+    comments_upserted: int
 
 
 def _fetch_and_upsert_threads_for_pr(
@@ -251,6 +258,11 @@ for pr_row in prs_to_process:
         outcome = _fetch_and_upsert_threads_for_pr(
             client, db, repo, pr_row, max_threads_per_pr
         )
+        # Per-thread / per-comment counts roll up from the helper's return
+        # value so extract's existing stats contract survives the refactor
+        # (FR-034 regression lock; test_extract_comments.py:337, 371).
+        stats["threads"] = int(stats["threads"]) + outcome.threads_upserted
+        stats["comments"] = int(stats["comments"]) + outcome.comments_upserted
         # Extract's post-fix 3-case stamp logic — preserved bit-for-bit from 740810fd.
         # Case 2 carries a sub-decision (Case 2a/2b) on pre_iteration_comments_extracted_at.
         if not outcome.truncated:
@@ -707,7 +719,7 @@ Phase 1 companion artifacts (`research.md`, `data-model.md`, `contracts/cli-subc
 | Core Principle XVIII (Actionable Failure Logs) | PASS | PASS | Confirmed: contracts/cli-subcommand.md §6 log-stream contract |
 | Core Principle XXVI (Collection-Stable Test Definitions) | PASS | PASS | Confirmed: plan.md §5 explicitly forbids `if version:` / decorators / import-time gating / runtime `pytest.skip()` |
 | QG-39 Cross-OS | PASS | PASS | Confirmed: no OS-specific construct in any new string or code path |
-| QG-40 No Any | PASS | PASS | Confirmed: `FetchOutcome.status: Literal["ok","failed"]`, `dropped_threads: list[AdoThread]`, `BackfillSelectionRow: TypedDict` — all precise types |
+| QG-40 No Any | PASS | PASS | Confirmed: `FetchOutcome.status: Literal["ok","failed"]`, `dropped_threads: list[AdoThread]`, `threads_upserted: int`, `comments_upserted: int`, `BackfillSelectionRow: TypedDict` — all precise types |
 | QG-41 Zero suppressions | PASS | PASS | No suppression comments drafted |
 | QG-42 Enterprise test coverage | PASS | PASS | Every FR-030a–j and FR-031/032/033 mapped to a named test file + method in plan.md §5 |
 | QG-43 Ratchet-bump same-commit | BINDING | BINDING | Estimate `~33` new tests; actual count authoritative at implementation time; plan.md §5 flags this for tasks.md |

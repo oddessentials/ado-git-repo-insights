@@ -118,10 +118,17 @@ class FetchOutcome:
 
     Carries enough information for the caller to apply its own
     coverage-marker stamp decision and commit/rollback policy.
+
+    Thread/comment counts are carried on the outcome so the helper remains a
+    single-return, no-mutated-parameter boundary while preserving extract's
+    existing ``stats["threads"]`` / ``stats["comments"]`` contract
+    (FR-034 regression lock: tests/unit/test_extract_comments.py:337, 371).
     """
     status: Literal["ok", "failed"]
     truncated: bool
     dropped_threads: list[AdoThread]
+    threads_upserted: int
+    comments_upserted: int
 ```
 
 | Field | Type | Meaning |
@@ -129,10 +136,14 @@ class FetchOutcome:
 | `status` | `Literal["ok", "failed"]` | `"ok"` when the fetch completed without raising. `"failed"` is an internal enum value — the helper does NOT return `status="failed"`; it RAISES `ExtractionError` instead. The enum value exists in the shape for future-proofing (e.g., if a later feature decides to return a failure descriptor instead of raising). On HEAD, every non-raising return has `status="ok"` |
 | `truncated` | `bool` | `True` iff `max_threads_per_pr > 0 AND len(all_threads) > max_threads_per_pr` (identical condition to current `pr_threads_truncated` at cli.py:539-541) |
 | `dropped_threads` | `list[AdoThread]` | Slice `all_threads[max_threads_per_pr:]` — the threads the helper did NOT upsert because of the truncation cap. Empty list when `truncated=False`. Required input to `_dropped_threads_all_stored(db, pr_uid, dropped_threads)` for the caller's stamp decision |
+| `threads_upserted` | `int` | Number of threads the helper passed through `repo.upsert_thread` during this iteration. Rolls up into extract's caller-side `stats["threads"]` so the existing stats contract (tests/unit/test_extract_comments.py:337, 371) survives the refactor. Equals the count of `threads` that passed the per-thread incremental-sync skip check at cli.py:562-566. Backfill ignores this field (its counters are at PR granularity, not thread granularity) |
+| `comments_upserted` | `int` | Number of comments the helper passed through `repo.upsert_comment` during this iteration. Same aggregation pattern as `threads_upserted` — rolls up into extract's caller-side `stats["comments"]`. Backfill ignores this field |
 
 **Why `Literal["ok", "failed"]` and not `Literal["ok"]`**: keeps the dataclass shape future-compatible without constraining HEAD's behavior. FR-030j's forbidden-claim scan does not flag `"ok"`/`"failed"` strings — they are machine tokens, not operator-facing prose.
 
 **Why `frozen=True`**: the outcome is observed by the caller for decision-making; mutating it after return would make the caller's decision chain ambiguous.
+
+**Why counts fields on the outcome and not a mutated `stats` parameter**: keeps the helper single-return / no-mutated-parameter. Passing a `stats` dict would couple the helper to caller-owned aggregation state and weaken the fetch/stamp separation FR-015a locks. The 3-field shape of the initial T001 draft proved incomplete against FR-034 (the upsert loops, once migrated into the helper, orphaned the thread/comment counts with no return channel); the 5-field shape is the minimal widening that closes the gap without reintroducing mode flags or mutated parameters.
 
 ## 4. Selection snapshot (FR-011a)
 

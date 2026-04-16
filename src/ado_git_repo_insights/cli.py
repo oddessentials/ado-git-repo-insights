@@ -9,9 +9,10 @@ import re
 import shutil
 import sys
 import time
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
@@ -679,6 +680,25 @@ def _extract_comments(
     )
     db.connection.commit()
     return stats
+
+
+@dataclass(frozen=True)
+class FetchOutcome:
+    """Per-PR fetch-and-upsert result returned by `_fetch_and_upsert_threads_for_pr`.
+
+    Pure data — no coverage-marker read/write. Callers own the stamp decision.
+
+    Thread/comment counts are carried on the outcome so the helper remains a
+    single-return, no-mutated-parameter boundary while preserving extract's
+    existing ``stats["threads"]`` / ``stats["comments"]`` contract
+    (FR-034 regression lock: tests/unit/test_extract_comments.py:337, 371).
+    """
+
+    status: Literal["ok", "failed"]
+    truncated: bool
+    dropped_threads: list[AdoThread]
+    threads_upserted: int
+    comments_upserted: int
 
 
 def cmd_extract(args: Namespace) -> int:
