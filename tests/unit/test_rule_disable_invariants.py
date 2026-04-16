@@ -864,6 +864,38 @@ class TestAllowlistOrphanDetection:
         with pytest.raises(json.JSONDecodeError):
             _mod.verify_subprocess_allowlist_entries(case_dir)
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"entries": {}}',
+            '{"entries": ""}',
+            '{"entries": null}',
+            '{"entries": 0}',
+            "{}",
+        ],
+        ids=["dict", "string", "null", "number", "missing-key"],
+    )
+    def test_non_list_entries_raises(self, payload: str) -> None:
+        """Entries that are not a list raise ValueError, not silent pass."""
+        case_dir = self._build_case("non-list-entries", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        with pytest.raises(ValueError, match="must be a list"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
+    @pytest.mark.parametrize(
+        "bad_entry",
+        [None, 1, "string", []],
+        ids=["null", "number", "string", "array"],
+    )
+    def test_non_dict_entry_raises(self, bad_entry: object) -> None:
+        """Non-object items in entries raise ValueError, not TypeError."""
+        case_dir = self._build_case("non-dict-entry", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            json.dumps({"entries": [bad_entry]}), encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="must be an object"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
     def test_committed_allowlist_is_clean(self) -> None:
         """The repo's committed .subprocess-allowlist.json has zero orphans."""
         repo_root = Path(__file__).parent.parent.parent
@@ -919,6 +951,45 @@ class TestAllowlistOrphanDetection:
         (case_dir / ".subprocess-allowlist.json").write_text(
             "not valid json{{{", encoding="utf-8"
         )
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "malformed" in out.lower()
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"entries": {}}',
+            '{"entries": null}',
+            '{"entries": [null]}',
+            '{"entries": [1]}',
+        ],
+        ids=["entries-dict", "entries-null", "null-item", "int-item"],
+    )
+    def test_verify_artifacts_fails_on_structural_malformation(
+        self,
+        payload: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Structurally invalid allowlist shapes produce [FAIL], not traceback."""
+        case_dir = self._build_case("structural-malform", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
         fresh_s603 = _mod.generate_subprocess_artifact(
             Path(__file__).parent.parent.parent
         )

@@ -568,7 +568,9 @@ def verify_subprocess_allowlist_entries(
     with open(allowlist_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    entries = data.get("entries", [])
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        raise ValueError(f"'entries' must be a list, got {type(entries).__name__}")
     if not entries:
         return []
 
@@ -576,7 +578,11 @@ def verify_subprocess_allowlist_entries(
     file_cache: dict[str, tuple[list[str], list[dict[str, str | int]]]] = {}
     orphans: list[dict[str, str | int]] = []
 
-    for entry in entries:
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"entries[{i}] must be an object, got {type(entry).__name__}"
+            )
         file_key = str(entry["file"])
         line_num = int(entry["line"])
         code_key = _normalize_allowlist_code(entry["code"])
@@ -736,7 +742,7 @@ def verify_artifacts(repo_root: Path) -> int:
     if allowlist_path.exists():
         try:
             orphans = verify_subprocess_allowlist_entries(repo_root)
-        except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
             print(f"[FAIL] .subprocess-allowlist.json is malformed: {exc}")
             exit_code = 1
         else:
