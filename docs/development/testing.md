@@ -280,9 +280,12 @@ gate-by-gate parity contract.
 python scripts/run_pytest.py --cov=src --cov-report=html
 open htmlcov/index.html
 ```
-(The launcher forwards arbitrary pytest args verbatim; using it here keeps
-coverage files out of the repo root, matching the Windows-safe path policy
-documented under [Running Tests](#running-tests).)
+(The launcher accepts arbitrary pytest args and forwards them to pytest,
+while adding launcher-managed coverage settings when needed — e.g. a
+per-run `COVERAGE_FILE` under the OS temp directory and
+`--cov-fail-under=0` for subset runs like `-k`, `-m`, `--lf`, or an
+explicit test path. Full-suite runs, preflight, and CI still enforce the
+real coverage floor.)
 
 ---
 

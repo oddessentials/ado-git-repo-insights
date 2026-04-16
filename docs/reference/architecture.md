@@ -316,12 +316,13 @@ the first; the other two are generated mirrors that CI enforces.**
 | Layer | Path | Role | Who writes it |
 |-------|------|------|---------------|
 | Source | `extension/ui/` | TypeScript, static HTML, CSS | Contributors (hand-edited) |
-| Build output | `extension/dist/ui/` | Compiled JS bundles | `esbuild` (via `pnpm run build:ui`) |
-| Packaged mirror | `src/ado_git_repo_insights/ui_bundle/` | Static files from source + compiled JS from build | `scripts/sync_ui_bundle.py` (default `--source extension/dist/ui`, `--bundle src/ado_git_repo_insights/ui_bundle`) |
+| Build output | `extension/dist/ui/` | Compiled JS + the static HTML/CSS copied from source | esbuild / build pipeline (via `pnpm run build:ui`) |
+| Packaged mirror | `src/ado_git_repo_insights/ui_bundle/` | Whole-directory mirror of `extension/dist/ui/` (allowed extensions only: `.js`, `.css`, `.html`) | `scripts/sync_ui_bundle.py` (default `--source extension/dist/ui`, `--bundle src/ado_git_repo_insights/ui_bundle`); logic in `src/ado_git_repo_insights/utils/ui_sync.py` |
 
-The demo surface under `docs/` pulls the shell from `extension/ui/` and
-built assets from `extension/dist/ui/` (see
-`scripts/publish-demo-surface.py`).
+The demo surface under `docs/` is a **different flow**: `scripts/publish-demo-surface.py`
+pulls the shell content (e.g. `index.html`, `settings.html`) from `extension/ui/`
+and built asset files from `extension/dist/ui/`. It does not read from
+`src/ado_git_repo_insights/ui_bundle/`.
 
 **CI enforces the generated mirrors**, not direct source-file identity. Do
 not hand-edit `extension/dist/ui/` or `src/ado_git_repo_insights/ui_bundle/`

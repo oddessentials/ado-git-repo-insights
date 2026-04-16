@@ -14,13 +14,13 @@
 >
 > ```bash
 > # Side-by-side comparison layout (D.1)
-> grep -R "side-by-side\|sideBySide\|grid-template-columns.*comparison" extension/ui/
+> rg "side-by-side|sideBySide|grid-template-columns.*comparison" extension/ui/
 >
 > # PNG export (D.2)
-> grep -R "html2canvas\|dom-to-image\|\.png\b" extension/ui/
+> rg "html2canvas|dom-to-image|\.png\b" extension/ui/
 >
 > # Saved views (D.3)
-> grep -R "savedView\|saved-view\|preset" extension/ui/
+> rg "savedView|saved-view|preset" extension/ui/
 > ```
 >
 > **Reading guide:** The gap analysis, "Current State" tables, and sprint
