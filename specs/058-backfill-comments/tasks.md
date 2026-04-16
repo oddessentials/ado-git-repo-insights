@@ -600,8 +600,18 @@ No temporary relaxations. No `[version-override-acknowledged]` / `[ratchet-reali
   - No cli.py line drift since commit `740810fd` (the #289 fix); zero new commits affecting cli.py since Pass 1 completed.
   - **Pass 3 finding count: 3 refinements** (AdoThread import path + ExtractionError disambiguation + subprocess allowlist entry requirement). All applied to tasks.md inline.
   - **T014 split decision**: Pass 3 estimates the real T014 diff at ~60-80 lines (loop body ~40 + RunSummary construction ~25-40). Under the ~100-line threshold. T014 stays as one task.
-- **Pass 4 (readiness-for-implementation)**: pending. Confirm every task is self-contained, no cross-task decision drift, dependencies named explicitly, acceptance criteria testable without running subsequent tasks.
-- **/speckit.analyze**: pending — only after Pass 4 completes. Any inconsistency surfaces as a Pass 5 loop.
+- **Pass 4 (readiness-for-implementation)**: **COMPLETE**. Walked all 22 tasks against the 5 Pass 4 criteria:
+  - **Self-contained**: every task body contains file path + function/method name + acceptance criteria without requiring cross-reference to plan.md. Spot-verified T001 (dataclass shape + imports), T008 (argparse wiring + Pass 2 elif placement lock), T014 (full code pseudo-shape with Case 2 sub-decision), T016 (32 method declarations with corpus locks), T020 (commit-composition recipe). ✓
+  - **No cross-task decision drift**: dependent tasks consistent. T005 wrapper + T008 `type=_parse_iso_date_argtype` ✓. T011 outer try + T012 DB-connect-first ordering ✓. T014 Sites A+C + T015 Sites D4+D5 + T017 #34's 10-case corpus covers all 9 backfill sites ✓. T018 #35 byte-equality + T019 golden generation via `write()` round-trip ✓.
+  - **Dependencies named explicitly**: Parallel-work grid in the "Dependencies & Execution Order" section lists `[P]`-parallel vs sequential per phase. Phase ordering explicit (Phase 1 → 2 → 3 → 4). Single-commit lock on T016-T020 restated.
+  - **Acceptance criteria testable in isolation**: each task's "Tests locking this" list names specific method(s) in plan §5 that assert the acceptance. T020's acceptance is `check_ratchet_bump.py` exit 0; T022's is `run_repo_hook.py pre-push` exit 0. Every task's criterion is checkable without running subsequent tasks (subject to the stated dependencies).
+  - **Ratchet-bump is terminal**: T020 is the last task in Phase 3 and the single-commit lock bundles T016-T020. ✓
+  - **Pre-push gate is final**: T022 is the last task overall; VR-28/29/30/QG-43/45 all checked via one command. ✓
+- **/speckit.analyze**: pending — final cross-artifact consistency sweep across spec.md + plan.md + tasks.md. Runs as the next step.
+
+### Ready-for-implementation signature
+
+At HEAD `08cf7b10`, all 4 planning passes complete. Spec (Pass 1-4 hardened), plan (Pass 1+2+2.5 locked), tasks.md (Pass 1-4 locked). Three feature-branch commits (740810fd #289 fix, 79d49b14 planning refresh, 84148695 tasks Pass 1, 4055541e tasks Pass 2, 08cf7b10 tasks Pass 3) staged before implementation begins. Zero deferred architectural decisions. Complexity Tracking empty. Implementation may proceed in the order T001 → T002 → T003 → [P: T004, T005, T006, T007] → [P: T008, T009, T010] → T011 → T012 → T013 → T014 → T015 → [P: T016, T017, T018, T019 all bundled with T020 in one terminal commit] → [P: T021] → T022.
 
 ---
 
