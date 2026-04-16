@@ -562,11 +562,11 @@ def verify_subprocess_allowlist_entries(
     if not allowlist_path.exists():
         return []
 
-    try:
-        with open(allowlist_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return []
+    # Let parse errors propagate — the caller in verify_artifacts() catches
+    # them and reports [FAIL].  Swallowing here would be fail-open: a corrupt
+    # allowlist silently passes verification.
+    with open(allowlist_path, encoding="utf-8") as f:
+        data = json.load(f)
 
     entries = data.get("entries", [])
     if not entries:
@@ -727,25 +727,36 @@ def verify_artifacts(repo_root: Path) -> int:
                 f"({len(fresh_raw)} entries, semantic match)"
             )
 
-    # Verify subprocess allowlist entries (issue #273)
-    orphans = verify_subprocess_allowlist_entries(repo_root)
-    if orphans:
-        print(f"[FAIL] {len(orphans)} orphan(s) in .subprocess-allowlist.json:")
-        for o in orphans:
-            print(f"  {o['file']}:{o['line']}: {o['category']}")
-            print(f"    code: {o['code']}")
-            print(f"    reason: {o['reason']}")
-        print(
-            "  Run: python scripts/check_rule_disable_invariants.py "
-            "--regenerate-allowlist"
-        )
-        exit_code = 1
-    else:
-        allowlist_path = repo_root / ".subprocess-allowlist.json"
-        if allowlist_path.exists():
-            with open(allowlist_path, encoding="utf-8") as f:
-                count = len(json.load(f).get("entries", []))
-            print(f"[PASS] Subprocess allowlist verified ({count} entries, all live)")
+    # Verify subprocess allowlist entries (issue #273).
+    # verify_subprocess_allowlist_entries() intentionally does NOT swallow parse
+    # errors — catch them here so a corrupt allowlist produces [FAIL], not a
+    # traceback.  The entry-access path (KeyError/ValueError) is also caught so
+    # malformed entries fail closed rather than crash.
+    allowlist_path = repo_root / ".subprocess-allowlist.json"
+    if allowlist_path.exists():
+        try:
+            orphans = verify_subprocess_allowlist_entries(repo_root)
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            print(f"[FAIL] .subprocess-allowlist.json is malformed: {exc}")
+            exit_code = 1
+        else:
+            if orphans:
+                print(f"[FAIL] {len(orphans)} orphan(s) in .subprocess-allowlist.json:")
+                for o in orphans:
+                    print(f"  {o['file']}:{o['line']}: {o['category']}")
+                    print(f"    code: {o['code']}")
+                    print(f"    reason: {o['reason']}")
+                print(
+                    "  Run: python scripts/check_rule_disable_invariants.py "
+                    "--regenerate-allowlist"
+                )
+                exit_code = 1
+            else:
+                with open(allowlist_path, encoding="utf-8") as f:
+                    count = len(json.load(f).get("entries", []))
+                print(
+                    f"[PASS] Subprocess allowlist verified ({count} entries, all live)"
+                )
 
     return exit_code
 
