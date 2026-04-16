@@ -6,8 +6,6 @@
 - pandas (aggregation), pytest (Python tests), Jest (TypeScript tests)
 - ruff (Python linting), ESLint (TypeScript linting), mypy (type checking)
 - esbuild (IIFE bundler), Playwright (smoke tests)
-- Python 3.12+ (backend pipeline), TypeScript 6.x (extension UI — no changes needed) + pandas (aggregation), requests (ADO API client), sqlite3 (persistence), pytest (testing) (052-review-time-pipeline)
-- SQLite (source of truth per Constitution Principle V), JSON rollup files (aggregation output) (052-review-time-pipeline)
 
 ## Project Structure
 

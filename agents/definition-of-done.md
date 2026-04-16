@@ -26,12 +26,13 @@ Work is not “done” until the checks below are implemented, automated where p
 
 **Evidence:** `tests/unit/test_csv_determinism.py` + artifact hash comparison.
 
-### 1.3 “Golden Fixture” Compatibility (Manual Once + Automated Thereafter)
+### 1.3 Golden Output Verification (Automated)
 
-- ✅ Maintain a small golden SQLite fixture and the exact expected CSV outputs.
-- ✅ CI verifies that generating CSVs from the fixture matches expected outputs.
+- ✅ Golden tests generate a temporary SQLite database with known data at test time.
+- ✅ CSVs are produced from that database and validated for schema compliance, deterministic output, column ordering, and stable formatting.
+- ✅ CI verifies these properties on every run without relying on committed fixture files.
 
-**Evidence:** `tests/fixtures/golden_db.sqlite` + expected CSV files + `tests/integration/test_golden_outputs.py`.
+**Evidence:** `tests/integration/test_golden_outputs.py` (dynamic fixtures).
 
 ---
 

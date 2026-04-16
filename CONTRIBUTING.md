@@ -82,15 +82,30 @@ broken workstation.
 4. **Keep PRs focused** — one feature or fix per PR
 5. **Update documentation** if behavior changes
 
+### Documentation Drift Prevention
+
+When updating docs, never hardcode values that are derived from a source of truth
+elsewhere. Hardcoded counts, line numbers, and matrix dimensions rot silently.
+
+| Instead of | Do this |
+|------------|---------|
+| Counting items ("26 invariants") | Describe the property; the linked file has the count |
+| Line number references ("line 245") | Name the function or code block; lines shift on every edit |
+| Derived totals ("9 OS/version combos") | Describe the property + link to source ("see CI workflow") |
+| Enumerating volatile lists ("ruff, mypy, ...") | Point to the authoritative script or config |
+
+Prerequisite versions users must install (Node.js 22, Python 3.12+) are fine to state
+directly — they are actionable requirements, not derived counts.
+
 ### CI Checks
 
 All PRs must pass:
 - Secret scanning (gitleaks)
 - Line ending checks
 - UI bundle synchronization
-- Python tests (9 OS/version combinations)
+- Python tests (full OS/Python version matrix -- see [CI workflow](/.github/workflows/ci.yml))
 - Extension tests
-- Pre-commit hooks (ruff)
+- Pre-commit hooks (full gate suite -- see `scripts/run_repo_hook.py`)
 
 ---
 
@@ -216,7 +231,7 @@ The base package must function without ML dependencies.
 
 | Document | Description |
 |----------|-------------|
-| [Invariants](agents/INVARIANTS.md) | 25 non-negotiable system invariants |
+| [Invariants](agents/INVARIANTS.md) | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria |
 | [Victory Gates](agents/victory-gates.md) | Verification checkpoints |
 

@@ -18,8 +18,9 @@ tests/
 │   ├── test_incremental_run.py
 │   └── ...
 └── fixtures/              # Test data
-    ├── golden_db.sqlite   # Golden database for regression
-    ├── expected/          # Expected output files
+    ├── golden/            # Golden reference data
+    ├── nested_artifacts/  # Staging normalization fixtures
+    ├── staged_artifacts/  # Pipeline artifact fixtures
     └── README.md          # Fixtures documentation
 ```
 
@@ -96,22 +97,9 @@ CI guards that prevent documentation from going stale.
 ## Golden Tests
 
 The `test_golden_outputs.py` tests verify CSV output against known-good baselines.
-
-**Golden fixtures:**
-- `tests/fixtures/golden_db.sqlite` — Reference database
-- `tests/fixtures/expected/*.csv` — Expected CSV output
-
-**Updating golden fixtures:**
-
-```bash
-# Regenerate expected outputs
-pytest tests/integration/test_golden_outputs.py --golden-update
-
-# Or manually:
-ado-insights generate-csv \
-  --database tests/fixtures/golden_db.sqlite \
-  --output tests/fixtures/expected
-```
+Golden tests use **dynamic fixtures** — they create temporary SQLite databases and
+generate CSVs at test time, then validate schema, determinism, and column contracts
+without pre-baked reference files on disk.
 
 ---
 
@@ -148,9 +136,10 @@ jest.mock('azure-devops-extension-sdk', () => ({
 
 ### Python CI Matrix
 
-Tests run across:
-- 3 operating systems (Ubuntu, Windows, macOS)
-- 3 Python versions (3.12, 3.13, 3.14)
+Tests run across all supported operating systems and Python versions
+(see `.github/workflows/ci.yml` for the current matrix):
+- Operating systems: Ubuntu, Windows, macOS
+- Python versions: see `requires-python` in `pyproject.toml`
 
 ### Local CI Parity
 
@@ -245,7 +234,7 @@ All PRs must pass:
 | UI bundle sync | Dashboard files synchronized |
 | Python tests | Full test suite |
 | Extension tests | Jest test suite |
-| Pre-commit hooks | Ruff linting/formatting |
+| Pre-commit hooks | Full gate suite (see `scripts/run_repo_hook.py`) |
 
 ---
 
@@ -292,13 +281,16 @@ Reference `agents/INVARIANTS.md` for the full list.
 
 ## Fixtures
 
-### Test Database
+### Golden Test Data
 
-`tests/fixtures/golden_db.sqlite` contains sample data for testing.
+Golden output tests use dynamic fixtures -- temporary SQLite databases are created
+and populated at test time. See `tests/fixtures/golden/` for reference data such as
+constant-series forecasts.
 
-### Expected Outputs
+### Staging Fixtures
 
-`tests/fixtures/expected/` contains expected CSV outputs.
+`tests/fixtures/nested_artifacts/` and `tests/fixtures/staged_artifacts/` contain
+artifact layout fixtures for staging normalization and pipeline artifact loading tests.
 
 ### Legacy Datasets
 

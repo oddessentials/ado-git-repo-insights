@@ -180,7 +180,7 @@ ado-insights generate-csv \
 
 ```bash
 cd extension
-tfx extension create --manifest-globs vss-extension.json
+pnpm run package:vsix
 ```
 
 **Gate:**

@@ -1,5 +1,13 @@
 # Default Dashboard Enhancement Plan
 
+> **Status (2026-04-16):** Phases A-C and most of Phase D are shipped in the current
+> extension source. See `extension/ui/` for the implementation. Remaining work:
+> D.1 (comparison mode) is partial, D.3 (saved views) is not started.
+>
+> **Reading guide:** The gap analysis, "Current State" tables, and sprint estimates
+> below describe the **pre-implementation planning state** and are preserved verbatim.
+> Do not treat them as live status.
+
 This document outlines a multi-phase implementation plan to enhance the default dashboard, making it more useful and impressive based on existing data and our initial vision.
 
 ## Executive Summary

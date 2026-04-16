@@ -1,6 +1,9 @@
 # Dataset Contract Specification
 
-This document defines the normative contract for PR Insights dataset consumption. Any consumer (extension UI, CLI dashboard, PowerBI) MUST use this contract.
+This document defines the normative contract for **PR Insights dataset consumption**.
+Any consumer (extension UI, CLI dashboard, PowerBI) MUST use this contract.
+For the **staging pipeline** contract (how artifacts are downloaded and normalized),
+see [Stage Artifacts Contract](../CONTRACT.md).
 
 ## Breaking Change (v2.0.0)
 
@@ -184,7 +187,7 @@ only used when the explicit capability field is absent.
 ### Enterprise Demo Metadata Rules
 
 1. `demo_profile.name` identifies the canonical synthetic profile
-2. `demo_profile.version` MUST be bumped when demo behavior changes per [DEMO-DATA-VERSIONING.md](E:/projects/ado-git-repo-insights/docs/DEMO-DATA-VERSIONING.md)
+2. `demo_profile.version` MUST be bumped when demo behavior changes per [DEMO-DATA-VERSIONING.md](../DEMO-DATA-VERSIONING.md)
 3. `demo_profile.canonical_output_root` identifies the canonical build root
 4. `published_files.direct` MUST list every non-pattern-based published file outside indexed collections
 5. `published_files.globs` MAY be used only for bounded additive collections with deterministic naming

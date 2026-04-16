@@ -1,7 +1,7 @@
 # Roadmap Closure Status
 
-> Last reviewed: 2026-03-21
-> Roadmap closure is tracked through `specs/034-roadmap-closure/` and its checked-in evidence pack.
+> All roadmap items below were completed and verified on 2026-03-21.
+> Evidence packs are in `specs/034-roadmap-closure/evidence/`.
 
 ## Closure Status
 

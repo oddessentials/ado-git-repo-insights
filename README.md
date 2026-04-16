@@ -188,7 +188,7 @@ ado-insights dashboard --dataset ./dataset --open
 
 | Document                                           | Description                         |
 | -------------------------------------------------- | ----------------------------------- |
-| [Invariants](agents/INVARIANTS.md)                 | 25 non-negotiable system invariants |
+| [Invariants](agents/INVARIANTS.md)                 | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria for features    |
 | [Victory Gates](agents/victory-gates.md)           | Verification checkpoints            |
 

@@ -151,7 +151,7 @@ flowchart LR
 | **queryTimeRangeType=closed** | Use `closedDate` field for date filtering | ✅ **Date range filter** - Queries by when PR was closed |
 | **closedDate** | Timestamp when PR reached a terminal state (completed OR abandoned) | ✅ Used for date range and cycle time calculation |
 
-**Key Insight**: The API URL in `ado_client.py` line 245-252 uses:
+**Key Insight**: The API URL construction in `ado_client.py` uses:
 ```
 ?searchCriteria.status=completed
 &searchCriteria.queryTimeRangeType=closed

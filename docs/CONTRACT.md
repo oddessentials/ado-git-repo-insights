@@ -3,8 +3,10 @@
 > **Contract Version**: 1
 > **Manifest Schema Version**: 1
 
-This document defines the authoritative contract for staged artifacts.
-Any deviation is a hard failure.
+This document defines the authoritative contract for **staging pipeline artifacts**
+(downloading, normalizing, and validating artifacts from Azure DevOps pipelines).
+For the **consumer dataset schema** (how dashboards and PowerBI consume the data),
+see [Dataset Contract](reference/dataset-contract.md).
 
 ---
 
