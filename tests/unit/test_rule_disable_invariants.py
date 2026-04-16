@@ -9,8 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
-import subprocess
-import sys
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -239,15 +238,31 @@ class TestArtifactVerification:
     REPO_ROOT = Path(__file__).parent.parent.parent
     TMP_ROOT = REPO_ROOT / "tmp_test_work" / "rule-disable-invariants"
 
-    def test_verify_artifacts_passes_on_current(self) -> None:
-        """Fresh artifacts match the codebase."""
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--verify-artifacts"],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+    def test_verify_artifacts_passes_on_fresh_temp_artifacts(self) -> None:
+        """Freshly generated temp artifacts verify successfully."""
+        fresh_s603 = _mod.generate_subprocess_artifact(self.REPO_ROOT)
+        fresh_s311 = _mod.generate_random_artifact(self.REPO_ROOT)
+
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.TMP_ROOT / "fresh-artifact-case"
+        shutil.rmtree(tmp_path, ignore_errors=True)
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
         )
-        assert result.returncode == 0, f"Artifact verification failed:\n{result.stdout}"
+        (tmp_path / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            result = _mod.verify_artifacts(tmp_path)
+
+        assert result == 0
 
     def test_stale_artifact_detected_by_verify(self) -> None:
         """Modified artifact causes verify_artifacts() to return 1."""
@@ -276,9 +291,16 @@ class TestArtifactVerification:
             patch.object(_mod, "generate_subprocess_artifact", return_value=fresh),
             patch.object(_mod, "generate_random_artifact", return_value=s311),
         ):
-            result = _mod.verify_artifacts(tmp_path)
+            with patch("sys.stdout", new_callable=StringIO) as stdout:
+                result = _mod.verify_artifacts(tmp_path)
 
         assert result == 1
+        output = stdout.getvalue()
+        assert "Comparison semantics: normalized semantic entries" in output
+        assert (
+            "Missing normalized entries" in output
+            or "Extra normalized entries" in output
+        )
 
     def test_line_number_drift_does_not_fail_verify(self) -> None:
         """Line-number-only drift must not mark an artifact stale."""

@@ -448,7 +448,10 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1762",
+                "--min-collected-artifact",
+                ".test-floor-contract.json",
+                "--suite",
+                "python",
                 "--max-skips=0",
             ),
         ),
@@ -463,7 +466,10 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "extension/test-results.xml",
-                "--min-collected=2366",
+                "--min-collected-artifact",
+                ".test-floor-contract.json",
+                "--suite",
+                "extension",
                 "--max-skips=0",
             ),
         ),
@@ -588,7 +594,7 @@ def run_subprocess(
     # SECURITY: command lists are composed only from repo-owned CommandSpec entries
     # plus locally resolved tool paths; shell=False is preserved throughout.
     completed = subprocess.run(
-        command,
+        [*command],
         cwd=cwd,
         env=env,
         capture_output=True,

@@ -43,8 +43,10 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -63,6 +65,7 @@ if TYPE_CHECKING:
     # mypy never executes, so the call sites stay precisely typed.
     import _ci_yaml_parser as _ci_parser
     from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
+    from test_floor_contract import load_test_floor_contract
 else:
     # Runtime: prefer a relative import. Under
     # `python -m scripts.check_ratchet_bump`, Python resolves `scripts`
@@ -86,9 +89,11 @@ else:
     try:
         from . import _ci_yaml_parser as _ci_parser
         from ._platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
+        from .test_floor_contract import load_test_floor_contract
     except ImportError:
         import _ci_yaml_parser as _ci_parser
         from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
+        from test_floor_contract import load_test_floor_contract
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
@@ -151,6 +156,15 @@ class FloorReadings:
 class ActualCounts:
     python: int
     extension: int
+
+
+@dataclass(frozen=True)
+class PythonCollectionSnapshot:
+    """Hermetic Python collection snapshot used for parity proofs."""
+
+    count: int
+    node_ids: tuple[str, ...]
+    platform_filters_applied: bool
 
 
 @dataclass(frozen=True)
@@ -242,8 +256,12 @@ def read_preflight_floors(preflight_path: Path) -> FloorReadings:
                 f"tuple literal (got: {type(command_node).__name__})"
             )
         command_text = _join_tuple_literal(command_node)
+        suite_key = "python" if spec_name == _PYTHON_SPEC_NAME else "extension"
         value = _extract_min_collected(
-            command_text, source=preflight_path, context=f"CommandSpec {spec_name!r}"
+            command_text,
+            source=preflight_path,
+            context=f"CommandSpec {spec_name!r}",
+            suite=suite_key,
         )
         if spec_name == _PYTHON_SPEC_NAME:
             py_floor = value
@@ -271,14 +289,47 @@ def _join_tuple_literal(command_node: ast.Tuple) -> str:
     return " ".join(parts)
 
 
-def _extract_min_collected(text: str, *, source: Path, context: str) -> int:
+def _extract_min_collected(text: str, *, source: Path, context: str, suite: str) -> int:
     match = _MIN_COLLECTED_RE.search(text)
-    if match is None:
+    if match is not None:
+        return int(match.group(1))
+
+    tokens = shlex.split(text)
+    if "--min-collected-artifact" not in tokens:
         raise RatchetSetupError(
-            f"{source}: {context} has no {_MIN_COLLECTED_FLAG}=N token "
-            f"in command text: {text!r}"
+            f"{source}: {context} has neither {_MIN_COLLECTED_FLAG}=N nor "
+            f"--min-collected-artifact in command text: {text!r}"
         )
-    return int(match.group(1))
+    try:
+        artifact_index = tokens.index("--min-collected-artifact")
+        artifact_path = REPO_ROOT / tokens[artifact_index + 1]
+    except (IndexError, ValueError) as exc:
+        raise RatchetSetupError(
+            f"{source}: {context} has malformed --min-collected-artifact usage"
+        ) from exc
+    if "--suite" not in tokens:
+        raise RatchetSetupError(
+            f"{source}: {context} uses --min-collected-artifact without --suite"
+        )
+    try:
+        suite_index = tokens.index("--suite")
+        suite_name = tokens[suite_index + 1]
+    except (IndexError, ValueError) as exc:
+        raise RatchetSetupError(
+            f"{source}: {context} has malformed --suite usage"
+        ) from exc
+    if suite_name != suite:
+        raise RatchetSetupError(
+            f"{source}: {context} must use --suite {suite!r}; got {suite_name!r}"
+        )
+    try:
+        contract = load_test_floor_contract(artifact_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise RatchetSetupError(
+            f"{source}: {context} could not load test floor artifact {artifact_path}: {exc}"
+        ) from exc
+    suite_floor = contract.python if suite == "python" else contract.extension
+    return suite_floor.min_collected
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +373,13 @@ def _extract_ci_flag(
             f"python/pnpm/mypy command after folding"
         )
     folded = " ".join(commands)
-    return _ci_parser.extract_flag_value(folded, _MIN_COLLECTED_FLAG)
+    suite = "python" if job_name == _CI_PY_JOB else "extension"
+    return _extract_min_collected(
+        folded,
+        source=ci_yaml_path,
+        context=f"job {job_name!r} step {step_name!r}",
+        suite=suite,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +408,7 @@ def measure_python_count() -> int:
     committed :mod:`scripts._pytest_count_collector` plugin, so no
     stdout parsing is involved anywhere in the happy path.
     """
-    return _run_collect_subprocess(apply_platform_filters=True)
+    return collect_python_snapshot(apply_platform_filters=True).count
 
 
 def measure_windows_full_count() -> int | None:
@@ -387,11 +444,13 @@ def measure_windows_full_count() -> int | None:
     """
     if sys.platform != "win32":
         return None
-    return _run_collect_subprocess(apply_platform_filters=False)
+    return collect_python_snapshot(apply_platform_filters=False).count
 
 
-def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
-    """Shared hermetic ``pytest --collect-only`` invocation.
+def collect_python_snapshot(
+    *, apply_platform_filters: bool
+) -> PythonCollectionSnapshot:
+    """Return the hermetic collected count and node IDs for the Python suite.
 
     ``apply_platform_filters`` toggles the platform-conditional
     ``--ignore-glob`` flag set on/off so the same code path produces
@@ -423,6 +482,11 @@ def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
     )
     os.close(fd)
     count_file = Path(count_path_str)
+    nodeids_fd, nodeids_path_str = tempfile.mkstemp(
+        prefix=f"ratchet-nodeids-{os.getpid()}-", suffix=".json"
+    )
+    os.close(nodeids_fd)
+    nodeids_file = Path(nodeids_path_str)
 
     def _best_effort_unlink(path: Path) -> None:
         """Unlink ``path`` with bounded retries for transient Windows locks.
@@ -463,6 +527,7 @@ def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
             {
                 "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
                 "RATCHET_COUNT_OUTPUT": str(count_file),
+                "RATCHET_NODEIDS_OUTPUT": str(nodeids_file),
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "COVERAGE_PROCESS_START": "",
                 "COVERAGE_RCFILE": os.devnull,
@@ -529,6 +594,12 @@ def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
                 "did not write a count file. Check that "
                 "'scripts._pytest_count_collector' loaded successfully."
             )
+        if not nodeids_file.exists():
+            raise RatchetSetupError(
+                "pytest collect-only exited cleanly but the collector plugin "
+                "did not write a node-id file. Check that "
+                "'scripts._pytest_count_collector' loaded successfully."
+            )
         try:
             raw = count_file.read_text(encoding="utf-8").strip()
         except OSError as exc:
@@ -544,13 +615,37 @@ def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
                 "not surface via its exit code."
             )
         try:
-            return int(raw)
+            count = int(raw)
         except ValueError as exc:
             raise RatchetSetupError(
                 f"Ratchet count output is not an integer: {raw!r}"
             ) from exc
+        try:
+            node_ids_raw = nodeids_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise RatchetSetupError(
+                f"Could not read ratchet node-id output {nodeids_file}: {exc}"
+            ) from exc
+        try:
+            parsed_node_ids = json.loads(node_ids_raw)
+        except json.JSONDecodeError as exc:
+            raise RatchetSetupError(
+                f"Ratchet node-id output is not valid JSON: {exc}"
+            ) from exc
+        if not isinstance(parsed_node_ids, list) or not all(
+            isinstance(node_id, str) for node_id in parsed_node_ids
+        ):
+            raise RatchetSetupError(
+                "Ratchet node-id output must be a JSON array of strings."
+            )
+        return PythonCollectionSnapshot(
+            count=count,
+            node_ids=tuple(parsed_node_ids),
+            platform_filters_applied=apply_platform_filters,
+        )
     finally:
         _best_effort_unlink(count_file)
+        _best_effort_unlink(nodeids_file)
 
 
 # ---------------------------------------------------------------------------

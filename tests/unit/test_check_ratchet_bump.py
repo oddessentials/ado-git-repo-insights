@@ -10,6 +10,7 @@ so the gate's logic is verified without running real collection.
 from __future__ import annotations
 
 import importlib
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -106,8 +107,10 @@ class _GitFakeRecorder:
                 )
             # Simulate the collector plugin writing the count file.
             output_path = None
+            node_ids_output = None
             if env_dict is not None:
                 output_path = env_dict.get("RATCHET_COUNT_OUTPUT")
+                node_ids_output = env_dict.get("RATCHET_NODEIDS_OUTPUT")
             if output_path is not None:
                 if self.pytest_empty_output:
                     # Simulate a partial write / plugin-load failure:
@@ -117,6 +120,12 @@ class _GitFakeRecorder:
                     Path(output_path).write_text(
                         f"{self.pytest_collected}\n", encoding="utf-8"
                     )
+            if node_ids_output is not None and self.pytest_collected is not None:
+                node_ids = [
+                    f"tests/test_stub.py::test_case_{index}"
+                    for index in range(self.pytest_collected)
+                ]
+                Path(node_ids_output).write_text(json.dumps(node_ids), encoding="utf-8")
             return _FakeCompleted(returncode=0, stdout="", stderr="")
 
         raise AssertionError(f"Unexpected subprocess invocation: {normalized!r}")
@@ -213,6 +222,27 @@ def _write_extension_junit(tmp_path: Path, count: int) -> Path:
         f'<testsuites name="jest" tests="{count}" failures="0" errors="0">\n'
         f'  <testsuite name="foo" tests="{count}" failures="0" errors="0"/>\n'
         f"</testsuites>\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_floor_contract(tmp_path: Path, python_floor: int, ext_floor: int) -> Path:
+    path = tmp_path / ".test-floor-contract.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "python": {
+                    "min_collected": python_floor,
+                    "authority": "pytest collector",
+                },
+                "extension": {
+                    "min_collected": ext_floor,
+                    "authority": "extension junit",
+                },
+            }
+        ),
         encoding="utf-8",
     )
     return path
@@ -749,7 +779,7 @@ SPECS = (
     )
     assert exit_code == gate.EXIT_SETUP
     stderr = capsys.readouterr().err
-    assert "no --min-collected=N token" in stderr
+    assert "has neither --min-collected=N nor --min-collected-artifact" in stderr
 
 
 # ---------------------------------------------------------------------------
@@ -847,8 +877,14 @@ def test_t11_shallow_clone_unshallow_succeeds(
             env_obj = kwargs.get("env")
             if isinstance(env_obj, dict):
                 out = env_obj.get("RATCHET_COUNT_OUTPUT")
+                node_ids_out = env_obj.get("RATCHET_NODEIDS_OUTPUT")
                 if isinstance(out, str):
                     Path(out).write_text("100\n", encoding="utf-8")
+                if isinstance(node_ids_out, str):
+                    Path(node_ids_out).write_text(
+                        json.dumps(["tests/test_stub.py::test_case_0"]),
+                        encoding="utf-8",
+                    )
             return _FakeCompleted(returncode=0)
         raise AssertionError(f"Unexpected run: {normalized!r}")
 
@@ -914,6 +950,99 @@ jobs:
         "Backslash-continuation run block must fold into a single command "
         "so --min-collected=5678 is captured on the Extension side"
     )
+
+
+def test_t12a_preflight_can_read_min_collected_from_committed_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_floor_contract(tmp_path, python_floor=1234, ext_floor=5678)
+    preflight_path = tmp_path / "run_pr_preflight.py"
+    preflight_path.write_text(
+        '''"""Artifact-backed stub preflight."""
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class CommandSpec:
+    name: str
+    command: tuple[str, ...]
+
+
+SPECS = (
+    CommandSpec(
+        "Python test count validation",
+        (
+            "python",
+            ".github/scripts/validate-test-results.py",
+            "test-results.xml",
+            "--min-collected-artifact",
+            ".test-floor-contract.json",
+            "--suite",
+            "python",
+            "--max-skips=0",
+        ),
+    ),
+    CommandSpec(
+        "Extension test count validation",
+        (
+            "python",
+            ".github/scripts/validate-test-results.py",
+            "extension/test-results.xml",
+            "--min-collected-artifact",
+            ".test-floor-contract.json",
+            "--suite",
+            "extension",
+            "--max-skips=0",
+        ),
+    ),
+)
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+
+    floors = gate.read_preflight_floors(preflight_path)
+    assert floors.python == 1234
+    assert floors.extension == 5678
+
+
+def test_t12b_ci_can_read_min_collected_from_committed_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_floor_contract(tmp_path, python_floor=1234, ext_floor=5678)
+    ci_path = tmp_path / "ci.yml"
+    ci_path.write_text(
+        """name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Test Results (Python)
+        run: |
+          python .github/scripts/validate-test-results.py \\
+            test-results.xml \\
+            --min-collected-artifact .test-floor-contract.json \\
+            --suite python \\
+            --max-skips=0
+  extension-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Test Results (Extension)
+        run: |
+          python .github/scripts/validate-test-results.py \\
+            extension/test-results.xml \\
+            --min-collected-artifact .test-floor-contract.json \\
+            --suite extension \\
+            --max-skips=0
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+
+    floors = gate.read_ci_floors(ci_path)
+    assert floors.python == 1234
+    assert floors.extension == 5678
 
 
 # ---------------------------------------------------------------------------

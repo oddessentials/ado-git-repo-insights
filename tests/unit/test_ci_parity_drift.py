@@ -5,35 +5,32 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 import yaml
-
-_MIN_COLLECTED_RE = re.compile(r"--min-collected=(\d+)")
-
-
-def _extract_min_collected(text: str) -> int:
-    """Extract the integer value from a ``--min-collected=N`` token in
-    arbitrary command text. Works for both the preflight ``CommandSpec``
-    (where the tuple is space-joined into one string) and the CI YAML
-    ``run`` block (multi-line shell script)."""
-    match = _MIN_COLLECTED_RE.search(text)
-    assert match is not None, (
-        f"No --min-collected=N token found in the command text. "
-        f"Inspected text: {text!r}"
-    )
-    return int(match.group(1))
-
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
 REPO_HOOK_SCRIPT = REPO_ROOT / "scripts" / "run_repo_hook.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 PARITY_BASELINE_PATH = Path("parity-artifacts") / "main-baseline.json"
+TEST_FLOOR_ARTIFACT = REPO_ROOT / ".test-floor-contract.json"
+INVARIANT_CONTRACTS_SCRIPT = REPO_ROOT / "scripts" / "invariant_contracts.py"
+
+
+class FloorSuiteEntry(TypedDict):
+    min_collected: int
+    authority: str
+
+
+class FloorContractPayload(TypedDict):
+    schema_version: int
+    python: FloorSuiteEntry
+    extension: FloorSuiteEntry
 
 
 @pytest.fixture(autouse=True)
@@ -98,6 +95,43 @@ def _load_preflight_module():
     sys.modules["run_pr_preflight"] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_invariant_contracts_module():
+    spec = importlib.util.spec_from_file_location(
+        "invariant_contracts", INVARIANT_CONTRACTS_SCRIPT
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["invariant_contracts"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_test_floor_contract() -> FloorContractPayload:
+    raw = json.loads(TEST_FLOOR_ARTIFACT.read_text(encoding="utf-8"))
+    assert isinstance(raw, dict)
+    assert isinstance(raw.get("schema_version"), int)
+    python_entry = raw.get("python")
+    extension_entry = raw.get("extension")
+    assert isinstance(python_entry, dict)
+    assert isinstance(extension_entry, dict)
+    assert isinstance(python_entry.get("min_collected"), int)
+    assert isinstance(python_entry.get("authority"), str)
+    assert isinstance(extension_entry.get("min_collected"), int)
+    assert isinstance(extension_entry.get("authority"), str)
+    return {
+        "schema_version": raw["schema_version"],
+        "python": {
+            "min_collected": python_entry["min_collected"],
+            "authority": python_entry["authority"],
+        },
+        "extension": {
+            "min_collected": extension_entry["min_collected"],
+            "authority": extension_entry["authority"],
+        },
+    }
 
 
 def _normalized_preflight_commands(
@@ -269,6 +303,7 @@ class TestPrecommitParity:
 
         assert "run_staged_suppression_diff_guard" in called_functions
         assert "run_staged_suppression_justification_guard" in called_functions
+        assert "run_invariant_artifact_contract_guards" in called_functions
         guard_calls = _extract_called_function_names(
             "run_staged_suppression_diff_guard"
         )
@@ -695,54 +730,125 @@ class TestPartialBranchesParity:
 
 
 class TestTestCountRatchetParity:
-    """Parity lock for the ``--min-collected`` test-count ratchet.
+    """Parity lock for the committed test-floor contract and parity proof job."""
 
-    The ratchet lives in exactly two authoritative locations that must
-    stay in sync:
-
-    - ``scripts/run_pr_preflight.py`` — local preflight ``CommandSpec``
-    - ``.github/workflows/ci.yml`` — CI job shell steps
-
-    Drift between these two surfaces means a test-count regression could
-    pass locally while failing in CI (or vice versa) — exactly the kind of
-    manual-discipline gap the parity suite is designed to catch. This test
-    extracts the Python and Jest ``--min-collected`` values from both
-    sides and asserts they match.
-
-    If this test fails, update BOTH sites in the same commit to the new
-    floor. There is no other authoritative location.
-    """
-
-    def test_min_collected_matches_between_preflight_and_ci(self) -> None:
+    def test_preflight_and_ci_read_same_committed_floor_artifact(self) -> None:
         preflight = _normalized_preflight_commands()
+        floor_contract = _load_test_floor_contract()
 
-        preflight_python = _extract_min_collected(
-            preflight.get("Python test count validation", "")
+        preflight_python = preflight.get("Python test count validation", "")
+        preflight_extension = preflight.get("Extension test count validation", "")
+        assert preflight_python == (
+            "__PYTHON__ .github/scripts/validate-test-results.py "
+            "test-results.xml --min-collected-artifact .test-floor-contract.json "
+            "--suite python --max-skips=0"
         )
-        preflight_extension = _extract_min_collected(
-            preflight.get("Extension test count validation", "")
+        assert preflight_extension == (
+            "__PYTHON__ .github/scripts/validate-test-results.py "
+            "extension/test-results.xml --min-collected-artifact "
+            ".test-floor-contract.json --suite extension --max-skips=0"
         )
 
         ci_python_step = _find_ci_step("test", "Validate Test Results (Python)")
-        ci_python = _extract_min_collected(str(ci_python_step.get("run", "")))
+        ci_python_run = str(ci_python_step.get("run", ""))
+        assert "--min-collected-artifact .test-floor-contract.json" in ci_python_run
+        assert "--suite python" in ci_python_run
 
         ci_extension_step = _find_ci_step(
             "extension-tests", "Validate Test Results (Extension)"
         )
-        ci_extension = _extract_min_collected(str(ci_extension_step.get("run", "")))
+        ci_extension_run = str(ci_extension_step.get("run", ""))
+        assert "--min-collected-artifact .test-floor-contract.json" in ci_extension_run
+        assert "--suite extension" in ci_extension_run
 
-        assert (preflight_python, preflight_extension) == (
-            ci_python,
-            ci_extension,
-        ), (
-            "Test-count ratchet drift between preflight and CI:\n"
-            f"  Python:    preflight={preflight_python}, CI={ci_python}\n"
-            f"  Extension: preflight={preflight_extension}, CI={ci_extension}\n"
-            "Both --min-collected values must match exactly between "
-            "scripts/run_pr_preflight.py and .github/workflows/ci.yml. "
-            "If you're raising the floor, update both sites in the same "
-            "commit."
+        assert floor_contract["schema_version"] == 1
+        assert floor_contract["python"]["min_collected"] > 0
+        assert floor_contract["extension"]["min_collected"] > 0
+
+    def test_python_ci_includes_cross_os_collection_parity_job(self) -> None:
+        job = _load_ci_jobs().get("python-collection-parity")
+        assert isinstance(job, dict), (
+            "CI must define a dedicated 'python-collection-parity' job so the "
+            "canonical filtered collector is proven identical on ubuntu and windows "
+            "before the Python floor artifact is treated as authoritative."
         )
+        needs = job.get("needs")
+        assert needs == "test" or needs == ["test"], (
+            "python-collection-parity must depend on the Python test matrix so "
+            "it compares artifacts emitted by the canonical collector legs."
+        )
+
+        compare_step = _find_ci_step(
+            "python-collection-parity", "Compare Python collection parity artifacts"
+        )
+        compare_run = str(compare_step.get("run", ""))
+        assert "scripts/check_python_collection_parity.py compare" in compare_run
+        assert (
+            "artifacts/python-parity/ubuntu/python-collection-parity.json"
+            in compare_run
+        )
+        assert (
+            "artifacts/python-parity/windows/python-collection-parity.json"
+            in compare_run
+        )
+
+        ratchet_job = _load_ci_jobs()["ratchet-bump-guard"]
+        ratchet_needs = ratchet_job.get("needs", [])
+        assert "python-collection-parity" in ratchet_needs, (
+            "ratchet-bump-guard must depend on python-collection-parity so the "
+            "committed Python floor is not trusted before cross-OS parity is green."
+        )
+
+
+class TestInvariantContractInventory:
+    def test_invariant_artifact_contracts_declare_explicit_inputs(self) -> None:
+        contracts_module = _load_invariant_contracts_module()
+        contracts = contracts_module.INVARIANT_ARTIFACT_CONTRACTS
+        assert contracts, "Expected at least one invariant artifact contract manifest."
+        for contract in contracts:
+            assert contract.artifact_path
+            assert contract.input_pathspecs, (
+                f"{contract.contract_id} must declare authoritative input pathspecs."
+            )
+            assert all(
+                isinstance(pathspec, str) and pathspec
+                for pathspec in contract.input_pathspecs
+            ), f"{contract.contract_id} input pathspecs must be non-empty strings."
+            assert contract.snapshot_mode in {"index-filesystem", "clean-worktree"}
+
+    def test_typescript_gate_inventory_has_hard_disposition_for_each_reviewed_gate(
+        self,
+    ) -> None:
+        contracts_module = _load_invariant_contracts_module()
+        reviews = {
+            review.gate_name: review
+            for review in contracts_module.TYPESCRIPT_GATE_REVIEWS
+        }
+        expected_gates = {
+            "Extension build check",
+            "Extension test type check",
+            "Extension test config parity",
+            "Extension lint",
+            "Extension test lint",
+            "Extension format check",
+            "Extension test count validation",
+            "Partial-branch ratchet",
+            "Extension smoke tests",
+            "Extension VSIX artifact inspection",
+        }
+        assert set(reviews) == expected_gates, (
+            "TypeScript parity rollout must enumerate every reviewed TS gate with "
+            "an explicit disposition; add/remove entries here in the same commit as "
+            "the workflow change."
+        )
+        for review in reviews.values():
+            assert review.disposition in {
+                "environment-insensitive-by-construction",
+                "single-platform-canonical",
+                "not-an-artifacted-invariant",
+            }
+            assert review.authoritative_runner
+            assert review.reason
 
 
 class TestRatchetBumpGuardParity:
@@ -1019,10 +1125,11 @@ class TestPatchCoverageParity:
         job = jobs["ratchet-bump-guard"]
 
         needs = job.get("needs")
-        assert needs == ["test", "extension-tests"], (
-            "ratchet-bump-guard must declare `needs: [test, extension-tests]` "
-            "so the gate cannot run before both sibling jobs have produced "
-            f"their baselines; got: {needs!r}"
+        assert needs == ["test", "extension-tests", "python-collection-parity"], (
+            "ratchet-bump-guard must declare `needs: [test, extension-tests, "
+            "python-collection-parity]` so the gate cannot run before both "
+            "test baselines AND the cross-OS Python parity proof are green; "
+            f"got: {needs!r}"
         )
 
         if_expr = str(job.get("if", "")).strip()

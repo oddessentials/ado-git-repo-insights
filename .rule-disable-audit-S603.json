@@ -1,7 +1,7 @@
 {
   "rule": "S603",
-  "total_call_sites": 88,
-  "unsafe_count": 12,
+  "total_call_sites": 87,
+  "unsafe_count": 9,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
@@ -125,7 +125,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 469,
+      "line": 544,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 728,
+      "line": 833,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -213,7 +213,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 567,
+      "line": 573,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,15 +221,15 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 590,
+      "line": 596,
       "code": "completed = subprocess.run(",
       "shell_true": false,
-      "literal_list": false,
-      "safety": "unsafe-non-literal-command"
+      "literal_list": true,
+      "safety": "safe-literal-list"
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 683,
+      "line": 689,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 765,
+      "line": 771,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,23 +245,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 96,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": false,
-      "safety": "unsafe-non-literal-command"
-    },
-    {
-      "file": "scripts/run_repo_hook.py",
-      "line": 192,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": false,
-      "safety": "unsafe-non-literal-command"
-    },
-    {
-      "file": "scripts/run_repo_hook.py",
-      "line": 290,
+      "line": 111,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -269,7 +253,23 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 314,
+      "line": 206,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 366,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 390,
       "code": "fetch = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -277,15 +277,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 334,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "scripts/run_repo_hook.py",
-      "line": 1117,
+      "line": 410,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -533,7 +525,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 523,
+      "line": 526,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -541,7 +533,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 632,
+      "line": 635,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

@@ -592,22 +592,20 @@ def verify_artifacts(repo_root: Path) -> int:
                 print(f"    committed: {committed_meta}")
                 print(f"    current:   {fresh_meta}")
             if committed_entries != fresh_entries:
-                mismatch_index = next(
-                    (
-                        index
-                        for index, (committed_entry, fresh_entry) in enumerate(
-                            zip(committed_entries, fresh_entries, strict=False)
-                        )
-                        if committed_entry != fresh_entry
-                    ),
-                    None,
+                print(
+                    "  Comparison semantics: normalized semantic entries "
+                    "(file, code, safety/purpose); line numbers are ignored."
                 )
-                if mismatch_index is not None:
-                    print(f"  First differing entry at index {mismatch_index}:")
-                    print(f"    committed: {committed_entries[mismatch_index]}")
-                    print(f"    current:   {fresh_entries[mismatch_index]}")
-                elif len(committed_entries) != len(fresh_entries):
-                    print("  Entry count differs between committed and regenerated.")
+                missing_entries = sorted(set(committed_entries) - set(fresh_entries))
+                extra_entries = sorted(set(fresh_entries) - set(committed_entries))
+                if missing_entries:
+                    print("  Missing normalized entries from regenerated artifact:")
+                    for entry in missing_entries:
+                        print(f"    {entry}")
+                if extra_entries:
+                    print("  Extra normalized entries in regenerated artifact:")
+                    for entry in extra_entries:
+                        print(f"    {entry}")
             print(
                 "  Run: python scripts/check_rule_disable_invariants.py "
                 "--generate-artifacts"

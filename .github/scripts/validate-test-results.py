@@ -14,6 +14,7 @@ Dependencies:
     pip install -e ".[dev]"
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -144,6 +145,26 @@ def validate_results(
     return passed, messages
 
 
+def load_min_collected_from_artifact(artifact_path: Path, suite: str) -> int:
+    """Load a suite floor from the committed test floor artifact."""
+    try:
+        data = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"artifact not found: {artifact_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"artifact is not valid JSON: {artifact_path}") from exc
+
+    suite_data = data.get(suite)
+    if not isinstance(suite_data, dict):
+        raise ValueError(f"artifact missing suite {suite!r}: {artifact_path}")
+    value = suite_data.get("min_collected")
+    if not isinstance(value, int):
+        raise ValueError(
+            f"artifact suite {suite!r} must define integer min_collected: {artifact_path}"
+        )
+    return value
+
+
 def main():
     import argparse
 
@@ -152,8 +173,17 @@ def main():
     parser.add_argument(
         "--min-collected",
         type=int,
-        required=True,
         help="Minimum expected test count",
+    )
+    parser.add_argument(
+        "--min-collected-artifact",
+        type=Path,
+        help="Path to committed test floor artifact",
+    )
+    parser.add_argument(
+        "--suite",
+        choices=("python", "extension"),
+        help="Suite key to read from --min-collected-artifact",
     )
     parser.add_argument(
         "--max-skips",
@@ -169,9 +199,29 @@ def main():
 
     args = parser.parse_args()
 
+    if args.min_collected is None and args.min_collected_artifact is None:
+        parser.error("one of --min-collected or --min-collected-artifact is required")
+    if args.min_collected is not None and args.min_collected_artifact is not None:
+        parser.error(
+            "--min-collected and --min-collected-artifact are mutually exclusive"
+        )
+    if args.min_collected_artifact is not None and args.suite is None:
+        parser.error("--suite is required with --min-collected-artifact")
+
     if not Path(args.xml_file).exists():
         print(f"::error::JUnit XML file not found: {args.xml_file}")
         sys.exit(2)
+
+    if args.min_collected_artifact is not None:
+        try:
+            min_collected = load_min_collected_from_artifact(
+                args.min_collected_artifact, args.suite
+            )
+        except ValueError as exc:
+            print(f"::error::{exc}")
+            sys.exit(2)
+    else:
+        min_collected = args.min_collected
 
     results = parse_junit_xml(args.xml_file)
 
@@ -181,7 +231,7 @@ def main():
 
     passed, messages = validate_results(
         results,
-        min_collected=args.min_collected,
+        min_collected=min_collected,
         max_skips=args.max_skips,
     )
 
