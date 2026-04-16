@@ -73,7 +73,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - File: `src/ado_git_repo_insights/config.py` (Pass 3 code-validation confirms exact location of extract's current date validation; may live in `cli.py` adjacent to `create_parser()`).
   - Behavior: parse `YYYY-MM-DD` ISO-8601; raise `ValueError` on any format mismatch (wrong separator, wrong field widths) or invalid calendar value (month 13, day 30 in February, etc.).
   - Replace extract's inline `--start-date` / `--end-date` validation with a call to this helper (FR-025a permits).
-  - Both extract and backfill flows call this helper; both call sites either wrap `ValueError` into `argparse.ArgumentTypeError` or let `load_config` convert it to `ConfigurationError` — **Pass 2 hardening decides exact error-translation site**, but the pure helper's accept/reject set is locked.
+  - Both extract and backfill flows call this helper. **Pass 2 lock**: error-translation happens at the argparse boundary via a thin wrapper `_parse_iso_date_argtype(raw: str) -> date` that calls the pure `_parse_iso_date(raw)` and translates any `ValueError` into `argparse.ArgumentTypeError` (exit code 2 on malformed input — matches contracts/cli-subcommand.md §8 exit-code contract). Both extract's `--start-date`/`--end-date` and backfill's `--since`/`--until` set `type=_parse_iso_date_argtype` in their argparse definitions. `load_config` does NOT re-validate (the argparse pass already caught malformed dates); `load_config` treats the parsed `date` as a trusted value.
   - FR refs: **FR-005**, **FR-025a**, **FR-030d** parity contract.
   - Gates: **QG-40**, **QG-42**.
   - Tests locking this: **#12** `TestFilterParsingParity::test_date_parser_matches_extract_on_corpus` (parametrized over 10 cases; module-level tuple).
@@ -125,7 +125,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
     elif args.command == "backfill-comments":
         return cmd_backfill_comments(args)
     ```
-  - Placement order relative to other elifs is irrelevant for correctness; Pass 2 hardening picks a place that groups thread-related commands visually.
+  - **Pass 2 lock**: place the `backfill-comments` elif **immediately after the `extract` elif** in main()'s dispatch block — groups thread-related commands visually and mirrors the subparser ordering in `create_parser()`.
   - FR refs: **FR-020** (subcommand routing).
   - Gates: **QG-49** (one invocation path; no alternative entry point).
   - Tests locking this: transitively exercised by #25–28 (TestEndToEnd).
@@ -205,8 +205,13 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 - [ ] **T012** Add pre-loop legacy-schema detection + Site B (inside `cmd_backfill_comments` `try:` block, BEFORE anything else)
   - File: `src/ado_git_repo_insights/cli.py` inside `cmd_backfill_comments`.
-  - Execution order: legacy-schema check runs **first** — before config is loaded into `ADOClient`, before `ADOClient.test_connection` (which would trigger Site D3), before the selection query runs.
-  - **Pass-2-hardening note**: the exact ordering of `load_config(...)` vs. `_legacy_schema_missing_thread_tables(db)` depends on which pieces of config the legacy-schema path needs. Pass 2 confirms: legacy-schema check needs only `args.database` (from argparse), not full config. Therefore: `db = DatabaseManager(args.database); db.connect()` runs FIRST; then `_legacy_schema_missing_thread_tables(db)` runs BEFORE `load_config` → this keeps Site B firing cleanly even if `load_config` would have raised (which it wouldn't typically for a legacy-schema scenario, but scope-wise Site B only claims "tables missing", not "config valid").
+  - **Pass 2 locked execution order** inside `cmd_backfill_comments` outer try:
+    1. `db = DatabaseManager(args.database); db.connect()` — may raise `DatabaseError` → Site D2.
+    2. `_legacy_schema_missing_thread_tables(db)` — pure predicate; if True → Site B short-circuit (log + append legacy-schema-skip warning + write full-shape success artifact + return 0).
+    3. `config = load_config(args)` — may raise `ConfigurationError` → Site D1.
+    4. `client = ADOClient(...); client.test_connection(...)` — may raise `ExtractionError` → Site D3 (pre-loop).
+    5. Selection snapshot materialization (T013) + per-PR loop (T014).
+  - Rationale: legacy-schema check needs only `args.database` (from argparse), not full config. Running it before `load_config` means Site B fires cleanly even if the user's config file has an unrelated malformed entry — the legacy-schema no-op is a DB-state observation that shouldn't be gated on config validity. DB connect goes first because schema check needs an open connection.
   - On True → emit log line (contracts §6.4: `"backfill-comments: pr_threads and pr_comments tables not present; run a migration or extract with --include-comments first"` — exact text) + `_append_backfill_warning(warnings_list, "legacy-schema-skip: pr_threads and pr_comments tables not present; run a migration or extract with --include-comments first")` + construct full-shape `RunSummary` with `final_status="success"`, `first_fatal_error=None`, `counts.prs_fetched=0`, `counts.prs_updated=0`, per-project status `{}`, warnings list containing exactly the one Site B entry + write + emit terminal summary line `"backfill-comments: skipped (legacy schema; no thread storage tables)"` + return 0.
   - **No Site C entry** on this path (loop did not run — Site C's precondition is "loop completed").
   - FR refs: **FR-017**, **FR-017a** (no other warning uses `legacy-schema-skip:` prefix), **FR-028** (no schema mutation), **plan §4 Site B**. INV refs: **INV-8**, **INV-11**.
@@ -215,8 +220,12 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 - [ ] **T013** Opening-anchor log + selection snapshot materialization (inside `cmd_backfill_comments` after T012 passes)
   - File: `src/ado_git_repo_insights/cli.py` inside `cmd_backfill_comments`.
-  - Execution: after legacy-schema check returns False + after `load_config(args)` succeeds + after `ADOClient` instantiation + after `client.test_connection(config.projects[0] if config.projects else ...)` passes.
-  - **Pass-2-hardening note**: `client.test_connection` requires a project name; backfill's `--projects` filter may be empty. Pass 2 decides: if `args.projects` is empty, skip `test_connection` OR call it with a sentinel project name derived from the selection-snapshot's first row. The decision is internal-helper-level, not architectural.
+  - Execution: after legacy-schema check returns False (T012 already passed) + after `load_config(args)` succeeds + after `ADOClient` instantiation + after `client.test_connection(probe_project)` passes.
+  - **Pass 2 lock — `probe_project` selection** (resolves the "what project to probe" question for `client.test_connection`): use this fallback chain, first non-empty wins:
+    1. First element of `_parse_projects_list(args.projects)` if the parsed list is non-empty.
+    2. `config.projects[0]` if the config file provided a project list.
+    3. Query the DB for a sample project name from the pre-selection predicate: `SELECT project_name FROM pull_requests WHERE status='completed' AND comments_extracted_at IS NULL LIMIT 1`. Use the result if non-null.
+    4. If all three fallbacks are empty (no `--projects`, no config projects, no uncovered completed PRs in DB), **skip `test_connection` entirely** — the subsequent selection will return an empty list, loop iterates zero times, Site C emits loop-complete with `processed=0 failed=0`, exit 0. This is the "empty database" degenerate case.
   - Snapshot: `selection_snapshot = _select_uncovered_prs_for_backfill(db, _parse_projects_list(args.projects), _parse_iso_date(args.since) if args.since else None, _parse_iso_date(args.until) if args.until else None, args.limit)`; `T = len(selection_snapshot)`.
   - Log line: `logger.info("backfill-comments: backfill run over %d pull request(s)", T)` (contracts §6.1 — FR-018a). Emitted **before** any per-PR API call.
   - `T == 0` is a valid value — loop body T014 iterates zero times; flow falls through to Site C (T014) for the unconditional loop-complete emission.
@@ -283,7 +292,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - **Forbidden inside the loop body**: inline `warnings_list.append(f"backfill-comments: …")` (use T006 helper only); calls into the "preserve" branch (the 2-outcome rule by construction never enters the branch that produces preserved-unset outcomes — FR-015 compliance).
   - **Per-PR commit/rollback discipline**: `db.connection.commit()` on success path, `db.connection.rollback()` on ExtractionError path. No commit/rollback inside `_fetch_and_upsert_threads_for_pr` (T002 helper contract). FR-013a interrupt safety: SIGINT between iterations leaves all previously committed PRs persisted and the in-progress PR (if any) rolled back — delivered by the per-PR commit boundary + transactional upsert pattern in T002.
   - **FR-018c strict ordering**: progress line is a sibling statement AFTER both branches converge, not inside either branch — guarantees post-commit/post-rollback ordering with the correct outcome token.
-  - **Terminal summary lines**: `contracts §6.5` — Pass 2 hardens the exact construction of `print_final_line()` output for backfill (reuses `RunSummary.print_final_line()` unchanged per FR-025a).
+  - **Terminal summary lines (Pass 2 lock)**: `cmd_backfill_comments` emits a backfill-specific `logger.info` line matching contracts §6.5 ("`backfill-comments: processed <P> pull requests (<F> failures)`" on the non-empty-selection loop-complete path, "`backfill-comments: processed 0 pull requests (0 failures)`" on empty-selection, "`backfill-comments: skipped (legacy schema; no thread storage tables)`" on Site B) BEFORE calling `run_summary.print_final_line()`. This mirrors `cmd_extract`'s pattern of emitting a subcommand-specific `logger.info("Extraction complete: ...")` adjacent to the shared `print_final_line()` call. `run_summary.print_final_line()` runs unchanged per FR-025a.
   - FR refs: **FR-012**, **FR-013**, **FR-013a**, **FR-014**, **FR-015** (2-outcome rule; preserved-unset unreachable by construction), **FR-016**, **FR-018b**, **FR-018c**, **FR-019a–d**, **plan §4 Sites A + C**. INV refs: **INV-6** (reuses `_dropped_threads_all_stored` unchanged), **INV-8**.
   - Gates: **QG-40**, **QG-41**, **QG-42**.
   - Tests locking this: **#8** `test_exception_mid_upsert_leaves_db_bit_identical` (Site A + rollback), **#9** `test_signal_between_iterations_leaves_committed_prs_persisted` (FR-013a), **#10** `test_signal_mid_iteration_rolls_back_affected_pr` (FR-013a), **#14** `test_commit_failure_mid_loop_logs_failed_not_processed` (FR-018c), **#20–24** TestCoverageMarkerInvariants (stamp branches), **#25** `test_happy_path_drains_uncovered_prs`, **#26** `test_partial_failure_continues_loop_and_exits_zero`, **#27** `test_resumability_zero_api_calls_on_drained_fixture`, **#33** artifact-shape parity, **#34** discriminator across states (Site A + Site C coverage).
@@ -317,7 +326,18 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - **Handler ordering inside `cmd_backfill_comments`**: D1 → D2 → D3 → D4 → D5 (ConfigurationError, DatabaseError, ExtractionError are specific; KeyboardInterrupt is a specific built-in; Exception is the catch-all and MUST be last).
   - FR refs: **FR-019a–d**, **plan §4 Sites D4/D5**. INV refs: **INV-8**.
   - Gates: **QG-40**, **QG-41**.
-  - Tests locking this: **#34** `test_discriminator_invariant_holds_for_all_backfill_states` (parametrized over 5 states; includes the Ctrl-C / unexpected-exception backfill states covered transitively via a controlled-fixture SIGINT or raised `RuntimeError`); Pass 2 hardens whether #34 drives D4/D5 directly or whether an additional test method is added (single-test coverage is sufficient because the AST parity test #19a already locks the emission mechanism).
+  - Tests locking this: **#34** `test_discriminator_invariant_holds_for_all_backfill_states` — **Pass 2 lock**: #34's parametrize corpus expands from 5 to **9 backfill states + 1 extract state = 10 cases** to cover every code site directly. The 9 backfill states are:
+    1. `loop_success` (Site C only; P≥1, F=0)
+    2. `partial_failure` (Sites A × F + C; P≥1, F≥1)
+    3. `empty_selection` (Site C with T=0)
+    4. `legacy_schema_noop` (Site B)
+    5. `fatal_config_error` (Site D1 via injected ConfigurationError)
+    6. `fatal_database_error` (Site D2 via injected DatabaseError)
+    7. `fatal_preloop_extraction_error` (Site D3 via injected ExtractionError from `test_connection`)
+    8. `fatal_ctrl_c` (Site D4 via raised KeyboardInterrupt mid-fixture)
+    9. `fatal_unexpected_exception` (Site D5 via raised generic Exception mid-fixture)
+
+    Plus one extract-flow state (`extract_success`) asserting `is_backfill_artifact()` returns False. Corpus locked as a module-level tuple of (name, state_builder_fn) pairs — deterministic collection count = 10. This makes #34 the single test that fails if any of Sites A/B/C/D1/D2/D3/D4/D5 is unwired. No additional dedicated D4/D5 test method needed — #34 covers all 8 sites + extract-negative directly. The AST parity test #19a remains the emission-mechanism lock.
 
 **Checkpoint (end of Phase 2)**: `cmd_backfill_comments` is end-to-end functional. All 8 discriminator-emission sites wired via `_append_backfill_warning` (T006). All fatal handlers (D1–D5) in place. Per-PR commit boundary preserved. Extract still unchanged (T003 diff reviewed). `mypy`/`ruff`/existing pytest suite all pass. **No new tests have been added yet** — the test surface is Phase 3.
 
@@ -343,9 +363,14 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
     - #11 `_PROJECTS_CORPUS = (("", []), ("A", ["A"]), ("A,B", ["A", "B"]), (" A , B ", ["A", "B"]), ("A,,B", ["A", "B"]), ("A ,B", ["A", "B"]), (",A,", ["A"]), ("  ", []))` — 8 cases.
     - #12 `_DATE_CORPUS = (("2024-01-01", True), ("2024-12-31", True), ("2024-13-01", False), ("2024-02-30", False), ("2024-00-01", False), ("", False), ("not-a-date", False), ("2024/01/01", False), ("01-01-2024", False), ("2024-1-1", False))` — 10 cases.
   - Special-case tests:
-    - **#13** `TestDocsTreeUntouched::test_feature_branch_has_zero_diff_under_docs` — shells out via `subprocess.run` to `git diff --name-only origin/refactor/constitution..HEAD -- docs/`; asserts empty output. Pass 2 hardens the base-ref choice (whether to use `origin/main` vs. a stable branch ancestor). Cross-OS: Pass 2 confirms `git` is available on all three lanes via the existing `subprocess` allowlist.
+    - **#13** `TestDocsTreeUntouched::test_feature_branch_has_zero_diff_under_docs` — shells out via `subprocess.run` to `git diff --name-only <base-ref>..HEAD -- docs/`; asserts empty output. **Pass 2 lock — base-ref selection**: use `origin/main` (CI + local both have it) via `git merge-base origin/main HEAD` to get a stable base that's invariant to feature-branch rebasing. If `origin/main` is unavailable in the sandbox, fall back to `HEAD~N` where N is the commit count on the branch (derived via `git rev-list --count HEAD ^origin/main` if remote exists, else a conservative default). **Cross-OS**: `git` is in the existing `.subprocess-allowlist.json` (Pass 3 re-confirms); cross-platform quoting uses the list form of `subprocess.run([...])` not shell=True.
     - **#19a** `TestBackfillWarningEmissionParity::test_discriminator_prefix_literal_appears_only_inside_helper` — AST scan of `src/ado_git_repo_insights/cli.py`. Visitor pattern per plan §4 implementation sketch: `ALLOWED_ENCLOSING_NAMES = {"_append_backfill_warning"}`, `ALLOWED_ASSIGNMENT_TARGETS = {"_BACKFILL_WARNING_PREFIX"}`, flags any other occurrence of `"backfill-comments: "` in a string constant with `(lineno, value)` violation records.
-    - **#17 / #18 / #19** `TestNoImplicitSafetyClaims` — forbidden-keyword scan on `--help` output, captured log stream, and artifact `warnings` / `first_fatal_error` strings, respectively. Forbidden list: `"thread-safe"`, `"concurrent"`, `"atomic"` UNLESS preceded by `"per-PR "`, `"complete"` UNLESS explicitly scoped (Pass 2 hardens the regex to match the contract's "permitted qualifier" forms), `"resumable"` UNLESS preceded by the FR-012/013 qualifier (Pass 2 hardens).
+    - **#17 / #18 / #19** `TestNoImplicitSafetyClaims` — forbidden-keyword scan on `--help` output, captured log stream, and artifact `warnings` / `first_fatal_error` strings, respectively. **Pass 2 lock — regex forms** (case-insensitive, word-boundary):
+      - Unconditional fail: `r'(?i)\bthread-safe\b'` and `r'(?i)\bconcurrent\b'` — any occurrence fails.
+      - `atomic`: `r'(?i)(?<!per-PR )\batomic\b'` — passes only if immediately preceded by the literal `"per-PR "` (7 chars). Negative lookbehind catches any other prefix context.
+      - `complete`: `r'(?i)(?<!per-PR )\bcomplete\b'` — passes only if preceded by `"per-PR "`. The contracts §2 description uses `"commit together"` (not `"complete"`) to describe transaction semantics, so `"complete"` appearing anywhere outside `"per-PR complete"` is a DB-wide claim and fails.
+      - `resumable`: pattern `r'(?i)\bresumable\b'` requires a secondary qualifier check. Implementation: if any `resumable` match is found, also require the same text to contain `"per-PR commit boundary"` or `"FR-012"` or `"FR-013"` within 100 characters before or after the match. If no qualifier found, fail.
+      - All four patterns compile at module scope (module-level `re.compile`) for deterministic test behavior.
   - FR refs: **FR-030 base, FR-030a–d, FR-030g–j, FR-031, FR-032, FR-033, plan §4**. INV refs: **INV-1 – INV-12** as applicable (see FR→test-row crosswalk in plan §5).
   - Gates: **QG-39** (cross-OS — no OS-specific constructs), **QG-42** (enterprise coverage), **QG-45** (cross-OS parity — no platform gating), **Principle XXVI**.
 
@@ -353,18 +378,26 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - File: `tests/unit/test_run_summary_parity.py` (NEW).
   - Classes and methods: plan §5 File 2 (rows **#33** and **#34**).
   - **#33** `TestArtifactShapeParity::test_backfill_and_extract_artifacts_have_identical_shape` — drive extract against a controlled fixture (MagicMock ADO client, monkeypatched `get_tool_version`/`get_git_sha`, fixed `artifacts_dir` on `tmp_path`), drive backfill against a comparable controlled fixture. Load both emitted `run_summary.json`. Assert identical top-level key sets. Assert identical nested-object key sets for `date_range`, `counts`, `timings`. Assert identical per-field Python type shapes.
-  - **#34** `TestArtifactShapeParity::test_discriminator_invariant_holds_for_all_backfill_states` — `@pytest.mark.parametrize` over 5 backfill states (loop-success, partial-failure, empty-selection, legacy-schema no-op, fatal pre-loop abort) + 1 extract state. Corpus locked as module-level tuple:
+  - **#34** `TestArtifactShapeParity::test_discriminator_invariant_holds_for_all_backfill_states` — `@pytest.mark.parametrize` over **9 backfill states (one per Site A/B/C/D1/D2/D3/D4/D5 + empty-selection) + 1 extract state = 10 parametrized cases** (Pass 2 expansion). Corpus locked as module-level tuple:
     ```python
     _BACKFILL_ARTIFACT_STATES = (
-        ("loop_success",        _build_loop_success_artifact),
-        ("partial_failure",     _build_partial_failure_artifact),
-        ("empty_selection",     _build_empty_selection_artifact),
-        ("legacy_schema_noop",  _build_legacy_schema_artifact),
-        ("fatal_preloop_abort", _build_fatal_preloop_artifact),
+        # Site C coverage (loop completed)
+        ("loop_success",                    _build_loop_success_artifact),
+        ("partial_failure",                 _build_partial_failure_artifact),     # Sites A + C
+        ("empty_selection",                 _build_empty_selection_artifact),     # Site C with T=0
+        # Site B coverage
+        ("legacy_schema_noop",              _build_legacy_schema_artifact),
+        # Fatal pre-loop Sites D1/D2/D3 (one state per site for direct coverage)
+        ("fatal_config_error",              _build_fatal_config_artifact),        # Site D1
+        ("fatal_database_error",            _build_fatal_database_artifact),      # Site D2
+        ("fatal_preloop_extraction_error",  _build_fatal_extraction_artifact),    # Site D3
+        # Mid-run Sites D4/D5 (direct coverage; KeyboardInterrupt + unexpected Exception)
+        ("fatal_ctrl_c",                    _build_fatal_ctrl_c_artifact),        # Site D4
+        ("fatal_unexpected_exception",      _build_fatal_exception_artifact),     # Site D5
     )
     _EXTRACT_ARTIFACT_STATES = (("extract_success", _build_extract_success_artifact),)
     ```
-    Assert `is_backfill_artifact(artifact) is True` for all 5 backfill states and `is_backfill_artifact(artifact) is False` for the extract state. **This is the single test that fails if any Site A/B/C/D1–D5 is unwired.**
+    Assert `is_backfill_artifact(artifact) is True` for all 9 backfill states and `is_backfill_artifact(artifact) is False` for the extract state. **This is the single test that fails if any of Sites A/B/C/D1/D2/D3/D4/D5 is unwired.** Every Site has a dedicated parametrize case that exercises it directly; no Site is covered transitively only.
   - Principle XXVI compliance (see T016 discipline).
   - FR refs: **FR-025b**, **FR-030e**, **plan §4** discriminator invariant (**INV-8**).
   - Gates: **QG-42**, **Principle XXVI**.
@@ -372,7 +405,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 - [ ] **T018** [P] Author `tests/unit/test_run_summary_snapshot.py` (3 method declarations) — plan §5 File 3 verbatim
   - File: `tests/unit/test_run_summary_snapshot.py` (NEW).
   - Classes and methods: plan §5 File 3 (rows **#35**, **#36**, **#37**).
-  - **#35** `TestExtractProducerGoldenSnapshot::test_RunSummary_to_dict_matches_golden` — construct `RunSummary` with deterministic field values (monkeypatch `get_tool_version()` → fixed string, `get_git_sha()` → fixed string, timings/counts → fixed numbers); call `.to_dict()`; assert the rendered dict (serialized via `json.dumps(..., sort_keys=False)` — Pass 2 harden exact kwargs to match `RunSummary.write`) equals the committed golden.
+  - **#35** `TestExtractProducerGoldenSnapshot::test_RunSummary_to_dict_matches_golden` — construct `RunSummary` with deterministic field values (monkeypatch `get_tool_version()` → fixed string, `get_git_sha()` → fixed string, timings/counts → fixed numbers); **Pass 2 lock — assertion mechanism**: call `run_summary.write(tmp_path / "actual.json")` and compare bytes against `tests/unit/goldens/run_summary_to_dict.json` via `Path.read_bytes() == Path.read_bytes()`. This auto-matches whatever serialization `write()` uses; no risk of golden-vs-write kwargs drift.
   - **#36** `TestExtractProducerGoldenSnapshot::test_create_minimal_summary_matches_golden` — call `create_minimal_summary("test fatal error", Path("run_artifacts"))` with monkeypatched version/sha; serialize; assert equals golden. **This test locks `warnings=[]` as the helper's default return** — the FR-025a compliance tooth behind Sites D1–D5's caller-side mutation approach.
   - **#37** `TestExtractProducerGoldenSnapshot::test_normalize_error_message_matches_golden` — `@pytest.mark.parametrize` over 5 corpus entries (URL with query params, plain URL, long string, short string, mixed). Corpus locked as module-level tuple:
     ```python
@@ -394,7 +427,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
     - `tests/unit/goldens/run_summary_to_dict.json`
     - `tests/unit/goldens/create_minimal_summary.json`
     - `tests/unit/goldens/normalize_error_message.json`
-  - Generation: at implementation moment, run the deterministic-fixture tests once with `--generate-goldens` sentinel (Pass 2 hardens the mechanism; existing pattern in `tests/integration/test_golden_outputs.py` uses dynamic fixtures per QG-05, but these 3 goldens are committed files because they lock behavior of stable helpers, not of dynamically-varying outputs). Exact `json.dumps` kwargs and file encoding decided in Pass 2 to match `RunSummary.write`'s own serialization.
+  - **Pass 2 lock — generation mechanism**: at implementation moment, use a throwaway script (e.g., `scripts/generate_058_goldens.py` — kept out of the final commit) that instantiates each deterministic-fixture input, calls `RunSummary.write(output_path)` (and `create_minimal_summary(...).write(...)` for golden #2, and `normalize_error_message(corpus_input)` for each golden #3 corpus entry), and emits the resulting bytes under `tests/unit/goldens/`. File encoding: whatever `RunSummary.write()` uses natively (UTF-8, no BOM, LF line endings on write). `.gitattributes` enforces LF for committed JSON regardless of OS. These 3 goldens ARE committed (unlike QG-05's dynamic fixtures) because they lock the observable behavior of stable producer helpers, not of varying pipeline outputs.
   - Commit in the same terminal commit as T016–T018 + T020.
   - FR refs: **FR-025c**, **FR-030f**.
   - Gates: **QG-42**.
@@ -413,7 +446,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
     3. Edit `.test-floor-contract.json::python::min_collected` from `1814` to `1814 + Δ` in the staged working tree.
     4. Re-run the measurement command; confirm `floor_delta == actual_delta` for this commit (QG-43 per-commit check passes).
     5. Commit the staged diff as a single atomic commit with subject describing the feature + signed "Sloppy Claude" per memory discipline.
-  - **Planning estimate (non-authoritative, included only for reviewer sanity)**: plan §5 estimates `Δ ≈ +51 to +61`, with a refined calculation (34 non-parametrized × 1 + #11 × 8 + #12 × 10 + #34 × 6 + #37 × 5) suggesting `Δ ≈ +63`, giving a new floor around `~1877`. The measurement command overrides any estimate; no number is hardcoded in this task.
+  - **Planning estimate (non-authoritative, included only for reviewer sanity)**: after Pass 2 expansion of #34 to 10 parametrized cases, the refined calculation (34 non-parametrized × 1 + #11 × 8 + #12 × 10 + #34 × 10 + #37 × 5) suggests `Δ ≈ +67`, giving a new floor of `~1883` (floor pre-feature: 1816 after commit `740810fd` bumped 1814 → 1816 for the #289-fix's +2 tests). Plan §5's estimate of `+51 to +61` predated Pass 2's #34 expansion. The measurement command overrides any estimate; no number is hardcoded in this task.
   - FR refs: **QG-43 same-commit rule**, **QG-44 single source of truth for floor**, **QG-45 cross-OS Python floor is the cross-platform minimum** (ensured by collection-stability from Principle XXVI applied in T016–T018), **VR-30 ratchet-bump parity**.
   - Gates: **QG-43 BINDING**, **QG-44 PASS**, **QG-45 PASS**, **VR-30 BINDING**.
 
@@ -434,7 +467,11 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Chain executed (sequential): **version-guard** (QG-51, fast-fail) → **authoritative preflight** (`scripts/run_pr_preflight.py`) which runs cross-OS collection parity (**QG-45**), ratchet-bump guard (**QG-43**), suppression audit (**QG-41**), mypy (**QG-40 / VR-03**), ruff (**VR-02**), pytest (**VR-04 / QG-42**), extension `format:check` (**QG-55 / VR-02a**), gitleaks (**QG-56**), `test:ci` (**QG-49**).
   - **Forbidden overrides**: no `--no-verify` (QG-38), no `--allow-local-degraded` (QG-56), no `[*-acknowledged]` bypass markers (QG-50 — this feature introduces no condition that would need one).
   - Required exit code: `0`.
-  - On any failure: re-align implementation/tests + re-compose the terminal Phase 3 commit (OR add a follow-up commit before push if the failure is in an earlier Phase 1/2 commit and requires amending a non-terminal commit — Pass 2 hardens the recovery procedure to preserve the single-commit-ratchet lock).
+  - **Pass 2 lock — recovery procedure**: on any pre-push failure, diagnose the root cause and fix in place:
+    - If the failure is inside the terminal Phase 3 commit (T016–T020): amend the terminal commit with the fix. Rerun `check_ratchet_bump.py` to confirm floor_delta still equals actual_delta. Single-commit-ratchet lock preserved.
+    - If the failure originates in a Phase 1/2 commit (e.g., mypy error, suppression drift, formatting): rebase interactively onto the failing commit, amend it with the fix, resolve any subsequent rebase conflicts. This preserves per-commit cleanliness (QG-43 per-commit rule), at the cost of rewriting branch history prior to push.
+    - If the failure requires adding a NEW test as part of the fix (rare): that test counts as a new test for its containing commit under QG-43 — the same commit must carry its own `+1` floor bump. Do NOT place the new test in an unrelated commit. Add it to whichever commit introduces the code the test covers, and bump `.test-floor-contract.json` in that same commit.
+    - **Forbidden**: `--no-verify` bypass, `[ratchet-realignment]` subject-line markers (this feature introduces no condition that warrants one), or skipping the pre-push gate entirely.
   - FR refs: **VR-28**, **VR-29**, **VR-30**, **QG-43**, **QG-45**.
   - Gates: **VR-28 BINDING** (final pre-merge readiness signal).
 
@@ -535,10 +572,21 @@ No temporary relaxations. No `[version-override-acknowledged]` / `[ratchet-reali
 
 ## Planning cadence status (tasks phase)
 
-- **Pass 1 (draft from plan)**: **THIS DOCUMENT — COMPLETE**.
-- **Pass 2 (hardening)**: pending. Planned refinements:
-  - Resolve Pass-2-hardening-note spots marked inline (T005 error-translation site, T012 execution order vs. `load_config`, T013 `test_connection` handling when `--projects` empty, T014 terminal summary phrasing, T015 whether D4/D5 need a dedicated test method beyond #34, T016 forbidden-keyword regex precision for #17–19, T019 golden serialization kwargs, T020 per-commit bump recovery if a Phase 1/2 commit fails pre-push).
-  - Split any task whose diff exceeds ~1 hour of reviewable work (candidate: T014 might split into T014a "loop body + Sites A/C" and T014b "review-timestamp hook + RunSummary construction").
+- **Pass 1 (draft from plan)**: **COMPLETE**.
+- **Pass 2 (hardening)**: **COMPLETE**. Every Pass-1 inline `Pass 2 hardening` note has been resolved into a specific locked decision:
+  - T005 error-translation site → argparse wrapper `_parse_iso_date_argtype` (exit 2 on malformed input).
+  - T008 placement → elif immediately after `extract` in main() dispatch.
+  - T012 execution order → DB connect → legacy-schema check → load_config → test_connection → loop.
+  - T013 test_connection probe-project fallback chain (4-level: args.projects / config.projects / DB sample / skip).
+  - T014 terminal summary → subcommand-specific `logger.info` + shared `print_final_line()`, mirroring extract's pattern.
+  - T015 #34 corpus → 9 backfill states + 1 extract state = 10 parametrized cases; one state per Site + 1 extract-negative.
+  - T016 #13 base-ref → `git merge-base origin/main HEAD`; list-form subprocess call; cross-OS via `.subprocess-allowlist.json`.
+  - T016 #17/#18/#19 forbidden-keyword regex forms locked (negative-lookbehind for atomic/complete; proximity-based qualifier check for resumable).
+  - T018 #35 golden assertion → byte-equality of `write()` output; no separate serialization kwargs.
+  - T019 golden generation → throwaway script invokes `RunSummary.write()`; UTF-8/LF via `.gitattributes`.
+  - T020 recovery procedure → amend-in-place; per-commit QG-43 rule; no `--no-verify`, no bypass markers.
+  - T014 is NOT split at Pass 2; Pass 3 code-validation re-evaluates if the real diff exceeds ~100 lines, splitting into T014a (loop body + Sites A/C) and T014b (review-timestamp hook + RunSummary construction) only if warranted.
+  - **Ratchet estimate refresh**: #34 grew from ~6 to **10 parametrized cases** (9 backfill states + 1 extract). Other parametrize counts unchanged (#11: 8, #12: 10, #37: 5). Refined collected-items delta: 34 non-parametrized × 1 + 8 (#11) + 10 (#12) + 10 (#34) + 5 (#37) = **67** new items → new floor ≈ **1816 + 67 = 1883**. Authoritative number comes from `check_ratchet_bump.py` at T020.
 - **Pass 3 (code-validation)**: pending. At HEAD-at-Pass-3 moment: re-verify every `cli.py` line number cited in tasks (insertion point at 163, D4/D5 handlers above 2180, summary_path construction at 2154, extract's 510-670 body including pre-iteration snapshot at 517-526, stamp block at 621-647 with Case 2 sub-decision at 627-640, end-of-loop commit at 672, fatal handlers at 875-897); confirm each named test method is expressible against real pytest idioms with the fixture pattern from `test_extract_comments.py`; trace each D-site's caught exception type to its authoritative source file + line; confirm the 2 post-#289-fix tests (at test file lines 163 and 201) remain unmodified and are the primary teeth against Lock-5 regression.
 - **Pass 4 (readiness-for-implementation)**: pending. Confirm every task is self-contained, no cross-task decision drift, dependencies named explicitly, acceptance criteria testable without running subsequent tasks.
 - **/speckit.analyze**: pending — only after Pass 4 completes. Any inconsistency surfaces as a Pass 5 loop.
@@ -549,5 +597,5 @@ No temporary relaxations. No `[version-override-acknowledged]` / `[ratchet-reali
 
 - `[P]` tasks within a phase can be worked in parallel; tasks without `[P]` have at least one same-file / same-function dependency on an earlier task in the phase.
 - Every requirement-traceback claim in this document was checked against plan.md and the constitution at draft time; Pass 3 re-validates against HEAD.
-- This Pass 1 draft deliberately carries some "Pass 2 hardens…" inline annotations where a specific decision is low-risk but benefits from a second-pass visual — it is explicit about what Pass 2 will pin, rather than silently leaving gaps.
+- Pass 2 (hardening) is now complete — every inline "Pass 2 hardens…" annotation from the Pass 1 draft has been resolved into a locked decision (see Planning Cadence Status above for the one-line summary per resolved spot).
 - Signing discipline on every commit this feature produces: "Sloppy Claude" per memory. Never `--no-verify`. No push until user says push.
