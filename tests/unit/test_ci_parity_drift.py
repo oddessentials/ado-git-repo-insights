@@ -762,8 +762,21 @@ class TestTestCountRatchetParity:
         assert "--suite extension" in ci_extension_run
 
         assert floor_contract["schema_version"] == 1
-        assert floor_contract["python"]["min_collected"] > 0
+        assert floor_contract["python"]["min_collected"] == 1773
         assert floor_contract["extension"]["min_collected"] > 0
+
+    def test_preflight_and_ci_require_explicit_floor_contract_validation(self) -> None:
+        preflight = _normalized_preflight_commands()
+        assert preflight["Test floor contract validation"] == (
+            "__PYTHON__ scripts/check_test_floor_contract.py --contract "
+            ".test-floor-contract.json --extension-junit extension/test-results.xml"
+        )
+
+        ci_step = _find_ci_step("ratchet-bump-guard", "Validate test floor contract")
+        ci_run = str(ci_step.get("run", ""))
+        assert "scripts/check_test_floor_contract.py" in ci_run
+        assert "--contract .test-floor-contract.json" in ci_run
+        assert "--extension-junit ./artifacts/ts/test-results.xml" in ci_run
 
     def test_python_ci_includes_cross_os_collection_parity_job(self) -> None:
         job = _load_ci_jobs().get("python-collection-parity")

@@ -272,6 +272,7 @@ def _verify_contract_artifact(contract: InvariantArtifactContract) -> None:
                 "--verify-artifacts",
             ]
         )
+        return
 
 
 def run_invariant_artifact_contract_guards(stage: str) -> None:

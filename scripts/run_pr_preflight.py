@@ -474,6 +474,17 @@ def build_commands(
             ),
         ),
         CommandSpec(
+            "Test floor contract validation",
+            (
+                "__PYTHON__",
+                "scripts/check_test_floor_contract.py",
+                "--contract",
+                ".test-floor-contract.json",
+                "--extension-junit",
+                "extension/test-results.xml",
+            ),
+        ),
+        CommandSpec(
             "Ratchet bump guard",
             (
                 "__PYTHON__",
