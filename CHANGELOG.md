@@ -1,3 +1,42 @@
+# [101.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.3...v101.7.0) (2026-04-16)
+
+
+### Bug Fixes
+
+* **#274:** prune orphan entries from .subprocess-allowlist.json during regen ([45c12b8](https://github.com/oddessentials/ado-git-repo-insights/commit/45c12b85bbece83180dd795b65897943654369ca)), closes [#274](https://github.com/oddessentials/ado-git-repo-insights/issues/274) [#274](https://github.com/oddessentials/ado-git-repo-insights/issues/274) [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273) [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273)
+* **#280:** close fallback-to-main + bare-ref parity holes ([1a1c7c7](https://github.com/oddessentials/ado-git-repo-insights/commit/1a1c7c75ab856825ba003280f1d1de57e6225d79)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#281](https://github.com/oddessentials/ado-git-repo-insights/issues/281) [#281](https://github.com/oddessentials/ado-git-repo-insights/issues/281)
+* **#280:** close stale-ref + local/CI base-ref parity holes ([1aa50ac](https://github.com/oddessentials/ado-git-repo-insights/commit/1aa50ac3cf669a43a7ba4f989dcf8a7f28651bcf)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#281](https://github.com/oddessentials/ado-git-repo-insights/issues/281) [#274](https://github.com/oddessentials/ado-git-repo-insights/issues/274) [#281](https://github.com/oddessentials/ado-git-repo-insights/issues/281)
+* **#280:** harden ratchet-bump gate tempfile cleanup for Windows ([344a200](https://github.com/oddessentials/ado-git-repo-insights/commit/344a200ced930f2e0a22a58e76e39344640bc5a0)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280)
+* **#280:** resolve -m mode ModuleNotFoundError via relative+fallback import ([bd863d5](https://github.com/oddessentials/ado-git-repo-insights/commit/bd863d574631d4bd2c40d8dc0b7c383dcfc41f0a)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280)
+* **#280:** stop bypass markers from short-circuiting parity + parse validation ([2dd8e19](https://github.com/oddessentials/ado-git-repo-insights/commit/2dd8e19b0476899c82c1974aaac305ea856e4d85)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280)
+* **#281:** enforce base-ref parity for patch coverage via resolver hardening ([20c5e2a](https://github.com/oddessentials/ado-git-repo-insights/commit/20c5e2af1eab4c270fc40124bf53b0f05260004f)), closes [#281](https://github.com/oddessentials/ado-git-repo-insights/issues/281)
+* codex ([61f4716](https://github.com/oddessentials/ado-git-repo-insights/commit/61f4716412dd4aa85b4f91c4055756d60a002459))
+* codex ([6d0de9c](https://github.com/oddessentials/ado-git-repo-insights/commit/6d0de9c32720e6f5d3080bc3b0f3970df251621f))
+* codex ([20f5140](https://github.com/oddessentials/ado-git-repo-insights/commit/20f5140c6f78533c50ff92e1732b17cf130ee7f1))
+* codex ([1611724](https://github.com/oddessentials/ado-git-repo-insights/commit/1611724404c8388255b986a13c13e6d5f0130945))
+* codex ([d05a686](https://github.com/oddessentials/ado-git-repo-insights/commit/d05a6862234abedeade16b815ccf7fedcaf1f13a))
+* codex churn ([f0dbc37](https://github.com/oddessentials/ado-git-repo-insights/commit/f0dbc379dd856cae8c95d4779fcd6b3cc3ec7231))
+* codex churn ([35d3020](https://github.com/oddessentials/ado-git-repo-insights/commit/35d3020ef78475c65230121fa475c81253056819))
+* codex collection parity bug ([2479fd1](https://github.com/oddessentials/ado-git-repo-insights/commit/2479fd109abc27af42bbc8ecfef48437a4118d4b))
+* codex problems ([e81746e](https://github.com/oddessentials/ado-git-repo-insights/commit/e81746e2f749bdca99854c0156c14d327be23e15))
+* codex rescues claude ([d543943](https://github.com/oddessentials/ado-git-repo-insights/commit/d5439430cb1965c6811d12502a2c08604a0a5d37))
+* codex rescues claude again ([8d10b4e](https://github.com/oddessentials/ado-git-repo-insights/commit/8d10b4eca7bd24e7511df7c9b3897b26781173f3))
+* codex Skip the ratchet guard when degraded mode skips extension tests ([784d681](https://github.com/oddessentials/ado-git-repo-insights/commit/784d6810616c0af95a5e725f275d7e942b688e04))
+* enforce test-floor contracts and python collection parity ([ab0fc5d](https://github.com/oddessentials/ado-git-repo-insights/commit/ab0fc5d505a4205855bf6def526e4db446f92a00))
+* parity ([1e2fecd](https://github.com/oddessentials/ado-git-repo-insights/commit/1e2fecda751bc287ec39e54f65071668efc71b72))
+* parity ([9e30382](https://github.com/oddessentials/ado-git-repo-insights/commit/9e30382f04f8e0f25c84b2e6ef1e4789a2b91b13))
+* **preflight:** restore base-ref fallback and ratchet parity ([c823271](https://github.com/oddessentials/ado-git-repo-insights/commit/c8232713b8ef08826262be24f28c93d2fc24c594))
+* ratchet bypass marker selection by drift direction ([154bb20](https://github.com/oddessentials/ado-git-repo-insights/commit/154bb2087379193127edd213bb218fe4da3466c3))
+* ratchet extension --min-collected to cover tooltip regression tests ([19d665f](https://github.com/oddessentials/ado-git-repo-insights/commit/19d665f24c41ae7fc8fffef49fd11e29f4e661bc))
+* tighten ratchet marker and base-ref handling ([826aa1d](https://github.com/oddessentials/ado-git-repo-insights/commit/826aa1d4332c55ecb1bd9623b21189578f3f2aae))
+* tooltip cycletime regression ([2cb16ad](https://github.com/oddessentials/ado-git-repo-insights/commit/2cb16addf505afcc5fa1b06447218013d040fc8f))
+* widen commitlint type-enum to accept ratchet floor-bump commits ([7ee4d8f](https://github.com/oddessentials/ado-git-repo-insights/commit/7ee4d8f67a98a5b85f6092a37150d72dfe9a42a0)), closes [#282](https://github.com/oddessentials/ado-git-repo-insights/issues/282)
+
+
+### Features
+
+* **#280:** enforce per-commit --min-collected ratchet-bump discipline ([7651a0b](https://github.com/oddessentials/ado-git-repo-insights/commit/7651a0b974fcbf914212b00976816f8af853ecc5)), closes [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280) [#280](https://github.com/oddessentials/ado-git-repo-insights/issues/280)
+
 ## [101.6.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.2...v101.6.3) (2026-04-14)
 
 
