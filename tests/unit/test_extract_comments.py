@@ -138,7 +138,7 @@ class TestExtractCommentsStamping:
         finally:
             db.close()
 
-    def test_truncated_fetch_preserves_stamp_when_dropped_stored(
+    def test_truncated_fetch_preserves_stamp_when_dropped_stored_preiteration_set(
         self, tmp_path: Path
     ) -> None:
         """Truncated fetch with all dropped threads already stored must preserve stamp."""
@@ -153,8 +153,79 @@ class TestExtractCommentsStamping:
             # Second run with cap=2.  Thread 3 is dropped but already stored.
             _run_extract(db, threads, max_threads_per_pr=2)
             stamp_after = _get_stamp(db)
+            assert stamp_after == stamp_before, (
+                "Dropped threads are all stored — pre-iteration non-NULL "
+                "completion marker must be preserved"
+            )
+        finally:
+            db.close()
+
+    def test_truncated_fetch_sets_completion_marker_when_dropped_stored_preiteration_null(
+        self, tmp_path: Path
+    ) -> None:
+        """Stored dropped threads must set a completion marker when pre-run stamp is NULL.
+
+        comments_extracted_at is a completion marker, not recovered historical
+        evidence. Downstream readers only distinguish NULL (incomplete) from
+        non-NULL (complete enough to trust).
+        """
+        db = _create_db_with_pr(tmp_path)
+        try:
+            threads = [_make_thread(1), _make_thread(2), _make_thread(3)]
+
+            # First full fetch to store all 3 threads and stamp.
+            _run_extract(db, threads, max_threads_per_pr=0)
+            assert _get_stamp(db) is not None
+
+            # Simulate a pre-iteration NULL marker while all threads remain
+            # stored and current locally.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = NULL "
+                "WHERE pull_request_uid = 'r1-1'"
+            )
+            db.connection.commit()
+            assert _get_stamp(db) is None
+
+            # Second run with cap=2. Thread 3 is dropped but already stored.
+            stats = _run_extract(db, threads, max_threads_per_pr=2)
+
+            stamp_after = _get_stamp(db)
+            assert stats["prs_processed"] == 1
             assert stamp_after is not None, (
-                "Dropped threads are all stored — stamp must survive"
+                "Dropped threads are all stored — NULL pre-iteration marker "
+                "must become a non-NULL completion marker"
+            )
+        finally:
+            db.close()
+
+    def test_manual_marker_reset_does_not_loop_when_dropped_threads_already_stored(
+        self, tmp_path: Path
+    ) -> None:
+        """Operator reset to NULL must not leave a stored PR indefinitely reselectable.
+
+        The backfill quickstart documents clearing comments_extracted_at to
+        force reprocessing. Extract must recover from that state when a later
+        capped run drops only already-stored/current threads.
+        """
+        db = _create_db_with_pr(tmp_path)
+        try:
+            threads = [_make_thread(1), _make_thread(2), _make_thread(3)]
+
+            _run_extract(db, threads, max_threads_per_pr=0)
+            assert _get_stamp(db) is not None
+
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = NULL "
+                "WHERE pull_request_uid = 'r1-1'"
+            )
+            db.connection.commit()
+            assert _get_stamp(db) is None
+
+            _run_extract(db, threads, max_threads_per_pr=2)
+
+            assert _get_stamp(db) is not None, (
+                "Manual reset must not trap the PR in the preserve-when-NULL "
+                "extract path"
             )
         finally:
             db.close()

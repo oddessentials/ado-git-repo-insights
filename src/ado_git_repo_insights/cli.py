@@ -514,6 +514,17 @@ def _extract_comments(
         project_name = pr_row["project_name"]
 
         try:
+            pre_iteration_stamp_row = db.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid = ?",
+                (pr_uid,),
+            ).fetchone()
+            pre_iteration_comments_extracted_at = (
+                pre_iteration_stamp_row["comments_extracted_at"]
+                if pre_iteration_stamp_row is not None
+                else None
+            )
+
             # Fetch threads from API
             threads = client.get_pr_threads(
                 project=project_name,
@@ -605,8 +616,8 @@ def _extract_comments(
             #   2. Truncated AND any dropped thread is missing locally or
             #      has a newer API version than stored → clear stamp.
             #   3. Truncated BUT every dropped thread exists locally with
-            #      a last_updated ≥ the API lastUpdatedDate → no-op
-            #      (local data still complete from prior runs).
+            #      a last_updated ≥ the API lastUpdatedDate → preserve any
+            #      prior completion marker, or stamp now if it was unset.
             if not pr_threads_truncated:
                 db.execute(
                     "UPDATE pull_requests SET comments_extracted_at = ? "
@@ -617,8 +628,16 @@ def _extract_comments(
                 db, pr_uid, all_threads[max_threads_per_pr:]
             ):
                 # Every dropped thread is already stored and current.
-                # Prior stamp (if any) correctly reflects completeness.
-                pass
+                # comments_extracted_at is a completion marker, not provenance:
+                # downstream readers distinguish NULL (incomplete) from
+                # non-NULL (complete enough to trust). Use the pre-iteration
+                # snapshot so the decision is stable within this iteration.
+                if pre_iteration_comments_extracted_at is None:
+                    db.execute(
+                        "UPDATE pull_requests SET comments_extracted_at = ? "
+                        "WHERE pull_request_uid = ?",
+                        (datetime.now(UTC).isoformat(), pr_uid),
+                    )
             else:
                 # At least one dropped thread is missing or stale locally.
                 db.execute(

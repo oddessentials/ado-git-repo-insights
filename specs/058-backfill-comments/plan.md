@@ -11,7 +11,7 @@ Deliver a new `backfill-comments` CLI subcommand that drains historical PR threa
 **Technical approach** (locked in spec Pass 4 and pre-plan deliverables; no remaining architectural branching):
 
 1. **Refactor** the existing per-PR body at `cli.py:510-651` into `_fetch_and_upsert_threads_for_pr(client, db, repo, pr_row, max_threads_per_pr) -> FetchOutcome`. The helper performs thread/comment/user upserts through `repo` but does **not** apply the coverage-marker update and does **not** call `db.connection.commit()`. Both the stamp decision and the commit boundary are caller-side responsibilities.
-2. **Preserve** extract's observable behavior by keeping extract's existing 3-case stamp logic inline in `_extract_comments` and its existing end-of-loop `db.connection.commit()` at `cli.py:653`. The `test_extract_comments.py` regression-lock suite (759 LOC, 19 tests) MUST pass unchanged (FR-034).
+2. **Preserve** extract's observable behavior by keeping extract's existing 3-case stamp logic inline in `_extract_comments` and its existing end-of-loop `db.connection.commit()` at `cli.py:653`. The `test_extract_comments.py` regression-lock suite (830 LOC, 20 tests) MUST pass unchanged (FR-034).
 3. **Introduce** `cmd_backfill_comments` + its argparse subparser. Its per-iteration body calls the shared helper, applies a simplified 2-outcome stamp decision (set if untruncated or every dropped thread is already stored-and-current; else leave unchanged), commits per-PR, and rolls back on `ExtractionError`. The simplified decision never traverses extract's "preserve" branch, making the latent preserved-unset infinite-loop outcome unreachable by construction.
 4. **Enforce** the FR-019b failure-line warnings, FR-017a legacy-schema-skip discriminator, and a new first-class artifact invariant: **every backfill-produced `run_summary.json` — including fatal pre-loop aborts — carries at least one `warnings` entry whose literal prefix is `"backfill-comments: "`**. This is the authoritative discriminator between backfill and extract artifacts (pre-plan deliverable 2).
 5. **Lock** every test from FR-030a–j to a named test file and a specific invariant. Collection-stable definitions (Principle XXVI). Python test floor at `.test-floor-contract.json::python::min_collected = 1814` bumps by exactly N in the same commit that adds N tests (QG-43).
@@ -149,7 +149,7 @@ This section is load-bearing for `/speckit.tasks`. Every decision below is locke
 - A task that adds a `strict_backfill: bool` / `mode: Literal["extract", "backfill"]` / `is_backfill: bool` parameter to `_fetch_and_upsert_threads_for_pr` crosses the boundary and fails review. FR-015a explicitly forbids mode-flag helpers; the locality principle is "each caller has its own simple, local decision", not "a shared helper that branches on a flag".
 - Shared-surface scope is limited to **pure predicates and utility functions**. `_dropped_threads_all_stored` is shared unchanged because it is a pure predicate with no side effects. Any shared surface that mutates `comments_extracted_at` or carries stamp policy fails this lock.
 
-The enforcement teeth that catch deviation: FR-034 regression lock (`tests/unit/test_extract_comments.py`, 19 methods) fires if extract's behavior drifts; FR-030f golden snapshot fires if `RunSummary.to_dict` / `create_minimal_summary` / `normalize_error_message` drift; FR-031 five coverage-marker tests fire if backfill's stamp outcomes drift. The locks overlap deliberately — bypassing one is detected by another.
+The enforcement teeth that catch deviation: FR-034 regression lock (`tests/unit/test_extract_comments.py`, 20 methods) fires if extract's behavior drifts; FR-030f golden snapshot fires if `RunSummary.to_dict` / `create_minimal_summary` / `normalize_error_message` drift; FR-031 five coverage-marker tests fire if backfill's stamp outcomes drift. The locks overlap deliberately — bypassing one is detected by another.
 
 **Task-boundary consequence**: the refactor is a **single scoped change** (move fetch/upsert body into a helper; migrate the stamp `if/elif/else` to its caller site). It is **not** a shared-helper semantic change (which would require its own consumer audit + test lock-down task). Implementation tasks MUST keep these boundaries distinct; a task that "improves" the shared helper's stamp behavior crosses the boundary and must be rejected at code review.
 
@@ -157,7 +157,7 @@ The enforcement teeth that catch deviation: FR-034 regression lock (`tests/unit/
 
 | Risk | Surface | Mitigation |
 |---|---|---|
-| Extract's loop behavior diverges from pre-refactor (any of the four stamp branches reaches a different end-state for any reachable input) | `_extract_comments` loop body + extract's caller-side stamp block | FR-034 regression lock: `tests/unit/test_extract_comments.py` (19 tests, 759 LOC) MUST pass bit-for-bit unchanged. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. Pre-push gate catches any test failure |
+| Extract's loop behavior diverges from pre-refactor (any of the four stamp branches reaches a different end-state for any reachable input) | `_extract_comments` loop body + extract's caller-side stamp block | FR-034 regression lock: `tests/unit/test_extract_comments.py` (20 tests, 830 LOC) MUST pass bit-for-bit unchanged. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. Pre-push gate catches any test failure |
 | Extract's artifact producer drifts (`RunSummary.to_dict`, `create_minimal_summary`, `normalize_error_message`) | `src/ado_git_repo_insights/utils/run_summary.py` (untouched by this feature) | FR-030f golden-snapshot test (`tests/unit/test_run_summary_snapshot.py`, NEW) asserts rendered JSON equality against a committed golden across all three producer surfaces. Catches any accidental behavior drift caused by refactor side effects or untouched-module regressions |
 | Extract's end-of-loop commit boundary drifts (i.e., changes from "commit once after loop" to something else) | `_extract_comments` bottom — specifically `db.connection.commit()` at current cli.py:653 | Structural: plan mandates the commit line at `cli.py:653` is bit-for-bit preserved; only the per-PR loop body (cli.py:510-651) is refactored. Visual inspection during Pass 3 + regression via FR-034 |
 | Backfill's simplified 2-outcome rule accidentally enters extract's preserve branch (reintroducing the infinite-loop outcome in backfill) | `cmd_backfill_comments` loop body | FR-031 truncation-verified-complete tests run both sub-cases (pre-iteration marker NULL + pre-iteration marker set) and assert post-iteration marker is non-null in both |
@@ -649,7 +649,7 @@ Tests are defined unconditionally at module scope (Principle XXVI). No `pytest.m
 | FR-031 (coverage-marker invariants) | 20, 21, 22, 23, 24 |
 | FR-032 (end-to-end) | 25, 26, 27, 28 |
 | FR-033 (flag validation) | 29, 30, 31, 32 |
-| FR-034 (extract regression lock, UNCHANGED) | tests/unit/test_extract_comments.py — 19 methods, must pass bit-for-bit after refactor |
+| FR-034 (extract regression lock, UNCHANGED) | tests/unit/test_extract_comments.py — 20 methods, must pass bit-for-bit after refactor |
 
 #### Parametrization policy
 
@@ -657,7 +657,7 @@ The 4 parametrized methods (#11, #12, #34, #37) each have a corpus that is **loc
 
 #### FR-034 regression lock — binding
 
-`tests/unit/test_extract_comments.py` (current HEAD: 759 LOC, 19 test methods across 7 classes — enumerated in [research.md §3](./research.md#findings)) MUST pass bit-for-bit after the `_fetch_and_upsert_threads_for_pr` refactor. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. A failing test in this suite blocks merge; the fix is to re-align the refactor, not to edit the test.
+`tests/unit/test_extract_comments.py` (current HEAD: 830 LOC, 20 test methods across 7 classes — enumerated in [research.md §3](./research.md#findings)) MUST pass bit-for-bit after the `_fetch_and_upsert_threads_for_pr` refactor. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. A failing test in this suite blocks merge; the fix is to re-align the refactor, not to edit the test.
 
 ### §6 — Pre-push gate chain (VR-28)
 
