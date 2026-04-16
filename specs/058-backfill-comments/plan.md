@@ -14,7 +14,7 @@ Deliver a new `backfill-comments` CLI subcommand that drains historical PR threa
 2. **Preserve** extract's post-fix observable behavior by keeping extract's 3-case stamp logic inline in `_extract_comments` (Case 2 now carries a pre-iteration-NULL sub-decision landed by commit `740810fd`, the #289 fix) and its existing end-of-loop `db.connection.commit()` at `cli.py:672`. The `test_extract_comments.py` regression-lock suite (830 LOC, 20 tests) MUST pass unchanged (FR-034).
 3. **Introduce** `cmd_backfill_comments` + its argparse subparser. Its per-iteration body calls the shared helper, applies a simplified 2-outcome stamp decision (set if untruncated or every dropped thread is already stored-and-current; else leave unchanged), commits per-PR, and rolls back on `ExtractionError`. The simplified decision never traverses extract's "preserve" branch, making the preserved-unset infinite-loop outcome unreachable by construction at backfill's side (defense-in-depth with extract's own post-fix Case 2a from commit `740810fd`, which also eliminates the outcome at the source for preiteration-NULL inputs).
 4. **Enforce** the FR-019b failure-line warnings, FR-017a legacy-schema-skip discriminator, and a new first-class artifact invariant: **every backfill-produced `run_summary.json` — including fatal pre-loop aborts — carries at least one `warnings` entry whose literal prefix is `"backfill-comments: "`**. This is the authoritative discriminator between backfill and extract artifacts (pre-plan deliverable 2).
-5. **Lock** every test from FR-030a–j to a named test file and a specific invariant. Collection-stable definitions (Principle XXVI). Python test floor at `.test-floor-contract.json::python::min_collected = 1814` bumps by exactly N in the same commit that adds N tests (QG-43).
+5. **Lock** every test from FR-030a–j to a named test file and a specific invariant. Collection-stable definitions (Principle XXVI). Python test floor at `.test-floor-contract.json::python::min_collected = 1816` (post-#289-fix baseline) bumps by exactly N in the same commit that adds N tests (QG-43).
 
 ## Technical Context
 
@@ -71,7 +71,7 @@ Deliver a new `backfill-comments` CLI subcommand that drains historical PR threa
 | QG-40 No Any | **PASS** | Every new annotation uses precise types (`Literal`, `list[AdoThread]`, `FetchOutcome` dataclass). No `typing.Any` |
 | QG-41 Zero suppressions | **PASS** | No `# noqa` / `# type: ignore` in new code |
 | QG-42 Enterprise test coverage | **PASS** | FR-030a–j + FR-031 + FR-032 + FR-033 map to test files (see Implementation Strategy §5) |
-| QG-43 Ratchet-bump same-commit | **BINDING** | The commit that adds `N` new Python tests MUST bump `.test-floor-contract.json::python::min_collected` by exactly `N` (current floor 1814). Plan estimates the count in §5 below so `tasks.md` can enforce — actual count at implementation time is authoritative |
+| QG-43 Ratchet-bump same-commit | **BINDING** | The commit that adds `N` new Python tests MUST bump `.test-floor-contract.json::python::min_collected` by exactly `N` (current floor 1816, post-#289-fix baseline). Plan estimates the count in §5 below so `tasks.md` can enforce — actual count at implementation time is authoritative |
 | QG-44 Single source of truth for floor | **PASS** | `.test-floor-contract.json` drives preflight + `ci.yml`; no hardcoded ints introduced |
 | QG-45 Python floor is cross-platform min | **PASS** | New tests contain no platform-conditional gating |
 | QG-46 Platform-conditional file-name exclusion | **N/A** | No platform-conditional tests added |
@@ -582,7 +582,7 @@ def is_backfill_artifact(artifact: dict[str, object]) -> bool:
 
 ### §5 — Test surface: named test methods, locked invariants, exact ratchet impact
 
-Tests are defined unconditionally at module scope (Principle XXVI). No `pytest.mark.skipIf`, no runtime `pytest.skip()` at collection time, no decorators that add or remove definitions. The matrices below enumerate **37 distinct test method declarations** across **3 new test files**. Some methods are parametrized — the collected-item count (what `pytest --collect-only` reports and what `scripts/check_ratchet_bump.py` ratchets against) is ≥ 37. Ratchet-bump target: `.test-floor-contract.json::python::min_collected` moves from **1814 → 1814 + N** in the **same commit** that lands the new tests, where `N` is the actual collected count observed locally and in CI.
+Tests are defined unconditionally at module scope (Principle XXVI). No `pytest.mark.skipIf`, no runtime `pytest.skip()` at collection time, no decorators that add or remove definitions. The matrices below enumerate **38 distinct test method declarations** across **3 new test files** (32 in `test_backfill_comments.py` + 1 at #19a + 2 + 3). Some methods are parametrized — the collected-item count (what `pytest --collect-only` reports and what `scripts/check_ratchet_bump.py` ratchets against) is ≥ 38. Ratchet-bump target: `.test-floor-contract.json::python::min_collected` moves from **1816 → 1816 + N** in the **same commit** that lands the new tests, where `N` is the actual collected count observed locally and in CI.
 
 #### File 1 — `tests/unit/test_backfill_comments.py` (NEW, 32 method declarations)
 
@@ -627,7 +627,7 @@ Tests are defined unconditionally at module scope (Principle XXVI). No `pytest.m
 | # | Test class | Test method | Locked invariant | Source FR | Parametrized? |
 |---:|---|---|---|---|---|
 | 33 | `TestArtifactShapeParity` | `test_backfill_and_extract_artifacts_have_identical_shape` | FR-025b: run extract against a controlled fixture (mocked ADO client, fixed tool_version/git_sha); run backfill against a comparable controlled fixture; parse both `run_summary.json` files; assert identical top-level key sets; assert identical nested-object key sets for `date_range`, `counts`, `timings`; assert identical per-field Python type shapes | FR-030e | no |
-| 34 | `TestArtifactShapeParity` | `test_discriminator_invariant_holds_for_all_backfill_states` | First-class discriminator invariant: drive backfill in 5 states (loop-complete success, partial-failure, empty-selection, legacy-schema no-op, fatal pre-loop abort) and extract in 1 state; assert `is_backfill_artifact()` returns True for all 5 backfill states; assert False for extract. **This is the single test that would fail if any of the 8 code sites A–D5 in §4 is not wired.** | FR-030e | **yes** (parametrized over the 5 backfill states — 5 cases; plus 1 extract case = 6 parametrized cases) |
+| 34 | `TestArtifactShapeParity` | `test_discriminator_invariant_holds_for_all_backfill_states` | First-class discriminator invariant: drive backfill in 9 states (one per Site A/B/C/D1/D2/D3/D4/D5 + empty-selection — loop-success, partial-failure, empty-selection, legacy-schema no-op, fatal-config-error, fatal-database-error, fatal-preloop-extraction-error, fatal-ctrl-c, fatal-unexpected-exception) and extract in 1 state; assert `is_backfill_artifact()` returns True for all 9 backfill states; assert False for extract. **This is the single test that would fail if any of the 8 code sites A–D5 in §4 is not wired.** Pass 2 expanded the corpus from 5 to 9 backfill states so every Site has a dedicated parametrize case (no transitive coverage). | FR-030e | **yes** (parametrized over 9 backfill states + 1 extract = 10 parametrized cases) |
 
 #### File 3 — `tests/unit/test_run_summary_snapshot.py` (NEW, 3 method declarations)
 
@@ -641,12 +641,12 @@ Tests are defined unconditionally at module scope (Principle XXVI). No `pytest.m
 
 | Quantity | Value |
 |---|---|
-| Pre-feature Python floor (`.test-floor-contract.json::python::min_collected`) | **1814** |
+| Pre-feature Python floor (`.test-floor-contract.json::python::min_collected`) | **1816** (post-#289-fix baseline; `740810fd` bumped 1814 → 1816 for the +2 tests added by that commit) |
 | New test methods declared | **38** (32 in `test_backfill_comments.py` + 1 at #19a `TestBackfillWarningEmissionParity` + 2 in `test_run_summary_parity.py` + 3 in `test_run_summary_snapshot.py`) |
 | New test files created | **3** (`test_backfill_comments.py`, `test_run_summary_parity.py`, `test_run_summary_snapshot.py`) |
-| Methods with `pytest.mark.parametrize` | 4 (#11, #12, #34, #37) |
-| Minimum ratchet-bump delta (no parametrization) | **+38** → floor becomes **1852** |
-| Expected ratchet-bump delta (with parametrization on #11, #12, #34, #37) | **+51 to +61** (estimate — bounded by the corpus sizes locked at implementation time) → floor becomes **~1865 to ~1875** |
+| Methods with `pytest.mark.parametrize` | 4 (#11 corpus=8, #12 corpus=10, #34 corpus=10 (Pass 2 expansion: 9 backfill sites + 1 extract), #37 corpus=5) |
+| Minimum ratchet-bump delta (no parametrization) | **+38** → floor becomes **1854** |
+| Expected ratchet-bump delta (with parametrization) | **+67** (refined after Pass 2 #34 expansion: 34 non-parametrized × 1 + 8 + 10 + 10 + 5) → floor becomes **~1883** |
 | Authoritative measurement | `python scripts/check_ratchet_bump.py --base-ref origin/main --junit-extension extension/test-results.xml` at the implementation commit |
 | Binding gate | QG-43: the commit that lands the new tests MUST bump `.test-floor-contract.json::python::min_collected` by exactly the observed new-test count. Any drift fails the `ratchet-bump-guard` CI job. |
 
