@@ -299,6 +299,24 @@ flowchart LR
 
 ---
 
+## Consumer Entry Points
+
+Three consumers read the dataset produced by the pipeline. All three MUST
+conform to the [Dataset Contract](dataset-contract.md):
+
+| Consumer | Reads | Renders |
+|----------|-------|---------|
+| Extension UI | Dataset manifest + aggregates | Interactive dashboard inside Azure DevOps |
+| CLI dashboard | Dataset manifest + aggregates | Local web dashboard (`ado-insights dashboard`) |
+| PowerBI | CSV exports from the core contract | Custom reports and analytics |
+
+The extension UI source lives in `extension/ui/` and is synced to the pip
+package bundle via managed artifact sync (see
+[Generated UI and Demo Artifacts](../../CONTRIBUTING.md#generated-ui-and-demo-artifacts)).
+CI enforces that the two copies stay identical.
+
+---
+
 ## Summary
 
 This tool extracts **only successfully merged (completed) Pull Requests** from Azure DevOps, filtered by their **closure date**. The distinction between "completed" and "closed" is crucial:

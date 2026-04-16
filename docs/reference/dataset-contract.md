@@ -107,6 +107,18 @@ All consumers MUST validate schema versions before rendering:
 | `predictions_schema_version` | 1 | Reject if > supported (Phase 3.5) |
 | `insights_schema_version` | 1 | Reject if > supported (Phase 3.5) |
 
+### Quick Reference: Common Schema Areas
+
+| Change | Manifest field(s) | Contract implication |
+|--------|-------------------|---------------------|
+| Add a feature toggle | `features.*` | Consumers use this to show/hide UI sections |
+| Expose a new capability | `capabilities.*` | Consumers check this before enabling advanced filters |
+| Add a new aggregate file | `aggregate_index.weekly_rollups` or `distributions` | Consumers discover files via the index, not by scanning disk |
+| Change date range defaults | `defaults.*`, `limits.*` | Consumers use these for initial filter state |
+| Update comments metadata | `coverage.comments.*` | Consumers use `coverage.comments.status` to show coverage indicators |
+
+All fields are defined in the full [Manifest Schema (v1)](#manifest-schema-v1) below.
+
 ## Capability Metadata Precedence
 
 Loader normalization MUST use this precedence:

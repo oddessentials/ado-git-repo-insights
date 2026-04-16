@@ -13,6 +13,28 @@ Complete reference for all `ado-insights` commands and options.
 
 ---
 
+## Subcommand Flag Differences
+
+> `extract` and `stage-artifacts` use **different flag names** for the same
+> concepts. Do not mix them.
+
+| Concept | `extract` | `stage-artifacts` |
+|---------|-----------|-------------------|
+| Organization | `--organization` | `--org` |
+| Project | `--projects` (plural, comma-separated) | `--project` (singular) |
+| Output path | `--database` (default: `./ado-insights.sqlite`) | `--out` (default: `./run_artifacts`) |
+
+## PAT Scopes
+
+| Command | Required PAT Scope |
+|---------|-------------------|
+| `extract` | Code (Read) |
+| `stage-artifacts` | Build (Read) |
+| `build-aggregates` | None (local only) |
+| `dashboard` | None (local only) |
+
+---
+
 ## extract
 
 Extract Pull Request data from Azure DevOps.
@@ -47,6 +69,12 @@ If using `--organization`, also required:
 | `--comments-max-threads-per-pr N` | `50` | Cap how many discussion threads are fetched per PR |
 | `--log-format FORMAT` | `text` | `text` or `jsonl` |
 | `--artifacts-dir DIR` | `./run_artifacts` | Output directory for logs/summary |
+
+**When to use backfill:** Incremental extraction (the default) only fetches
+PRs closed since the last run. Late-arriving changes (review votes, state
+updates after initial close) can cause drift. `--backfill-days N` overrides
+incremental mode and re-fetches the last N days, UPSERTing over existing
+records to converge state.
 
 ### Examples
 
@@ -495,3 +523,4 @@ ado-insights build-aggregates --db data.db --out ./dataset --enable-insights
 - [CSV Schema](csv-schema.md) — Output file format details
 - [Troubleshooting](../user-guide/troubleshooting.md) — Common issues
 - [Enable ML Features](../internal/enable-ml-features.md) — Detailed ML setup guide
+- [Manual Testing Walkthrough](../internal/manual-walkthrough.md) — End-to-end CLI scenarios

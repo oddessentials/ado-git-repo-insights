@@ -141,6 +141,10 @@ Tests run across the full OS x Python version matrix defined in
 `requires-python` floor in `pyproject.toml` defines packaging
 compatibility; CI validates a specific subset of that range.
 
+The test count floor is defined in
+[`.test-floor-contract.json`](/.test-floor-contract.json) — both pre-push
+hooks and CI read this file to enforce minimum test collection counts.
+
 ### Local CI Parity
 
 The default pre-push hook is a strong workstation gate, but it is not a full
@@ -176,6 +180,27 @@ Requirements:
 
 For the current machine, treat a missing interpreter as a blocker rather than a
 warning if you need CI-grade confidence before pushing.
+
+### Gate Hierarchy
+
+Three escalating gate scopes run between your editor and CI:
+
+| Gate | Trigger | Scope | What it runs |
+|------|---------|-------|--------------|
+| Pre-commit | `git commit` | **Staged files only** | Fast lint/format fixes and selective extension checks (see [`.pre-commit-config.yaml`](/.pre-commit-config.yaml) pre-commit stage) |
+| Pre-push | `git push` | **All files (full worktree)** | The same hook definitions as pre-commit, but applied to **all files** (`--all-files`), plus version/baseline/CRLF/asset guards, then invokes the preflight gate below |
+| Preflight | Manual or via pre-push | **Full worktree** | Authoritative CI-parity gate (see [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py) docstring for the current gate list) |
+
+**Scope matters:** Pre-commit and pre-push run the same hook *definitions*
+but at different scopes. Pre-commit checks only staged files (fast feedback
+during development). Pre-push re-checks the entire worktree, catching issues
+that staged-only checking intentionally skips.
+
+**Preflight is embedded in pre-push.** When you push, the pre-push hook
+invokes `run_pr_preflight.py` automatically. The standalone command
+(`python scripts/run_pr_preflight.py`) exists for environments that skip
+git hooks — IDE push buttons, CI reruns, or re-checking after a fix without
+pushing again.
 
 ### Local PR Preflight
 

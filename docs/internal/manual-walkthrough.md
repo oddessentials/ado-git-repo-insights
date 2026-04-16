@@ -164,6 +164,16 @@ Verify: Version prints, doctor shows no conflicts.
 
 ---
 
+## Troubleshooting
+
+If any scenario above fails, see:
+- [Troubleshooting Guide](../user-guide/troubleshooting.md) — installation,
+  auth, extraction, dashboard, and data issues
+- [Testing Guide](../development/testing.md#local-pr-preflight) —
+  preflight degraded mode diagnostics
+
+---
+
 ## 7. Maintenance Tasks (main branch only)
 
 > These tasks are for **main-branch stewardship after merge**, not part of the

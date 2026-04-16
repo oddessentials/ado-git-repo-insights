@@ -97,6 +97,26 @@ steps:
 
 The Python CLI provides full control for local analysis, custom scripts, and non-ADO CI/CD systems.
 
+### What you get
+
+```bash
+# Extract PR data
+ado-insights extract \
+  --organization MyOrg \
+  --projects "Project1,Project2" \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite
+
+# Generate CSVs for PowerBI
+ado-insights generate-csv \
+  --database ./ado-insights.sqlite \
+  --output ./csv_output
+
+# View local dashboard
+ado-insights build-aggregates --db ./ado-insights.sqlite --out ./dataset
+ado-insights dashboard --dataset ./dataset --open
+```
+
 ### Installation
 
 **Recommended: pipx** (handles PATH automatically)
@@ -123,26 +143,6 @@ Verify installation: `ado-insights --version`
 Diagnose issues: `ado-insights doctor`
 
 **Get started:** [CLI User Guide](docs/user-guide/local-cli.md)
-
-### Basic Usage
-
-```bash
-# Extract PR data
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1,Project2" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite
-
-# Generate CSVs for PowerBI
-ado-insights generate-csv \
-  --database ./ado-insights.sqlite \
-  --output ./csv_output
-
-# View local dashboard
-ado-insights build-aggregates --db ./ado-insights.sqlite --out ./dataset
-ado-insights dashboard --dataset ./dataset --open
-```
 
 ---
 
