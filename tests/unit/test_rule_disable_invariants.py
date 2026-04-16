@@ -896,6 +896,18 @@ class TestAllowlistOrphanDetection:
         with pytest.raises(ValueError, match="must be an object"):
             _mod.verify_subprocess_allowlist_entries(case_dir)
 
+    @pytest.mark.parametrize(
+        "payload",
+        ["[]", "null", '"x"', "42", "true"],
+        ids=["array", "null", "string", "number", "bool"],
+    )
+    def test_non_object_toplevel_raises(self, payload: str) -> None:
+        """Top-level JSON that is not an object raises ValueError."""
+        case_dir = self._build_case("non-object-toplevel", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        with pytest.raises(ValueError, match="must be an object"):
+            _mod.verify_subprocess_allowlist_entries(case_dir)
+
     def test_committed_allowlist_is_clean(self) -> None:
         """The repo's committed .subprocess-allowlist.json has zero orphans."""
         repo_root = Path(__file__).parent.parent.parent
@@ -968,9 +980,11 @@ class TestAllowlistOrphanDetection:
             patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
         ):
             rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "malformed" in out.lower()
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
 
     @pytest.mark.parametrize(
         "payload",
@@ -1007,6 +1021,46 @@ class TestAllowlistOrphanDetection:
             patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
         ):
             rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "malformed" in out.lower()
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["[]", "null", '"x"', "42", "true"],
+        ids=["array", "null", "string", "number", "bool"],
+    )
+    def test_verify_artifacts_fails_on_non_object_toplevel(
+        self,
+        payload: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Non-object top-level JSON hits [FAIL] path, no traceback escapes."""
+        case_dir = self._build_case("toplevel-malform", [])
+        (case_dir / ".subprocess-allowlist.json").write_text(payload, encoding="utf-8")
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "[FAIL] .subprocess-allowlist.json is malformed" in captured.out
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+        assert "AttributeError" not in captured.out
+        assert "AttributeError" not in captured.err

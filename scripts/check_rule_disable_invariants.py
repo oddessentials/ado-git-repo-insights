@@ -568,6 +568,11 @@ def verify_subprocess_allowlist_entries(
     with open(allowlist_path, encoding="utf-8") as f:
         data = json.load(f)
 
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"top-level value must be an object, got {type(data).__name__}"
+        )
+
     entries = data.get("entries")
     if not isinstance(entries, list):
         raise ValueError(f"'entries' must be a list, got {type(entries).__name__}")
