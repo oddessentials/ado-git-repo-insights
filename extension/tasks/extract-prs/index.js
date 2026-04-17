@@ -286,6 +286,28 @@ function validateNonNegativeInt(name, raw) {
 }
 
 /**
+ * Keep the historical extract-mode default for per-run PR comment extraction,
+ * but only when comments extraction is enabled and the user left the input
+ * unset. Backfill mode must see the raw value unchanged so mixed-mode guards
+ * still reject explicit values.
+ *
+ * @param {string} mode
+ * @param {boolean} includeComments
+ * @param {string|null|undefined} raw
+ * @returns {string|null|undefined}
+ */
+function normalizeCommentsMaxPrsPerRunRaw(mode, includeComments, raw) {
+  if (
+    mode === "extract" &&
+    includeComments === true &&
+    !isMeaningfullySet(raw)
+  ) {
+    return "100";
+  }
+  return raw;
+}
+
+/**
  * Validate Python environment meets requirements.
  * Invariant 18: Fail-fast with actionable error message.
  */
@@ -454,12 +476,18 @@ async function run() {
       return;
     }
 
+    const normalizedCommentsMaxPrsPerRunRaw = normalizeCommentsMaxPrsPerRunRaw(
+      mode,
+      includeComments,
+      commentsMaxPrsPerRunRaw,
+    );
+
     let commentsMaxPrsPerRun = null;
     let commentsMaxThreadsPerPr = null;
     if (includeComments) {
       commentsMaxPrsPerRun = validateNonNegativeInt(
         "commentsMaxPrsPerRun",
-        commentsMaxPrsPerRunRaw,
+        normalizedCommentsMaxPrsPerRunRaw,
       );
       if (commentsMaxPrsPerRun === undefined) return;
       commentsMaxThreadsPerPr = validateNonNegativeInt(
@@ -774,6 +802,7 @@ module.exports = {
   buildBackfillArgs,
   formatProjectsForDisplay,
   isMeaningfullySet,
+  normalizeCommentsMaxPrsPerRunRaw,
   validateModeInputs,
   validateNonNegativeInt,
 };

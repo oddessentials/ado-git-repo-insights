@@ -84,7 +84,6 @@
             "type": "string",
             "label": "Max PRs for Comment Extraction",
             "required": false,
-            "defaultValue": "100",
             "visibleRule": "includeComments = true",
             "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. Defaults to 100 for rate-limit protection."
         },

@@ -53,6 +53,7 @@ const {
   buildBackfillArgs,
   formatProjectsForDisplay,
   isMeaningfullySet,
+  normalizeCommentsMaxPrsPerRunRaw,
   validateModeInputs,
   validateNonNegativeInt,
 } = require("./index.js");
@@ -660,7 +661,39 @@ function testValidateModeInputsBackfillRejectsMeaningfulPrCap() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 20: includeComments boolean handling — only `true` is mixed intent
+// Test 20: extract mode restores the historical default only for unset values
+function testNormalizeCommentsMaxPrsPerRunRaw() {
+  console.log(
+    "Test: normalizeCommentsMaxPrsPerRunRaw applies extract-only fallback for unset values...",
+  );
+  for (const unset of [undefined, null, "", "   "]) {
+    assert.strictEqual(
+      normalizeCommentsMaxPrsPerRunRaw("extract", true, unset),
+      "100",
+      `unset value ${JSON.stringify(unset)} should fall back to 100 in extract mode`,
+    );
+    assert.strictEqual(
+      normalizeCommentsMaxPrsPerRunRaw("backfill-comments", true, unset),
+      unset,
+      `unset value ${JSON.stringify(unset)} must stay untouched in backfill mode`,
+    );
+    assert.strictEqual(
+      normalizeCommentsMaxPrsPerRunRaw("extract", false, unset),
+      unset,
+      `unset value ${JSON.stringify(unset)} must stay untouched when comments are off`,
+    );
+  }
+  for (const explicit of ["0", "25", " 25 "]) {
+    assert.strictEqual(
+      normalizeCommentsMaxPrsPerRunRaw("extract", true, explicit),
+      explicit,
+      `explicit value ${JSON.stringify(explicit)} must not be overwritten`,
+    );
+  }
+  console.log("  ✓ Passed\n");
+}
+
+// Test 21: includeComments boolean handling — only `true` is mixed intent
 function testValidateModeInputsIncludeCommentsBoolean() {
   console.log(
     "Test: validateModeInputs backfill-mode only fails on includeComments === true...",
@@ -689,7 +722,7 @@ function testValidateModeInputsIncludeCommentsBoolean() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 21: formatProjectsForDisplay is null-safe (regression: backfill-mode
+// Test 22: formatProjectsForDisplay is null-safe (regression: backfill-mode
 // config logging crashed when `projects` was omitted, because the inline
 // `projects.split(...)` at index.js:523 ran on `null`).
 function testFormatProjectsForDisplayNullSafe() {
@@ -727,7 +760,7 @@ function testFormatProjectsForDisplayNullSafe() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 22: extract mode requires projects
+// Test 23: extract mode requires projects
 function testValidateModeInputsExtractRequiresProjects() {
   console.log("Test: validateModeInputs extract-mode requires projects...");
   for (const emptyProjects of [undefined, null, "", "   "]) {
@@ -753,7 +786,7 @@ function testValidateModeInputsExtractRequiresProjects() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 23: task manifest must expose the shared thread-cap input in BOTH
+// Test 24: task manifest must expose the shared thread-cap input in BOTH
 // extract-with-comments (`includeComments = true`) AND backfill-comments
 // modes — and only in those modes. Accepted visibleRule shapes: no rule
 // (always visible; pollutes extract UX when includeComments=false but not
@@ -819,6 +852,7 @@ function runTests() {
     testValidateModeInputsExtractRejectsBackfillKnobs();
     testValidateModeInputsBackfillRejectsExtractKnobs();
     testValidateModeInputsBackfillRejectsMeaningfulPrCap();
+    testNormalizeCommentsMaxPrsPerRunRaw();
     testValidateModeInputsIncludeCommentsBoolean();
     testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();
