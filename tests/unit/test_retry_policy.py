@@ -176,3 +176,40 @@ class TestFailurePropagation:
         error_msg = str(exc_info.value)
         assert "MyProject" in error_msg
         assert "2024-06-15" in error_msg
+
+
+class TestOrganizationPreflight:
+    """Backfill preflight must stay org-scoped without project-list permissions."""
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_organization_connection_uses_connection_data_endpoint(
+        self, mock_get: MagicMock
+    ) -> None:
+        config = APIConfig(max_retries=1, retry_delay_seconds=0)
+        client = ADOClient("TestOrg", "test-pat", config)
+
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        assert client.test_organization_connection() is True
+        mock_get.assert_called_once()
+        called_url = str(mock_get.call_args.args[0])
+        assert "/_apis/connectionData" in called_url
+        assert "/_apis/projects" not in called_url
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_organization_connection_failure_reports_org_context(
+        self, mock_get: MagicMock
+    ) -> None:
+        config = APIConfig(max_retries=1, retry_delay_seconds=0)
+        client = ADOClient("TestOrg", "test-pat", config)
+
+        mock_get.side_effect = requests.RequestException("401 Unauthorized")
+
+        with pytest.raises(ExtractionError) as exc_info:
+            client.test_organization_connection()
+
+        error_msg = str(exc_info.value)
+        assert "organization TestOrg" in error_msg
+        assert "401 Unauthorized" in error_msg

@@ -1010,6 +1010,30 @@ def _append_backfill_warning(warnings: list[str], body: str) -> None:
     warnings.append(f"{_BACKFILL_WARNING_PREFIX}{body}")
 
 
+def _classify_backfill_schema_tables(present: set[str]) -> bool:
+    """Classify backfill-comments table presence; return True only for legacy skip."""
+    if "pull_requests" not in present:
+        raise DatabaseError(
+            "backfill-comments requires the pull_requests table; "
+            "database is not a recognized extracted insights database"
+        )
+
+    has_threads = "pr_threads" in present
+    has_comments = "pr_comments" in present
+    if not has_threads and not has_comments:
+        return True
+    if has_threads and has_comments:
+        return False
+
+    missing_table = "pr_threads" if not has_threads else "pr_comments"
+    present_table = "pr_comments" if not has_threads else "pr_threads"
+    raise DatabaseError(
+        "backfill-comments requires both pr_threads and pr_comments tables; "
+        f"missing table: {missing_table}; present table: {present_table}; "
+        "database appears partially corrupted or mis-targeted"
+    )
+
+
 def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
     """Return True only for the exact legacy insights shape with both thread tables absent.
 
@@ -1032,26 +1056,29 @@ def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
         ) from e
 
     present = {r["name"] if hasattr(r, "keys") else r[0] for r in row}
-    if "pull_requests" not in present:
+    return _classify_backfill_schema_tables(present)
+
+
+def _legacy_schema_missing_thread_tables_raw(db_path: Path) -> bool:
+    """Return legacy-schema classification from the on-disk file before migrations."""
+    conn: sqlite3.Connection | None = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name IN "
+            "('pull_requests', 'pr_threads', 'pr_comments')"
+        ).fetchall()
+    except sqlite3.Error as e:
         raise DatabaseError(
-            "backfill-comments requires the pull_requests table; "
-            "database is not a recognized extracted insights database"
-        )
+            f"backfill-comments could not inspect database schema: {e}"
+        ) from e
+    finally:
+        if conn is not None:
+            conn.close()
 
-    has_threads = "pr_threads" in present
-    has_comments = "pr_comments" in present
-    if not has_threads and not has_comments:
-        return True
-    if has_threads and has_comments:
-        return False
-
-    missing_table = "pr_threads" if not has_threads else "pr_comments"
-    present_table = "pr_comments" if not has_threads else "pr_threads"
-    raise DatabaseError(
-        "backfill-comments requires both pr_threads and pr_comments tables; "
-        f"missing table: {missing_table}; present table: {present_table}; "
-        "database appears partially corrupted or mis-targeted"
-    )
+    present = {r[0] for r in row}
+    return _classify_backfill_schema_tables(present)
 
 
 def _select_uncovered_prs_for_backfill(
@@ -1456,20 +1483,11 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 f"database is empty: {db_path}"
             )
 
-        # Pass 2 locked execution order: DB connect → legacy-schema check →
+        # Pass 2 locked execution order: raw schema probe → DB connect →
         # config validation → ADO client → test_connection → snapshot → loop.
-        db = DatabaseManager(db_path)
-        try:
-            db.connect()
-        except OSError as e:
-            raise DatabaseError(
-                f"backfill-comments could not connect to the database ({db_path}): {e}"
-            ) from e
-
-        # Site B (FR-017): legacy-schema no-op. Short-circuit before any
-        # network work. Placed before config validation so a missing
-        # --pat / --organization doesn't mask the legacy-schema observation.
-        if _legacy_schema_missing_thread_tables(db):
+        # Legacy/partial-schema discrimination must inspect the on-disk file
+        # before ``DatabaseManager.connect()`` auto-migrates older schemas.
+        if _legacy_schema_missing_thread_tables_raw(db_path):
             legacy_msg = (
                 "pr_threads and pr_comments tables not present; "
                 "run a migration or extract with --include-comments first"
@@ -1499,6 +1517,14 @@ def cmd_backfill_comments(args: Namespace) -> int:
             run_summary.print_final_line()
             run_summary.emit_ado_commands()
             return 0
+
+        db = DatabaseManager(db_path)
+        try:
+            db.connect()
+        except OSError as e:
+            raise DatabaseError(
+                f"backfill-comments could not connect to the database ({db_path}): {e}"
+            ) from e
 
         # Inline config validation (Site D1 on failure). Backfill deliberately
         # skips ``load_config``: contracts/cli-subcommand.md §10 excludes
@@ -1580,43 +1606,54 @@ def cmd_backfill_comments(args: Namespace) -> int:
                     "per-PR iteration started while a transaction was already "
                     "open; backfill atomicity contract violated"
                 )
-                db.execute("BEGIN IMMEDIATE")
-                transaction_open = True
+                stage = "begin transaction"
                 try:
+                    db.execute("BEGIN IMMEDIATE")
+                    transaction_open = True
+                    stage = "persist threads"
                     outcome = _persist_threads_for_pr(db, repo, pr_row, fetched_payload)
                     # Simplified 2-outcome rule (FR-015): never enters extract's
                     # preserve branch — truncation-verified-complete → SET,
                     # truncation-clear → leave unchanged (still NULL; reselected
                     # next run).
-                    try:
-                        all_dropped_threads_stored = (not outcome.truncated) or (
-                            _dropped_threads_all_stored(
-                                db, pr_uid, outcome.dropped_threads
-                            )
+                    stage = "verify dropped-thread coverage"
+                    all_dropped_threads_stored = (not outcome.truncated) or (
+                        _dropped_threads_all_stored(db, pr_uid, outcome.dropped_threads)
+                    )
+                    if all_dropped_threads_stored:
+                        stage = "update comments_extracted_at"
+                        db.execute(
+                            "UPDATE pull_requests SET comments_extracted_at = ? "
+                            "WHERE pull_request_uid = ?",
+                            (datetime.now(UTC).isoformat(), pr_uid),
                         )
-                    except sqlite3.Error as e:
+                    stage = "commit transaction"
+                    db.execute("COMMIT")
+                    transaction_open = False
+                except sqlite3.Error as e:
+                    if stage == "begin transaction":
+                        raise DatabaseError(
+                            "backfill-comments could not begin transaction "
+                            f"for PR {pr_uid}: {e}"
+                        ) from e
+                    if stage == "persist threads":
+                        raise DatabaseError(
+                            f"backfill-comments could not persist threads for PR {pr_uid}: {e}"
+                        ) from e
+                    if stage == "verify dropped-thread coverage":
                         raise DatabaseError(
                             "backfill-comments could not verify dropped-thread "
                             f"coverage for PR {pr_uid}: {e}"
                         ) from e
-                    if all_dropped_threads_stored:
-                        try:
-                            db.execute(
-                                "UPDATE pull_requests SET comments_extracted_at = ? "
-                                "WHERE pull_request_uid = ?",
-                                (datetime.now(UTC).isoformat(), pr_uid),
-                            )
-                        except sqlite3.Error as e:
-                            raise DatabaseError(
-                                "backfill-comments could not update "
-                                f"comments_extracted_at for PR {pr_uid}: {e}"
-                            ) from e
-                except sqlite3.Error as e:
+                    if stage == "update comments_extracted_at":
+                        raise DatabaseError(
+                            "backfill-comments could not update "
+                            f"comments_extracted_at for PR {pr_uid}: {e}"
+                        ) from e
                     raise DatabaseError(
-                        f"backfill-comments could not persist threads for PR {pr_uid}: {e}"
+                        "backfill-comments could not commit transaction "
+                        f"for PR {pr_uid}: {e}"
                     ) from e
-                db.execute("COMMIT")
-                transaction_open = False
             except ExtractionError as e:
                 if transaction_open and db.connection.in_transaction:
                     db.execute("ROLLBACK")

@@ -360,9 +360,10 @@ class ADOClient:
     def test_organization_connection(self) -> bool:
         """Test organization-scoped connectivity to ADO API.
 
-        This probe intentionally avoids project or repository scope so callers
-        can fail fast on invalid organization/PAT combinations without
-        depending on any selected PR row.
+        This probe intentionally avoids project enumeration so callers can
+        fail fast on invalid organization/PAT combinations without depending
+        on row-0 project scope or permissions unrelated to the actual
+        repository/thread-fetch path.
 
         Returns:
             True if connection successful.
@@ -370,7 +371,7 @@ class ADOClient:
         Raises:
             ExtractionError: If connection fails.
         """
-        url = f"{self.base_url}/_apis/projects?api-version={self.config.version}"
+        url = f"{self.base_url}/_apis/connectionData?api-version={self.config.version}"
 
         try:
             response = requests.get(url, headers=self.headers, timeout=10)

@@ -239,6 +239,47 @@ def _run_backfill(
     return exit_code, artifact
 
 
+def _create_raw_backfill_schema(
+    db_path: Path,
+    *,
+    include_pull_requests: bool = True,
+    include_pr_threads: bool = False,
+    include_pr_comments: bool = False,
+) -> None:
+    conn = sqlite3.connect(str(db_path))
+    try:
+        if include_pull_requests:
+            conn.execute(
+                """
+                CREATE TABLE pull_requests (
+                    pull_request_uid TEXT PRIMARY KEY
+                )
+                """
+            )
+        if include_pr_threads:
+            conn.execute(
+                """
+                CREATE TABLE pr_threads (
+                    thread_id TEXT PRIMARY KEY,
+                    pull_request_uid TEXT NOT NULL
+                )
+                """
+            )
+        if include_pr_comments:
+            conn.execute(
+                """
+                CREATE TABLE pr_comments (
+                    comment_id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    pull_request_uid TEXT NOT NULL
+                )
+                """
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _select_uids(db: DatabaseManager, **kwargs: object) -> list[str]:
     organization = kwargs.get("organization", "org")
     projects = kwargs.get("projects", [])
@@ -936,6 +977,87 @@ class TestPerPRAtomicity:
         finally:
             db2.close()
 
+    def test_sqlite_error_from_begin_immediate_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql in ("BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"):
+                sql_log.append(sql)
+            if sql == "BEGIN IMMEDIATE":
+                raise sqlite3.DatabaseError("database is locked")
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert sql_log == ["BEGIN IMMEDIATE"], sql_log
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not begin transaction for PR p1" in fatal, fatal
+        assert "database is locked" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not begin transaction for PR p1: "
+            "database is locked"
+        ) in warnings
+
+    def test_sqlite_error_from_commit_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql in ("BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"):
+                sql_log.append(sql)
+            if sql == "COMMIT":
+                raise sqlite3.DatabaseError("disk full")
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert sql_log == ["BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"], sql_log
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not commit transaction for PR p1" in fatal, fatal
+        assert "disk full" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not commit transaction for PR p1: disk full"
+        ) in warnings
+
 
 # ---------------------------------------------------------------------------
 # #9-10 InterruptSafety
@@ -1142,6 +1264,42 @@ class TestProgressLogOrdering:
 class TestLegacySchemaDiscriminator:
     """FR-017 + FR-017a: legacy-schema-skip invariants."""
 
+    def test_true_legacy_db_is_detected_before_connect_migrates(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "legacy-pre-migration.db"
+        _create_raw_backfill_schema(
+            db_path,
+            include_pull_requests=True,
+            include_pr_threads=False,
+            include_pr_comments=False,
+        )
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 0
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert any(
+            isinstance(w, str)
+            and w.startswith("backfill-comments: legacy-schema-skip:")
+            for w in warnings
+        ), warnings
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            present = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name IN ('pr_threads', 'pr_comments')"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+        assert present == set(), present
+
     def test_legacy_schema_emits_skip_prefix_warning(self, tmp_path: Path) -> None:
         db_path = tmp_path / "legacy.db"
         db = DatabaseManager(db_path)
@@ -1212,6 +1370,43 @@ class TestLegacySchemaDiscriminator:
         assert not any(
             isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
         ), warnings
+
+    def test_partial_raw_schema_fails_before_connect_migrates(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "partial-pre-migration.db"
+        _create_raw_backfill_schema(
+            db_path,
+            include_pull_requests=True,
+            include_pr_threads=True,
+            include_pr_comments=False,
+        )
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "missing table: pr_comments" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            present = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name IN ('pr_threads', 'pr_comments')"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+        assert present == {"pr_threads"}, present
 
     def test_only_pr_comments_present_fails_as_database_error(
         self, tmp_path: Path
@@ -2038,24 +2233,34 @@ class TestBackfillDatabasePreconditions:
             isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
         ), warnings
 
-    def test_post_connect_schema_probe_routes_through_database_error(
+    def test_raw_schema_probe_routes_through_database_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db = _create_backfill_db(tmp_path)
         db.close()
 
-        real_execute = DatabaseManager.execute
+        real_connect = sqlite3.connect
 
-        def fake_execute(
-            self: DatabaseManager,
-            sql: str,
-            parameters: tuple[SqliteParam, ...] = (),
-        ) -> Cursor:
-            if "sqlite_master" in sql and "pr_threads" in sql and "pr_comments" in sql:
-                raise sqlite3.DatabaseError("schema probe exploded")
-            return real_execute(self, sql, parameters)
+        class _ProbeConn:
+            def __init__(self, inner: sqlite3.Connection) -> None:
+                self._inner = inner
 
-        monkeypatch.setattr(DatabaseManager, "execute", fake_execute)
+            def execute(self, sql: str, *args: object) -> object:
+                if (
+                    "sqlite_master" in sql
+                    and "pr_threads" in sql
+                    and "pr_comments" in sql
+                ):
+                    raise sqlite3.DatabaseError("schema probe exploded")
+                return self._inner.execute(sql, *args)
+
+            def close(self) -> None:
+                self._inner.close()
+
+        def fake_connect(*args: object, **kwargs: object) -> object:
+            return _ProbeConn(real_connect(*args, **kwargs))
+
+        monkeypatch.setattr("ado_git_repo_insights.cli.sqlite3.connect", fake_connect)
 
         args = _make_args(tmp_path, tmp_path / "test.db")
         exit_code, artifact = _run_backfill(args)

@@ -203,7 +203,7 @@ ado-insights backfill-comments [OPTIONS]
 - **Selection predicate** — `status = 'completed' AND comments_extracted_at IS NULL`, optionally narrowed by `--projects` / `--since` / `--until`, ordered by `closed_date ASC`, capped by `--limit`.
 - **Resumability** — re-runs pick up exactly where the last run left off. An empty selection (everything already covered) exits in under a second with zero upstream API calls.
 - **Per-PR atomicity** — each PR's thread upserts + marker update are wrapped in an explicit `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`. A mid-PR failure leaves that PR unchanged and the run continues; the failed PR is reselected on the next invocation.
-- **Exit codes** — `0` when the loop ran to completion (regardless of per-PR failure rate), `1` for fatal pre-loop errors (invalid PAT, unreachable org, legacy schema missing `pr_threads`/`pr_comments`), `130` for SIGINT.
+- **Exit codes** — `0` when the loop ran to completion (regardless of per-PR failure rate) and for the legacy both-missing schema no-op, `1` for fatal pre-loop errors (invalid PAT, unreachable org, invalid database, partial schema), `130` for SIGINT.
 
 ### Examples
 
