@@ -69,6 +69,52 @@ def _non_negative_int(value: str) -> int:
     return int(value)
 
 
+_BACKFILL_DESCRIPTION = (
+    "Drain historical PR thread coverage for completed pull requests whose "
+    "thread\ndata has never been fetched. The subcommand selects the oldest "
+    "uncovered pull\nrequest first, breaks ties by the pull request's stable "
+    "identifier, and skips\nany pull request whose coverage marker is already "
+    "set.\n\n"
+    "The selection set is materialized once at run start; pull requests "
+    "inserted or\nmodified during the run cannot enter the working set. Each "
+    "selected pull\nrequest is processed inside its own per-PR atomic database "
+    "transaction: on\nsuccess the thread rows, comment rows, user rows, and "
+    "the coverage marker\nupdate commit together; on per-pull-request failure "
+    "or mid-iteration\ninterruption (SIGINT/SIGTERM), the transaction rolls "
+    "back and the pull\nrequest's database state is left bit-identical to its "
+    "pre-iteration state, so\nthe next invocation will reselect it. Pull "
+    "requests whose transactions\ncommitted before a failure or interruption "
+    "persist.\n\n"
+    "Upstream rate-limit and retry behavior is inherited from the configured\n"
+    "extraction API client: per-pull-request retries are bounded, and per-pull-"
+    "\nrequest failures after retry exhaustion are isolated (the run continues "
+    "with\nthe next pull request; the failed pull request is recorded in the "
+    "run-summary\nartifact and remains selectable on the next invocation). A "
+    "run whose loop\nreaches completion exits with status code zero regardless "
+    "of the per-pull-\nrequest failure rate; non-zero exit codes are reserved "
+    "for fatal pre-loop\nerrors."
+)
+
+_BACKFILL_EPILOG = (
+    "Examples:\n\n"
+    "  # Drain every uncovered completed PR in the database (no filters):\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite\n\n"
+    "  # Limit a single run to 500 oldest PRs, closed on or after 2024-01-01:\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite \\\n"
+    "      --since 2024-01-01 --limit 500\n\n"
+    "  # Scope to two projects, closed in Q1 2025:\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite \\\n"
+    '      --projects "ProjectA, ProjectB" \\\n'
+    "      --since 2025-01-01 --until 2025-04-01\n"
+)
+
+
 def _parse_iso_date_argtype(raw: str) -> date:
     """argparse type for flags that accept a ``YYYY-MM-DD`` ISO-8601 date.
 
@@ -186,6 +232,129 @@ def create_parser() -> argparse.ArgumentParser:
         type=_non_negative_int,
         default=50,
         help="Max threads to fetch per PR (optional limit; 0 = unlimited)",
+    )
+
+    # Backfill-comments command (058): drain historical thread coverage
+    backfill_parser = subparsers.add_parser(
+        "backfill-comments",
+        help=(
+            "Backfill PR thread coverage for historical completed PRs "
+            "(oldest uncovered first)"
+        ),
+        description=_BACKFILL_DESCRIPTION,
+        epilog=_BACKFILL_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    backfill_parser.add_argument(
+        "--organization",
+        required=True,
+        type=str,
+        help=(
+            "Azure DevOps organization name (required). Must match the "
+            "organization the target pull requests belong to; used to "
+            "construct the upstream thread-fetch URL."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--pat",
+        required=True,
+        type=str,
+        help=(
+            "Personal Access Token with Code (Read) scope (required). The "
+            "token MUST have read access to every repository whose pull "
+            "requests fall within the run's selection scope; pull requests "
+            "in repositories the token cannot read will surface as per-pull-"
+            "request failures in the run-summary artifact."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--database",
+        type=Path,
+        default=Path("ado-insights.sqlite"),
+        help=(
+            "Path to the SQLite database file to operate on (default: "
+            "'ado-insights.sqlite'). The database MUST already exist and "
+            "MUST contain the pull_requests, pr_threads, and pr_comments "
+            "tables. Databases that lack pr_threads and pr_comments (legacy "
+            "schema) trigger a successful no-op with a legacy-schema-skip "
+            "warning."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--projects",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of project names to restrict the run to "
+            "(default: no filter — all projects are eligible). Entries are "
+            "trimmed of surrounding whitespace, empty entries are dropped, "
+            "and input order is preserved; the match against each pull "
+            "request's stored project_name is case-sensitive and exact. "
+            "Parsing is behaviorally identical to the project-list input "
+            "accepted by 'extract'; invalid entries do not raise — they "
+            "simply match zero pull requests."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--since",
+        type=_parse_iso_date_argtype,
+        default=None,
+        help=(
+            "Inclusive closed-date lower bound, in YYYY-MM-DD form (default: "
+            "no lower bound). Pull requests with closed_date strictly less "
+            "than this value are excluded from the selection. Combines with "
+            "--until to form the half-open interval [since, until). Date-"
+            "shape validation is behaviorally identical to 'extract "
+            "--start-date'; malformed values (e.g., 2024-13-99 or not-a-date) "
+            "are rejected before any database or network work begins."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--until",
+        type=_parse_iso_date_argtype,
+        default=None,
+        help=(
+            "Exclusive closed-date upper bound, in YYYY-MM-DD form (default: "
+            "no upper bound). Pull requests with closed_date greater than or "
+            "equal to this value are excluded from the selection. Combines "
+            "with --since to form the half-open interval [since, until); "
+            "'--since X --until X' matches zero pull requests (valid but "
+            "empty filter, not an error). Date-shape validation is "
+            "behaviorally identical to 'extract --end-date'; malformed values "
+            "are rejected before any database or network work begins."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--limit",
+        type=_non_negative_int,
+        default=0,
+        help=(
+            "Maximum number of pull requests to process in this run "
+            "(default: 0, which means unbounded — every uncovered pull "
+            "request matching the filters is processed). Negative values "
+            "are rejected. The limit is applied after the --projects / "
+            "--since / --until filters, so '--limit N' bounds the count of "
+            "processed pull requests, not the count of candidate pull "
+            "requests before filtering. Use a finite --limit to bound a "
+            "single invocation's API budget; re-invoke with the same "
+            "arguments to continue draining from where the last run stopped."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--comments-max-threads-per-pr",
+        type=_non_negative_int,
+        default=50,
+        help=(
+            "Maximum number of threads to fetch per pull request (default: "
+            "50, matching the extract flow's default; 0 means unlimited). "
+            "When a pull request's thread count exceeds this cap, the "
+            "earliest threads returned by the upstream API are persisted "
+            "and the dropped remainder is inspected against local storage "
+            "to decide whether the pull request's coverage marker can be "
+            "set (when every dropped thread is already stored and current) "
+            "or MUST be left unchanged (when any dropped thread is missing "
+            "or stale locally). Negative values are rejected."
+        ),
     )
 
     # Generate CSV command

@@ -105,7 +105,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 ### §2 — Argparse subparser wiring
 
-- [ ] **T008** Add `backfill-comments` subparser to `create_parser()` per `contracts/cli-subcommand.md`
+- [X] **T008** Add `backfill-comments` subparser to `create_parser()` per `contracts/cli-subcommand.md`
   - File: `src/ado_git_repo_insights/cli.py`.
   - **Insertion point**: immediately after `extract_parser` block ends at line **163** (the closing `)` of the last `extract_parser.add_argument(…--comments-max-threads-per-pr)` call), before the comment `# Generate CSV command` at line 165. This keeps thread-related subcommands grouped (plan §2).
   - Subparser declaration: per `contracts/cli-subcommand.md` §1 — `subparsers.add_parser("backfill-comments", help=..., description=_BACKFILL_DESCRIPTION, epilog=_BACKFILL_EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)`.
