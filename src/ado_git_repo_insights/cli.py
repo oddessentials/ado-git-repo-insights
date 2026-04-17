@@ -1268,7 +1268,9 @@ def cmd_backfill_comments(args: Namespace) -> int:
         130 — KeyboardInterrupt (re-raised for main() to set exit code).
         1 — unexpected Exception (re-raised for main() to set exit code).
     """
-    from .config import ConfigurationError, _parse_projects_list, load_config
+    import os
+
+    from .config import APIConfig, ConfigurationError, _parse_projects_list
     from .extractor.ado_client import ADOClient, ExtractionError
     from .persistence.database import DatabaseError, DatabaseManager
     from .persistence.repository import PRRepository
@@ -1287,16 +1289,23 @@ def cmd_backfill_comments(args: Namespace) -> int:
     processed_count = 0
     failed_count = 0
 
+    # FR-030d parity: parse ``--projects`` once at entry. Both omitted
+    # (``None``) and explicit empty-string (``""``) normalize to ``[]``
+    # via the shared helper, so the two surfaces behave identically.
+    # Every downstream consumer (probe-project fallback, selection SQL,
+    # RunSummary.projects) reads this single list.
+    parsed_projects = _parse_projects_list(args.projects)
+
     db: DatabaseManager | None = None
     try:
         # Pass 2 locked execution order: DB connect → legacy-schema check →
-        # load_config → test_connection → snapshot → loop.
+        # config validation → ADO client → test_connection → snapshot → loop.
         db = DatabaseManager(args.database)
         db.connect()
 
-        # Site B (FR-017): legacy-schema no-op. Short-circuit before
-        # load_config so a malformed config file doesn't mask the
-        # legacy-schema observation.
+        # Site B (FR-017): legacy-schema no-op. Short-circuit before any
+        # network work. Placed before config validation so a missing
+        # --pat / --organization doesn't mask the legacy-schema observation.
         if _legacy_schema_missing_thread_tables(db):
             legacy_msg = (
                 "pr_threads and pr_comments tables not present; "
@@ -1308,8 +1317,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
             run_summary = RunSummary(
                 tool_version=get_tool_version(),
                 git_sha=get_git_sha(),
-                organization=getattr(args, "organization", "unknown"),
-                projects=_parse_projects_list(getattr(args, "projects", None)),
+                organization=getattr(args, "organization", "") or "unknown",
+                projects=parsed_projects,
                 date_range_start=_format_backfill_date(getattr(args, "since", None)),
                 date_range_end=_format_backfill_date(getattr(args, "until", None)),
                 counts=RunCounts(),
@@ -1328,31 +1337,33 @@ def cmd_backfill_comments(args: Namespace) -> int:
             run_summary.emit_ado_commands()
             return 0
 
-        # Load config (Site D1 on failure).
-        config = load_config(
-            organization=args.organization,
-            projects=args.projects,
-            pat=args.pat,
-            database=args.database,
-            start_date=args.since,
-            end_date=args.until,
-        )
+        # Inline config validation (Site D1 on failure). Backfill deliberately
+        # skips ``load_config``: contracts/cli-subcommand.md §10 excludes
+        # ``--config`` from this subcommand, and ``Config.__post_init__``
+        # rejects empty projects, which would break backfill's documented
+        # "no filter — all projects eligible" default (FR-004 / contracts §4.4).
+        if not args.organization:
+            raise ConfigurationError("organization is required")
+        pat_value = args.pat or os.environ.get("ADO_PAT", "")
+        if not pat_value:
+            raise ConfigurationError("PAT is required")
+        api_config = APIConfig()
 
         # ADO client + pre-loop test_connection (Site D3 on failure).
         client = ADOClient(
-            organization=config.organization,
-            pat=config.pat,
-            config=config.api,
+            organization=args.organization,
+            pat=pat_value,
+            config=api_config,
         )
 
-        probe_project = _resolve_backfill_probe_project(args, config, db)
+        probe_project = _resolve_backfill_probe_project(parsed_projects, db)
         if probe_project is not None:
             client.test_connection(probe_project)
 
         # T013 selection snapshot + opening anchor (FR-018a).
         selection_snapshot = _select_uncovered_prs_for_backfill(
             db,
-            _parse_projects_list(args.projects),
+            parsed_projects,
             args.since,
             args.until,
             args.limit,
@@ -1423,8 +1434,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
         run_summary = RunSummary(
             tool_version=get_tool_version(),
             git_sha=get_git_sha(),
-            organization=config.organization,
-            projects=config.projects,
+            organization=args.organization,
+            projects=parsed_projects,
             date_range_start=_format_backfill_date(args.since),
             date_range_end=_format_backfill_date(args.until),
             counts=counts,
@@ -1522,25 +1533,26 @@ def _format_backfill_date(value: date | None) -> str:
 
 
 def _resolve_backfill_probe_project(
-    args: Namespace, config: Config, db: DatabaseManager
+    parsed_projects: list[str], db: DatabaseManager
 ) -> str | None:
     """Pick a project name to probe ``client.test_connection`` against.
 
-    Pass 2 locked fallback chain (first non-empty wins):
-      1. ``args.projects`` first element (from ``_parse_projects_list``).
-      2. ``config.projects[0]`` if the config file has a projects list.
-      3. A sample ``project_name`` from the uncovered-completed-PR set.
-      4. ``None`` — skip ``test_connection`` entirely (empty-database
+    Fallback chain (first non-empty wins):
+      1. ``parsed_projects[0]`` — the shared-helper-parsed ``--projects``
+         list supplied at the call site (see ``cmd_backfill_comments``).
+      2. A sample ``project_name`` from the uncovered-completed-PR set.
+      3. ``None`` — skip ``test_connection`` entirely (empty-database
          degenerate case; subsequent selection returns an empty list and
          Site C fires with ``processed=0 failed=0``).
-    """
-    from .config import _parse_projects_list
 
-    parsed_projects = _parse_projects_list(getattr(args, "projects", None))
+    The YAML-config fallback step is absent by design: contracts/cli-
+    subcommand.md §10 excludes ``--config`` from this subcommand's surface,
+    and ``cmd_backfill_comments`` does not call ``load_config`` (FR-004
+    allows projectless invocation, which ``Config.__post_init__`` would
+    reject).
+    """
     if parsed_projects:
         return parsed_projects[0]
-    if config.projects:
-        return config.projects[0]
     row = db.execute(
         "SELECT project_name FROM pull_requests "
         "WHERE status='completed' AND comments_extracted_at IS NULL "

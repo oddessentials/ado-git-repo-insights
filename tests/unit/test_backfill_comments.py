@@ -204,27 +204,18 @@ def _make_args(
 def _run_backfill(
     args: Namespace, client: MagicMock | None = None
 ) -> tuple[int, dict[str, object]]:
-    """Invoke cmd_backfill_comments with ADOClient mocked; return (exit, artifact)."""
-    mock_load_config = MagicMock()
-    config = MagicMock()
-    config.organization = args.organization
-    config.pat = args.pat
-    config.projects = _parse_projects_list(args.projects) or ["ProjectA"]
-    config.api = MagicMock()
-    config.database = args.database
-    mock_load_config.return_value = config
+    """Invoke cmd_backfill_comments with ADOClient mocked; return (exit, artifact).
 
+    cmd_backfill_comments builds its own minimal config inline (see P1
+    contract fix; FR-004 / contracts §10), so this helper only needs to
+    patch the ADO client to prevent real HTTP calls. load_config is never
+    invoked by the subcommand.
+    """
     client = client or _mock_client(threads=[])
 
-    with (
-        patch(
-            "ado_git_repo_insights.config.load_config",
-            side_effect=lambda **kwargs: config,
-        ),
-        patch(
-            "ado_git_repo_insights.extractor.ado_client.ADOClient",
-            return_value=client,
-        ),
+    with patch(
+        "ado_git_repo_insights.extractor.ado_client.ADOClient",
+        return_value=client,
     ):
         exit_code = cmd_backfill_comments(args)
 
@@ -1114,6 +1105,57 @@ class TestEndToEnd:
         assert isinstance(counts, dict)
         assert counts.get("prs_fetched") == 0
         assert counts.get("prs_updated") == 0
+
+    def test_projectless_invocation_succeeds(self, tmp_path: Path) -> None:
+        """FR-004 + contracts/cli-subcommand.md §4.4: ``--projects`` is
+        optional ("no filter — all projects eligible"). Locks the
+        projectless contract against ``Config.__post_init__``'s
+        project-required validation, which ``cmd_backfill_comments``
+        deliberately bypasses by building its own minimal config inline.
+        """
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(
+            db,
+            "p1",
+            pr_id=1,
+            project="ProjectA",
+            closed_date="2026-01-01T00:00:00Z",
+        )
+        _insert_pr(
+            db,
+            "p2",
+            pr_id=2,
+            project="ProjectB",
+            repo="r2",
+            closed_date="2026-01-02T00:00:00Z",
+        )
+        db.close()
+
+        # projects=None mirrors the documented default invocation.
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            projects=None,
+            max_threads=0,
+        )
+        client = _mock_client(
+            per_pr={
+                "1": [_make_thread(10)],
+                "2": [_make_thread(20)],
+            }
+        )
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0, artifact
+        assert artifact.get("first_fatal_error") is None
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        for entry in warnings:
+            if isinstance(entry, str):
+                assert "At least one project is required" not in entry, entry
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 2
 
 
 # ---------------------------------------------------------------------------
