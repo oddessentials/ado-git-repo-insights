@@ -294,12 +294,13 @@ class TestMigrationV2ToV3CoverageBackfill:
         state under test here.  The v4→v5 migration has its own dedicated
         test class in ``test_schema_migration_v4_to_v5.py``.
         """
-        from ado_git_repo_insights.persistence import database
+        from ado_git_repo_insights.persistence.migrations import (
+            MIGRATIONS as _SOURCE_MIGRATIONS,
+        )
 
         monkeypatch.setattr(
-            database,
-            "MIGRATIONS",
-            {k: v for k, v in database.MIGRATIONS.items() if k < 5},
+            "ado_git_repo_insights.persistence.database.MIGRATIONS",
+            {k: v for k, v in _SOURCE_MIGRATIONS.items() if k < 5},
         )
 
     # Shared v2 schema DDL for all tests in this class.
@@ -791,12 +792,13 @@ class TestMigrationV3ToV4DedupAndRecovery:
         here.  The v4→v5 migration has its own dedicated test class in
         ``test_schema_migration_v4_to_v5.py``.
         """
-        from ado_git_repo_insights.persistence import database
+        from ado_git_repo_insights.persistence.migrations import (
+            MIGRATIONS as _SOURCE_MIGRATIONS,
+        )
 
         monkeypatch.setattr(
-            database,
-            "MIGRATIONS",
-            {k: v for k, v in database.MIGRATIONS.items() if k < 5},
+            "ado_git_repo_insights.persistence.database.MIGRATIONS",
+            {k: v for k, v in _SOURCE_MIGRATIONS.items() if k < 5},
         )
 
     # v3 schema: v2 + comments_extracted_at column, version=3.
