@@ -69,7 +69,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**, **QG-42**.
   - Tests locking this: **#11** `TestFilterParsingParity::test_projects_parser_matches_extract_on_corpus` (parametrized over 8 cases; module-level tuple locks the corpus per Principle XXVI).
 
-- [ ] **T005** [P] Add `_parse_iso_date(raw: str) -> date` pure helper and switch extract's inline date validation to call it
+- [X] **T005** [P] Add `_parse_iso_date(raw: str) -> date` pure helper and switch extract's inline date validation to call it
   - File: `src/ado_git_repo_insights/config.py` (Pass 3 code-validation confirms exact location of extract's current date validation; may live in `cli.py` adjacent to `create_parser()`).
   - Behavior: parse `YYYY-MM-DD` ISO-8601; raise `ValueError` on any format mismatch (wrong separator, wrong field widths) or invalid calendar value (month 13, day 30 in February, etc.).
   - Replace extract's inline `--start-date` / `--end-date` validation with a call to this helper (FR-025a permits).

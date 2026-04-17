@@ -35,6 +35,22 @@ def _parse_projects_list(raw: str | None) -> list[str]:
     return [entry for entry in (part.strip() for part in raw.split(",")) if entry]
 
 
+def _parse_iso_date(raw: str) -> date:
+    """Parse a strict ``YYYY-MM-DD`` ISO-8601 calendar date.
+
+    Raises ``ValueError`` on any format mismatch (wrong separator, wrong
+    field widths) or invalid calendar value (month 13, day 30 in
+    February, etc.). Callers at argparse boundaries wrap into
+    ``ArgumentTypeError``; callers at ``load_config`` let the
+    ``ValueError`` surface for ``ConfigurationError`` wrapping.
+
+    Shared by extract (``--start-date`` / ``--end-date``) and backfill
+    (``--since`` / ``--until``) so both entry points validate
+    identically (FR-030d parity contract).
+    """
+    return date.fromisoformat(raw)
+
+
 @dataclass
 class APIConfig:
     """API configuration settings."""
@@ -114,8 +130,8 @@ def load_config(
     projects: str | None = None,
     pat: str | None = None,
     database: Path | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
     backfill_days: int | None = None,
 ) -> Config:
     """Load configuration from file and/or CLI arguments.
@@ -128,8 +144,10 @@ def load_config(
         projects: Comma-separated project names (CLI override).
         pat: Personal Access Token (CLI override).
         database: Database path (CLI override).
-        start_date: Start date YYYY-MM-DD (CLI override).
-        end_date: End date YYYY-MM-DD (CLI override).
+        start_date: Start date (CLI override). Accepts either a pre-parsed
+            ``datetime.date`` (argparse with ``type=_parse_iso_date_argtype``)
+            or a ``YYYY-MM-DD`` string (programmatic callers / tests).
+        end_date: End date (CLI override); same tolerant shape as start_date.
         backfill_days: Backfill window in days (CLI override).
 
     Returns:
@@ -213,20 +231,32 @@ def load_config(
     date_range = DateRangeConfig()
     dr_data = _sub("date_range")
     try:
-        if start_date:
-            date_range.start = date.fromisoformat(start_date)
+        if isinstance(start_date, date):
+            date_range.start = start_date
+        elif start_date:
+            date_range.start = _parse_iso_date(start_date)
         elif dr_data.get("start"):
-            date_range.start = date.fromisoformat(str(dr_data["start"]))
+            raw_start = dr_data["start"]
+            date_range.start = (
+                raw_start
+                if isinstance(raw_start, date)
+                else _parse_iso_date(str(raw_start))
+            )
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid start_date format (expected YYYY-MM-DD): {e}"
         ) from e
 
     try:
-        if end_date:
-            date_range.end = date.fromisoformat(end_date)
+        if isinstance(end_date, date):
+            date_range.end = end_date
+        elif end_date:
+            date_range.end = _parse_iso_date(end_date)
         elif dr_data.get("end"):
-            date_range.end = date.fromisoformat(str(dr_data["end"]))
+            raw_end = dr_data["end"]
+            date_range.end = (
+                raw_end if isinstance(raw_end, date) else _parse_iso_date(str(raw_end))
+            )
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid end_date format (expected YYYY-MM-DD): {e}"

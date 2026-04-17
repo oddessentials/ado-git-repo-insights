@@ -69,6 +69,29 @@ def _non_negative_int(value: str) -> int:
     return int(value)
 
 
+def _parse_iso_date_argtype(raw: str) -> date:
+    """argparse type for flags that accept a ``YYYY-MM-DD`` ISO-8601 date.
+
+    Delegates validation to the pure ``_parse_iso_date`` helper in
+    ``config.py`` and translates any ``ValueError`` into
+    ``argparse.ArgumentTypeError`` so argparse exits with code 2 on
+    malformed input.
+
+    Shared by extract (``--start-date`` / ``--end-date``) and backfill
+    (``--since`` / ``--until``) so both entry points validate identically
+    (FR-030d parity contract; returns a ``date`` object consumed by
+    ``load_config`` which accepts either str or date).
+    """
+    from .config import _parse_iso_date
+
+    try:
+        return _parse_iso_date(raw)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"{raw!r} is not a valid YYYY-MM-DD date: {e}"
+        ) from e
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
@@ -132,12 +155,12 @@ def create_parser() -> argparse.ArgumentParser:
     )
     extract_parser.add_argument(
         "--start-date",
-        type=str,
+        type=_parse_iso_date_argtype,
         help="Override start date (YYYY-MM-DD)",
     )
     extract_parser.add_argument(
         "--end-date",
-        type=str,
+        type=_parse_iso_date_argtype,
         help="Override end date (YYYY-MM-DD)",
     )
     extract_parser.add_argument(
