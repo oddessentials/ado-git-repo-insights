@@ -164,6 +164,86 @@ ado-insights extract \
 
 ---
 
+## backfill-comments
+
+Drain PR thread coverage for historical completed PRs whose
+`comments_extracted_at` marker is NULL. Oldest-by-`closed_date` first.
+
+Use this after flipping `--include-comments` on in your extract flow: extract
+only fetches comments for the most recent `--comments-max-prs-per-run` PRs, so
+historical PRs need this one-time catch-up. Extract and backfill are intentionally
+disjoint CLI paths — backfill has no `--config`, no start/end date range (it
+uses `--since` / `--until` against the already-populated `pull_requests`
+table), and never re-fetches PR metadata.
+
+```bash
+ado-insights backfill-comments [OPTIONS]
+```
+
+### Required Options
+
+| Option | Description |
+|--------|-------------|
+| `--organization ORG` | Azure DevOps organization name |
+| `--pat PAT` | Personal Access Token with Code (Read) scope |
+| `--database FILE` | Path to SQLite database |
+
+### Optional Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--projects PROJECTS` | None (all projects) | Comma-separated project names; empty means every uncovered project is eligible |
+| `--since YYYY-MM-DD` | None | Only backfill PRs closed on or after this date (strict `YYYY-MM-DD`) |
+| `--until YYYY-MM-DD` | None | Only backfill PRs closed strictly before this date (exclusive) |
+| `--limit N` | `0` (no limit) | Maximum PRs processed this run. Throughput is ~1 PR/sec steady-state; size accordingly for your pipeline's timeout. |
+| `--comments-max-threads-per-pr N` | `50` | Cap on threads fetched per PR; `0` = unlimited |
+
+### Behavior notes
+
+- **Selection predicate** — `status = 'completed' AND comments_extracted_at IS NULL`, optionally narrowed by `--projects` / `--since` / `--until`, ordered by `closed_date ASC`, capped by `--limit`.
+- **Resumability** — re-runs pick up exactly where the last run left off. An empty selection (everything already covered) exits in under a second with zero upstream API calls.
+- **Per-PR atomicity** — each PR's thread upserts + marker update are wrapped in an explicit `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`. A mid-PR failure leaves that PR unchanged and the run continues; the failed PR is reselected on the next invocation.
+- **Exit codes** — `0` when the loop ran to completion (regardless of per-PR failure rate), `1` for fatal pre-loop errors (invalid PAT, unreachable org, legacy schema missing `pr_threads`/`pr_comments`), `130` for SIGINT.
+
+### Examples
+
+**Drain the entire backlog (small org):**
+```bash
+ado-insights backfill-comments \
+  --organization MyOrg \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite
+```
+
+**Capped daily run on a large backlog:**
+```bash
+ado-insights backfill-comments \
+  --organization MyOrg \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite \
+  --limit 2500
+```
+
+**Scope to one project + date window:**
+```bash
+ado-insights backfill-comments \
+  --organization MyOrg \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite \
+  --projects ProjectA \
+  --since 2024-01-01 --until 2025-01-01 \
+  --limit 1000
+```
+
+### When to use this over `extract --include-comments`
+
+- `extract --include-comments` — covers the most recent `--comments-max-prs-per-run` PRs by `closed_date DESC`. Designed for steady-state incremental runs.
+- `backfill-comments` — covers uncovered PRs oldest-first with explicit per-PR atomicity. Designed for one-time backlog drains and resumable catch-up runs.
+
+The two paths never duplicate work: `extract`'s selection does not filter on coverage, while `backfill`'s filters strictly on `comments_extracted_at IS NULL`.
+
+---
+
 ## generate-csv
 
 Generate PowerBI-compatible CSV files from the database.

@@ -47,7 +47,13 @@ Module._load = function interceptedLoad(request, parent, ...rest) {
   return originalModuleLoad.call(this, request, parent, ...rest);
 };
 
-const { buildExtractArgs, validateNonNegativeInt } = require("./index.js");
+const {
+  buildExtractArgs,
+  buildBackfillArgs,
+  isMeaningfullySet,
+  validateModeInputs,
+  validateNonNegativeInt,
+} = require("./index.js");
 
 // Test helper to simulate getInput behavior
 function simulateInputReading() {
@@ -402,6 +408,283 @@ function testValidateNonNegativeInt() {
   console.log("  ✓ Passed\n");
 }
 
+// ---------------------------------------------------------------------------
+// #058 backfill-comments mode — tests against the REAL exported helpers.
+// ---------------------------------------------------------------------------
+
+const BACKFILL_BASELINE = Object.freeze({
+  organization: "myorg",
+  pat: "secret-pat",
+  databasePath: "/tmp/db.sqlite",
+});
+
+const BACKFILL_BASELINE_ARGS = Object.freeze([
+  "-m",
+  "ado_git_repo_insights.cli",
+  "backfill-comments",
+  "--organization",
+  "myorg",
+  "--pat",
+  "secret-pat",
+  "--database",
+  "/tmp/db.sqlite",
+]);
+
+// Test 11: minimal backfill — no filters
+function testBuildBackfillArgsMinimal() {
+  console.log("Test: buildBackfillArgs minimal (no filters)...");
+  const args = buildBackfillArgs({ ...BACKFILL_BASELINE });
+  assert.deepStrictEqual(
+    args,
+    BACKFILL_BASELINE_ARGS,
+    "Minimal backfill arg shape must not drift",
+  );
+  console.log("  ✓ Passed\n");
+}
+
+// Test 12: backfill with all filters
+function testBuildBackfillArgsAllFilters() {
+  console.log("Test: buildBackfillArgs with all filters...");
+  const args = buildBackfillArgs({
+    ...BACKFILL_BASELINE,
+    projects: "Alpha\nBeta",
+    backfillSince: "2024-01-01",
+    backfillUntil: "2024-07-01",
+    backfillLimit: 500,
+    commentsMaxThreadsPerPr: 25,
+  });
+  // Projects should be newline→comma normalized (same as extract)
+  const projIdx = args.indexOf("--projects");
+  assert(projIdx >= 0, "--projects missing");
+  assert.strictEqual(args[projIdx + 1], "Alpha,Beta");
+  const sinceIdx = args.indexOf("--since");
+  assert(sinceIdx >= 0, "--since missing");
+  assert.strictEqual(args[sinceIdx + 1], "2024-01-01");
+  const untilIdx = args.indexOf("--until");
+  assert(untilIdx >= 0, "--until missing");
+  assert.strictEqual(args[untilIdx + 1], "2024-07-01");
+  const limitIdx = args.indexOf("--limit");
+  assert(limitIdx >= 0, "--limit missing");
+  assert.strictEqual(args[limitIdx + 1], "500");
+  const threadsIdx = args.indexOf("--comments-max-threads-per-pr");
+  assert(threadsIdx >= 0, "--comments-max-threads-per-pr missing");
+  assert.strictEqual(args[threadsIdx + 1], "25");
+  console.log("  ✓ Passed\n");
+}
+
+// Test 13: empty-string inputs treated as absent (Azure task-lib default shape)
+function testBuildBackfillArgsEmptyStrings() {
+  console.log("Test: buildBackfillArgs with empty-string inputs (not set)...");
+  const args = buildBackfillArgs({
+    ...BACKFILL_BASELINE,
+    projects: "",
+    backfillSince: "",
+    backfillUntil: "   ",
+  });
+  assert.deepStrictEqual(
+    args,
+    BACKFILL_BASELINE_ARGS,
+    "Empty/whitespace strings must not produce flags",
+  );
+  console.log("  ✓ Passed\n");
+}
+
+// Test 14: null backfillLimit → no --limit flag; 0 → explicit pass-through
+function testBuildBackfillArgsLimitZero() {
+  console.log("Test: buildBackfillArgs with limit=0 (explicit no-cap)...");
+  const argsNull = buildBackfillArgs({
+    ...BACKFILL_BASELINE,
+    backfillLimit: null,
+  });
+  assert(
+    !argsNull.includes("--limit"),
+    "--limit must not appear when backfillLimit is null",
+  );
+  const argsZero = buildBackfillArgs({
+    ...BACKFILL_BASELINE,
+    backfillLimit: 0,
+  });
+  const zeroIdx = argsZero.indexOf("--limit");
+  assert(zeroIdx >= 0, "--limit must appear when backfillLimit is 0");
+  assert.strictEqual(argsZero[zeroIdx + 1], "0");
+  console.log("  ✓ Passed\n");
+}
+
+// Test 15: isMeaningfullySet classification
+function testIsMeaningfullySet() {
+  console.log("Test: isMeaningfullySet null/empty/whitespace handling...");
+  assert.strictEqual(isMeaningfullySet(null), false);
+  assert.strictEqual(isMeaningfullySet(undefined), false);
+  assert.strictEqual(isMeaningfullySet(""), false);
+  assert.strictEqual(isMeaningfullySet("   "), false);
+  assert.strictEqual(isMeaningfullySet("\t\n"), false);
+  assert.strictEqual(isMeaningfullySet("0"), true);
+  assert.strictEqual(isMeaningfullySet("false"), true);
+  assert.strictEqual(isMeaningfullySet("value"), true);
+  assert.strictEqual(isMeaningfullySet(0), true);
+  assert.strictEqual(isMeaningfullySet(false), true);
+  console.log("  ✓ Passed\n");
+}
+
+// Test 16: mode validation — allowed + rejected values
+function testValidateModeInputsModeGate() {
+  console.log("Test: validateModeInputs rejects unknown modes...");
+  // Known modes with a valid minimal config pass.
+  const okExtract = validateModeInputs("extract", { projects: "P1" });
+  assert.strictEqual(okExtract.ok, true, "extract mode should pass");
+  const okBackfill = validateModeInputs("backfill-comments", {});
+  assert.strictEqual(okBackfill.ok, true, "backfill-comments mode should pass");
+  // Unknown modes fail with a helpful message.
+  for (const bad of ["", "Extract", "EXTRACT", "backfill", "unknown"]) {
+    const result = validateModeInputs(bad, { projects: "P1" });
+    assert.strictEqual(result.ok, false, `mode="${bad}" must fail`);
+    assert(
+      /Invalid mode/.test(result.message),
+      `error must mention invalid mode (was: ${result.message})`,
+    );
+  }
+  console.log("  ✓ Passed\n");
+}
+
+// Test 17: extract mode rejects backfill-only inputs (meaningfully set)
+function testValidateModeInputsExtractRejectsBackfillKnobs() {
+  console.log(
+    "Test: validateModeInputs extract-mode rejects backfill-only knobs...",
+  );
+  const backfillOnlyInputs = [
+    "backfillSince",
+    "backfillUntil",
+    "backfillLimit",
+  ];
+  for (const key of backfillOnlyInputs) {
+    const result = validateModeInputs("extract", {
+      projects: "P1",
+      [key]: "2024-01-01",
+    });
+    assert.strictEqual(result.ok, false, `${key} must fail in extract mode`);
+    assert(
+      new RegExp(`"${key}"`).test(result.message),
+      `error must name the input (was: ${result.message})`,
+    );
+    assert(
+      /mode = backfill-comments/.test(result.message),
+      "error must point to the correct mode",
+    );
+  }
+  // Empty string / whitespace → not set → passes
+  const okEmpty = validateModeInputs("extract", {
+    projects: "P1",
+    backfillSince: "",
+    backfillUntil: "   ",
+    backfillLimit: "",
+  });
+  assert.strictEqual(
+    okEmpty.ok,
+    true,
+    "empty/whitespace backfill inputs must not trigger the guard",
+  );
+  console.log("  ✓ Passed\n");
+}
+
+// Test 18: backfill-comments mode rejects extract-only inputs
+function testValidateModeInputsBackfillRejectsExtractKnobs() {
+  console.log(
+    "Test: validateModeInputs backfill-mode rejects extract-only knobs...",
+  );
+  const extractOnlyStringInputs = [
+    "startDate",
+    "endDate",
+    "backfillDays",
+    "commentsMaxPrsPerRun",
+  ];
+  for (const key of extractOnlyStringInputs) {
+    const result = validateModeInputs("backfill-comments", {
+      [key]: "something",
+    });
+    assert.strictEqual(
+      result.ok,
+      false,
+      `${key} must fail in backfill-comments mode`,
+    );
+    assert(
+      new RegExp(`"${key}"`).test(result.message),
+      `error must name the input (was: ${result.message})`,
+    );
+    assert(
+      /mode = extract/.test(result.message),
+      "error must point to the correct mode",
+    );
+  }
+  // Empty strings / whitespace do not trigger the guard (Azure default shape)
+  const okEmpty = validateModeInputs("backfill-comments", {
+    startDate: "",
+    endDate: "   ",
+    backfillDays: "",
+    commentsMaxPrsPerRun: "",
+  });
+  assert.strictEqual(
+    okEmpty.ok,
+    true,
+    "empty/whitespace extract inputs must not trigger the guard",
+  );
+  console.log("  ✓ Passed\n");
+}
+
+// Test 19: includeComments boolean handling — only `true` is mixed intent
+function testValidateModeInputsIncludeCommentsBoolean() {
+  console.log(
+    "Test: validateModeInputs backfill-mode only fails on includeComments === true...",
+  );
+  // `false` or missing → neutral (platform default)
+  for (const neutral of [false, undefined, null]) {
+    const result = validateModeInputs("backfill-comments", {
+      includeComments: neutral,
+    });
+    assert.strictEqual(
+      result.ok,
+      true,
+      `includeComments=${String(neutral)} must not trigger the guard`,
+    );
+  }
+  // `true` is mixed intent and must fail
+  const bad = validateModeInputs("backfill-comments", {
+    includeComments: true,
+  });
+  assert.strictEqual(bad.ok, false, "includeComments=true must fail");
+  assert(
+    /"includeComments"/.test(bad.message),
+    "error must name includeComments",
+  );
+  assert(/mode = extract/.test(bad.message));
+  console.log("  ✓ Passed\n");
+}
+
+// Test 20: extract mode requires projects
+function testValidateModeInputsExtractRequiresProjects() {
+  console.log("Test: validateModeInputs extract-mode requires projects...");
+  for (const emptyProjects of [undefined, null, "", "   "]) {
+    const result = validateModeInputs("extract", {
+      projects: emptyProjects,
+    });
+    assert.strictEqual(
+      result.ok,
+      false,
+      `projects=${JSON.stringify(emptyProjects)} must fail in extract mode`,
+    );
+    assert(/"projects" is required/.test(result.message));
+  }
+  // Backfill mode allows missing projects
+  const okBackfill = validateModeInputs("backfill-comments", {
+    projects: "",
+  });
+  assert.strictEqual(
+    okBackfill.ok,
+    true,
+    "backfill-comments must allow missing projects",
+  );
+  console.log("  ✓ Passed\n");
+}
+
 // Run all tests
 function runTests() {
   console.log("=".repeat(50));
@@ -419,6 +702,17 @@ function runTests() {
     testBuildExtractArgsWithComments();
     testBuildExtractArgsWithCommentsNumericsOmitted();
     testValidateNonNegativeInt();
+    // #058 backfill-comments mode
+    testBuildBackfillArgsMinimal();
+    testBuildBackfillArgsAllFilters();
+    testBuildBackfillArgsEmptyStrings();
+    testBuildBackfillArgsLimitZero();
+    testIsMeaningfullySet();
+    testValidateModeInputsModeGate();
+    testValidateModeInputsExtractRejectsBackfillKnobs();
+    testValidateModeInputsBackfillRejectsExtractKnobs();
+    testValidateModeInputsIncludeCommentsBoolean();
+    testValidateModeInputsExtractRequiresProjects();
 
     console.log("=".repeat(50));
     console.log("All tests passed!");

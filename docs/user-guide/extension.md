@@ -306,6 +306,114 @@ After the first run, remove `startDate` and `endDate` — subsequent runs automa
 
 ---
 
+## Backfilling Historical PR Comments
+
+When you enable `includeComments: true` on your extract pipeline, incremental
+runs start fetching thread data for newly-closed PRs — but historical PRs
+already in the database (`comments_extracted_at IS NULL`) are not retroactively
+covered. For organizations with large histories, you need a **one-time backfill
+pipeline** to catch everything up. After that, the regular extract pipeline
+maintains coverage going forward.
+
+### One-line YAML change
+
+Add a second pipeline (or a separate stage) that flips the same
+`ExtractPullRequests@2` task into backfill mode:
+
+```yaml
+- task: ExtractPullRequests@2
+  inputs:
+    organization: 'YOUR_ORG'
+    pat: '$(PAT_SECRET)'
+    database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
+    mode: backfill-comments          # <-- the only line that changes
+    backfillLimit: 2500              # <-- keeps each run under ~45 min
+```
+
+The task downloads the existing DB artifact (same pattern as incremental
+extract), drains up to `backfillLimit` uncovered PRs (oldest by `closed_date`
+first), and republishes the updated DB artifact. Runs that find nothing
+uncovered exit in well under a second, so scheduling the backfill daily is
+safe even after the backlog is fully drained.
+
+### Sizing `backfillLimit`
+
+Backfill steady-state throughput on hosted Ubuntu agents is **~1 PR/second**.
+Pick `backfillLimit` so each run finishes inside your pipeline's job
+timeout with room for the setup, artifact publish, and aggregate
+regeneration that follow:
+
+| Pipeline job timeout | Recommended `backfillLimit` | Approx backfill phase |
+|----------------------|-----------------------------|-----------------------|
+| 60 min (default hosted)              | `2500`  | ~45 min |
+| 120 min                               | `6000`  | ~100 min |
+| 360 min (hosted max / self-hosted)    | `18000` | ~5 hours |
+
+Example org-sizing:
+
+- **Small (≤1000 uncovered PRs)** — single run with `backfillLimit: 0`
+  (no cap). Finishes in ~17 min.
+- **Medium (10k PRs)** — daily cron with `backfillLimit: 2500`. Drains
+  in ~4 days; each run stays inside a 60-min pipeline.
+- **Large (50k+ PRs)** — weekly pipeline with a 3-hour job timeout and
+  `backfillLimit: 10000`. Drains over several weeks without ever risking
+  rate limiting or pipeline timeout.
+
+Resumability is automatic: the selection query filters on
+`comments_extracted_at IS NULL`, so re-runs only see PRs that haven't been
+covered yet. If a run is interrupted (pipeline timeout, SIGINT, transient
+failure), PRs that already committed stay stamped and the in-progress PR
+rolls back untouched — the next run picks up exactly where the previous
+one stopped.
+
+### Optional scope filters
+
+Narrow what a single run covers:
+
+```yaml
+- task: ExtractPullRequests@2
+  inputs:
+    organization: 'YOUR_ORG'
+    projects: 'ProjectA'             # single project instead of all
+    pat: '$(PAT_SECRET)'
+    database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
+    mode: backfill-comments
+    backfillSince: '2024-01-01'      # closed on or after this date
+    backfillUntil: '2025-01-01'      # closed strictly before (exclusive)
+    backfillLimit: 1000
+```
+
+Leaving all three filter inputs empty drains every uncovered PR across every
+project. `backfillSince` / `backfillUntil` are strict `YYYY-MM-DD`.
+
+### Inputs rejected in this mode (fail fast)
+
+The task rejects mixed-intent input combinations at start-up so the run
+fails before any API call. In `mode: backfill-comments`, the following
+extract-only inputs cause an immediate task failure — remove them from
+your backfill pipeline:
+
+| Input                   | Backfill equivalent or reason |
+|-------------------------|-------------------------------|
+| `startDate` / `endDate` | Use `backfillSince` / `backfillUntil`. |
+| `backfillDays`          | Not applicable; backfill does not re-fetch PR metadata. |
+| `includeComments: true` | Backfill always fetches comments; this is the mode. |
+| `commentsMaxPrsPerRun`  | Use `backfillLimit`. |
+
+Symmetrically, `backfillSince` / `backfillUntil` / `backfillLimit` in
+`mode: extract` also fail fast. Keep backfill and extract as separate
+pipelines (or separate stages) with clean input surfaces.
+
+### Post-backfill aggregation
+
+The task re-runs `generate-csv` and `generate-aggregates` after the
+backfill completes, exactly like extract does. The dashboard's
+`review_time_p50` / `review_time_p90` and the PowerBI
+`auxiliary/comments/` CSVs pick up the newly-covered comments on the next
+dashboard load — no separate follow-up step required.
+
+---
+
 ## Next Steps
 
 - [Task Input Reference](../reference/task-reference.md) — All configuration options

@@ -77,6 +77,161 @@ function buildExtractArgs(config) {
   return args;
 }
 
+const ALLOWED_MODES = Object.freeze(["extract", "backfill-comments"]);
+
+/**
+ * Pure validator for mode + cross-mode input guards. Returns either
+ * `{ok: true}` or `{ok: false, message}` so `run()` can translate the
+ * failure into `tl.setResult(Failed, …)` without this function holding a
+ * handle to the task-lib. Exported so unit tests exercise the real
+ * validation path, not a re-implementation.
+ *
+ * Guard policy (locked by the task contract):
+ *  - `mode` must be one of ALLOWED_MODES.
+ *  - In `extract` mode, any of `backfillSince` / `backfillUntil` /
+ *    `backfillLimit` meaningfully set → fail. `projects` must be
+ *    meaningfully set.
+ *  - In `backfill-comments` mode, any of `startDate` / `endDate` /
+ *    `backfillDays` / `includeComments` / `commentsMaxPrsPerRun`
+ *    meaningfully set → fail. `projects` is optional.
+ *
+ * "Meaningfully set" here matches `isMeaningfullySet` — `null`, `undefined`,
+ * empty, and whitespace-only all count as not-set. This is deliberate
+ * because Azure task-lib routinely hands the task wrapper empty strings for
+ * inputs the user never touched.
+ */
+function validateModeInputs(mode, inputs) {
+  if (!ALLOWED_MODES.includes(mode)) {
+    return {
+      ok: false,
+      message: `Invalid mode: "${mode}". Allowed values: ${ALLOWED_MODES.join(", ")}.`,
+    };
+  }
+  if (mode === "extract") {
+    const forbidden = [
+      ["backfillSince", inputs.backfillSince],
+      ["backfillUntil", inputs.backfillUntil],
+      ["backfillLimit", inputs.backfillLimit],
+    ];
+    for (const [name, value] of forbidden) {
+      if (isMeaningfullySet(value)) {
+        return {
+          ok: false,
+          message:
+            `Input "${name}" is only valid when mode = backfill-comments. ` +
+            `Remove it from the task inputs, or set mode: backfill-comments.`,
+        };
+      }
+    }
+    if (!isMeaningfullySet(inputs.projects)) {
+      return {
+        ok: false,
+        message: `Input "projects" is required in extract mode.`,
+      };
+    }
+    return { ok: true };
+  }
+  // mode === "backfill-comments"
+  const forbiddenStrings = [
+    ["startDate", inputs.startDate],
+    ["endDate", inputs.endDate],
+    ["backfillDays", inputs.backfillDays],
+    ["commentsMaxPrsPerRun", inputs.commentsMaxPrsPerRun],
+  ];
+  for (const [name, value] of forbiddenStrings) {
+    if (isMeaningfullySet(value)) {
+      return {
+        ok: false,
+        message:
+          `Input "${name}" is only valid when mode = extract. ` +
+          `Remove it from the task inputs, or set mode: extract.`,
+      };
+    }
+  }
+  // `includeComments` is a boolean input with task.json `defaultValue: "false"`;
+  // Azure task-lib therefore hands us `"false"` on every run whether the user
+  // set it or not, so the raw-string form is indistinguishable from the
+  // platform default. Only a `true` value represents mixed intent in
+  // backfill-comments mode.
+  if (inputs.includeComments === true) {
+    return {
+      ok: false,
+      message:
+        `Input "includeComments" is only valid when mode = extract. ` +
+        `Remove it from the task inputs, or set mode: extract.`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Check whether a task input was *meaningfully* set by the user.
+ *
+ * Azure task-lib frequently hands us empty strings for inputs the user did
+ * not touch. Guards that fire on "presence" would then reject legal combos
+ * (e.g., `mode: backfill-comments` + `startDate: ""` from the platform).
+ * Treat null, undefined, empty, and whitespace-only as not-set.
+ */
+function isMeaningfullySet(value) {
+  if (value == null) return false;
+  return String(value).trim() !== "";
+}
+
+/**
+ * Build the argument vector passed to `python -m ado_git_repo_insights.cli
+ * backfill-comments`. Keeps flag-shaping logic next to `buildExtractArgs`
+ * so unit tests can exercise the production function directly.
+ *
+ * `projects` is optional here; an empty/absent value means "no project
+ * filter" (FR-004: all uncovered projects eligible). `backfillLimit` is
+ * passed through only when set; `0` means "no limit" on the CLI side.
+ *
+ * @param {Object} config
+ * @param {string} config.organization
+ * @param {string|null|undefined} config.projects        Raw multi-line input
+ * @param {string} config.pat
+ * @param {string} config.databasePath
+ * @param {string=} config.backfillSince                 YYYY-MM-DD, optional
+ * @param {string=} config.backfillUntil                 YYYY-MM-DD, optional
+ * @param {number|null=} config.backfillLimit            null when not overridden
+ * @param {number|null=} config.commentsMaxThreadsPerPr  null when not overridden
+ * @returns {string[]}
+ */
+function buildBackfillArgs(config) {
+  const args = [
+    "-m",
+    CLI_MODULE,
+    "backfill-comments",
+    "--organization",
+    config.organization,
+    "--pat",
+    config.pat,
+    "--database",
+    config.databasePath,
+  ];
+
+  if (isMeaningfullySet(config.projects)) {
+    args.push("--projects", String(config.projects).replace(/\n/g, ","));
+  }
+  if (isMeaningfullySet(config.backfillSince)) {
+    args.push("--since", config.backfillSince);
+  }
+  if (isMeaningfullySet(config.backfillUntil)) {
+    args.push("--until", config.backfillUntil);
+  }
+  if (config.backfillLimit != null) {
+    args.push("--limit", String(config.backfillLimit));
+  }
+  if (config.commentsMaxThreadsPerPr != null) {
+    args.push(
+      "--comments-max-threads-per-pr",
+      String(config.commentsMaxThreadsPerPr),
+    );
+  }
+
+  return args;
+}
+
 /**
  * Parse a non-negative integer input. Mirrors the Python _non_negative_int
  * argparse type so the Node task wrapper and the CLI enforce one contract.
@@ -236,7 +391,7 @@ async function run() {
   try {
     // Get task inputs
     const organization = tl.getInput("organization", true);
-    const projects = tl.getInput("projects", true);
+    const projects = tl.getInput("projects", false);
     const pat = tl.getInput("pat", true);
     const startDate = tl.getInput("startDate", false);
     const endDate = tl.getInput("endDate", false);
@@ -248,6 +403,31 @@ async function run() {
       "commentsMaxThreadsPerPr",
       false,
     );
+
+    // #058 backfill-comments mode inputs.
+    const mode = tl.getInput("mode", false) || "extract";
+    const backfillSince = tl.getInput("backfillSince", false);
+    const backfillUntil = tl.getInput("backfillUntil", false);
+    const backfillLimitRaw = tl.getInput("backfillLimit", false);
+
+    // Mode + cross-mode input guards. Pure validator so unit tests can
+    // exercise the production rule directly (see validateModeInputs above).
+    const guard = validateModeInputs(mode, {
+      projects,
+      backfillSince,
+      backfillUntil,
+      backfillLimit: backfillLimitRaw,
+      startDate,
+      endDate,
+      backfillDays,
+      includeComments, // boolean — platform default "false" is neutral, `true` = mixed intent
+      commentsMaxPrsPerRun: commentsMaxPrsPerRunRaw,
+    });
+    if (!guard.ok) {
+      tl.setResult(tl.TaskResult.Failed, guard.message);
+      return;
+    }
+
     let commentsMaxPrsPerRun = null;
     let commentsMaxThreadsPerPr = null;
     if (includeComments) {
@@ -261,6 +441,21 @@ async function run() {
         commentsMaxThreadsPerPrRaw,
       );
       if (commentsMaxThreadsPerPr === undefined) return;
+    }
+
+    // Validate commentsMaxThreadsPerPr / backfillLimit for backfill mode —
+    // includeComments is forbidden there so the block above never runs.
+    let backfillLimit = null;
+    if (mode === "backfill-comments") {
+      if (isMeaningfullySet(commentsMaxThreadsPerPrRaw)) {
+        commentsMaxThreadsPerPr = validateNonNegativeInt(
+          "commentsMaxThreadsPerPr",
+          commentsMaxThreadsPerPrRaw,
+        );
+        if (commentsMaxThreadsPerPr === undefined) return;
+      }
+      backfillLimit = validateNonNegativeInt("backfillLimit", backfillLimitRaw);
+      if (backfillLimit === undefined) return;
     }
     // Phase 3: Aggregates generation
     const generateAggregates = tl.getBoolInput("generateAggregates", false);
@@ -346,6 +541,16 @@ async function run() {
       if (commentsMaxThreadsPerPr != null)
         console.log(`  Max threads / PR: ${commentsMaxThreadsPerPr}`);
     }
+    if (mode === "backfill-comments") {
+      console.log(`Mode: backfill-comments`);
+      if (isMeaningfullySet(backfillSince))
+        console.log(`  Since: ${backfillSince}`);
+      if (isMeaningfullySet(backfillUntil))
+        console.log(`  Until: ${backfillUntil}`);
+      if (backfillLimit != null) console.log(`  Limit: ${backfillLimit}`);
+      if (commentsMaxThreadsPerPr != null)
+        console.log(`  Max threads / PR: ${commentsMaxThreadsPerPr}`);
+    }
     if (generateAggregates) {
       console.log(`Generate Aggregates: true`);
       console.log(`Aggregates Dir: ${aggregatesDir}`);
@@ -394,26 +599,42 @@ async function run() {
       return;
     }
 
-    // Build extraction command via the shared, exported function so unit
+    // Build subcommand arg vector via the shared, exported functions so unit
     // tests exercise the exact code path used in production.
-    const extractArgs = buildExtractArgs({
-      organization,
-      projects,
-      pat,
-      databasePath,
-      startDate,
-      endDate,
-      backfillDays,
-      includeComments,
-      commentsMaxPrsPerRun,
-      commentsMaxThreadsPerPr,
-    });
+    const cliArgs =
+      mode === "backfill-comments"
+        ? buildBackfillArgs({
+            organization,
+            projects,
+            pat,
+            databasePath,
+            backfillSince,
+            backfillUntil,
+            backfillLimit,
+            commentsMaxThreadsPerPr,
+          })
+        : buildExtractArgs({
+            organization,
+            projects,
+            pat,
+            databasePath,
+            startDate,
+            endDate,
+            backfillDays,
+            includeComments,
+            commentsMaxPrsPerRun,
+            commentsMaxThreadsPerPr,
+          });
 
-    // Run extraction
+    // Run the selected subcommand
     const totalSteps = generateAggregates ? 3 : 2;
-    console.log(`\n[1/${totalSteps}] Running extraction...`);
-    const extractResult = await runPython(pythonCmd, extractArgs);
-    if (!extractResult) return;
+    const stepLabel =
+      mode === "backfill-comments"
+        ? "Running backfill-comments..."
+        : "Running extraction...";
+    console.log(`\n[1/${totalSteps}] ${stepLabel}`);
+    const cliResult = await runPython(pythonCmd, cliArgs);
+    if (!cliResult) return;
 
     // Build CSV generation command
     const csvArgs = [
@@ -530,6 +751,9 @@ function runPython(pythonCmd, args, extraEnv = {}) {
 
 module.exports = {
   buildExtractArgs,
+  buildBackfillArgs,
+  isMeaningfullySet,
+  validateModeInputs,
   validateNonNegativeInt,
 };
 
