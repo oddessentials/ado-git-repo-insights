@@ -2444,6 +2444,14 @@ class TestBackfillDatabasePreconditions:
             "ado_git_repo_insights.cli._write_backfill_run_summary",
             fake_write_summary,
         )
+        # The pre-loop ADO probe would otherwise fail first (bogus PAT
+        # redirects to sign-in) and short-circuit the D5 path under test.
+        # Force it to pass so the monkey-patched selection is reached.
+        monkeypatch.setattr(
+            "ado_git_repo_insights.extractor.ado_client.ADOClient."
+            "test_organization_connection",
+            lambda self: True,
+        )
 
         args = _make_args(tmp_path, tmp_path / "test.db")
         with pytest.raises(RuntimeError, match="selection blew up unexpectedly"):

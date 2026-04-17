@@ -189,6 +189,7 @@ class TestOrganizationPreflight:
         client = ADOClient("TestOrg", "test-pat", config)
 
         response = MagicMock()
+        response.status_code = 200
         response.raise_for_status.return_value = None
         mock_get.return_value = response
 
@@ -213,3 +214,60 @@ class TestOrganizationPreflight:
         error_msg = str(exc_info.value)
         assert "organization TestOrg" in error_msg
         assert "401 Unauthorized" in error_msg
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_organization_connection_rejects_302_redirect_as_invalid_pat(
+        self, mock_get: MagicMock
+    ) -> None:
+        """Azure DevOps returns HTTP 302 (redirect to sign-in page) for
+        invalid/expired PATs.  Because 3xx is not 4xx, ``raise_for_status``
+        would not raise — the probe must classify this explicitly as an
+        auth failure, otherwise bad-PAT runs silently pass the probe and
+        then fail downstream in the per-PR loop (which is not the
+        pre-loop-fatal contract §5 promises).
+        """
+        config = APIConfig(max_retries=1, retry_delay_seconds=0)
+        client = ADOClient("TestOrg", "test-pat", config)
+
+        response = MagicMock()
+        response.status_code = 302
+        response.headers = {
+            "Location": "https://spsprodcus6.vssps.visualstudio.com/_signin"
+        }
+        # raise_for_status() must NOT be relied on here — it does not raise on 3xx.
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        with pytest.raises(ExtractionError) as exc_info:
+            client.test_organization_connection()
+
+        error_msg = str(exc_info.value)
+        assert "organization TestOrg" in error_msg
+        assert "302" in error_msg
+        assert (
+            "invalid" in error_msg.lower()
+            or "expired" in error_msg.lower()
+            or "pat" in error_msg.lower()
+        ), error_msg
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_organization_connection_disables_redirect_follow(
+        self, mock_get: MagicMock
+    ) -> None:
+        """Structural lock: probe MUST pass ``allow_redirects=False`` so a
+        302-to-signin on bad PAT does not silently resolve to a 203 HTML
+        page that ``raise_for_status`` accepts.
+        """
+        config = APIConfig(max_retries=1, retry_delay_seconds=0)
+        client = ADOClient("TestOrg", "test-pat", config)
+
+        response = MagicMock()
+        response.status_code = 200
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        client.test_organization_connection()
+        mock_get.assert_called_once()
+        assert mock_get.call_args.kwargs.get("allow_redirects") is False, (
+            f"probe must pass allow_redirects=False; got kwargs={mock_get.call_args.kwargs}"
+        )

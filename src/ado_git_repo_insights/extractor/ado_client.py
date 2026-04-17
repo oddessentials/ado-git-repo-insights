@@ -365,16 +365,41 @@ class ADOClient:
         on row-0 project scope or permissions unrelated to the actual
         repository/thread-fetch path.
 
+        Bad-PAT behavior: Azure DevOps responds with HTTP 302 to a sign-in
+        page (ultimately a 203 HTML payload after redirect) when the PAT is
+        invalid or expired.  Because 3xx is not 4xx, ``raise_for_status``
+        would not raise — and if ``allow_redirects`` is left at its default
+        ``True``, the probe would silently resolve to the 203 signin page
+        and report success.  The probe therefore runs with
+        ``allow_redirects=False`` and treats any 3xx as an auth failure.
+
         Returns:
             True if connection successful.
 
         Raises:
-            ExtractionError: If connection fails.
+            ExtractionError: If connection fails — network error, HTTP
+                4xx/5xx, or an unexpected 3xx indicating invalid/expired PAT.
         """
         url = f"{self.base_url}/_apis/connectionData?api-version={self.config.version}"
 
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(
+                url,
+                headers=self.headers,
+                timeout=10,
+                allow_redirects=False,
+            )
+            if 300 <= response.status_code < 400:
+                # ADO redirects authenticated API calls to a sign-in page
+                # when the PAT is invalid or expired.  The REST API endpoint
+                # should never legitimately 3xx; any redirect here is an
+                # auth failure.
+                location = response.headers.get("Location", "<no Location>")
+                raise ExtractionError(
+                    f"Failed to connect to organization {self.organization}: "
+                    f"unexpected HTTP {response.status_code} redirect to "
+                    f"{location} (likely invalid or expired PAT)"
+                )
             response.raise_for_status()
             logger.info(f"Successfully connected to organization {self.organization}")
             return True
