@@ -594,11 +594,7 @@ function testValidateModeInputsBackfillRejectsExtractKnobs() {
   console.log(
     "Test: validateModeInputs backfill-mode rejects extract-only knobs...",
   );
-  const extractOnlyStringInputs = [
-    "startDate",
-    "endDate",
-    "backfillDays",
-  ];
+  const extractOnlyStringInputs = ["startDate", "endDate", "backfillDays"];
   for (const key of extractOnlyStringInputs) {
     const result = validateModeInputs("backfill-comments", {
       [key]: "something",
@@ -646,7 +642,16 @@ function testValidateModeInputsBackfillRejectsMeaningfulPrCap() {
       `commentsMaxPrsPerRun=${JSON.stringify(neutral)} must be treated as absent`,
     );
   }
-  for (const forbidden of ["100", " 100 ", 100, "101", " 101 ", 101, "0", "abc"]) {
+  for (const forbidden of [
+    "100",
+    " 100 ",
+    100,
+    "101",
+    " 101 ",
+    101,
+    "0",
+    "abc",
+  ]) {
     const result = validateModeInputs("backfill-comments", {
       commentsMaxPrsPerRun: forbidden,
     });
@@ -734,9 +739,12 @@ function testFormatProjectsForDisplayNullSafe() {
   // without throwing — this is the regression lock.
   for (const absent of [null, undefined, "", "   ", "\t\n"]) {
     let out;
-    assert.doesNotThrow(() => {
-      out = formatProjectsForDisplay(absent);
-    }, `formatProjectsForDisplay(${JSON.stringify(absent)}) must not throw`);
+    assert.doesNotThrow(
+      () => {
+        out = formatProjectsForDisplay(absent);
+      },
+      `formatProjectsForDisplay(${JSON.stringify(absent)}) must not throw`,
+    );
     assert.strictEqual(out, EMPTY_PLACEHOLDER);
   }
   // Single project, trimmed
@@ -835,7 +843,9 @@ function testCommentsMaxPrsPerRunHasNoDefaultValue() {
   );
   const taskJsonPath = path.join(__dirname, "task.json");
   const taskJson = JSON.parse(fs.readFileSync(taskJsonPath, "utf8"));
-  const input = taskJson.inputs.find(({ name }) => name === "commentsMaxPrsPerRun");
+  const input = taskJson.inputs.find(
+    ({ name }) => name === "commentsMaxPrsPerRun",
+  );
   assert(input, "commentsMaxPrsPerRun input must exist in task.json");
   assert.strictEqual(
     input.defaultValue,
