@@ -9,10 +9,11 @@ import re
 import shutil
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from .config import Config
     from .extractor.ado_client import ADOClient
     from .persistence.database import DatabaseManager
+    from .persistence.repository import PRRepository
     from .types import AdoThread
 
 logger = logging.getLogger(__name__)
@@ -699,6 +701,121 @@ class FetchOutcome:
     dropped_threads: list[AdoThread]
     threads_upserted: int
     comments_upserted: int
+
+
+def _fetch_and_upsert_threads_for_pr(
+    client: ADOClient,
+    db: DatabaseManager,
+    repo: PRRepository,
+    pr_row: Mapping[str, object],
+    max_threads_per_pr: int,
+) -> FetchOutcome:
+    """Fetch threads for a single PR and upsert thread/comment/user rows.
+
+    Side effects: writes to pr_threads, pr_comments, users via ``repo``.
+    Does NOT update pull_requests.comments_extracted_at.
+    Does NOT call db.connection.commit() or db.connection.rollback().
+    Does NOT catch ExtractionError — lets it propagate to the caller.
+
+    Callers own the per-PR commit boundary and the coverage-marker stamp
+    decision. Both extract (its own 3-case logic with the #289 fix's
+    Case 2 sub-decision) and backfill (the simplified 2-outcome rule)
+    read from the returned FetchOutcome and apply their own policies.
+    """
+    import json
+
+    pr_uid = cast(str, pr_row["pull_request_uid"])
+    pr_id = cast(int, pr_row["pull_request_id"])
+    repo_id = cast(str, pr_row["repository_id"])
+    project_name = cast(str, pr_row["project_name"])
+
+    threads = client.get_pr_threads(
+        project=project_name,
+        repository_id=repo_id,
+        pull_request_id=pr_id,
+    )
+
+    # Apply max_threads_per_pr limit. Keep a reference to the full API
+    # response so the caller can check whether dropped threads have
+    # unseen updates (needed for its coverage stamp decision).
+    all_threads = threads
+    pr_threads_truncated = (
+        max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
+    )
+    if pr_threads_truncated:
+        threads = all_threads[:max_threads_per_pr]
+
+    threads_upserted = 0
+    comments_upserted = 0
+
+    for thread in threads:
+        thread_id = str(thread.get("id", ""))
+        thread_updated = thread.get("lastUpdatedDate", "")
+        thread_created = thread.get("publishedDate", thread_updated)
+        thread_status = thread.get("status", "unknown")
+
+        # §6: Per-thread incremental sync — skip only if this specific
+        # thread exists locally and is current. The old MAX(last_updated)
+        # check could skip threads that were NEVER fetched (e.g. after a
+        # prior truncated run where dropped threads had older
+        # lastUpdatedDate).
+        local_thread = db.execute(
+            "SELECT last_updated FROM pr_threads "
+            "WHERE pull_request_uid = ? AND thread_id = ?",
+            (pr_uid, thread_id),
+        ).fetchone()
+        if local_thread is not None and thread_updated <= local_thread["last_updated"]:
+            continue
+
+        thread_context = None
+        if "threadContext" in thread:
+            thread_context = json.dumps(thread["threadContext"])
+
+        repo.upsert_thread(
+            thread_id=thread_id,
+            pull_request_uid=pr_uid,
+            status=thread_status,
+            thread_context=thread_context,
+            last_updated=thread_updated,
+            created_at=thread_created,
+            is_deleted=thread.get("isDeleted", False),
+        )
+        threads_upserted += 1
+
+        for comment in thread.get("comments", []):
+            comment_id = str(comment.get("id", ""))
+            author = comment.get("author", {})
+            author_id = author.get("id", "unknown")
+
+            # Upsert author first to avoid FK violation (same as P2 fix).
+            repo.upsert_user(
+                user_id=author_id,
+                display_name=author.get("displayName", "Unknown"),
+                email=author.get("uniqueName"),
+            )
+
+            repo.upsert_comment(
+                comment_id=comment_id,
+                thread_id=thread_id,
+                pull_request_uid=pr_uid,
+                author_id=author_id,
+                content=comment.get("content"),
+                comment_type=comment.get("commentType", "text"),
+                created_at=comment.get("publishedDate", ""),
+                last_updated=comment.get("lastUpdatedDate"),
+                is_deleted=comment.get("isDeleted", False),
+            )
+            comments_upserted += 1
+
+    dropped_threads = all_threads[max_threads_per_pr:] if pr_threads_truncated else []
+
+    return FetchOutcome(
+        status="ok",
+        truncated=pr_threads_truncated,
+        dropped_threads=dropped_threads,
+        threads_upserted=threads_upserted,
+        comments_upserted=comments_upserted,
+    )
 
 
 def cmd_extract(args: Namespace) -> int:
