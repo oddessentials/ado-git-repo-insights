@@ -132,7 +132,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 ### §3 — Selection query + snapshot
 
-- [ ] **T010** Add `_select_uncovered_prs_for_backfill(db, projects, since, until, limit) -> list[Mapping[str, object]]`
+- [X] **T010** Add `_select_uncovered_prs_for_backfill(db, projects, since, until, limit) -> list[Mapping[str, object]]`
   - File: `src/ado_git_repo_insights/cli.py`.
   - SQL (plan §3 verbatim; conditional clauses appended only when the corresponding filter is set):
     ```sql

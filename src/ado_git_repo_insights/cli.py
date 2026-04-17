@@ -979,6 +979,62 @@ def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
     return "pr_threads" not in present or "pr_comments" not in present
 
 
+def _select_uncovered_prs_for_backfill(
+    db: DatabaseManager,
+    projects: list[str],
+    since: date | None,
+    until: date | None,
+    limit: int,
+) -> list[Mapping[str, object]]:
+    """Select the oldest uncovered completed PRs matching the backfill filters.
+
+    Selection predicates (plan §3):
+      - ``status = 'completed'`` — only completed PRs.
+      - ``comments_extracted_at IS NULL`` — only uncovered PRs (INV-1).
+      - Optional ``project_name IN (...)`` — when ``projects`` is non-empty.
+      - Optional ``closed_date >= since`` — inclusive lower bound.
+      - Optional ``closed_date < until`` — half-open upper bound (INV-4).
+      - Optional ``LIMIT`` — when ``limit > 0`` (INV-5: 0 means unbounded).
+
+    Ordering: ``closed_date ASC, pull_request_uid ASC`` — oldest first,
+    stable tiebreak (INV-2).
+
+    Result is fully materialized via ``cursor.fetchall()`` before return
+    (FR-011a snapshot stability). Rows inserted or modified during the
+    subsequent loop cannot enter the returned list.
+    """
+    clauses: list[str] = [
+        "status = 'completed'",
+        "comments_extracted_at IS NULL",
+    ]
+    params: list[str | int] = []
+
+    if projects:
+        placeholders = ", ".join("?" for _ in projects)
+        clauses.append(f"project_name IN ({placeholders})")
+        params.extend(projects)
+    if since is not None:
+        clauses.append("closed_date >= ?")
+        params.append(since.isoformat())
+    if until is not None:
+        clauses.append("closed_date < ?")
+        params.append(until.isoformat())
+
+    sql = (
+        "SELECT pull_request_uid, pull_request_id, repository_id, "
+        "project_name, closed_date\n"
+        "FROM pull_requests\n"
+        "WHERE " + "\n  AND ".join(clauses) + "\n"
+        "ORDER BY closed_date ASC, pull_request_uid ASC"
+    )
+    if limit > 0:
+        sql += "\nLIMIT ?"
+        params.append(limit)
+
+    cursor = db.execute(sql, tuple(params))
+    return [dict(row) for row in cursor.fetchall()]
+
+
 def cmd_extract(args: Namespace) -> int:
     """Execute the extract command."""
     from .config import ConfigurationError, load_config
