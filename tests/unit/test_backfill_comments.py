@@ -58,6 +58,9 @@ _DATE_CORPUS: tuple[tuple[str, bool], ...] = (
     ("2024/01/01", False),
     ("01-01-2024", False),
     ("2024-1-1", False),
+    ("20240101", False),  # compact form — Python 3.11+ fromisoformat accepts
+    ("2024-W01-1", False),  # ISO-week form — accepted by fromisoformat
+    ("2024-001", False),  # ordinal day-of-year — accepted by fromisoformat
 )
 
 _FORBIDDEN_UNCONDITIONAL = (

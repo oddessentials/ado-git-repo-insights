@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -35,19 +36,32 @@ def _parse_projects_list(raw: str | None) -> list[str]:
     return [entry for entry in (part.strip() for part in raw.split(",")) if entry]
 
 
+_STRICT_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def _parse_iso_date(raw: str) -> date:
     """Parse a strict ``YYYY-MM-DD`` ISO-8601 calendar date.
 
     Raises ``ValueError`` on any format mismatch (wrong separator, wrong
-    field widths) or invalid calendar value (month 13, day 30 in
-    February, etc.). Callers at argparse boundaries wrap into
-    ``ArgumentTypeError``; callers at ``load_config`` let the
-    ``ValueError`` surface for ``ConfigurationError`` wrapping.
+    field widths, compact ``YYYYMMDD``, ISO-week ``YYYY-Www-D``, ordinal
+    ``YYYY-DDD``, or anything embedded in a longer string) or invalid
+    calendar value (month 13, day 30 in February, etc.). Callers at
+    argparse boundaries wrap into ``ArgumentTypeError``; callers at
+    ``load_config`` let the ``ValueError`` surface for
+    ``ConfigurationError`` wrapping.
+
+    The regex gate is necessary because Python 3.11+ expanded
+    ``date.fromisoformat`` to accept many ISO-8601 forms beyond
+    ``YYYY-MM-DD``; without the gate, compact / week / ordinal forms
+    would slip past documented contract of "strict YYYY-MM-DD" (see
+    argparse ``--since`` / ``--until`` help strings + FR-005).
 
     Shared by extract (``--start-date`` / ``--end-date``) and backfill
     (``--since`` / ``--until``) so both entry points validate
     identically (FR-030d parity contract).
     """
+    if not isinstance(raw, str) or _STRICT_ISO_DATE_RE.fullmatch(raw) is None:
+        raise ValueError(f"date must be YYYY-MM-DD: {raw!r}")
     return date.fromisoformat(raw)
 
 
