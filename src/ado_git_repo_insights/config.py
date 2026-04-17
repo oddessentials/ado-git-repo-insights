@@ -20,6 +20,21 @@ class ConfigurationError(Exception):
     """Configuration validation error."""
 
 
+def _parse_projects_list(raw: str | None) -> list[str]:
+    """Parse a comma-separated projects list into a trimmed, ordered list.
+
+    Tolerant: splits on ``,``, trims whitespace, drops empties, preserves order.
+    Never raises; invalid entries match zero PRs at selection time.
+    ``None`` and ``""`` return ``[]``.
+
+    Shared by extract (``--projects``) and backfill (``--projects``) so the
+    two entry points parse identically (FR-030d parity contract).
+    """
+    if not raw:
+        return []
+    return [entry for entry in (part.strip() for part in raw.split(",")) if entry]
+
+
 @dataclass
 class APIConfig:
     """API configuration settings."""
@@ -136,7 +151,7 @@ def load_config(
     if organization:
         config_data["organization"] = organization
     if projects:
-        config_data["projects"] = [p.strip() for p in projects.split(",")]
+        config_data["projects"] = _parse_projects_list(projects)
     if pat:
         config_data["pat"] = pat
     elif not config_data.get("pat"):

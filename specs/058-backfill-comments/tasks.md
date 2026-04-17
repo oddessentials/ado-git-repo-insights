@@ -60,7 +60,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-42** (existing coverage preserved), **QG-49**.
   - Tests locking this: `tests/unit/test_extract_comments.py` (20 methods, 830 LOC) MUST pass unchanged — **FR-034 regression lock is the primary tooth**; additionally the 2 post-#289-fix tests (preserve-when-null→SET at file lines 163-198 and operator-reset recovery at 201-230) are the specific teeth against accidental regression of the fix; #35 / #36 / #37 golden-snapshot suite locks `run_summary.py` producer output so refactor side-effects on untouched modules would surface.
 
-- [ ] **T004** [P] Add `_parse_projects_list(raw: str | None) -> list[str]` pure helper and switch extract's inline projects-parsing to call it
+- [X] **T004** [P] Add `_parse_projects_list(raw: str | None) -> list[str]` pure helper and switch extract's inline projects-parsing to call it
   - File: `src/ado_git_repo_insights/config.py` (Pass 3 code-validation confirms current inline location; fallback: a new module-level function in the same module that owns extract's projects parsing).
   - Behavior: tolerant — split on `,`, trim each entry of surrounding whitespace, drop empties, preserve order. Never raises; invalid entries match zero PRs at selection time. `None` / `""` return `[]`.
   - Replace extract's inline projects-list parsing with a call to this helper (FR-025a permits behavior-preserving refactor).
