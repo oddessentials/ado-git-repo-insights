@@ -310,8 +310,15 @@ class ADOClient:
                 # identically — a bad PAT will exhaust retries and surface
                 # as ``Max retries exhausted`` with the helper's auth-hint
                 # message in ``last_error``.
+                # ``__cause__`` is typed ``BaseException | None`` but
+                # ``last_error`` (and the final ExtractionError chain) is
+                # ``Exception | None``.  Only unwrap when the cause is an
+                # Exception subclass; non-Exception causes (e.g. a
+                # hypothetical KeyboardInterrupt surfaced via __cause__)
+                # fall back to the ExtractionError itself, which is always
+                # an Exception and preserves the original propagation.
                 cause = e.__cause__ if isinstance(e, ExtractionError) else None
-                classified: BaseException = cause if cause is not None else e
+                classified: Exception = cause if isinstance(cause, Exception) else e
                 last_error = classified
                 self.stats.retries_used += 1
 
