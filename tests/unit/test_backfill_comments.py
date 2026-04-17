@@ -680,6 +680,262 @@ class TestPerPRAtomicity:
         finally:
             db2.close()
 
+    def test_sqlite_error_from_repo_upsert_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql in ("BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"):
+                sql_log.append(sql)
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        original_upsert_comment = PRRepository.upsert_comment
+        call_count = 0
+
+        def wrapped_upsert_comment(
+            repo_self: PRRepository,
+            *,
+            comment_id: str,
+            thread_id: str,
+            pull_request_uid: str,
+            author_id: str,
+            content: str | None,
+            comment_type: str | None,
+            created_at: str,
+            last_updated: str | None = None,
+            is_deleted: bool = False,
+        ) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise sqlite3.DatabaseError("comment upsert exploded")
+            original_upsert_comment(
+                repo_self,
+                comment_id=comment_id,
+                thread_id=thread_id,
+                pull_request_uid=pull_request_uid,
+                author_id=author_id,
+                content=content,
+                comment_type=comment_type,
+                created_at=created_at,
+                last_updated=last_updated,
+                is_deleted=is_deleted,
+            )
+
+        monkeypatch.setattr(PRRepository, "upsert_comment", wrapped_upsert_comment)
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10), _make_thread(20)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert sql_log == ["BEGIN IMMEDIATE", "ROLLBACK"], sql_log
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not persist threads for PR p1" in fatal, fatal
+        assert "comment upsert exploded" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not persist threads for PR p1: "
+            "comment upsert exploded"
+        ) in warnings
+        assert (
+            "backfill-comments: fatal-abort: "
+            "backfill-comments could not persist threads for PR p1: "
+            "comment upsert exploded"
+        ) not in warnings
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            threads = db2.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            comments = db2.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            marker_row = db2.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()
+            assert threads == 0
+            assert comments == 0
+            assert marker_row["comments_extracted_at"] is None
+        finally:
+            db2.close()
+
+    def test_sqlite_error_from_persist_helper_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql in ("BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"):
+                sql_log.append(sql)
+            return original_execute(self_db, sql, parameters)
+
+        def fake_persist(
+            _db: DatabaseManager,
+            _repo: PRRepository,
+            _pr_row: dict[str, object],
+            _payload: object,
+        ) -> object:
+            raise sqlite3.DatabaseError("persist helper exploded")
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._persist_threads_for_pr",
+            fake_persist,
+        )
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert sql_log == ["BEGIN IMMEDIATE", "ROLLBACK"], sql_log
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not persist threads for PR p1" in fatal, fatal
+        assert "persist helper exploded" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not persist threads for PR p1: "
+            "persist helper exploded"
+        ) in warnings
+        assert (
+            "backfill-comments: fatal-abort: "
+            "backfill-comments could not persist threads for PR p1: "
+            "persist helper exploded"
+        ) not in warnings
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            threads = db2.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            comments = db2.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            marker_row = db2.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()
+            assert threads == 0
+            assert comments == 0
+            assert marker_row["comments_extracted_at"] is None
+        finally:
+            db2.close()
+
+    def test_sqlite_error_from_dropped_thread_check_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql in ("BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"):
+                sql_log.append(sql)
+            return original_execute(self_db, sql, parameters)
+
+        def fake_dropped_threads_all_stored(
+            _db: DatabaseManager,
+            _pr_uid: str,
+            _dropped_threads: list[dict[str, object]],
+        ) -> bool:
+            raise sqlite3.DatabaseError("dropped-thread probe exploded")
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._dropped_threads_all_stored",
+            fake_dropped_threads_all_stored,
+        )
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=1)
+        client = _mock_client(per_pr={"1": [_make_thread(10), _make_thread(20)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert sql_log == ["BEGIN IMMEDIATE", "ROLLBACK"], sql_log
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not verify dropped-thread coverage for PR p1" in fatal, fatal
+        assert "dropped-thread probe exploded" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not verify dropped-thread coverage for PR p1: "
+            "dropped-thread probe exploded"
+        ) in warnings
+        assert (
+            "backfill-comments: fatal-abort: "
+            "backfill-comments could not verify dropped-thread coverage for PR p1: "
+            "dropped-thread probe exploded"
+        ) not in warnings
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            threads = db2.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            comments = db2.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            marker_row = db2.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()
+            assert threads == 0
+            assert comments == 0
+            assert marker_row["comments_extracted_at"] is None
+        finally:
+            db2.close()
+
 
 # ---------------------------------------------------------------------------
 # #9-10 InterruptSafety

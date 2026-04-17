@@ -1582,19 +1582,39 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 )
                 db.execute("BEGIN IMMEDIATE")
                 transaction_open = True
-                outcome = _persist_threads_for_pr(db, repo, pr_row, fetched_payload)
-                # Simplified 2-outcome rule (FR-015): never enters extract's
-                # preserve branch — truncation-verified-complete → SET,
-                # truncation-clear → leave unchanged (still NULL; reselected
-                # next run).
-                if (not outcome.truncated) or _dropped_threads_all_stored(
-                    db, pr_uid, outcome.dropped_threads
-                ):
-                    db.execute(
-                        "UPDATE pull_requests SET comments_extracted_at = ? "
-                        "WHERE pull_request_uid = ?",
-                        (datetime.now(UTC).isoformat(), pr_uid),
-                    )
+                try:
+                    outcome = _persist_threads_for_pr(db, repo, pr_row, fetched_payload)
+                    # Simplified 2-outcome rule (FR-015): never enters extract's
+                    # preserve branch — truncation-verified-complete → SET,
+                    # truncation-clear → leave unchanged (still NULL; reselected
+                    # next run).
+                    try:
+                        all_dropped_threads_stored = (not outcome.truncated) or (
+                            _dropped_threads_all_stored(
+                                db, pr_uid, outcome.dropped_threads
+                            )
+                        )
+                    except sqlite3.Error as e:
+                        raise DatabaseError(
+                            "backfill-comments could not verify dropped-thread "
+                            f"coverage for PR {pr_uid}: {e}"
+                        ) from e
+                    if all_dropped_threads_stored:
+                        try:
+                            db.execute(
+                                "UPDATE pull_requests SET comments_extracted_at = ? "
+                                "WHERE pull_request_uid = ?",
+                                (datetime.now(UTC).isoformat(), pr_uid),
+                            )
+                        except sqlite3.Error as e:
+                            raise DatabaseError(
+                                "backfill-comments could not update "
+                                f"comments_extracted_at for PR {pr_uid}: {e}"
+                            ) from e
+                except sqlite3.Error as e:
+                    raise DatabaseError(
+                        f"backfill-comments could not persist threads for PR {pr_uid}: {e}"
+                    ) from e
                 db.execute("COMMIT")
                 transaction_open = False
             except ExtractionError as e:
