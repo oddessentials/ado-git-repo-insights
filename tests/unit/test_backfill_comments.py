@@ -473,12 +473,57 @@ class TestPerPRAtomicity:
         ]
         assert tx_log[:2] == ["BEGIN IMMEDIATE", "COMMIT"], tx_log
 
-    def test_per_pr_transaction_issues_begin_rollback_on_extraction_error(
+    def test_remote_fetch_returns_before_begin_immediate(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Structural lock: a per-PR ExtractionError issues BEGIN IMMEDIATE
-        then ROLLBACK, with no COMMIT. Proves Site A takes the rollback
-        branch of the explicit transaction."""
+        """Regression guard: the ADO fetch must complete before the backfill
+        loop opens ``BEGIN IMMEDIATE`` so network latency never becomes SQLite
+        write-lock time.
+        """
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        events: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql == "BEGIN IMMEDIATE":
+                events.append("begin_immediate")
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        client = MagicMock()
+
+        def get_pr_threads(
+            project: str, repository_id: str, pull_request_id: int
+        ) -> list[dict[str, object]]:
+            events.append("get_pr_threads:start")
+            payload = [_make_thread(10)]
+            events.append("get_pr_threads:return")
+            return payload
+
+        client.get_pr_threads.side_effect = get_pr_threads
+        client.test_connection.return_value = None
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        exit_code, _ = _run_backfill(args, client=client)
+        assert exit_code == 0
+        assert events.count("begin_immediate") == 1, events
+        assert events.index("get_pr_threads:return") < events.index(
+            "begin_immediate"
+        ), events
+
+    def test_fetch_error_does_not_open_transaction(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Structural lock: a fetch-side ExtractionError occurs before
+        ``BEGIN IMMEDIATE`` and therefore opens no transaction at all."""
         db = _create_backfill_db(tmp_path)
         _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
         db.close()
@@ -506,7 +551,7 @@ class TestPerPRAtomicity:
             for s in sql_log
             if s in ("BEGIN IMMEDIATE", "BEGIN TRANSACTION", "COMMIT", "ROLLBACK")
         ]
-        assert tx_log[:2] == ["BEGIN IMMEDIATE", "ROLLBACK"], tx_log
+        assert tx_log == [], tx_log
 
     def test_mid_iteration_failure_leaves_no_rows(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

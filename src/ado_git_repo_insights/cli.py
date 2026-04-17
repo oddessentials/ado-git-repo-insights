@@ -802,8 +802,23 @@ def _extract_comments(
 
 
 @dataclass(frozen=True)
+class FetchedThreadsPayload:
+    """Network-fetched thread payload for a single PR.
+
+    This object is fully materialized before any explicit SQLite transaction
+    begins in the backfill path. It therefore carries everything the caller
+    needs for both persistence and the post-persist marker decision, with no
+    need for lazy remote reads once ``BEGIN IMMEDIATE`` has started.
+    """
+
+    threads: list[AdoThread]
+    truncated: bool
+    dropped_threads: list[AdoThread]
+
+
+@dataclass(frozen=True)
 class FetchOutcome:
-    """Per-PR fetch-and-upsert result returned by `_fetch_and_upsert_threads_for_pr`.
+    """Per-PR persist result returned by thread extraction helpers.
 
     Pure data — no coverage-marker read/write. Callers own the stamp decision.
 
@@ -820,19 +835,54 @@ class FetchOutcome:
     comments_upserted: int
 
 
-def _fetch_and_upsert_threads_for_pr(
+def _fetch_threads_for_pr(
     client: ADOClient,
+    pr_row: Mapping[str, object],
+    max_threads_per_pr: int,
+) -> FetchedThreadsPayload:
+    """Fetch and shape a PR's thread payload without touching the database.
+
+    This phase owns all remote I/O. Callers that need explicit transactional
+    control must invoke this helper before starting ``BEGIN IMMEDIATE`` so
+    network latency, rate-limit sleeps, and retry paths never extend SQLite
+    writer-lock time.
+    """
+    pr_id = cast(int, pr_row["pull_request_id"])
+    repo_id = cast(str, pr_row["repository_id"])
+    project_name = cast(str, pr_row["project_name"])
+
+    all_threads = client.get_pr_threads(
+        project=project_name,
+        repository_id=repo_id,
+        pull_request_id=pr_id,
+    )
+
+    pr_threads_truncated = (
+        max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
+    )
+    threads = (
+        all_threads[:max_threads_per_pr] if pr_threads_truncated else list(all_threads)
+    )
+    dropped_threads = all_threads[max_threads_per_pr:] if pr_threads_truncated else []
+    return FetchedThreadsPayload(
+        threads=threads,
+        truncated=pr_threads_truncated,
+        dropped_threads=dropped_threads,
+    )
+
+
+def _persist_threads_for_pr(
     db: DatabaseManager,
     repo: PRRepository,
     pr_row: Mapping[str, object],
-    max_threads_per_pr: int,
+    payload: FetchedThreadsPayload,
 ) -> FetchOutcome:
-    """Fetch threads for a single PR and upsert thread/comment/user rows.
+    """Persist a pre-fetched PR thread payload using database work only.
 
     Side effects: writes to pr_threads, pr_comments, users via ``repo``.
     Does NOT update pull_requests.comments_extracted_at.
     Does NOT call db.connection.commit() or db.connection.rollback().
-    Does NOT catch ExtractionError — lets it propagate to the caller.
+    Performs no network I/O, no probe calls, no retries, and no sleeps.
 
     Callers own the per-PR commit boundary and the coverage-marker stamp
     decision. Both extract (its own 3-case logic with the #289 fix's
@@ -842,30 +892,11 @@ def _fetch_and_upsert_threads_for_pr(
     import json
 
     pr_uid = cast(str, pr_row["pull_request_uid"])
-    pr_id = cast(int, pr_row["pull_request_id"])
-    repo_id = cast(str, pr_row["repository_id"])
-    project_name = cast(str, pr_row["project_name"])
-
-    threads = client.get_pr_threads(
-        project=project_name,
-        repository_id=repo_id,
-        pull_request_id=pr_id,
-    )
-
-    # Apply max_threads_per_pr limit. Keep a reference to the full API
-    # response so the caller can check whether dropped threads have
-    # unseen updates (needed for its coverage stamp decision).
-    all_threads = threads
-    pr_threads_truncated = (
-        max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
-    )
-    if pr_threads_truncated:
-        threads = all_threads[:max_threads_per_pr]
 
     threads_upserted = 0
     comments_upserted = 0
 
-    for thread in threads:
+    for thread in payload.threads:
         thread_id = str(thread.get("id", ""))
         thread_updated = thread.get("lastUpdatedDate", "")
         thread_created = thread.get("publishedDate", thread_updated)
@@ -924,15 +955,30 @@ def _fetch_and_upsert_threads_for_pr(
             )
             comments_upserted += 1
 
-    dropped_threads = all_threads[max_threads_per_pr:] if pr_threads_truncated else []
-
     return FetchOutcome(
         status="ok",
-        truncated=pr_threads_truncated,
-        dropped_threads=dropped_threads,
+        truncated=payload.truncated,
+        dropped_threads=payload.dropped_threads,
         threads_upserted=threads_upserted,
         comments_upserted=comments_upserted,
     )
+
+
+def _fetch_and_upsert_threads_for_pr(
+    client: ADOClient,
+    db: DatabaseManager,
+    repo: PRRepository,
+    pr_row: Mapping[str, object],
+    max_threads_per_pr: int,
+) -> FetchOutcome:
+    """Fetch threads, then persist them for a single PR.
+
+    This compatibility wrapper preserves the existing extract-path call shape.
+    Callers that need to ensure no SQLite transaction spans remote I/O should
+    call ``_fetch_threads_for_pr`` and ``_persist_threads_for_pr`` separately.
+    """
+    payload = _fetch_threads_for_pr(client, pr_row, max_threads_per_pr)
+    return _persist_threads_for_pr(db, repo, pr_row, payload)
 
 
 # Single source of truth for the backfill-comments discriminator prefix
@@ -1390,30 +1436,33 @@ def cmd_backfill_comments(args: Namespace) -> int:
         for ordinal, pr_row in enumerate(selection_snapshot, start=1):
             pr_uid = cast(str, pr_row["pull_request_uid"])
             outcome_label: Literal["Processed", "Failed"]
-
-            # FR-012 / FR-013 / FR-013a: per-PR atomicity. DatabaseManager
-            # opens its connection with ``isolation_level=None`` (autocommit),
-            # so ``db.connection.commit()`` / ``rollback()`` alone would be
-            # no-ops — every upsert would persist the instant it fires and
-            # a mid-iteration failure would leave partial rows for the PR.
-            # Wrapping each iteration in an explicit ``BEGIN IMMEDIATE`` …
-            # ``COMMIT`` / ``ROLLBACK`` is what makes the per-PR atomic
-            # contract hold.
-            #
-            # ``BEGIN IMMEDIATE`` (not plain ``BEGIN``) acquires the write
-            # lock up front so a second process cannot interleave writes
-            # mid-iteration. No SQL may run between this guard and the
-            # first upsert — not even a lookup — otherwise the atomic
-            # scope shrinks.
-            assert not db.connection.in_transaction, (
-                "per-PR iteration started while a transaction was already "
-                "open; backfill atomicity contract violated"
-            )
-            db.execute("BEGIN IMMEDIATE")
+            transaction_open = False
             try:
-                outcome = _fetch_and_upsert_threads_for_pr(
-                    client, db, repo, pr_row, args.comments_max_threads_per_pr
+                fetched_payload = _fetch_threads_for_pr(
+                    client, pr_row, args.comments_max_threads_per_pr
                 )
+
+                # FR-012 / FR-013 / FR-013a: per-PR atomicity. DatabaseManager
+                # opens its connection with ``isolation_level=None`` (autocommit),
+                # so ``db.connection.commit()`` / ``rollback()`` alone would be
+                # no-ops — every upsert would persist the instant it fires and
+                # a mid-iteration failure would leave partial rows for the PR.
+                # Wrapping each iteration in an explicit ``BEGIN IMMEDIATE`` …
+                # ``COMMIT`` / ``ROLLBACK`` is what makes the per-PR atomic
+                # contract hold.
+                #
+                # ``BEGIN IMMEDIATE`` (not plain ``BEGIN``) acquires the write
+                # lock up front so a second process cannot interleave writes
+                # mid-persist. The remote thread payload is fully fetched before
+                # this point so no network call, retry, or sleep path can extend
+                # SQLite writer-lock time.
+                assert not db.connection.in_transaction, (
+                    "per-PR iteration started while a transaction was already "
+                    "open; backfill atomicity contract violated"
+                )
+                db.execute("BEGIN IMMEDIATE")
+                transaction_open = True
+                outcome = _persist_threads_for_pr(db, repo, pr_row, fetched_payload)
                 # Simplified 2-outcome rule (FR-015): never enters extract's
                 # preserve branch — truncation-verified-complete → SET,
                 # truncation-clear → leave unchanged (still NULL; reselected
@@ -1427,8 +1476,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
                         (datetime.now(UTC).isoformat(), pr_uid),
                     )
                 db.execute("COMMIT")
+                transaction_open = False
             except ExtractionError as e:
-                db.execute("ROLLBACK")
+                if transaction_open and db.connection.in_transaction:
+                    db.execute("ROLLBACK")
                 _append_backfill_warning(
                     warnings_list,
                     f"failed to process PR {pr_uid}: {normalize_error_message(str(e))}",
@@ -1440,7 +1491,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 # re-raise (KeyboardInterrupt, DatabaseError, anything
                 # unexpected). Site D4 / D5 in the outer try own the exit
                 # codes; this clause only guarantees no transaction leaks.
-                db.execute("ROLLBACK")
+                if transaction_open and db.connection.in_transaction:
+                    db.execute("ROLLBACK")
                 raise
             else:
                 outcome_label = "Processed"
