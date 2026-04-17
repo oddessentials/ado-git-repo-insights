@@ -1,5 +1,6 @@
 """Unit tests for configuration validation."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -318,6 +319,31 @@ class TestLoadConfigDateValidation:
         config = load_config(config_path=config_file, database=Path("test.sqlite"))
         assert config.date_range.start == date(2024, 1, 15)
         assert config.date_range.end == date(2024, 6, 30)
+
+    def test_yaml_timestamp_start_date_raises(self, tmp_path: Path) -> None:
+        """YAML timestamps must fail during config parsing, not extraction."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\n"
+            "projects:\n  - p\n"
+            "pat: t\n"
+            "date_range:\n"
+            "  start: 2026-01-01T00:00:00Z\n"
+            "  end: '2026-06-30'\n"
+        )
+        with pytest.raises(ConfigurationError, match="Invalid start_date format"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_datetime_cli_start_date_raises(self) -> None:
+        """Datetime objects must not pass through the date fast path."""
+        with pytest.raises(ConfigurationError, match="Invalid start_date format"):
+            load_config(
+                organization="x",
+                projects="p",
+                pat="t",
+                database=Path("test.sqlite"),
+                start_date=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+            )
 
     def test_start_after_end_raises(self) -> None:
         """start_date after end_date raises ConfigurationError."""

@@ -8,6 +8,7 @@
  */
 
 const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 const Module = require("module");
 
@@ -752,6 +753,28 @@ function testValidateModeInputsExtractRequiresProjects() {
   console.log("  ✓ Passed\n");
 }
 
+// Test 23: task manifest must keep the shared thread-cap input surfaced for
+// backfill mode as well as extract-with-comments. The lowest-risk manifest-only
+// shape is to leave this shared input visible rather than gating it behind the
+// extract-only includeComments flag.
+function testTaskManifestKeepsSharedThreadCapVisible() {
+  console.log(
+    "Test: task.json keeps commentsMaxThreadsPerPr visible for backfill mode...",
+  );
+  const taskJsonPath = path.join(__dirname, "task.json");
+  const taskJson = JSON.parse(fs.readFileSync(taskJsonPath, "utf8"));
+  const input = taskJson.inputs.find(
+    ({ name }) => name === "commentsMaxThreadsPerPr",
+  );
+  assert(input, "commentsMaxThreadsPerPr input must exist in task.json");
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(input, "visibleRule"),
+    false,
+    "commentsMaxThreadsPerPr must not be hidden behind an extract-only visibleRule",
+  );
+  console.log("  ✓ Passed\n");
+}
+
 // Run all tests
 function runTests() {
   console.log("=".repeat(50));
@@ -782,6 +805,7 @@ function runTests() {
     testValidateModeInputsIncludeCommentsBoolean();
     testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();
+    testTaskManifestKeepsSharedThreadCapVisible();
 
     console.log("=".repeat(50));
     console.log("All tests passed!");

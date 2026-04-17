@@ -9,7 +9,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -63,6 +63,15 @@ def _parse_iso_date(raw: str) -> date:
     if not isinstance(raw, str) or _STRICT_ISO_DATE_RE.fullmatch(raw) is None:
         raise ValueError(f"date must be YYYY-MM-DD: {raw!r}")
     return date.fromisoformat(raw)
+
+
+def _coerce_plain_date(raw: object) -> date:
+    """Accept plain ``date`` values while rejecting ``datetime`` instances."""
+    if isinstance(raw, datetime):
+        raise ValueError(f"date must be YYYY-MM-DD: {raw!r}")
+    if isinstance(raw, date):
+        return raw
+    return _parse_iso_date(str(raw))
 
 
 @dataclass
@@ -245,32 +254,24 @@ def load_config(
     date_range = DateRangeConfig()
     dr_data = _sub("date_range")
     try:
-        if isinstance(start_date, date):
-            date_range.start = start_date
-        elif start_date:
+        if start_date and isinstance(start_date, str):
             date_range.start = _parse_iso_date(start_date)
+        elif start_date is not None:
+            date_range.start = _coerce_plain_date(start_date)
         elif dr_data.get("start"):
-            raw_start = dr_data["start"]
-            date_range.start = (
-                raw_start
-                if isinstance(raw_start, date)
-                else _parse_iso_date(str(raw_start))
-            )
+            date_range.start = _coerce_plain_date(dr_data["start"])
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid start_date format (expected YYYY-MM-DD): {e}"
         ) from e
 
     try:
-        if isinstance(end_date, date):
-            date_range.end = end_date
-        elif end_date:
+        if end_date and isinstance(end_date, str):
             date_range.end = _parse_iso_date(end_date)
+        elif end_date is not None:
+            date_range.end = _coerce_plain_date(end_date)
         elif dr_data.get("end"):
-            raw_end = dr_data["end"]
-            date_range.end = (
-                raw_end if isinstance(raw_end, date) else _parse_iso_date(str(raw_end))
-            )
+            date_range.end = _coerce_plain_date(dr_data["end"])
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid end_date format (expected YYYY-MM-DD): {e}"

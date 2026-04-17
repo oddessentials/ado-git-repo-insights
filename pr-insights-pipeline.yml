@@ -103,13 +103,6 @@ stages:
             displayName: 'Extract PRs (Backfill)'
             condition: and(succeeded(), eq(variables['Build.Reason'], 'Schedule'), eq(variables['System.DayOfWeek'], 'Sunday'))
 
-          # Generate CSVs for PowerBI
-          - script: |
-              ado-insights generate-csv \
-                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
-                --output "$(Pipeline.Workspace)/csv_output"
-            displayName: 'Generate CSVs'
-
           # -----------------------------------------------------------------
           # One-time historical comment backfill (OPT-IN, NOT a standing step)
           #
@@ -118,6 +111,11 @@ stages:
           # predate that change. Re-comment or delete once the backfill run
           # reports no remaining PRs to process; this is not meant to run on
           # every pipeline invocation.
+          #
+          # Placed BEFORE Generate CSVs below so the run that performs the
+          # backfill publishes CSVs that include the newly-covered comments.
+          # Moving it after Generate CSVs would publish stale CSVs generated
+          # from pre-backfill DB state.
           #
           # Sizing: --limit runs at roughly ~1 PR/sec (empirical, not a
           # guarantee). See docs/user-guide/extension.md#sizing-backfilllimit
@@ -133,6 +131,13 @@ stages:
           #       --limit 2500
           #   displayName: 'Backfill Historical Comments (one-time)'
           #   condition: succeeded()
+
+          # Generate CSVs for PowerBI
+          - script: |
+              ado-insights generate-csv \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --output "$(Pipeline.Workspace)/csv_output"
+            displayName: 'Generate CSVs'
 
           # === ARTIFACTS ===
 

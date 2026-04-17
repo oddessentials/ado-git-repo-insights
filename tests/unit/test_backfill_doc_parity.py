@@ -145,6 +145,39 @@ def test_backfill_rate_claim_is_hedged_in_every_doc() -> None:
     )
 
 
+def test_sample_pipeline_backfill_block_precedes_csv_generation() -> None:
+    """The commented-out backfill-comments block in the sample pipeline
+    must appear BEFORE the ``ado-insights generate-csv`` invocation.
+
+    Regression being locked: a prior template placed the backfill block
+    after generate-csv. Uncommenting would publish stale CSVs (generated
+    from pre-backfill DB state), hiding the newly-covered comments from
+    PowerBI consumers until the next pipeline run.
+    """
+    yml_path = REPO_ROOT / "pr-insights-pipeline.yml"
+    text = yml_path.read_text(encoding="utf-8")
+
+    backfill_idx = text.find("ado-insights backfill-comments")
+    csv_idx = text.find("ado-insights generate-csv")
+
+    assert backfill_idx != -1, (
+        "pr-insights-pipeline.yml must contain an "
+        "`ado-insights backfill-comments` reference (commented or "
+        "uncommented) documenting the one-time backfill workflow."
+    )
+    assert csv_idx != -1, (
+        "pr-insights-pipeline.yml must contain an "
+        "`ado-insights generate-csv` invocation for PowerBI CSV generation."
+    )
+    assert backfill_idx < csv_idx, (
+        "pr-insights-pipeline.yml must place the backfill-comments block "
+        "(commented or uncommented) BEFORE the `ado-insights generate-csv` "
+        "invocation. Uncommenting a later-placed block would publish stale "
+        "CSVs (generated from pre-backfill DB state), hiding newly-covered "
+        "comments from PowerBI consumers until the next pipeline run."
+    )
+
+
 def test_extension_md_documents_legacy_schema_precondition() -> None:
     """extension.md must quote the legacy-schema skip log body verbatim.
 
