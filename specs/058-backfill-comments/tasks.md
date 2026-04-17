@@ -118,7 +118,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-39** (argparse is cross-OS), **QG-40**, **QG-41**.
   - Tests locking this: **#17** `test_help_output_has_no_forbidden_claims` (forbidden-keyword scan on `--help`), **#29** `test_negative_limit_rejected`, **#30** `test_negative_comments_max_threads_rejected`, **#31** `test_malformed_since_rejected`, **#32** `test_malformed_until_rejected`.
 
-- [ ] **T009** Wire `main()`'s command-dispatch to route `args.command == "backfill-comments"` to `cmd_backfill_comments`
+- [X] **T009** Wire `main()`'s command-dispatch to route `args.command == "backfill-comments"` to `cmd_backfill_comments`
   - File: `src/ado_git_repo_insights/cli.py`.
   - Location: inside the `try:` block at current lines **2137–2157** (right after the `stage-artifacts` branch at line 2147). Insert:
     ```python
@@ -159,7 +159,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 **Pass-2-hardening note**: Pass 1 splits the cmd body into T011 (skeleton + fatal handlers D1–D3), T012 (pre-loop legacy-schema check + Site B), T013 (opening anchor + snapshot materialization), T014 (per-PR loop body + Sites A + C), T015 (Sites D4 + D5). These five tasks modify the same function, so they cannot be `[P]` parallel within Phase 2; they must land in the stated order. Pass 2 may merge adjacent tasks if the combined diff is still ≤1 hour reviewable; Pass 3 confirms each block is syntactically/semantically self-sufficient in isolation.
 
-- [ ] **T011** Add `cmd_backfill_comments(args: Namespace) -> int` skeleton with fatal-handler Sites D1, D2, D3
+- [X] **T011** Add `cmd_backfill_comments(args: Namespace) -> int` skeleton with fatal-handler Sites D1, D2, D3
   - File: `src/ado_git_repo_insights/cli.py` — add adjacent to `cmd_extract` (current range 665–879).
   - Skeleton shape (body deliberately incomplete — subsequent tasks fill the loop and remaining sites):
     ```python
@@ -203,7 +203,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**, **QG-41**, **QG-49**.
   - Tests locking this: **#34** `test_discriminator_invariant_holds_for_all_backfill_states` (parametrized; includes fatal pre-loop abort as a state), plus artifact-shape assertions in **#33**.
 
-- [ ] **T012** Add pre-loop legacy-schema detection + Site B (inside `cmd_backfill_comments` `try:` block, BEFORE anything else)
+- [X] **T012** Add pre-loop legacy-schema detection + Site B (inside `cmd_backfill_comments` `try:` block, BEFORE anything else)
   - File: `src/ado_git_repo_insights/cli.py` inside `cmd_backfill_comments`.
   - **Pass 2 locked execution order** inside `cmd_backfill_comments` outer try:
     1. `db = DatabaseManager(args.database); db.connect()` — may raise `DatabaseError` → Site D2.
@@ -218,7 +218,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-42**.
   - Tests locking this: **#15** `test_legacy_schema_emits_skip_prefix_warning` (positive — entry present, names both tables), **#16** `test_empty_selection_does_not_emit_skip_prefix` (negative — modern schema must not emit the prefix even on empty selection), **#28** `test_legacy_schema_successful_no_op_full_artifact` (end-to-end: full artifact shape, exit 0).
 
-- [ ] **T013** Opening-anchor log + selection snapshot materialization (inside `cmd_backfill_comments` after T012 passes)
+- [X] **T013** Opening-anchor log + selection snapshot materialization (inside `cmd_backfill_comments` after T012 passes)
   - File: `src/ado_git_repo_insights/cli.py` inside `cmd_backfill_comments`.
   - Execution: after legacy-schema check returns False (T012 already passed) + after `load_config(args)` succeeds + after `ADOClient` instantiation + after `client.test_connection(probe_project)` passes.
   - **Pass 2 lock — `probe_project` selection** (resolves the "what project to probe" question for `client.test_connection`): use this fallback chain, first non-empty wins:
@@ -233,7 +233,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**.
   - Tests locking this: **#7** `test_mid_loop_inserts_do_not_change_T_or_order`, implicitly by **#25–28** TestEndToEnd.
 
-- [ ] **T014** Per-PR loop body with Sites A + C + per-PR commit/rollback (FR-012/013/013a) + review-timestamp hook (FR-016)
+- [X] **T014** Per-PR loop body with Sites A + C + per-PR commit/rollback (FR-012/013/013a) + review-timestamp hook (FR-016)
   - File: `src/ado_git_repo_insights/cli.py` inside `cmd_backfill_comments` after T013.
   - Loop shape (plan §1 "Backfill caller's shape" verbatim adapted; pseudo):
     ```python
@@ -297,7 +297,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**, **QG-41**, **QG-42**.
   - Tests locking this: **#8** `test_exception_mid_upsert_leaves_db_bit_identical` (Site A + rollback), **#9** `test_signal_between_iterations_leaves_committed_prs_persisted` (FR-013a), **#10** `test_signal_mid_iteration_rolls_back_affected_pr` (FR-013a), **#14** `test_commit_failure_mid_loop_logs_failed_not_processed` (FR-018c), **#20–24** TestCoverageMarkerInvariants (stamp branches), **#25** `test_happy_path_drains_uncovered_prs`, **#26** `test_partial_failure_continues_loop_and_exits_zero`, **#27** `test_resumability_zero_api_calls_on_drained_fixture`, **#33** artifact-shape parity, **#34** discriminator across states (Site A + Site C coverage).
 
-- [ ] **T015** Add Sites D4 (KeyboardInterrupt) and D5 (Exception) handlers INSIDE `cmd_backfill_comments` — intercept BEFORE `main()`'s handlers
+- [X] **T015** Add Sites D4 (KeyboardInterrupt) and D5 (Exception) handlers INSIDE `cmd_backfill_comments` — intercept BEFORE `main()`'s handlers
   - File: `src/ado_git_repo_insights/cli.py` — extend the outer `try` in `cmd_backfill_comments` with two additional `except` clauses AFTER D3.
   - Site D4 shape:
     ```python

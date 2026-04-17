@@ -1252,6 +1252,306 @@ def cmd_extract(args: Namespace) -> int:
         return 1
 
 
+def cmd_backfill_comments(args: Namespace) -> int:
+    """Execute the backfill-comments subcommand.
+
+    Drains historical PR thread coverage for completed pull requests whose
+    thread data has never been fetched. See plan.md §4 for the 8
+    discriminator-emission sites (A, B, C, D1–D5) and contracts/cli-
+    subcommand.md for the full public contract.
+
+    Returns:
+        0 — per-PR loop ran to completion (regardless of per-PR failure rate).
+        0 — legacy-schema no-op (successful skip per FR-017).
+        1 — fatal pre-loop error (ConfigurationError / DatabaseError /
+            ExtractionError).
+        130 — KeyboardInterrupt (re-raised for main() to set exit code).
+        1 — unexpected Exception (re-raised for main() to set exit code).
+    """
+    from .config import ConfigurationError, _parse_projects_list, load_config
+    from .extractor.ado_client import ADOClient, ExtractionError
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .persistence.repository import PRRepository
+    from .utils.run_summary import (
+        RunCounts,
+        RunSummary,
+        RunTimings,
+        create_minimal_summary,
+        get_git_sha,
+        get_tool_version,
+    )
+
+    start_time = time.perf_counter()
+    timing = RunTimings()
+    warnings_list: list[str] = []
+    processed_count = 0
+    failed_count = 0
+
+    db: DatabaseManager | None = None
+    try:
+        # Pass 2 locked execution order: DB connect → legacy-schema check →
+        # load_config → test_connection → snapshot → loop.
+        db = DatabaseManager(args.database)
+        db.connect()
+
+        # Site B (FR-017): legacy-schema no-op. Short-circuit before
+        # load_config so a malformed config file doesn't mask the
+        # legacy-schema observation.
+        if _legacy_schema_missing_thread_tables(db):
+            legacy_msg = (
+                "pr_threads and pr_comments tables not present; "
+                "run a migration or extract with --include-comments first"
+            )
+            logger.warning("backfill-comments: %s", legacy_msg)
+            _append_backfill_warning(warnings_list, f"legacy-schema-skip: {legacy_msg}")
+            timing.total_seconds = time.perf_counter() - start_time
+            run_summary = RunSummary(
+                tool_version=get_tool_version(),
+                git_sha=get_git_sha(),
+                organization=getattr(args, "organization", "unknown"),
+                projects=_parse_projects_list(getattr(args, "projects", None)),
+                date_range_start=_format_backfill_date(getattr(args, "since", None)),
+                date_range_end=_format_backfill_date(getattr(args, "until", None)),
+                counts=RunCounts(),
+                timings=timing,
+                warnings=warnings_list,
+                final_status="success",
+                per_project_status={},
+                first_fatal_error=None,
+            )
+            run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
+            logger.info(
+                "backfill-comments: skipped (legacy schema; no thread storage tables)"
+            )
+            run_summary.print_final_line()
+            run_summary.emit_ado_commands()
+            return 0
+
+        # Load config (Site D1 on failure).
+        config = load_config(
+            organization=args.organization,
+            projects=args.projects,
+            pat=args.pat,
+            database=args.database,
+            start_date=args.since,
+            end_date=args.until,
+        )
+
+        # ADO client + pre-loop test_connection (Site D3 on failure).
+        client = ADOClient(
+            organization=config.organization,
+            pat=config.pat,
+            config=config.api,
+        )
+
+        probe_project = _resolve_backfill_probe_project(args, config, db)
+        if probe_project is not None:
+            client.test_connection(probe_project)
+
+        # T013 selection snapshot + opening anchor (FR-018a).
+        selection_snapshot = _select_uncovered_prs_for_backfill(
+            db,
+            _parse_projects_list(args.projects),
+            args.since,
+            args.until,
+            args.limit,
+        )
+        total_count = len(selection_snapshot)
+        logger.info(
+            "backfill-comments: backfill run over %d pull request(s)",
+            total_count,
+        )
+
+        # T014 per-PR loop with Sites A (per-PR failure) and per-PR
+        # commit/rollback (FR-012 / FR-013 / FR-013a).
+        repo = PRRepository(db)
+        from .utils.run_summary import normalize_error_message
+
+        for ordinal, pr_row in enumerate(selection_snapshot, start=1):
+            pr_uid = cast(str, pr_row["pull_request_uid"])
+            outcome_label: Literal["Processed", "Failed"]
+            try:
+                outcome = _fetch_and_upsert_threads_for_pr(
+                    client, db, repo, pr_row, args.comments_max_threads_per_pr
+                )
+                # Simplified 2-outcome rule (FR-015): never enters extract's
+                # preserve branch — truncation-verified-complete → SET,
+                # truncation-clear → leave unchanged (still NULL; reselected
+                # next run).
+                if (not outcome.truncated) or _dropped_threads_all_stored(
+                    db, pr_uid, outcome.dropped_threads
+                ):
+                    db.execute(
+                        "UPDATE pull_requests SET comments_extracted_at = ? "
+                        "WHERE pull_request_uid = ?",
+                        (datetime.now(UTC).isoformat(), pr_uid),
+                    )
+                db.connection.commit()
+                outcome_label = "Processed"
+                processed_count += 1
+            except ExtractionError as e:
+                db.connection.rollback()
+                _append_backfill_warning(
+                    warnings_list,
+                    f"failed to process PR {pr_uid}: {normalize_error_message(str(e))}",
+                )
+                outcome_label = "Failed"
+                failed_count += 1
+
+            # FR-018c: progress line strictly AFTER commit/rollback resolves.
+            logger.info(
+                "backfill-comments: covered PR %s (%d of %d) [%s]",
+                pr_uid,
+                ordinal,
+                total_count,
+                outcome_label,
+            )
+
+        # Site C (unconditional — fires even when total_count == 0).
+        _append_backfill_warning(
+            warnings_list,
+            f"loop-complete: processed={processed_count} failed={failed_count}",
+        )
+
+        # FR-016: review-timestamp recomputation (reuses extract's hook).
+        _backfill_review_timestamps_if_needed(db)
+
+        # Build full-shape success RunSummary (schema unchanged per FR-025a).
+        timing.total_seconds = time.perf_counter() - start_time
+        counts = RunCounts(prs_fetched=0, prs_updated=processed_count)
+        run_summary = RunSummary(
+            tool_version=get_tool_version(),
+            git_sha=get_git_sha(),
+            organization=config.organization,
+            projects=config.projects,
+            date_range_start=_format_backfill_date(args.since),
+            date_range_end=_format_backfill_date(args.until),
+            counts=counts,
+            timings=timing,
+            warnings=warnings_list,
+            final_status="success",
+            per_project_status={},
+            first_fatal_error=None,
+        )
+        run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        logger.info(
+            "backfill-comments: processed %d pull requests (%d failures)",
+            processed_count,
+            failed_count,
+        )
+        run_summary.print_final_line()
+        run_summary.emit_ado_commands()
+        return 0
+
+    except ConfigurationError as e:
+        # Site D1 (FR-019a).
+        logger.error(f"Configuration error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(
+            f"Configuration error: {e}", args.artifacts_dir
+        )
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Configuration error: {normalize_error_message(str(e))}",
+        )
+        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        return 1
+    except DatabaseError as e:
+        # Site D2 (FR-019b).
+        logger.error(f"Database error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(f"Database error: {e}", args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Database error: {normalize_error_message(str(e))}",
+        )
+        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        return 1
+    except ExtractionError as e:
+        # Site D3 (FR-019c) — pre-loop only. Per-PR ExtractionError is
+        # caught in Site A inside the loop and does not re-raise.
+        logger.error(f"Extraction error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(f"Extraction error: {e}", args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Extraction error: {normalize_error_message(str(e))}",
+        )
+        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        return 1
+    except KeyboardInterrupt:
+        # Site D4 — write artifact with discriminator, then re-raise so
+        # main()'s handler owns exit code 130 (INV-8).
+        minimal = create_minimal_summary(
+            "Operation cancelled by user", args.artifacts_dir
+        )
+        _append_backfill_warning(
+            minimal.warnings, "fatal-abort: Operation cancelled by user"
+        )
+        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        raise
+    except Exception as e:
+        # Site D5 — write artifact with discriminator, then re-raise so
+        # main()'s handler owns exit code 1 (INV-8). MUST be last clause.
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(str(e), args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: {normalize_error_message(str(e))}",
+        )
+        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        raise
+    finally:
+        if db is not None:
+            db.close()
+
+
+def _format_backfill_date(value: date | None) -> str:
+    """Serialize a backfill date filter for the run_summary artifact.
+
+    Mirrors extract's ``str(config.date_range.start or date.today())``
+    pattern but preserves None as today's date (RunSummary fields are
+    non-optional strings).
+    """
+    return (value or date.today()).isoformat()
+
+
+def _resolve_backfill_probe_project(
+    args: Namespace, config: Config, db: DatabaseManager
+) -> str | None:
+    """Pick a project name to probe ``client.test_connection`` against.
+
+    Pass 2 locked fallback chain (first non-empty wins):
+      1. ``args.projects`` first element (from ``_parse_projects_list``).
+      2. ``config.projects[0]`` if the config file has a projects list.
+      3. A sample ``project_name`` from the uncovered-completed-PR set.
+      4. ``None`` — skip ``test_connection`` entirely (empty-database
+         degenerate case; subsequent selection returns an empty list and
+         Site C fires with ``processed=0 failed=0``).
+    """
+    from .config import _parse_projects_list
+
+    parsed_projects = _parse_projects_list(getattr(args, "projects", None))
+    if parsed_projects:
+        return parsed_projects[0]
+    if config.projects:
+        return config.projects[0]
+    row = db.execute(
+        "SELECT project_name FROM pull_requests "
+        "WHERE status='completed' AND comments_extracted_at IS NULL "
+        "LIMIT 1"
+    ).fetchone()
+    if row is not None:
+        project = row["project_name"] if hasattr(row, "keys") else row[0]
+        if project:
+            return cast(str, project)
+    return None
+
+
 def cmd_generate_csv(args: Namespace) -> int:
     """Execute the generate-csv command."""
     from .persistence.database import DatabaseError, DatabaseManager
@@ -2510,6 +2810,8 @@ def main() -> int:
     try:
         if args.command == "extract":
             return cmd_extract(args)
+        elif args.command == "backfill-comments":
+            return cmd_backfill_comments(args)
         elif args.command == "generate-csv":
             return cmd_generate_csv(args)
         elif args.command == "generate-aggregates":
