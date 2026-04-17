@@ -78,7 +78,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**, **QG-42**.
   - Tests locking this: **#12** `TestFilterParsingParity::test_date_parser_matches_extract_on_corpus` (parametrized over 10 cases; module-level tuple).
 
-- [ ] **T006** [P] Add `_BACKFILL_WARNING_PREFIX` constant + `_append_backfill_warning(warnings: list[str], body: str) -> None` helper
+- [X] **T006** [P] Add `_BACKFILL_WARNING_PREFIX` constant + `_append_backfill_warning(warnings: list[str], body: str) -> None` helper
   - File: `src/ado_git_repo_insights/cli.py`, adjacent to the `FetchOutcome` / helper block from T001–T002.
   - Constant: `_BACKFILL_WARNING_PREFIX = "backfill-comments: "` (module-level `_`-prefixed).
   - Helper: appends `f"{_BACKFILL_WARNING_PREFIX}{body}"` to the passed `warnings` list. Parameter typed `list[str]` so it accepts both the function-local `warnings_list` (built during the per-PR loop) and `RunSummary.warnings` (on `create_minimal_summary()` returns in Sites D1–D5).
@@ -87,7 +87,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - Gates: **QG-40**, **QG-49** (one authoritative helper for the discriminator emission).
   - Tests locking this: **#19a** `TestBackfillWarningEmissionParity::test_discriminator_prefix_literal_appears_only_inside_helper` — AST parity scan of `src/ado_git_repo_insights/cli.py`; fires if any inline literal escapes.
 
-- [ ] **T007** [P] Add `_legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool` pure predicate
+- [X] **T007** [P] Add `_legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool` pure predicate
   - File: `src/ado_git_repo_insights/cli.py` (adjacent to the backfill helpers).
   - Behavior: return `True` if `pr_threads` OR `pr_comments` tables are absent from the database (queries `sqlite_master` — mirrors the existing pattern at `cli.py:826-832` where extract checks `pr_comments` presence). No side effects.
   - Pure predicate — no writes, no commits, no error-wrapping beyond letting `DatabaseError` propagate if the underlying connection fails.

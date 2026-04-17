@@ -766,6 +766,50 @@ def _fetch_and_upsert_threads_for_pr(
     )
 
 
+# Single source of truth for the backfill-comments discriminator prefix
+# (plan §4 invariant INV-8). This literal MUST NOT appear anywhere else
+# in cli.py; the AST parity test in
+# tests/unit/test_backfill_comments.py::TestBackfillWarningEmissionParity
+# asserts the literal occurs exactly once in this module.
+_BACKFILL_WARNING_PREFIX = "backfill-comments: "
+
+
+def _append_backfill_warning(warnings: list[str], body: str) -> None:
+    """Append a discriminator-prefixed warning to a backfill warnings list.
+
+    All backfill warning emissions (Sites A / B / C / D1–D5 in plan §4)
+    MUST route through this helper. Per-site inline
+    ``warnings.append(f"backfill-comments: ...")`` is forbidden; the AST
+    parity test asserts the discriminator prefix literal appears only
+    inside this function's body and the ``_BACKFILL_WARNING_PREFIX``
+    constant in cli.py.
+
+    ``warnings`` is typed as ``list[str]`` so the helper works against
+    both the function-local ``warnings_list`` accumulated during the
+    per-PR loop and the ``RunSummary.warnings`` list on a
+    ``create_minimal_summary()`` return value (Sites D1–D5).
+    """
+    warnings.append(f"{_BACKFILL_WARNING_PREFIX}{body}")
+
+
+def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
+    """Return True iff pr_threads OR pr_comments tables are absent.
+
+    Pure predicate — queries ``sqlite_master``, no writes, no commits,
+    no error-wrapping beyond letting ``DatabaseError`` propagate if the
+    underlying connection fails. Called by ``cmd_backfill_comments``
+    before the selection query runs (FR-017): when True, the subcommand
+    classifies the run as a successful no-op and emits a legacy-schema-
+    skip warning via ``_append_backfill_warning`` (Site B, plan §4).
+    """
+    row = db.execute(
+        "SELECT name FROM sqlite_master "
+        "WHERE type='table' AND name IN ('pr_threads', 'pr_comments')"
+    ).fetchall()
+    present = {r["name"] if hasattr(r, "keys") else r[0] for r in row}
+    return "pr_threads" not in present or "pr_comments" not in present
+
+
 def cmd_extract(args: Namespace) -> int:
     """Execute the extract command."""
     from .config import ConfigurationError, load_config
