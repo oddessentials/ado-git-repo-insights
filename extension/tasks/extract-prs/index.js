@@ -78,6 +78,9 @@ function buildExtractArgs(config) {
 }
 
 const ALLOWED_MODES = Object.freeze(["extract", "backfill-comments"]);
+const HIDDEN_DEFAULT_INPUTS = Object.freeze({
+  commentsMaxPrsPerRun: "100",
+});
 
 /**
  * Pure validator for mode + cross-mode input guards. Returns either
@@ -136,7 +139,6 @@ function validateModeInputs(mode, inputs) {
     ["startDate", inputs.startDate],
     ["endDate", inputs.endDate],
     ["backfillDays", inputs.backfillDays],
-    ["commentsMaxPrsPerRun", inputs.commentsMaxPrsPerRun],
   ];
   for (const [name, value] of forbiddenStrings) {
     if (isMeaningfullySet(value)) {
@@ -147,6 +149,19 @@ function validateModeInputs(mode, inputs) {
           `Remove it from the task inputs, or set mode: extract.`,
       };
     }
+  }
+  if (
+    !isNeutralHiddenDefault(
+      "commentsMaxPrsPerRun",
+      inputs.commentsMaxPrsPerRun,
+    )
+  ) {
+    return {
+      ok: false,
+      message:
+        `Input "commentsMaxPrsPerRun" is only valid when mode = extract. ` +
+        `Remove it from the task inputs, or set mode: extract.`,
+    };
   }
   // `includeComments` is a boolean input with task.json `defaultValue: "false"`;
   // Azure task-lib therefore hands us `"false"` on every run whether the user
@@ -175,6 +190,17 @@ function validateModeInputs(mode, inputs) {
 function isMeaningfullySet(value) {
   if (value == null) return false;
   return String(value).trim() !== "";
+}
+
+function normalizeTaskInputValue(value) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function isNeutralHiddenDefault(name, value) {
+  const normalized = normalizeTaskInputValue(value);
+  if (normalized === "") return true;
+  return normalized === HIDDEN_DEFAULT_INPUTS[name];
 }
 
 /**

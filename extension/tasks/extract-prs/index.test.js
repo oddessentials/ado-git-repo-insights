@@ -596,7 +596,6 @@ function testValidateModeInputsBackfillRejectsExtractKnobs() {
     "startDate",
     "endDate",
     "backfillDays",
-    "commentsMaxPrsPerRun",
   ];
   for (const key of extractOnlyStringInputs) {
     const result = validateModeInputs("backfill-comments", {
@@ -621,7 +620,6 @@ function testValidateModeInputsBackfillRejectsExtractKnobs() {
     startDate: "",
     endDate: "   ",
     backfillDays: "",
-    commentsMaxPrsPerRun: "",
   });
   assert.strictEqual(
     okEmpty.ok,
@@ -631,7 +629,37 @@ function testValidateModeInputsBackfillRejectsExtractKnobs() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 19: includeComments boolean handling — only `true` is mixed intent
+// Test 19: hidden/defaulted PR cap is neutral only when normalized to default
+function testValidateModeInputsBackfillAllowsHiddenDefaultPrCap() {
+  console.log(
+    "Test: validateModeInputs backfill-mode allows only the normalized hidden default PR cap...",
+  );
+  for (const neutral of ["", "100", " 100 ", 100]) {
+    const result = validateModeInputs("backfill-comments", {
+      commentsMaxPrsPerRun: neutral,
+    });
+    assert.strictEqual(
+      result.ok,
+      true,
+      `commentsMaxPrsPerRun=${JSON.stringify(neutral)} must be neutral`,
+    );
+  }
+  for (const forbidden of ["101", " 101 ", 101, "0", "abc"]) {
+    const result = validateModeInputs("backfill-comments", {
+      commentsMaxPrsPerRun: forbidden,
+    });
+    assert.strictEqual(
+      result.ok,
+      false,
+      `commentsMaxPrsPerRun=${JSON.stringify(forbidden)} must fail in backfill mode`,
+    );
+    assert(/"commentsMaxPrsPerRun"/.test(result.message));
+    assert(/mode = extract/.test(result.message));
+  }
+  console.log("  ✓ Passed\n");
+}
+
+// Test 20: includeComments boolean handling — only `true` is mixed intent
 function testValidateModeInputsIncludeCommentsBoolean() {
   console.log(
     "Test: validateModeInputs backfill-mode only fails on includeComments === true...",
@@ -660,7 +688,7 @@ function testValidateModeInputsIncludeCommentsBoolean() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 20: formatProjectsForDisplay is null-safe (regression: backfill-mode
+// Test 21: formatProjectsForDisplay is null-safe (regression: backfill-mode
 // config logging crashed when `projects` was omitted, because the inline
 // `projects.split(...)` at index.js:523 ran on `null`).
 function testFormatProjectsForDisplayNullSafe() {
@@ -698,7 +726,7 @@ function testFormatProjectsForDisplayNullSafe() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 21: extract mode requires projects
+// Test 22: extract mode requires projects
 function testValidateModeInputsExtractRequiresProjects() {
   console.log("Test: validateModeInputs extract-mode requires projects...");
   for (const emptyProjects of [undefined, null, "", "   "]) {
@@ -750,6 +778,7 @@ function runTests() {
     testValidateModeInputsModeGate();
     testValidateModeInputsExtractRejectsBackfillKnobs();
     testValidateModeInputsBackfillRejectsExtractKnobs();
+    testValidateModeInputsBackfillAllowsHiddenDefaultPrCap();
     testValidateModeInputsIncludeCommentsBoolean();
     testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();

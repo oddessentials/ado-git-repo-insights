@@ -1372,6 +1372,64 @@ class TestEndToEnd:
         assert counts.get("prs_updated") == 2
 
 
+class TestBackfillDatabasePreconditions:
+    """Backfill requires an existing, non-empty extracted database."""
+
+    def test_missing_database_fails_before_connect(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "missing.db"
+        args = _make_args(tmp_path, db_path)
+        artifact_path = args.artifacts_dir / "run_summary.json"
+
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client.ADOClient"
+        ) as ado_client_cls:
+            exit_code = cmd_backfill_comments(args)
+
+        assert exit_code == 1
+        assert not db_path.exists()
+        ado_client_cls.assert_not_called()
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert artifact.get("final_status") == "failed"
+        assert "database not found" in str(artifact.get("first_fatal_error", ""))
+
+    def test_zero_byte_database_fails_before_connect(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "empty.db"
+        db_path.write_bytes(b"")
+        args = _make_args(tmp_path, db_path)
+        artifact_path = args.artifacts_dir / "run_summary.json"
+
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client.ADOClient"
+        ) as ado_client_cls:
+            exit_code = cmd_backfill_comments(args)
+
+        assert exit_code == 1
+        assert db_path.exists()
+        assert db_path.stat().st_size == 0
+        ado_client_cls.assert_not_called()
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert artifact.get("final_status") == "failed"
+        assert "database is empty" in str(artifact.get("first_fatal_error", ""))
+
+    def test_directory_path_fails_before_connect(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "not-a-file"
+        db_path.mkdir()
+        args = _make_args(tmp_path, db_path)
+        artifact_path = args.artifacts_dir / "run_summary.json"
+
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client.ADOClient"
+        ) as ado_client_cls:
+            exit_code = cmd_backfill_comments(args)
+
+        assert exit_code == 1
+        assert db_path.is_dir()
+        ado_client_cls.assert_not_called()
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert artifact.get("final_status") == "failed"
+        assert "not a file" in str(artifact.get("first_fatal_error", ""))
+
+
 # ---------------------------------------------------------------------------
 # ConnectionProbe — P2 contract fix (probe from filtered snapshot)
 # ---------------------------------------------------------------------------

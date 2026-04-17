@@ -1344,9 +1344,26 @@ def cmd_backfill_comments(args: Namespace) -> int:
 
     db: DatabaseManager | None = None
     try:
+        db_path = Path(args.database)
+        if not db_path.exists():
+            raise DatabaseError(
+                "backfill-comments requires an existing extracted database; "
+                f"database not found: {db_path}"
+            )
+        if not db_path.is_file():
+            raise DatabaseError(
+                "backfill-comments requires an existing extracted database file; "
+                f"not a file: {db_path}"
+            )
+        if db_path.stat().st_size <= 0:
+            raise DatabaseError(
+                "backfill-comments requires a non-empty extracted database file; "
+                f"database is empty: {db_path}"
+            )
+
         # Pass 2 locked execution order: DB connect → legacy-schema check →
         # config validation → ADO client → test_connection → snapshot → loop.
-        db = DatabaseManager(args.database)
+        db = DatabaseManager(db_path)
         db.connect()
 
         # Site B (FR-017): legacy-schema no-op. Short-circuit before any
