@@ -1706,14 +1706,28 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 f"backfill-comments could not recompute review timestamps: {e}"
             ) from e
 
-        repo.update_comments_extraction_metadata(
-            last_run_timestamp=datetime.now(UTC).isoformat(),
-            prs_processed=processed_count,
-            threads_fetched=metadata_threads_fetched,
-            comments_fetched=metadata_comments_fetched,
-            capped=bool(args.limit > 0 and eligible_count > len(selection_snapshot)),
-        )
-        db.connection.commit()
+        # Normalize SQLite write/commit failures here into DatabaseError so
+        # Site D2 owns the exit path (matching _backfill_review_timestamps_if_
+        # needed above and the per-PR loop's sqlite3.Error handling). Without
+        # this wrap, a missing/corrupt comments_extraction_metadata table or
+        # any other sqlite3.Error would escape to Site D5 and surface as a
+        # generic "fatal-abort:" artifact rather than the contract's
+        # "fatal-abort: Database error:" D2 form.
+        try:
+            repo.update_comments_extraction_metadata(
+                last_run_timestamp=datetime.now(UTC).isoformat(),
+                prs_processed=processed_count,
+                threads_fetched=metadata_threads_fetched,
+                comments_fetched=metadata_comments_fetched,
+                capped=bool(
+                    args.limit > 0 and eligible_count > len(selection_snapshot)
+                ),
+            )
+            db.connection.commit()
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f"backfill-comments could not persist comments extraction metadata: {e}"
+            ) from e
 
         # Build full-shape success RunSummary (schema unchanged per FR-025a).
         timing.total_seconds = time.perf_counter() - start_time

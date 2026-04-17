@@ -506,8 +506,15 @@ def migrate_v4_to_v5(conn: Connection) -> None:
     Idempotent: ``_apply_migrations`` only calls this when
     ``schema_version < 5``; a DB already at v5 is a no-op.
     """
+    # ``BEGIN IMMEDIATE`` can itself raise (e.g., lock contention) before any
+    # transaction is active; issuing ``ROLLBACK`` in that case would raise
+    # ``OperationalError: cannot rollback - no transaction is active`` and mask
+    # the real cause. Track whether BEGIN succeeded so ROLLBACK only runs when
+    # a transaction is actually open.
+    txn_started = False
     try:
         conn.execute("BEGIN IMMEDIATE")
+        txn_started = True
         conn.execute("DROP TABLE IF EXISTS pr_comments")
         conn.execute(_V5_PR_COMMENTS_DDL)
         conn.execute(
@@ -521,7 +528,8 @@ def migrate_v4_to_v5(conn: Connection) -> None:
         )
         conn.execute("COMMIT")
     except Exception:
-        conn.execute("ROLLBACK")
+        if txn_started:
+            conn.execute("ROLLBACK")
         raise
     logger.info("Applied migration v4 → v5 (pr_comments composite PK)")
 

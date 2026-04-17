@@ -2866,3 +2866,66 @@ class TestRealisticAdoShapedCommentIds:
                 assert per_pr == 3, (pr_uid, per_pr)
         finally:
             db2.close()
+
+
+# ---------------------------------------------------------------------------
+# Post-loop metadata-write classification (FR-019b — Site D2 ownership)
+# ---------------------------------------------------------------------------
+
+
+class TestPostLoopMetadataWriteClassification:
+    """Post-loop metadata write sqlite3.Error must route through Site D2.
+
+    ``cmd_backfill_comments`` ends with
+    ``repo.update_comments_extraction_metadata(...)`` followed by
+    ``db.connection.commit()``. A raw ``sqlite3.Error`` from that write
+    must be translated to ``DatabaseError`` so Site D2 owns the artifact
+    form. Without the translator, the error escapes to Site D5 and the
+    artifact carries a generic ``fatal-abort: <raw>`` warning instead of
+    the contract's ``fatal-abort: Database error: <msg>`` D2 form.
+    """
+
+    def test_metadata_write_sqlite_error_classified_as_database_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        try:
+            _insert_pr(db, "pr-1", pr_id=1, closed_date="2026-01-16T10:00:00Z")
+        finally:
+            db.close()
+
+        def _raise_op_err(*_args: object, **_kwargs: object) -> None:
+            raise sqlite3.OperationalError(
+                "no such table: comments_extraction_metadata"
+            )
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.persistence.repository."
+            "PRRepository.update_comments_extraction_metadata",
+            _raise_op_err,
+        )
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        client = _mock_client(threads=[_make_thread(1)])
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert artifact.get("final_status") == "failed"
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not persist comments extraction metadata" in fatal, fatal
+        warnings_raw = artifact.get("warnings", [])
+        assert isinstance(warnings_raw, list)
+        warnings = [w for w in warnings_raw if isinstance(w, str)]
+        expected_prefix = (
+            "backfill-comments: fatal-abort: Database error: "
+            "backfill-comments could not persist comments extraction metadata:"
+        )
+        assert any(w.startswith(expected_prefix) for w in warnings), warnings
+        # The raw D5 form for the same sqlite text MUST NOT appear — that
+        # would indicate the wrap is missing and Site D5 swallowed it.
+        d5_raw = (
+            "backfill-comments: fatal-abort: "
+            "no such table: comments_extraction_metadata"
+        )
+        assert d5_raw not in warnings, warnings
