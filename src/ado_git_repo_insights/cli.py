@@ -479,8 +479,6 @@ def _extract_comments(
     Returns:
         Stats dict with threads, comments, prs_processed, capped.
     """
-    import json
-
     from .extractor.ado_client import ExtractionError
     from .persistence.repository import PRRepository
 
@@ -493,8 +491,8 @@ def _extract_comments(
         "capped": False,
     }
 
-    # Get recently completed PRs to extract comments for
-    # Limit by max_prs to avoid rate limiting
+    # Get recently completed PRs to extract comments for.
+    # Limit by max_prs to avoid rate limiting.
     cursor = db.execute(
         """
         SELECT pull_request_uid, pull_request_id, repository_id, project_name
@@ -512,11 +510,12 @@ def _extract_comments(
 
     for pr_row in prs_to_process:
         pr_uid = pr_row["pull_request_uid"]
-        pr_id = pr_row["pull_request_id"]
-        repo_id = pr_row["repository_id"]
-        project_name = pr_row["project_name"]
 
         try:
+            # Pre-iteration coverage-marker snapshot — added by the #289 fix
+            # (commit 740810fd). MUST be preserved across the T003 refactor
+            # so Case 2's sub-decision (2a set-when-null vs 2b
+            # preserve-non-null) stays stable. Lock #5 in tasks.md.
             pre_iteration_stamp_row = db.execute(
                 "SELECT comments_extracted_at FROM pull_requests "
                 "WHERE pull_request_uid = ?",
@@ -528,119 +527,45 @@ def _extract_comments(
                 else None
             )
 
-            # Fetch threads from API
-            threads = client.get_pr_threads(
-                project=project_name,
-                repository_id=repo_id,
-                pull_request_id=pr_id,
+            outcome = _fetch_and_upsert_threads_for_pr(
+                client, db, repo, pr_row, max_threads_per_pr
             )
-
-            # Apply max_threads_per_pr limit.  Keep a reference to the
-            # full API response so we can check whether dropped threads
-            # have unseen updates (needed for the coverage stamp decision).
-            all_threads = threads
-            pr_threads_truncated = (
-                max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
-            )
-            if pr_threads_truncated:
-                threads = all_threads[:max_threads_per_pr]
-
-            for thread in threads:
-                thread_id = str(thread.get("id", ""))
-                thread_updated = thread.get("lastUpdatedDate", "")
-                thread_created = thread.get("publishedDate", thread_updated)
-                thread_status = thread.get("status", "unknown")
-
-                # §6: Per-thread incremental sync — skip only if this
-                # specific thread exists locally and is current.  The old
-                # MAX(last_updated) check could skip threads that were
-                # NEVER fetched (e.g. after a prior truncated run where
-                # dropped threads had older lastUpdatedDate).
-                local_thread = db.execute(
-                    "SELECT last_updated FROM pr_threads "
-                    "WHERE pull_request_uid = ? AND thread_id = ?",
-                    (pr_uid, thread_id),
-                ).fetchone()
-                if (
-                    local_thread is not None
-                    and thread_updated <= local_thread["last_updated"]
-                ):
-                    continue
-
-                # Serialize thread context
-                thread_context = None
-                if "threadContext" in thread:
-                    thread_context = json.dumps(thread["threadContext"])
-
-                # Upsert thread
-                repo.upsert_thread(
-                    thread_id=thread_id,
-                    pull_request_uid=pr_uid,
-                    status=thread_status,
-                    thread_context=thread_context,
-                    last_updated=thread_updated,
-                    created_at=thread_created,
-                    is_deleted=thread.get("isDeleted", False),
-                )
-                stats["threads"] = int(stats["threads"]) + 1
-
-                # Process comments in thread
-                for comment in thread.get("comments", []):
-                    comment_id = str(comment.get("id", ""))
-                    author = comment.get("author", {})
-                    author_id = author.get("id", "unknown")
-
-                    # Upsert author first to avoid FK violation (same as P2 fix)
-                    repo.upsert_user(
-                        user_id=author_id,
-                        display_name=author.get("displayName", "Unknown"),
-                        email=author.get("uniqueName"),
-                    )
-
-                    repo.upsert_comment(
-                        comment_id=comment_id,
-                        thread_id=thread_id,
-                        pull_request_uid=pr_uid,
-                        author_id=author_id,
-                        content=comment.get("content"),
-                        comment_type=comment.get("commentType", "text"),
-                        created_at=comment.get("publishedDate", ""),
-                        last_updated=comment.get("lastUpdatedDate"),
-                        is_deleted=comment.get("isDeleted", False),
-                    )
-                    stats["comments"] = int(stats["comments"]) + 1
-
+            # Per-thread / per-comment counts roll up from the helper's
+            # return value so extract's existing stats contract survives
+            # the refactor (FR-034; test_extract_comments.py:337, 371).
+            stats["threads"] = int(stats["threads"]) + outcome.threads_upserted
+            stats["comments"] = int(stats["comments"]) + outcome.comments_upserted
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
             # Update per-PR coverage marker based on fetch completeness.
             #
-            # Three cases:
+            # Three cases (post-#289-fix; preserved bit-for-bit from 740810fd):
             #   1. No truncation → stamp with current time (complete fetch).
-            #   2. Truncated AND any dropped thread is missing locally or
-            #      has a newer API version than stored → clear stamp.
-            #   3. Truncated BUT every dropped thread exists locally with
-            #      a last_updated ≥ the API lastUpdatedDate → preserve any
-            #      prior completion marker, or stamp now if it was unset.
-            if not pr_threads_truncated:
+            #   2. Truncated AND every dropped thread is stored and current:
+            #      2a. pre-iteration marker NULL → stamp with current time.
+            #      2b. pre-iteration marker non-NULL → preserve (operator-reset
+            #          recovery; avoids clear-then-restamp loops).
+            #   3. Truncated AND at least one dropped thread is missing or
+            #      stale → clear marker to NULL so the PR is reselected.
+            if not outcome.truncated:
                 db.execute(
                     "UPDATE pull_requests SET comments_extracted_at = ? "
                     "WHERE pull_request_uid = ?",
                     (datetime.now(UTC).isoformat(), pr_uid),
                 )
-            elif _dropped_threads_all_stored(
-                db, pr_uid, all_threads[max_threads_per_pr:]
-            ):
-                # Every dropped thread is already stored and current.
-                # comments_extracted_at is a completion marker, not provenance:
-                # downstream readers distinguish NULL (incomplete) from
-                # non-NULL (complete enough to trust). Use the pre-iteration
-                # snapshot so the decision is stable within this iteration.
+            elif _dropped_threads_all_stored(db, pr_uid, outcome.dropped_threads):
+                # comments_extracted_at is a completion marker, not
+                # provenance: downstream readers distinguish NULL
+                # (incomplete) from non-NULL (complete enough to trust).
+                # Use the pre-iteration snapshot so the decision is stable
+                # within this iteration.
                 if pre_iteration_comments_extracted_at is None:
                     db.execute(
                         "UPDATE pull_requests SET comments_extracted_at = ? "
                         "WHERE pull_request_uid = ?",
                         (datetime.now(UTC).isoformat(), pr_uid),
                     )
+                # else (Case 2b): preserve prior non-NULL marker.
             else:
                 # At least one dropped thread is missing or stale locally.
                 db.execute(
