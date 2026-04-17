@@ -867,6 +867,54 @@ class TestLegacySchemaDiscriminator:
         ]
         assert len(loop_entries) == 1, warnings
 
+    def test_only_pr_threads_present_fails_as_database_error(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "test.db"
+        db = _create_backfill_db(tmp_path)
+        db.execute("DROP TABLE IF EXISTS pr_comments")
+        db.connection.commit()
+        db.close()
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        assert artifact.get("final_status") == "failed"
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "missing table: pr_comments" in fatal, fatal
+        assert "present table: pr_threads" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
+    def test_only_pr_comments_present_fails_as_database_error(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "test.db"
+        db = _create_backfill_db(tmp_path)
+        db.execute("DROP TABLE IF EXISTS pr_threads")
+        db.connection.commit()
+        db.close()
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        assert artifact.get("final_status") == "failed"
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "missing table: pr_threads" in fatal, fatal
+        assert "present table: pr_comments" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
 
 # ---------------------------------------------------------------------------
 # #17-19 NoImplicitSafetyClaims

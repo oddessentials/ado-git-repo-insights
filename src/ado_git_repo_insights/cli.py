@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from .persistence.repository import PRRepository
     from .types import AdoThread
 
+from .persistence.database import DatabaseError
+
 logger = logging.getLogger(__name__)
 
 
@@ -1008,21 +1010,33 @@ def _append_backfill_warning(warnings: list[str], body: str) -> None:
 
 
 def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
-    """Return True iff pr_threads OR pr_comments tables are absent.
+    """Return True only for the exact legacy shape with both thread tables absent.
 
-    Pure predicate — queries ``sqlite_master``, no writes, no commits,
-    no error-wrapping beyond letting ``DatabaseError`` propagate if the
-    underlying connection fails. Called by ``cmd_backfill_comments``
-    before the selection query runs (FR-017): when True, the subcommand
-    classifies the run as a successful no-op and emits a legacy-schema-
-    skip warning via ``_append_backfill_warning`` (Site B, plan §4).
+    Queries ``sqlite_master`` without side effects. The helper owns the
+    schema discriminator for ``backfill-comments``:
+    - both ``pr_threads`` and ``pr_comments`` absent -> legacy no-op
+    - both present -> modern schema, continue normally
+    - exactly one absent -> broken or mis-targeted DB, raise ``DatabaseError``
     """
     row = db.execute(
         "SELECT name FROM sqlite_master "
         "WHERE type='table' AND name IN ('pr_threads', 'pr_comments')"
     ).fetchall()
     present = {r["name"] if hasattr(r, "keys") else r[0] for r in row}
-    return "pr_threads" not in present or "pr_comments" not in present
+    has_threads = "pr_threads" in present
+    has_comments = "pr_comments" in present
+    if not has_threads and not has_comments:
+        return True
+    if has_threads and has_comments:
+        return False
+
+    missing_table = "pr_threads" if not has_threads else "pr_comments"
+    present_table = "pr_comments" if not has_threads else "pr_threads"
+    raise DatabaseError(
+        "backfill-comments requires both pr_threads and pr_comments tables; "
+        f"missing table: {missing_table}; present table: {present_table}; "
+        "database appears partially corrupted or mis-targeted"
+    )
 
 
 def _select_uncovered_prs_for_backfill(
