@@ -1156,58 +1156,6 @@ def _count_uncovered_prs_for_backfill(
         ) from e
 
 
-def _detect_conflicting_backfill_organizations(
-    db: DatabaseManager,
-    expected_organization: str,
-    projects: list[str],
-    since: date | None,
-    until: date | None,
-) -> list[str]:
-    """Return unexpected organizations inside the filtered backfill scope.
-
-    Backfill is a single-organization command. The query below intentionally
-    applies the same project/date/uncovered predicates as selection while
-    omitting the expected-org predicate so mixed-org evidence is surfaced as a
-    fatal targeting error instead of a misleading partial run.
-    """
-    clauses: list[str] = [
-        "status = 'completed'",
-        "comments_extracted_at IS NULL",
-        "organization_name <> ?",
-    ]
-    params: list[str] = [expected_organization]
-
-    if projects:
-        placeholders = ", ".join("?" for _ in projects)
-        clauses.append(f"project_name IN ({placeholders})")
-        params.extend(projects)
-    if since is not None:
-        clauses.append("closed_date >= ?")
-        params.append(since.isoformat())
-    if until is not None:
-        clauses.append("closed_date < ?")
-        params.append(until.isoformat())
-
-    sql = (
-        "SELECT DISTINCT organization_name\n"
-        "FROM pull_requests\n"
-        "WHERE " + "\n  AND ".join(clauses) + "\n"
-        "ORDER BY organization_name ASC"
-    )
-
-    try:
-        cursor = db.execute(sql, tuple(params))
-        return [
-            str(row["organization_name"])
-            for row in cursor.fetchall()
-            if row["organization_name"] is not None
-        ]
-    except sqlite3.Error as e:
-        raise DatabaseError(
-            f"backfill-comments could not validate single-organization scope: {e}"
-        ) from e
-
-
 def cmd_extract(args: Namespace) -> int:
     """Execute the extract command."""
     from .config import ConfigurationError, load_config
@@ -1564,36 +1512,21 @@ def cmd_backfill_comments(args: Namespace) -> int:
             raise ConfigurationError("PAT is required")
         api_config = APIConfig()
 
-        # ADO client (constructor is pure — no network). Site D3's
-        # test_connection runs below, AFTER the selection snapshot
-        # materializes, so the probe can reflect the filtered scope.
+        # ADO client (constructor is pure — no network). Backfill owns an
+        # organization-scoped pre-loop probe so invalid PAT / org input fails
+        # fast without depending on any selected PR's project.
         client = ADOClient(
             organization=args.organization,
             pat=pat_value,
             config=api_config,
         )
+        client.test_organization_connection()
 
         # Execution order (locked):
-        #   (a) selection snapshot — filtered SQL, no network.
-        #   (b) opening anchor log — FR-018a.
-        #   (c) per-PR loop owns reachability/failure classification.
-        #       No project-scoped preflight runs here, so a stale or
-        #       inaccessible project cannot abort the run before later
-        #       selectable PRs get their in-loop attempt.
-        conflicting_organizations = _detect_conflicting_backfill_organizations(
-            db,
-            args.organization,
-            parsed_projects,
-            args.since,
-            args.until,
-        )
-        if conflicting_organizations:
-            mismatches = ", ".join(conflicting_organizations)
-            raise DatabaseError(
-                "backfill-comments requires a database scope that matches the "
-                f"requested organization {args.organization!r}; found uncovered "
-                f"completed pull requests for other organization(s): {mismatches}"
-            )
+        #   (a) org-scoped connectivity probe — Site D3 fatal on bad PAT / org.
+        #   (b) selection snapshot — filtered SQL, no network.
+        #   (c) opening anchor log — FR-018a.
+        #   (d) per-PR loop owns project/repository-level failures.
         eligible_count = _count_uncovered_prs_for_backfill(
             db,
             args.organization,

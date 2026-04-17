@@ -164,6 +164,7 @@ def _mock_client(
     threads: list[dict[str, object]] | None = None,
     per_pr: dict[str, list[dict[str, object]]] | None = None,
     raises: dict[str, BaseException] | None = None,
+    organization_probe_error: BaseException | None = None,
 ) -> MagicMock:
     """Return a MagicMock ADO client. If *raises* has an entry for a PR's
     pull_request_id (as int), get_pr_threads raises it for that call."""
@@ -183,6 +184,10 @@ def _mock_client(
 
     client.get_pr_threads.side_effect = _get_pr_threads
     client.test_connection.return_value = None
+    if organization_probe_error is None:
+        client.test_organization_connection.return_value = None
+    else:
+        client.test_organization_connection.side_effect = organization_probe_error
     return client
 
 
@@ -1478,7 +1483,7 @@ class TestEndToEnd:
         assert isinstance(counts, dict)
         assert counts.get("prs_updated") == 2
 
-    def test_mixed_org_scope_fails_fast_with_clear_database_error(
+    def test_mixed_org_db_scopes_to_requested_organization_without_abort(
         self, tmp_path: Path
     ) -> None:
         db = _create_backfill_db(tmp_path)
@@ -1508,12 +1513,29 @@ class TestEndToEnd:
         client = _mock_client(per_pr={"1": [_make_thread(10)]})
         exit_code, artifact = _run_backfill(args, client=client)
 
-        assert exit_code == 1
-        assert client.get_pr_threads.call_count == 0
-        fatal = str(artifact.get("first_fatal_error", ""))
-        assert fatal.startswith("Database error:"), fatal
-        assert "requested organization 'org'" in fatal, fatal
-        assert "other organization(s): other" in fatal, fatal
+        assert exit_code == 0, artifact
+        client.test_organization_connection.assert_called_once_with()
+        assert client.get_pr_threads.call_count == 1
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert all(
+            "requested organization 'org'" not in str(entry) for entry in warnings
+        ), warnings
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 1
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            assert _read_marker(db2, "org-a") is not None
+            assert _read_marker(db2, "org-b") is None
+            remaining = _select_uncovered_prs_for_backfill(
+                db2, "other", [], None, None, 0
+            )
+            assert [str(r["pull_request_uid"]) for r in remaining] == ["org-b"]
+        finally:
+            db2.close()
 
     def test_backfill_persists_comments_metadata_and_coverage_state(
         self, tmp_path: Path
@@ -1967,22 +1989,18 @@ class TestBackfillDatabasePreconditions:
 
 
 # ---------------------------------------------------------------------------
-# ConnectionProbe — P2 contract fix (probe from filtered snapshot)
+# ConnectionProbe — auth/org pre-loop fatal, project failures in-loop
 # ---------------------------------------------------------------------------
 
 
 class TestPreLoopConnectivity:
-    """Selection is network-free; the per-PR loop owns reachability handling."""
+    """Auth/org failures are fatal pre-loop; project failures stay in-loop."""
 
-    def test_empty_filtered_snapshot_skips_connection_probe(
-        self, tmp_path: Path
-    ) -> None:
-        """An empty filtered selection must not trigger any connection probe
-        or per-PR API call.
-        """
+    def test_empty_filtered_snapshot_still_runs_org_probe(self, tmp_path: Path) -> None:
+        """A valid org/PAT must still be probed before an empty run succeeds."""
         db = _create_backfill_db(tmp_path)
         # Seed a completed PR outside the --since window. The filtered
-        # snapshot is still empty, so the run must stay network-free.
+        # snapshot is still empty, so no per-PR API call should fire.
         _insert_pr(
             db,
             "old",
@@ -2002,12 +2020,45 @@ class TestPreLoopConnectivity:
         exit_code, artifact = _run_backfill(args, client=client)
 
         assert exit_code == 0
+        client.test_organization_connection.assert_called_once_with()
         assert client.test_connection.call_count == 0
         assert client.get_pr_threads.call_count == 0
         # Full-shape empty-selection artifact.
         counts = artifact.get("counts")
         assert isinstance(counts, dict)
         assert counts.get("prs_updated") == 0
+
+    def test_invalid_org_or_pat_fails_pre_loop_even_when_snapshot_empty(
+        self, tmp_path: Path
+    ) -> None:
+        """Auth/org misconfiguration must fail before reporting a no-op run."""
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(
+            db,
+            "old",
+            pr_id=1,
+            project="ProjectA",
+            closed_date="2024-01-01T00:00:00Z",
+        )
+        db.close()
+
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            since=date(2026, 1, 1),
+            until=date(2026, 6, 1),
+        )
+        client = _mock_client(
+            organization_probe_error=ExtractionError("bad PAT or organization")
+        )
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        client.test_organization_connection.assert_called_once_with()
+        assert client.get_pr_threads.call_count == 0
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Extraction error:"), fatal
+        assert "bad PAT or organization" in fatal, fatal
 
     def test_inaccessible_first_pr_is_recorded_in_loop_and_run_continues(
         self, tmp_path: Path
@@ -2040,6 +2091,7 @@ class TestPreLoopConnectivity:
         exit_code, artifact = _run_backfill(args, client=client)
 
         assert exit_code == 0
+        client.test_organization_connection.assert_called_once_with()
         assert client.test_connection.call_count == 0
         warnings = artifact.get("warnings", [])
         assert isinstance(warnings, list)

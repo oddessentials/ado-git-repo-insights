@@ -825,6 +825,26 @@ function testTaskManifestKeepsSharedThreadCapVisible() {
   console.log("  ✓ Passed\n");
 }
 
+// Test 25: task manifest must NOT declare a defaultValue for the
+// extract-only PR cap. Azure injects defaultValue even for hidden inputs,
+// so re-adding `"100"` to task.json would make backfill mode fail
+// validateModeInputs again. The runtime default belongs in the normalizer.
+function testCommentsMaxPrsPerRunHasNoDefaultValue() {
+  console.log(
+    "Test: task.json keeps commentsMaxPrsPerRun free of defaultValue so backfill mode stays neutral...",
+  );
+  const taskJsonPath = path.join(__dirname, "task.json");
+  const taskJson = JSON.parse(fs.readFileSync(taskJsonPath, "utf8"));
+  const input = taskJson.inputs.find(({ name }) => name === "commentsMaxPrsPerRun");
+  assert(input, "commentsMaxPrsPerRun input must exist in task.json");
+  assert.strictEqual(
+    input.defaultValue,
+    undefined,
+    "commentsMaxPrsPerRun MUST NOT declare defaultValue; Azure auto-injection would re-break backfill-comments mode",
+  );
+  console.log("  ✓ Passed\n");
+}
+
 // Run all tests
 function runTests() {
   console.log("=".repeat(50));
@@ -857,6 +877,7 @@ function runTests() {
     testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();
     testTaskManifestKeepsSharedThreadCapVisible();
+    testCommentsMaxPrsPerRunHasNoDefaultValue();
 
     console.log("=".repeat(50));
     console.log("All tests passed!");

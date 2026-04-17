@@ -85,7 +85,7 @@
             "label": "Max PRs for Comment Extraction",
             "required": false,
             "visibleRule": "includeComments = true",
-            "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. Defaults to 100 for rate-limit protection."
+            "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. If left blank, 100 is used for rate-limit protection."
         },
         {
             "name": "commentsMaxThreadsPerPr",
