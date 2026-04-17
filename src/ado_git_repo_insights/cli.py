@@ -1302,7 +1302,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 "pr_threads and pr_comments tables not present; "
                 "run a migration or extract with --include-comments first"
             )
-            logger.warning("backfill-comments: %s", legacy_msg)
+            logger.warning(_BACKFILL_WARNING_PREFIX + "%s", legacy_msg)
             _append_backfill_warning(warnings_list, f"legacy-schema-skip: {legacy_msg}")
             timing.total_seconds = time.perf_counter() - start_time
             run_summary = RunSummary(
@@ -1321,7 +1321,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
             )
             run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
             logger.info(
-                "backfill-comments: skipped (legacy schema; no thread storage tables)"
+                _BACKFILL_WARNING_PREFIX
+                + "skipped (legacy schema; no thread storage tables)"
             )
             run_summary.print_final_line()
             run_summary.emit_ado_commands()
@@ -1358,7 +1359,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
         )
         total_count = len(selection_snapshot)
         logger.info(
-            "backfill-comments: backfill run over %d pull request(s)",
+            _BACKFILL_WARNING_PREFIX + "backfill run over %d pull request(s)",
             total_count,
         )
 
@@ -1400,7 +1401,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
 
             # FR-018c: progress line strictly AFTER commit/rollback resolves.
             logger.info(
-                "backfill-comments: covered PR %s (%d of %d) [%s]",
+                _BACKFILL_WARNING_PREFIX + "covered PR %s (%d of %d) [%s]",
                 pr_uid,
                 ordinal,
                 total_count,
@@ -1435,7 +1436,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
         )
         run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
         logger.info(
-            "backfill-comments: processed %d pull requests (%d failures)",
+            _BACKFILL_WARNING_PREFIX + "processed %d pull requests (%d failures)",
             processed_count,
             failed_count,
         )

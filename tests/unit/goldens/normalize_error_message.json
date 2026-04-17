@@ -1,0 +1,10 @@
+{
+  "description": "Golden outputs for normalize_error_message() — locked by FR-025c/FR-030f (test #37).",
+  "cases": [
+    {"input": "https://dev.azure.com/org/_apis/git?x=1", "output": "[URL_WITH_PARAMS]"},
+    {"input": "https://dev.azure.com/org/_apis/git", "output": "[URL]"},
+    {"input_repeat": ["a", 1000], "output_repeat": ["a", 500], "suffix": "...[truncated]"},
+    {"input": "short", "output": "short"},
+    {"input": "prefix https://dev.azure.com/org x=1 suffix", "output": "prefix [URL] x=1 suffix"}
+  ]
+}

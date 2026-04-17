@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 89,
+  "total_call_sites": 91,
   "unsafe_count": 8,
   "call_sites": [
     {
@@ -293,7 +293,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 164,
+      "line": 165,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -301,7 +301,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 173,
+      "line": 174,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -309,7 +309,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 182,
+      "line": 183,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +317,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 198,
+      "line": 199,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +325,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 215,
+      "line": 216,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -535,6 +535,22 @@
       "file": "tests/unit/test_audit_suppressions.py",
       "line": 1115,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_backfill_comments.py",
+      "line": 579,
+      "code": "merge_base = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_backfill_comments.py",
+      "line": 595,
+      "code": "diff = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

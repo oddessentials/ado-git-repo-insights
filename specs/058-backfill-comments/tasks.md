@@ -349,7 +349,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 **Rationale**: QG-43 enforces "commit that adds N tests MUST bump the floor by exactly N in the same commit"; by bundling every new test into one commit paired with one `.test-floor-contract.json` update, the rule is trivially satisfied without per-commit delta arithmetic.
 
-- [ ] **T016** Author `tests/unit/test_backfill_comments.py` (32 method declarations) — plan §5 File 1 verbatim
+- [X] **T016** Author `tests/unit/test_backfill_comments.py` (32 method declarations) — plan §5 File 1 verbatim
   - File: `tests/unit/test_backfill_comments.py` (NEW).
   - Test classes and methods: enumerated in plan §5 File 1 table (rows **#1 – #32**, plus row **#19a**).
   - Fixture pattern: real SQLite on `tmp_path` (mirrors `tests/unit/test_extract_comments.py` setup) with full migration chain applied; `MagicMock`-backed `ADOClient`; `PRRepository` wired against the real SQLite.
@@ -374,7 +374,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - FR refs: **FR-030 base, FR-030a–d, FR-030g–j, FR-031, FR-032, FR-033, plan §4**. INV refs: **INV-1 – INV-12** as applicable (see FR→test-row crosswalk in plan §5).
   - Gates: **QG-39** (cross-OS — no OS-specific constructs), **QG-42** (enterprise coverage), **QG-45** (cross-OS parity — no platform gating), **Principle XXVI**.
 
-- [ ] **T017** [P] Author `tests/unit/test_run_summary_parity.py` (2 method declarations) — plan §5 File 2 verbatim
+- [X] **T017** [P] Author `tests/unit/test_run_summary_parity.py` (2 method declarations) — plan §5 File 2 verbatim
   - File: `tests/unit/test_run_summary_parity.py` (NEW).
   - Classes and methods: plan §5 File 2 (rows **#33** and **#34**).
   - **#33** `TestArtifactShapeParity::test_backfill_and_extract_artifacts_have_identical_shape` — drive extract against a controlled fixture (MagicMock ADO client, monkeypatched `get_tool_version`/`get_git_sha`, fixed `artifacts_dir` on `tmp_path`), drive backfill against a comparable controlled fixture. Load both emitted `run_summary.json`. Assert identical top-level key sets. Assert identical nested-object key sets for `date_range`, `counts`, `timings`. Assert identical per-field Python type shapes.
@@ -402,7 +402,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - FR refs: **FR-025b**, **FR-030e**, **plan §4** discriminator invariant (**INV-8**).
   - Gates: **QG-42**, **Principle XXVI**.
 
-- [ ] **T018** [P] Author `tests/unit/test_run_summary_snapshot.py` (3 method declarations) — plan §5 File 3 verbatim
+- [X] **T018** [P] Author `tests/unit/test_run_summary_snapshot.py` (3 method declarations) — plan §5 File 3 verbatim
   - File: `tests/unit/test_run_summary_snapshot.py` (NEW).
   - Classes and methods: plan §5 File 3 (rows **#35**, **#36**, **#37**).
   - **#35** `TestExtractProducerGoldenSnapshot::test_RunSummary_to_dict_matches_golden` — construct `RunSummary` with deterministic field values (monkeypatch `get_tool_version()` → fixed string, `get_git_sha()` → fixed string, timings/counts → fixed numbers); **Pass 2 lock — assertion mechanism**: call `run_summary.write(tmp_path / "actual.json")` and compare bytes against `tests/unit/goldens/run_summary_to_dict.json` via `Path.read_bytes() == Path.read_bytes()`. This auto-matches whatever serialization `write()` uses; no risk of golden-vs-write kwargs drift.
@@ -422,7 +422,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - FR refs: **FR-025c**, **FR-030f**.
   - Gates: **QG-42**, **Principle XXVI**.
 
-- [ ] **T019** [P] Commit golden JSON files under `tests/unit/goldens/`
+- [X] **T019** [P] Commit golden JSON files under `tests/unit/goldens/`
   - Files (NEW):
     - `tests/unit/goldens/run_summary_to_dict.json`
     - `tests/unit/goldens/create_minimal_summary.json`
@@ -432,7 +432,7 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
   - FR refs: **FR-025c**, **FR-030f**.
   - Gates: **QG-42**.
 
-- [ ] **T020** **TERMINAL COMMIT** — measure + bump `.test-floor-contract.json::python::min_collected`
+- [X] **T020** **TERMINAL COMMIT** — measure + bump `.test-floor-contract.json::python::min_collected`
   - File: `.test-floor-contract.json`.
   - Authoritative measurement command (the ONLY source of truth for the delta number):
     ```bash
