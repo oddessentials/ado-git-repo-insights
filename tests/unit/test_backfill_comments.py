@@ -33,6 +33,7 @@ from ado_git_repo_insights.config import _parse_iso_date, _parse_projects_list
 from ado_git_repo_insights.extractor.ado_client import ExtractionError
 from ado_git_repo_insights.persistence.database import DatabaseError, DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
+from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 from ado_git_repo_insights.types import SqliteParam
 
 # ---------------------------------------------------------------------------
@@ -234,12 +235,14 @@ def _run_backfill(
 
 
 def _select_uids(db: DatabaseManager, **kwargs: object) -> list[str]:
+    organization = kwargs.get("organization", "org")
     projects = kwargs.get("projects", [])
     since = kwargs.get("since")
     until = kwargs.get("until")
     limit = kwargs.get("limit", 0)
     rows = _select_uncovered_prs_for_backfill(
         db,
+        organization if isinstance(organization, str) else "org",
         projects if isinstance(projects, list) else [],
         since if isinstance(since, date) else None,
         until if isinstance(until, date) else None,
@@ -298,6 +301,35 @@ class TestSelection:
         finally:
             db.close()
 
+    def test_selection_scopes_to_requested_organization(self, tmp_path: Path) -> None:
+        db = _create_backfill_db(tmp_path)
+        try:
+            _insert_pr(db, "org-a", pr_id=1, project="ProjectA", repo="r1")
+            db.execute("INSERT INTO organizations (organization_name) VALUES ('other')")
+            db.execute(
+                "INSERT INTO projects (organization_name, project_name) "
+                "VALUES ('other', 'ProjectA')"
+            )
+            db.execute(
+                "INSERT INTO repositories "
+                "(repository_id, repository_name, project_name, organization_name) "
+                "VALUES ('r-other', 'repo-other', 'ProjectA', 'other')"
+            )
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, project_name, "
+                "repository_id, user_id, title, status, creation_date, closed_date, "
+                "comments_extracted_at) VALUES "
+                "('org-b', 2, 'other', 'ProjectA', 'r-other', 'u1', 'PR', "
+                "'completed', '2026-01-15T10:00:00Z', '2026-01-16T10:00:00Z', NULL)"
+            )
+            db.connection.commit()
+
+            assert _select_uids(db, organization="org") == ["org-a"]
+            assert _select_uids(db, organization="other") == ["org-b"]
+        finally:
+            db.close()
+
     def test_since_until_half_open_interval(self, tmp_path: Path) -> None:
         db = _create_backfill_db(tmp_path)
         try:
@@ -341,7 +373,7 @@ class TestSelection:
             uids = _select_uids(db, limit=10)
             assert len(uids) == 10
             # Oldest first — verify ordered by closed_date ASC
-            all_rows = _select_uncovered_prs_for_backfill(db, [], None, None, 0)
+            all_rows = _select_uncovered_prs_for_backfill(db, "org", [], None, None, 0)
             oldest_10 = {str(r["pull_request_uid"]) for r in all_rows[:10]}
             assert set(uids) == oldest_10
         finally:
@@ -363,7 +395,7 @@ class TestSelectionSnapshotStability:
             _insert_pr(db, "p2", pr_id=2, closed_date="2026-01-02T00:00:00Z")
             _insert_pr(db, "p3", pr_id=3, closed_date="2026-01-03T00:00:00Z")
 
-            snapshot = _select_uncovered_prs_for_backfill(db, [], None, None, 0)
+            snapshot = _select_uncovered_prs_for_backfill(db, "org", [], None, None, 0)
             assert len(snapshot) == 3
 
             # Mutate the DB after snapshot materializes.
@@ -375,7 +407,7 @@ class TestSelectionSnapshotStability:
             assert "p4" not in snapshot_uids
 
             # A fresh invocation sees the new row.
-            fresh = _select_uncovered_prs_for_backfill(db, [], None, None, 0)
+            fresh = _select_uncovered_prs_for_backfill(db, "org", [], None, None, 0)
             assert len(fresh) == 4
         finally:
             db.close()
@@ -693,7 +725,9 @@ class TestInterruptSafety:
                 assert _stamp("p3") is None
 
                 # Re-invocation should only see p3.
-                remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+                remaining = _select_uncovered_prs_for_backfill(
+                    db2, "org", [], None, None, 0
+                )
                 remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
                 assert remaining_uids == {"p3"}
             finally:
@@ -759,7 +793,9 @@ class TestInterruptSafety:
                 assert _stamp("p2") is None
                 assert _stamp("p3") is None
 
-                remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+                remaining = _select_uncovered_prs_for_backfill(
+                    db2, "org", [], None, None, 0
+                )
                 remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
                 assert "p2" in remaining_uids
                 assert "p3" in remaining_uids
@@ -1255,7 +1291,9 @@ class TestCoverageMarkerInvariants:
         try:
             assert _read_marker(db2, "p1") is None
             # Re-invocation reselects this PR.
-            remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+            remaining = _select_uncovered_prs_for_backfill(
+                db2, "org", [], None, None, 0
+            )
             remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
             assert "p1" in remaining_uids
         finally:
@@ -1277,7 +1315,9 @@ class TestCoverageMarkerInvariants:
         db2.connect()
         try:
             assert _read_marker(db2, "p1") is None
-            remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+            remaining = _select_uncovered_prs_for_backfill(
+                db2, "org", [], None, None, 0
+            )
             remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
             assert "p1" in remaining_uids
         finally:
@@ -1437,6 +1477,81 @@ class TestEndToEnd:
         counts = artifact.get("counts")
         assert isinstance(counts, dict)
         assert counts.get("prs_updated") == 2
+
+    def test_mixed_org_scope_fails_fast_with_clear_database_error(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "org-a", pr_id=1, project="ProjectA", repo="r1")
+        db.execute("INSERT INTO organizations (organization_name) VALUES ('other')")
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) "
+            "VALUES ('other', 'ProjectA')"
+        )
+        db.execute(
+            "INSERT INTO repositories "
+            "(repository_id, repository_name, project_name, organization_name) "
+            "VALUES ('r-other', 'repo-other', 'ProjectA', 'other')"
+        )
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, project_name, "
+            "repository_id, user_id, title, status, creation_date, closed_date, "
+            "comments_extracted_at) VALUES "
+            "('org-b', 2, 'other', 'ProjectA', 'r-other', 'u1', 'PR', "
+            "'completed', '2026-01-15T10:00:00Z', '2026-01-16T10:00:00Z', NULL)"
+        )
+        db.connection.commit()
+        db.close()
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 1
+        assert client.get_pr_threads.call_count == 0
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "requested organization 'org'" in fatal, fatal
+        assert "other organization(s): other" in fatal, fatal
+
+    def test_backfill_persists_comments_metadata_and_coverage_state(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        _insert_pr(db, "p2", pr_id=2, closed_date="2026-01-02T00:00:00Z")
+        db.close()
+
+        args = _make_args(tmp_path, tmp_path / "test.db", limit=1, max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0, artifact
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            row = db2.execute(
+                """
+                SELECT prs_processed, threads_fetched, comments_fetched, capped
+                FROM comments_extraction_metadata
+                WHERE id = 1
+                """
+            ).fetchone()
+            assert row is not None
+            assert int(row["prs_processed"]) == 1
+            assert int(row["threads_fetched"]) == 1
+            assert int(row["comments_fetched"]) == 1
+            assert int(row["capped"]) == 1
+
+            manifest = AggregateGenerator(db2, tmp_path / "output").generate_all()
+            comments = manifest.coverage["comments"]
+            assert isinstance(comments, dict)
+            assert comments["status"] == "partial"
+            assert comments["capped"] is True
+        finally:
+            db2.close()
 
 
 class TestBackfillRunSummaryDateRange:
@@ -1826,6 +1941,7 @@ class TestBackfillDatabasePreconditions:
 
         def fake_select(
             _db: DatabaseManager,
+            _organization: str,
             _projects: list[str],
             _since: date | None,
             _until: date | None,
@@ -1940,7 +2056,9 @@ class TestPreLoopConnectivity:
         try:
             assert _read_marker(db2, "p1") is None
             assert _read_marker(db2, "p2") is not None
-            remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+            remaining = _select_uncovered_prs_for_backfill(
+                db2, "org", [], None, None, 0
+            )
             remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
             assert remaining_uids == {"p1"}
         finally:

@@ -1056,6 +1056,7 @@ def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
 
 def _select_uncovered_prs_for_backfill(
     db: DatabaseManager,
+    organization: str,
     projects: list[str],
     since: date | None,
     until: date | None,
@@ -1066,6 +1067,7 @@ def _select_uncovered_prs_for_backfill(
     Selection predicates (plan §3):
       - ``status = 'completed'`` — only completed PRs.
       - ``comments_extracted_at IS NULL`` — only uncovered PRs (INV-1).
+      - ``organization_name = ?`` — only PRs stored for the requested org.
       - Optional ``project_name IN (...)`` — when ``projects`` is non-empty.
       - Optional ``closed_date >= since`` — inclusive lower bound.
       - Optional ``closed_date < until`` — half-open upper bound (INV-4).
@@ -1081,8 +1083,9 @@ def _select_uncovered_prs_for_backfill(
     clauses: list[str] = [
         "status = 'completed'",
         "comments_extracted_at IS NULL",
+        "organization_name = ?",
     ]
-    params: list[str | int] = []
+    params: list[str | int] = [organization]
 
     if projects:
         placeholders = ", ".join("?" for _ in projects)
@@ -1112,6 +1115,96 @@ def _select_uncovered_prs_for_backfill(
     except sqlite3.Error as e:
         raise DatabaseError(
             f"backfill-comments could not select candidate pull requests: {e}"
+        ) from e
+
+
+def _count_uncovered_prs_for_backfill(
+    db: DatabaseManager,
+    organization: str,
+    projects: list[str],
+    since: date | None,
+    until: date | None,
+) -> int:
+    """Count eligible uncovered completed PRs for the requested org."""
+    clauses: list[str] = [
+        "status = 'completed'",
+        "comments_extracted_at IS NULL",
+        "organization_name = ?",
+    ]
+    params: list[str] = [organization]
+
+    if projects:
+        placeholders = ", ".join("?" for _ in projects)
+        clauses.append(f"project_name IN ({placeholders})")
+        params.extend(projects)
+    if since is not None:
+        clauses.append("closed_date >= ?")
+        params.append(since.isoformat())
+    if until is not None:
+        clauses.append("closed_date < ?")
+        params.append(until.isoformat())
+
+    sql = "SELECT COUNT(*) AS cnt\nFROM pull_requests\nWHERE " + "\n  AND ".join(
+        clauses
+    )
+    try:
+        row = db.execute(sql, tuple(params)).fetchone()
+        return int(row["cnt"]) if row is not None else 0
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not count candidate pull requests: {e}"
+        ) from e
+
+
+def _detect_conflicting_backfill_organizations(
+    db: DatabaseManager,
+    expected_organization: str,
+    projects: list[str],
+    since: date | None,
+    until: date | None,
+) -> list[str]:
+    """Return unexpected organizations inside the filtered backfill scope.
+
+    Backfill is a single-organization command. The query below intentionally
+    applies the same project/date/uncovered predicates as selection while
+    omitting the expected-org predicate so mixed-org evidence is surfaced as a
+    fatal targeting error instead of a misleading partial run.
+    """
+    clauses: list[str] = [
+        "status = 'completed'",
+        "comments_extracted_at IS NULL",
+        "organization_name <> ?",
+    ]
+    params: list[str] = [expected_organization]
+
+    if projects:
+        placeholders = ", ".join("?" for _ in projects)
+        clauses.append(f"project_name IN ({placeholders})")
+        params.extend(projects)
+    if since is not None:
+        clauses.append("closed_date >= ?")
+        params.append(since.isoformat())
+    if until is not None:
+        clauses.append("closed_date < ?")
+        params.append(until.isoformat())
+
+    sql = (
+        "SELECT DISTINCT organization_name\n"
+        "FROM pull_requests\n"
+        "WHERE " + "\n  AND ".join(clauses) + "\n"
+        "ORDER BY organization_name ASC"
+    )
+
+    try:
+        cursor = db.execute(sql, tuple(params))
+        return [
+            str(row["organization_name"])
+            for row in cursor.fetchall()
+            if row["organization_name"] is not None
+        ]
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not validate single-organization scope: {e}"
         ) from e
 
 
@@ -1368,6 +1461,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
     warnings_list: list[str] = []
     processed_count = 0
     failed_count = 0
+    metadata_threads_fetched = 0
+    metadata_comments_fetched = 0
 
     # FR-030d parity: parse ``--projects`` once at entry. Both omitted
     # (``None``) and explicit empty-string (``""``) normalize to ``[]``
@@ -1485,8 +1580,30 @@ def cmd_backfill_comments(args: Namespace) -> int:
         #       No project-scoped preflight runs here, so a stale or
         #       inaccessible project cannot abort the run before later
         #       selectable PRs get their in-loop attempt.
+        conflicting_organizations = _detect_conflicting_backfill_organizations(
+            db,
+            args.organization,
+            parsed_projects,
+            args.since,
+            args.until,
+        )
+        if conflicting_organizations:
+            mismatches = ", ".join(conflicting_organizations)
+            raise DatabaseError(
+                "backfill-comments requires a database scope that matches the "
+                f"requested organization {args.organization!r}; found uncovered "
+                f"completed pull requests for other organization(s): {mismatches}"
+            )
+        eligible_count = _count_uncovered_prs_for_backfill(
+            db,
+            args.organization,
+            parsed_projects,
+            args.since,
+            args.until,
+        )
         selection_snapshot = _select_uncovered_prs_for_backfill(
             db,
+            args.organization,
             parsed_projects,
             args.since,
             args.until,
@@ -1567,6 +1684,8 @@ def cmd_backfill_comments(args: Namespace) -> int:
             else:
                 outcome_label = "Processed"
                 processed_count += 1
+                metadata_threads_fetched += outcome.threads_upserted
+                metadata_comments_fetched += outcome.comments_upserted
 
             # FR-018c: progress line strictly AFTER commit/rollback resolves.
             logger.info(
@@ -1590,6 +1709,15 @@ def cmd_backfill_comments(args: Namespace) -> int:
             raise DatabaseError(
                 f"backfill-comments could not recompute review timestamps: {e}"
             ) from e
+
+        repo.update_comments_extraction_metadata(
+            last_run_timestamp=datetime.now(UTC).isoformat(),
+            prs_processed=processed_count,
+            threads_fetched=metadata_threads_fetched,
+            comments_fetched=metadata_comments_fetched,
+            capped=bool(args.limit > 0 and eligible_count > len(selection_snapshot)),
+        )
+        db.connection.commit()
 
         # Build full-shape success RunSummary (schema unchanged per FR-025a).
         timing.total_seconds = time.perf_counter() - start_time
