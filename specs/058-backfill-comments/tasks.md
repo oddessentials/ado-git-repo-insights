@@ -456,13 +456,13 @@ All 38 new test methods + the `.test-floor-contract.json::python::min_collected`
 
 ## Phase 4: Pre-merge verification (VR-28 + quickstart smoke)
 
-- [ ] **T021** [P] Execute all 6 quickstart smoke tests ([quickstart.md](./quickstart.md))
+- [X] **T021** [P] Execute all 6 quickstart smoke tests ([quickstart.md](./quickstart.md))
   - Scenarios: (1) happy-path drain of a seeded uncovered corpus, (2) resumability (re-run drains zero), (3) `--limit` bounds a single invocation, (4) partial-failure artifact contains both per-PR and loop-complete entries, (5) legacy-schema DB produces skip artifact, (6) empty-selection produces loop-complete artifact with zero entries. Exact commands in `quickstart.md` §§1–6.
   - Outcome: every scenario produces the expected exit code + artifact shape.
   - **No file writes under `docs/`** (FR-029 / FR-029a) — results may be captured in a transient local note, not committed.
   - FR refs: **FR-032** (end-to-end). **VR-28** readiness.
 
-- [ ] **T022** Run the authoritative pre-push gate chain
+- [X] **T022** Run the authoritative pre-push gate chain
   - Command: `python scripts/run_repo_hook.py pre-push`.
   - Chain executed (sequential): **version-guard** (QG-51, fast-fail) → **authoritative preflight** (`scripts/run_pr_preflight.py`) which runs cross-OS collection parity (**QG-45**), ratchet-bump guard (**QG-43**), suppression audit (**QG-41**), mypy (**QG-40 / VR-03**), ruff (**VR-02**), pytest (**VR-04 / QG-42**), extension `format:check` (**QG-55 / VR-02a**), gitleaks (**QG-56**), `test:ci` (**QG-49**).
   - **Forbidden overrides**: no `--no-verify` (QG-38), no `--allow-local-degraded` (QG-56), no `[*-acknowledged]` bypass markers (QG-50 — this feature introduces no condition that would need one).
