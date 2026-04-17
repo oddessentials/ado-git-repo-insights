@@ -35,6 +35,7 @@ from ado_git_repo_insights.persistence.database import DatabaseError, DatabaseMa
 from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 from ado_git_repo_insights.types import SqliteParam
+from ado_git_repo_insights.utils.path_security import safe_join
 
 # ---------------------------------------------------------------------------
 # Module-level corpora (Principle XXVI — locked at collection time)
@@ -2245,20 +2246,20 @@ class TestBackfillDatabasePreconditions:
             def __init__(self, inner: sqlite3.Connection) -> None:
                 self._inner = inner
 
-            def execute(self, sql: str, *args: object) -> object:
+            def execute(self, sql: str) -> Cursor:
                 if (
                     "sqlite_master" in sql
                     and "pr_threads" in sql
                     and "pr_comments" in sql
                 ):
                     raise sqlite3.DatabaseError("schema probe exploded")
-                return self._inner.execute(sql, *args)
+                return self._inner.execute(sql)
 
             def close(self) -> None:
                 self._inner.close()
 
-        def fake_connect(*args: object, **kwargs: object) -> object:
-            return _ProbeConn(real_connect(*args, **kwargs))
+        def fake_connect(database: str) -> _ProbeConn:
+            return _ProbeConn(real_connect(database))
 
         monkeypatch.setattr("ado_git_repo_insights.cli.sqlite3.connect", fake_connect)
 
@@ -2355,7 +2356,7 @@ class TestBackfillDatabasePreconditions:
 
         from ado_git_repo_insights import cli as cli_mod
 
-        real_safe_join = cli_mod.safe_join
+        real_safe_join = safe_join
         calls = {"count": 0}
 
         def fake_safe_join(root: Path, relative: str) -> Path:

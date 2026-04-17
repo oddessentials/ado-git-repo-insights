@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from .persistence.database import DatabaseManager
     from .persistence.repository import PRRepository
     from .types import AdoThread
+    from .utils.run_summary import RunSummary
 
 from .persistence.database import DatabaseError
 
@@ -1833,7 +1834,7 @@ def _format_backfill_date(value: date | None) -> str:
     return value.isoformat() if value is not None else ""
 
 
-def _write_backfill_run_summary(summary: object, artifacts_dir: Path) -> None:
+def _write_backfill_run_summary(summary: RunSummary, artifacts_dir: Path) -> None:
     """Persist the backfill run summary with D2 classification on path/IO errors.
 
     Only path-resolution and filesystem-write failures are normalized here.
