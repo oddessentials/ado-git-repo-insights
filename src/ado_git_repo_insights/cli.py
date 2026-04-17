@@ -1382,6 +1382,26 @@ def cmd_backfill_comments(args: Namespace) -> int:
         for ordinal, pr_row in enumerate(selection_snapshot, start=1):
             pr_uid = cast(str, pr_row["pull_request_uid"])
             outcome_label: Literal["Processed", "Failed"]
+
+            # FR-012 / FR-013 / FR-013a: per-PR atomicity. DatabaseManager
+            # opens its connection with ``isolation_level=None`` (autocommit),
+            # so ``db.connection.commit()`` / ``rollback()`` alone would be
+            # no-ops — every upsert would persist the instant it fires and
+            # a mid-iteration failure would leave partial rows for the PR.
+            # Wrapping each iteration in an explicit ``BEGIN IMMEDIATE`` …
+            # ``COMMIT`` / ``ROLLBACK`` is what makes the per-PR atomic
+            # contract hold.
+            #
+            # ``BEGIN IMMEDIATE`` (not plain ``BEGIN``) acquires the write
+            # lock up front so a second process cannot interleave writes
+            # mid-iteration. No SQL may run between this guard and the
+            # first upsert — not even a lookup — otherwise the atomic
+            # scope shrinks.
+            assert not db.connection.in_transaction, (
+                "per-PR iteration started while a transaction was already "
+                "open; backfill atomicity contract violated"
+            )
+            db.execute("BEGIN IMMEDIATE")
             try:
                 outcome = _fetch_and_upsert_threads_for_pr(
                     client, db, repo, pr_row, args.comments_max_threads_per_pr
@@ -1398,17 +1418,25 @@ def cmd_backfill_comments(args: Namespace) -> int:
                         "WHERE pull_request_uid = ?",
                         (datetime.now(UTC).isoformat(), pr_uid),
                     )
-                db.connection.commit()
-                outcome_label = "Processed"
-                processed_count += 1
+                db.execute("COMMIT")
             except ExtractionError as e:
-                db.connection.rollback()
+                db.execute("ROLLBACK")
                 _append_backfill_warning(
                     warnings_list,
                     f"failed to process PR {pr_uid}: {normalize_error_message(str(e))}",
                 )
                 outcome_label = "Failed"
                 failed_count += 1
+            except BaseException:
+                # Ensure the per-PR transaction rolls back before any
+                # re-raise (KeyboardInterrupt, DatabaseError, anything
+                # unexpected). Site D4 / D5 in the outer try own the exit
+                # codes; this clause only guarantees no transaction leaks.
+                db.execute("ROLLBACK")
+                raise
+            else:
+                outcome_label = "Processed"
+                processed_count += 1
 
             # FR-018c: progress line strictly AFTER commit/rollback resolves.
             logger.info(

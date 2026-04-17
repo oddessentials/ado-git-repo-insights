@@ -18,6 +18,7 @@ import subprocess
 from argparse import Namespace
 from datetime import date
 from pathlib import Path
+from sqlite3 import Cursor
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,6 +32,7 @@ from ado_git_repo_insights.config import _parse_iso_date, _parse_projects_list
 from ado_git_repo_insights.extractor.ado_client import ExtractionError
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
+from ado_git_repo_insights.types import SqliteParam
 
 # ---------------------------------------------------------------------------
 # Module-level corpora (Principle XXVI — locked at collection time)
@@ -431,6 +433,169 @@ class TestPerPRAtomicity:
                 db2.close()
         finally:
             pass
+
+    def test_per_pr_transaction_issues_begin_commit_on_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Structural lock: successful iteration issues BEGIN IMMEDIATE
+        then COMMIT, with no interleaved ROLLBACK. Detects regression to
+        implicit db.connection.commit() (autocommit no-op)."""
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            sql_log.append(sql)
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, _ = _run_backfill(args, client=client)
+        assert exit_code == 0
+
+        # Per-PR tx is the first transaction in the log. Later entries
+        # are the review-time recomputation (its own BEGIN TRANSACTION
+        # pair at end-of-loop) — out of scope for this assertion.
+        tx_log = [
+            s
+            for s in sql_log
+            if s in ("BEGIN IMMEDIATE", "BEGIN TRANSACTION", "COMMIT", "ROLLBACK")
+        ]
+        assert tx_log[:2] == ["BEGIN IMMEDIATE", "COMMIT"], tx_log
+
+    def test_per_pr_transaction_issues_begin_rollback_on_extraction_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Structural lock: a per-PR ExtractionError issues BEGIN IMMEDIATE
+        then ROLLBACK, with no COMMIT. Proves Site A takes the rollback
+        branch of the explicit transaction."""
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        sql_log: list[str] = []
+        original_execute = DatabaseManager.execute
+
+        def spy_execute(
+            self_db: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            sql_log.append(sql)
+            return original_execute(self_db, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", spy_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(raises={"1": ExtractionError("boom")})
+        exit_code, _ = _run_backfill(args, client=client)
+        assert exit_code == 0
+
+        tx_log = [
+            s
+            for s in sql_log
+            if s in ("BEGIN IMMEDIATE", "BEGIN TRANSACTION", "COMMIT", "ROLLBACK")
+        ]
+        assert tx_log[:2] == ["BEGIN IMMEDIATE", "ROLLBACK"], tx_log
+
+    def test_mid_iteration_failure_leaves_no_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Behavioral lock (proves rollback correctness, not just SQL).
+
+        Patches ``repo.upsert_comment`` to raise ``ExtractionError`` on
+        the second call so the first comment's row has already landed
+        inside the per-PR transaction when the failure fires. With the
+        explicit BEGIN IMMEDIATE / ROLLBACK wrapping, ROLLBACK MUST
+        unwind every thread and comment row for that PR, leaving the
+        database bit-identical to its pre-iteration state
+        (FR-012 / FR-013). Without the transaction, the first row
+        would have autocommitted and the assertion would fail.
+        """
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(
+            per_pr={
+                "1": [_make_thread(10), _make_thread(20)],
+            }
+        )
+
+        original_upsert_comment = PRRepository.upsert_comment
+        call_count = 0
+
+        def wrapped_upsert_comment(
+            repo_self: PRRepository,
+            *,
+            comment_id: str,
+            thread_id: str,
+            pull_request_uid: str,
+            author_id: str,
+            content: str | None,
+            comment_type: str | None,
+            created_at: str,
+            last_updated: str | None = None,
+            is_deleted: bool = False,
+        ) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise ExtractionError("injected mid-iteration upsert failure")
+            original_upsert_comment(
+                repo_self,
+                comment_id=comment_id,
+                thread_id=thread_id,
+                pull_request_uid=pull_request_uid,
+                author_id=author_id,
+                content=content,
+                comment_type=comment_type,
+                created_at=created_at,
+                last_updated=last_updated,
+                is_deleted=is_deleted,
+            )
+
+        monkeypatch.setattr(PRRepository, "upsert_comment", wrapped_upsert_comment)
+
+        exit_code, _ = _run_backfill(args, client=client)
+        assert exit_code == 0
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            threads = db2.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            comments = db2.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid=?",
+                ("p1",),
+            ).fetchone()[0]
+            assert threads == 0, (
+                f"Per-PR rollback failed: expected 0 threads, got {threads}. "
+                "Backfill must bracket each PR in BEGIN IMMEDIATE / COMMIT / "
+                "ROLLBACK — autocommit semantics do not honor the contract."
+            )
+            assert comments == 0, (
+                f"Per-PR rollback failed: expected 0 comments, got {comments}."
+            )
+            marker_row = db2.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid='p1'"
+            ).fetchone()
+            assert marker_row["comments_extracted_at"] is None
+        finally:
+            db2.close()
 
 
 # ---------------------------------------------------------------------------
