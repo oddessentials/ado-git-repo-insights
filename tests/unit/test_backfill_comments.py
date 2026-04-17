@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+import sqlite3
 from argparse import Namespace
 from datetime import date
 from pathlib import Path
@@ -24,13 +25,14 @@ import pytest
 
 from ado_git_repo_insights.cli import (
     _get_probe_project,
+    _legacy_schema_missing_thread_tables,
     _select_uncovered_prs_for_backfill,
     cmd_backfill_comments,
     create_parser,
 )
 from ado_git_repo_insights.config import _parse_iso_date, _parse_projects_list
 from ado_git_repo_insights.extractor.ado_client import ExtractionError
-from ado_git_repo_insights.persistence.database import DatabaseManager
+from ado_git_repo_insights.persistence.database import DatabaseError, DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.types import SqliteParam
 
@@ -915,6 +917,40 @@ class TestLegacySchemaDiscriminator:
             isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
         ), warnings
 
+    def test_missing_pull_requests_is_not_legacy_schema(self, tmp_path: Path) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.execute("DROP TABLE IF EXISTS pr_comments")
+        db.execute("DROP TABLE IF EXISTS pr_threads")
+        db.execute("DROP TABLE IF EXISTS pull_requests")
+        db.connection.commit()
+
+        with pytest.raises(DatabaseError) as exc_info:
+            _legacy_schema_missing_thread_tables(db)
+
+        message = str(exc_info.value)
+        assert "pull_requests" in message
+        assert "recognized extracted insights database" in message
+        db.close()
+
+    def test_schema_probe_sqlite_failures_are_normalized(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+
+        def explode(*args: object, **kwargs: object) -> object:
+            raise sqlite3.DatabaseError("schema probe exploded")
+
+        monkeypatch.setattr(db, "execute", explode)
+
+        with pytest.raises(DatabaseError) as exc_info:
+            _legacy_schema_missing_thread_tables(db)
+
+        assert (
+            str(exc_info.value)
+            == "backfill-comments could not inspect database schema: schema probe exploded"
+        )
+        db.close()
+
 
 # ---------------------------------------------------------------------------
 # #17-19 NoImplicitSafetyClaims
@@ -1548,6 +1584,104 @@ class TestBackfillDatabasePreconditions:
         assert "could not inspect" in fatal, fatal
         # Confirm the underlying OSError cause propagated through str().
         assert "simulated permission denied" in fatal, fatal
+
+    def test_arbitrary_sqlite_file_never_emits_legacy_skip(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "wrong.db"
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute("CREATE TABLE unrelated (id INTEGER PRIMARY KEY)")
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
+    def test_non_database_file_routes_through_database_error(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "garbage.db"
+        db_path.write_bytes(b"this is not sqlite")
+
+        args = _make_args(tmp_path, db_path)
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
+    def test_post_connect_schema_probe_routes_through_database_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        real_execute = DatabaseManager.execute
+
+        def fake_execute(
+            self: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if "sqlite_master" in sql and "pr_threads" in sql and "pr_comments" in sql:
+                raise sqlite3.DatabaseError("schema probe exploded")
+            return real_execute(self, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", fake_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not inspect database schema" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and "legacy-schema-skip:" in w for w in warnings
+        ), warnings
+
+    def test_post_connect_selection_probe_routes_through_database_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        real_execute = DatabaseManager.execute
+
+        def fake_execute(
+            self: DatabaseManager,
+            sql: str,
+            parameters: tuple[SqliteParam, ...] = (),
+        ) -> Cursor:
+            if sql.startswith(
+                "SELECT pull_request_uid, pull_request_id, repository_id,"
+            ):
+                raise sqlite3.DatabaseError("selection exploded")
+            return real_execute(self, sql, parameters)
+
+        monkeypatch.setattr(DatabaseManager, "execute", fake_execute)
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not select candidate pull requests" in fatal, fatal
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import importlib.util
 import logging
 import re
 import shutil
+import sqlite3
 import sys
 import time
 from collections.abc import Mapping
@@ -1010,19 +1011,33 @@ def _append_backfill_warning(warnings: list[str], body: str) -> None:
 
 
 def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
-    """Return True only for the exact legacy shape with both thread tables absent.
+    """Return True only for the exact legacy insights shape with both thread tables absent.
 
     Queries ``sqlite_master`` without side effects. The helper owns the
     schema discriminator for ``backfill-comments``:
+    - missing ``pull_requests`` -> not an insights DB, raise ``DatabaseError``
     - both ``pr_threads`` and ``pr_comments`` absent -> legacy no-op
     - both present -> modern schema, continue normally
     - exactly one absent -> broken or mis-targeted DB, raise ``DatabaseError``
     """
-    row = db.execute(
-        "SELECT name FROM sqlite_master "
-        "WHERE type='table' AND name IN ('pr_threads', 'pr_comments')"
-    ).fetchall()
+    try:
+        row = db.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name IN "
+            "('pull_requests', 'pr_threads', 'pr_comments')"
+        ).fetchall()
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not inspect database schema: {e}"
+        ) from e
+
     present = {r["name"] if hasattr(r, "keys") else r[0] for r in row}
+    if "pull_requests" not in present:
+        raise DatabaseError(
+            "backfill-comments requires the pull_requests table; "
+            "database is not a recognized extracted insights database"
+        )
+
     has_threads = "pr_threads" in present
     has_comments = "pr_comments" in present
     if not has_threads and not has_comments:
@@ -1091,8 +1106,13 @@ def _select_uncovered_prs_for_backfill(
         sql += "\nLIMIT ?"
         params.append(limit)
 
-    cursor = db.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
+    try:
+        cursor = db.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not select candidate pull requests: {e}"
+        ) from e
 
 
 def cmd_extract(args: Namespace) -> int:
