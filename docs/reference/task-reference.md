@@ -66,7 +66,7 @@ with `mode: extract` causes the task to fail fast.
 |-------|---------|-------------|
 | `backfillSince` | None | Only backfill PRs closed on or after this date (YYYY-MM-DD) |
 | `backfillUntil` | None | Only backfill PRs closed strictly before this date (YYYY-MM-DD, exclusive) |
-| `backfillLimit` | `0` (no limit) | Maximum PRs processed per run. Sized against your pipeline's job timeout at ~1 PR/sec throughput; see the [extension user guide](../user-guide/extension.md#sizing-backfilllimit). |
+| `backfillLimit` | `0` (no limit) | Maximum PRs processed per run. Sized against your pipeline's job timeout at ~1 PR/sec (empirical, not a guarantee); see the [extension user guide](../user-guide/extension.md#sizing-backfilllimit). |
 | `commentsMaxThreadsPerPr` | `50` | Cap on how many threads are fetched per PR; `0` = unlimited (shared with extract mode) |
 | `database` | `$(Pipeline.Workspace)/data/ado-insights.sqlite` | SQLite database path (shared with extract mode) |
 | `generateAggregates` | `true` | Run aggregates after backfill so `review_time` metrics refresh |

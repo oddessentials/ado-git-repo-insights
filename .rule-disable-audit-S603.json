@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 91,
+  "total_call_sites": 89,
   "unsafe_count": 8,
   "call_sites": [
     {
@@ -535,22 +535,6 @@
       "file": "tests/unit/test_audit_suppressions.py",
       "line": 1115,
       "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "tests/unit/test_backfill_comments.py",
-      "line": 579,
-      "code": "merge_base = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "tests/unit/test_backfill_comments.py",
-      "line": 595,
-      "code": "diff = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

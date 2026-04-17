@@ -195,7 +195,7 @@ ado-insights backfill-comments [OPTIONS]
 | `--projects PROJECTS` | None (all projects) | Comma-separated project names; empty means every uncovered project is eligible |
 | `--since YYYY-MM-DD` | None | Only backfill PRs closed on or after this date (strict `YYYY-MM-DD`) |
 | `--until YYYY-MM-DD` | None | Only backfill PRs closed strictly before this date (exclusive) |
-| `--limit N` | `0` (no limit) | Maximum PRs processed this run. Throughput is ~1 PR/sec steady-state; size accordingly for your pipeline's timeout. |
+| `--limit N` | `0` (no limit) | Maximum PRs processed this run. Throughput is approximately ~1 PR/sec in measured runs (empirical, not a guarantee); size accordingly for your pipeline's timeout. |
 | `--comments-max-threads-per-pr N` | `50` | Cap on threads fetched per PR; `0` = unlimited |
 
 ### Behavior notes

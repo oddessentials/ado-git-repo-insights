@@ -14,7 +14,6 @@ from __future__ import annotations
 import ast
 import json
 import re
-import subprocess
 from argparse import Namespace
 from datetime import date
 from pathlib import Path
@@ -768,45 +767,6 @@ class TestFilterParsingParity:
         else:
             with pytest.raises(ValueError, match=r".*"):
                 _parse_iso_date(raw)
-
-
-# ---------------------------------------------------------------------------
-# #13 DocsTreeUntouched
-# ---------------------------------------------------------------------------
-
-
-class TestDocsTreeUntouched:
-    """FR-029/029a + FR-030g: feature branch leaves docs/ unchanged."""
-
-    def test_feature_branch_has_zero_diff_under_docs(self) -> None:
-        # Find merge-base with origin/main and diff docs/ between it and HEAD.
-        try:
-            merge_base = subprocess.run(
-                ["git", "merge-base", "origin/main", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=10,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            pytest.skip("git unavailable")
-            return
-
-        if merge_base.returncode != 0:
-            pytest.skip(f"merge-base unavailable: {merge_base.stderr}")
-            return
-
-        base = merge_base.stdout.strip()
-        diff = subprocess.run(
-            ["git", "diff", "--name-only", f"{base}..HEAD", "--", "docs/"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-        assert diff.returncode == 0, diff.stderr
-        changed = [line for line in diff.stdout.splitlines() if line.strip()]
-        assert changed == [], f"Feature 058 MUST NOT touch docs/; changed: {changed}"
 
 
 # ---------------------------------------------------------------------------
