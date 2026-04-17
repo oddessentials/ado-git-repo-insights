@@ -217,6 +217,8 @@ Diagnose issues: `ado-insights doctor`
 
 The system uses **incremental extraction** by default (daily) with optional **backfill mode** to catch late changes (reviewer votes, status updates).
 
+Comment extraction is opt-in via `--include-comments` on extract; to cover PR comments for history that predates enabling it, run the one-time `backfill-comments` subcommand — see the [extension guide](docs/user-guide/extension.md#backfilling-historical-pr-comments) or [CLI guide](docs/user-guide/local-cli.md#backfill-historical-comments).
+
 ![PR Insights Dashboard showing cycle time trends, throughput charts, and reviewer activity](extension/screenshots/dashboard-overview.png)
 
 ---

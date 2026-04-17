@@ -145,6 +145,50 @@ abc123-42,user3,5,abc123
 
 ---
 
+## Auxiliary Comments CSVs
+
+Additive CSVs emitted only when PR comment extraction has run at least
+once (`--include-comments` on `extract`, or the one-time
+`backfill-comments` drain). These live **outside** the PowerBI contract
+root under `auxiliary/comments/` and are **not** covered by the
+stable-column guarantee at the top of this file.
+
+### auxiliary/comments/pr_threads.csv
+
+PR discussion thread records.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `thread_id` | integer | Thread ID within the PR |
+| `pull_request_uid` | string | PR unique ID (FK) |
+| `status` | string | ADO thread status (e.g., `active`, `fixed`, `closed`) |
+| `thread_context` | string | Serialized thread context payload |
+| `last_updated` | datetime | Last thread update (ISO 8601) |
+| `created_at` | datetime | Thread creation (ISO 8601) |
+| `is_deleted` | integer | `1` if the thread was deleted upstream, else `0` |
+
+Sorted by `pull_request_uid` ASC, `thread_id` ASC.
+
+### auxiliary/comments/pr_comments.csv
+
+Individual comment records within threads.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `comment_id` | integer | Comment ID |
+| `thread_id` | integer | Parent thread (FK) |
+| `pull_request_uid` | string | PR unique ID (FK) |
+| `author_id` | string | Comment author user ID (FK) |
+| `content` | string | Comment text |
+| `comment_type` | string | ADO comment type (e.g., `text`, `codeChange`) |
+| `created_at` | datetime | Comment creation (ISO 8601) |
+| `last_updated` | datetime | Last comment update (ISO 8601) |
+| `is_deleted` | integer | `1` if the comment was deleted upstream, else `0` |
+
+Sorted by `pull_request_uid` ASC, `thread_id` ASC, `comment_id` ASC.
+
+---
+
 ## Data Model Relationships
 
 ```
