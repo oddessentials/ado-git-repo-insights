@@ -630,22 +630,22 @@ function testValidateModeInputsBackfillRejectsExtractKnobs() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 19: hidden/defaulted PR cap is neutral only when normalized to default
-function testValidateModeInputsBackfillAllowsHiddenDefaultPrCap() {
+// Test 19: backfill mode rejects any meaningful extract-era PR cap
+function testValidateModeInputsBackfillRejectsMeaningfulPrCap() {
   console.log(
-    "Test: validateModeInputs backfill-mode allows only the normalized hidden default PR cap...",
+    "Test: validateModeInputs backfill-mode rejects any meaningful commentsMaxPrsPerRun value...",
   );
-  for (const neutral of ["", "100", " 100 ", 100]) {
+  for (const neutral of ["", "   ", undefined, null]) {
     const result = validateModeInputs("backfill-comments", {
       commentsMaxPrsPerRun: neutral,
     });
     assert.strictEqual(
       result.ok,
       true,
-      `commentsMaxPrsPerRun=${JSON.stringify(neutral)} must be neutral`,
+      `commentsMaxPrsPerRun=${JSON.stringify(neutral)} must be treated as absent`,
     );
   }
-  for (const forbidden of ["101", " 101 ", 101, "0", "abc"]) {
+  for (const forbidden of ["100", " 100 ", 100, "101", " 101 ", 101, "0", "abc"]) {
     const result = validateModeInputs("backfill-comments", {
       commentsMaxPrsPerRun: forbidden,
     });
@@ -818,7 +818,7 @@ function runTests() {
     testValidateModeInputsModeGate();
     testValidateModeInputsExtractRejectsBackfillKnobs();
     testValidateModeInputsBackfillRejectsExtractKnobs();
-    testValidateModeInputsBackfillAllowsHiddenDefaultPrCap();
+    testValidateModeInputsBackfillRejectsMeaningfulPrCap();
     testValidateModeInputsIncludeCommentsBoolean();
     testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();

@@ -24,7 +24,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ado_git_repo_insights.cli import (
-    _get_probe_project,
     _legacy_schema_missing_thread_tables,
     _select_uncovered_prs_for_backfill,
     cmd_backfill_comments,
@@ -699,6 +698,30 @@ class TestInterruptSafety:
                 assert remaining_uids == {"p3"}
             finally:
                 db2.close()
+        finally:
+            pass
+
+    def test_signal_preserves_keyboardinterrupt_when_summary_write_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        try:
+            _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+            db.close()
+
+            args = _make_args(tmp_path, tmp_path / "test.db")
+            client = _mock_client(raises={"1": KeyboardInterrupt()})
+
+            def fake_write_summary(_summary: object, _artifacts_dir: Path) -> None:
+                raise DatabaseError("summary write failed during interrupt handling")
+
+            monkeypatch.setattr(
+                "ado_git_repo_insights.cli._write_backfill_run_summary",
+                fake_write_summary,
+            )
+
+            with pytest.raises(KeyboardInterrupt):
+                _run_backfill(args, client=client)
         finally:
             pass
 
@@ -1683,62 +1706,167 @@ class TestBackfillDatabasePreconditions:
         assert fatal.startswith("Database error:"), fatal
         assert "could not select candidate pull requests" in fatal, fatal
 
+    def test_connect_oserror_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        def fake_connect(self: DatabaseManager) -> None:
+            raise PermissionError("connect parent mkdir denied")
+
+        monkeypatch.setattr(DatabaseManager, "connect", fake_connect)
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not connect to the database" in fatal, fatal
+        assert "connect parent mkdir denied" in fatal, fatal
+
+    def test_review_timestamp_recompute_sqlite_error_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        def fake_recompute(_db: DatabaseManager) -> None:
+            raise sqlite3.DatabaseError("review timestamp recompute exploded")
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._backfill_review_timestamps_if_needed",
+            fake_recompute,
+        )
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not recompute review timestamps" in fatal, fatal
+        assert "review timestamp recompute exploded" in fatal, fatal
+
+    def test_run_summary_path_resolution_failure_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        from ado_git_repo_insights import cli as cli_mod
+
+        real_safe_join = cli_mod.safe_join
+        calls = {"count": 0}
+
+        def fake_safe_join(root: Path, relative: str) -> Path:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise ValueError("Path escapes root: run_summary.json")
+            return real_safe_join(root, relative)
+
+        monkeypatch.setattr(cli_mod, "safe_join", fake_safe_join)
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not resolve run summary artifact path" in fatal, fatal
+        assert "Path escapes root" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str)
+            and w == "fatal-abort: Path escapes root: run_summary.json"
+            for w in warnings
+        ), warnings
+
+    def test_run_summary_write_oserror_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        from ado_git_repo_insights.utils.run_summary import RunSummary
+
+        real_write = RunSummary.write
+        calls = {"count": 0}
+
+        def fake_write(self: RunSummary, path: Path) -> None:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise OSError("disk full during summary write")
+            real_write(self, path)
+
+        monkeypatch.setattr(RunSummary, "write", fake_write)
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args)
+
+        assert exit_code == 1
+        fatal = str(artifact.get("first_fatal_error", ""))
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not write run summary artifact" in fatal, fatal
+        assert "disk full during summary write" in fatal, fatal
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        assert not any(
+            isinstance(w, str) and w == "fatal-abort: disk full during summary write"
+            for w in warnings
+        ), warnings
+
+    def test_unexpected_exception_preserved_when_summary_write_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        db.close()
+
+        def fake_select(
+            _db: DatabaseManager,
+            _projects: list[str],
+            _since: date | None,
+            _until: date | None,
+            _limit: int,
+        ) -> list[object]:
+            raise RuntimeError("selection blew up unexpectedly")
+
+        def fake_write_summary(_summary: object, _artifacts_dir: Path) -> None:
+            raise DatabaseError("summary write failed during D5 handling")
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._select_uncovered_prs_for_backfill",
+            fake_select,
+        )
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._write_backfill_run_summary",
+            fake_write_summary,
+        )
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        with pytest.raises(RuntimeError, match="selection blew up unexpectedly"):
+            cmd_backfill_comments(args)
+
 
 # ---------------------------------------------------------------------------
 # ConnectionProbe — P2 contract fix (probe from filtered snapshot)
 # ---------------------------------------------------------------------------
 
 
-class TestConnectionProbe:
-    """P2: ``test_connection`` probes the filtered selection, not the
-    broader DB. Locks FR-004/5/6 empty-filter semantics and FR-030d-style
-    parity between declared filter and network work.
-    """
-
-    def test_get_probe_project_picks_row_zero_or_none(self) -> None:
-        """Unit test on the pure helper. Covers: empty snapshot returns
-        None; row 0 with a valid string wins; null / non-str / empty
-        project_name at row 0 is treated as "no probe" (defensive guard
-        against bad data); later rows are never consulted.
-        """
-        # Empty snapshot → None.
-        assert _get_probe_project([]) is None
-
-        # Row 0 valid str → returned unchanged.
-        assert _get_probe_project([{"project_name": "ProjectA"}]) == "ProjectA"
-
-        # Row 0 null → None (defensive).
-        assert _get_probe_project([{"project_name": None}]) is None
-
-        # Row 0 empty str → None.
-        assert _get_probe_project([{"project_name": ""}]) is None
-
-        # Row 0 wrong type → None.
-        assert _get_probe_project([{"project_name": 42}]) is None
-
-        # Only row 0 consulted — later rows ignored.
-        assert (
-            _get_probe_project(
-                [
-                    {"project_name": "First"},
-                    {"project_name": "Second"},
-                ]
-            )
-            == "First"
-        )
+class TestPreLoopConnectivity:
+    """Selection is network-free; the per-PR loop owns reachability handling."""
 
     def test_empty_filtered_snapshot_skips_connection_probe(
         self, tmp_path: Path
     ) -> None:
-        """A filtered selection that matches zero PRs MUST NOT call
-        ``test_connection`` against any project — not even a DB-sample
-        project outside the filter window (regression against the old
-        _resolve_backfill_probe_project behavior).
+        """An empty filtered selection must not trigger any connection probe
+        or per-PR API call.
         """
         db = _create_backfill_db(tmp_path)
-        # Seed a completed PR outside the --since window. It would be a
-        # valid DB-sample fallback project under the old behavior, but
-        # the filtered snapshot is empty so no probe should fire.
+        # Seed a completed PR outside the --since window. The filtered
+        # snapshot is still empty, so the run must stay network-free.
         _insert_pr(
             db,
             "old",
@@ -1765,49 +1893,58 @@ class TestConnectionProbe:
         assert isinstance(counts, dict)
         assert counts.get("prs_updated") == 0
 
-    def test_probe_respects_since_until_filter(self, tmp_path: Path) -> None:
-        """When a filter excludes project A but includes project B, the
-        probe MUST target project B (the actual snapshot's row 0),
-        not any project from the broader DB.
-        """
+    def test_inaccessible_first_pr_is_recorded_in_loop_and_run_continues(
+        self, tmp_path: Path
+    ) -> None:
+        """A stale/inaccessible first PR must remain a per-PR failure."""
         db = _create_backfill_db(tmp_path)
-        # ProjectA PR is outside the window.
         _insert_pr(
             db,
-            "a-old",
+            "p1",
             pr_id=1,
             project="ProjectA",
             repo="r1",
-            closed_date="2024-01-01T00:00:00Z",
+            closed_date="2026-01-01T00:00:00Z",
         )
-        # ProjectB PR is inside the window.
         _insert_pr(
             db,
-            "b-new",
+            "p2",
             pr_id=2,
             project="ProjectB",
             repo="r2",
-            closed_date="2026-02-15T00:00:00Z",
+            closed_date="2026-01-02T00:00:00Z",
         )
         db.close()
 
-        args = _make_args(
-            tmp_path,
-            tmp_path / "test.db",
-            since=date(2026, 1, 1),
-            until=date(2026, 6, 1),
-            max_threads=0,
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(
+            per_pr={"2": [_make_thread(20)]},
+            raises={"1": ExtractionError("project no longer accessible")},
         )
-        client = _mock_client(per_pr={"2": [_make_thread(20)]})
-        exit_code, _ = _run_backfill(args, client=client)
+        exit_code, artifact = _run_backfill(args, client=client)
 
         assert exit_code == 0
-        assert client.test_connection.call_count == 1
-        # Probe target is ProjectB (the only project the filter retains).
-        call_args = client.test_connection.call_args
-        positional_args = call_args.args if call_args else ()
-        called_project = positional_args[0] if positional_args else None
-        assert called_project == "ProjectB", call_args
+        assert client.test_connection.call_count == 0
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+        failed_entries = [
+            w for w in warnings if isinstance(w, str) and "failed to process PR p1" in w
+        ]
+        assert len(failed_entries) == 1, warnings
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 1
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            assert _read_marker(db2, "p1") is None
+            assert _read_marker(db2, "p2") is not None
+            remaining = _select_uncovered_prs_for_backfill(db2, [], None, None, 0)
+            remaining_uids = {str(r["pull_request_uid"]) for r in remaining}
+            assert remaining_uids == {"p1"}
+        finally:
+            db2.close()
 
 
 # ---------------------------------------------------------------------------

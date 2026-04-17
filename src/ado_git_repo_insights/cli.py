@@ -1416,7 +1416,12 @@ def cmd_backfill_comments(args: Namespace) -> int:
         # Pass 2 locked execution order: DB connect → legacy-schema check →
         # config validation → ADO client → test_connection → snapshot → loop.
         db = DatabaseManager(db_path)
-        db.connect()
+        try:
+            db.connect()
+        except OSError as e:
+            raise DatabaseError(
+                f"backfill-comments could not connect to the database ({db_path}): {e}"
+            ) from e
 
         # Site B (FR-017): legacy-schema no-op. Short-circuit before any
         # network work. Placed before config validation so a missing
@@ -1443,7 +1448,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
                 per_project_status={},
                 first_fatal_error=None,
             )
-            run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
+            _write_backfill_run_summary(run_summary, args.artifacts_dir)
             logger.info(
                 _BACKFILL_WARNING_PREFIX
                 + "skipped (legacy schema; no thread storage tables)"
@@ -1476,11 +1481,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
         # Execution order (locked):
         #   (a) selection snapshot — filtered SQL, no network.
         #   (b) opening anchor log — FR-018a.
-        #   (c) probe project resolution — row 0 of snapshot, or None.
-        #   (d) test_connection — only when probe is non-None. Empty
-        #       filtered selection skips the probe entirely so a stale
-        #       or inaccessible project outside the filter window can
-        #       never abort an otherwise-empty run.
+        #   (c) per-PR loop owns reachability/failure classification.
+        #       No project-scoped preflight runs here, so a stale or
+        #       inaccessible project cannot abort the run before later
+        #       selectable PRs get their in-loop attempt.
         selection_snapshot = _select_uncovered_prs_for_backfill(
             db,
             parsed_projects,
@@ -1493,9 +1497,6 @@ def cmd_backfill_comments(args: Namespace) -> int:
             _BACKFILL_WARNING_PREFIX + "backfill run over %d pull request(s)",
             total_count,
         )
-        probe_project = _get_probe_project(selection_snapshot)
-        if probe_project is not None:
-            client.test_connection(probe_project)
 
         # T014 per-PR loop with Sites A (per-PR failure) and per-PR
         # commit/rollback (FR-012 / FR-013 / FR-013a).
@@ -1583,7 +1584,12 @@ def cmd_backfill_comments(args: Namespace) -> int:
         )
 
         # FR-016: review-timestamp recomputation (reuses extract's hook).
-        _backfill_review_timestamps_if_needed(db)
+        try:
+            _backfill_review_timestamps_if_needed(db)
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f"backfill-comments could not recompute review timestamps: {e}"
+            ) from e
 
         # Build full-shape success RunSummary (schema unchanged per FR-025a).
         timing.total_seconds = time.perf_counter() - start_time
@@ -1602,7 +1608,7 @@ def cmd_backfill_comments(args: Namespace) -> int:
             per_project_status={},
             first_fatal_error=None,
         )
-        run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        _write_backfill_run_summary(run_summary, args.artifacts_dir)
         logger.info(
             _BACKFILL_WARNING_PREFIX + "processed %d pull requests (%d failures)",
             processed_count,
@@ -1624,7 +1630,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
             minimal.warnings,
             f"fatal-abort: Configuration error: {normalize_error_message(str(e))}",
         )
-        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
         return 1
     except DatabaseError as e:
         # Site D2 (FR-019b).
@@ -1636,7 +1645,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
             minimal.warnings,
             f"fatal-abort: Database error: {normalize_error_message(str(e))}",
         )
-        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
         return 1
     except ExtractionError as e:
         # Site D3 (FR-019c) — pre-loop only. Per-PR ExtractionError is
@@ -1649,7 +1661,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
             minimal.warnings,
             f"fatal-abort: Extraction error: {normalize_error_message(str(e))}",
         )
-        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
         return 1
     except KeyboardInterrupt:
         # Site D4 — write artifact with discriminator, then re-raise so
@@ -1660,7 +1675,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
         _append_backfill_warning(
             minimal.warnings, "fatal-abort: Operation cancelled by user"
         )
-        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
         raise
     except Exception as e:
         # Site D5 — write artifact with discriminator, then re-raise so
@@ -1672,7 +1690,10 @@ def cmd_backfill_comments(args: Namespace) -> int:
             minimal.warnings,
             f"fatal-abort: {normalize_error_message(str(e))}",
         )
-        minimal.write(safe_join(args.artifacts_dir, "run_summary.json"))
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
         raise
     finally:
         if db is not None:
@@ -1689,31 +1710,30 @@ def _format_backfill_date(value: date | None) -> str:
     return value.isoformat() if value is not None else ""
 
 
-def _get_probe_project(
-    selection_snapshot: list[Mapping[str, object]],
-) -> str | None:
-    """Return the project_name to probe ``test_connection`` against, or None.
+def _write_backfill_run_summary(summary: object, artifacts_dir: Path) -> None:
+    """Persist the backfill run summary with D2 classification on path/IO errors.
 
-    Pure helper — no DB queries, no network. The probe project is always
-    derived from row 0 of the already-filtered selection snapshot so the
-    connectivity check stays strictly bounded to what the per-PR loop
-    will actually process. A stale or inaccessible project outside the
-    filter window can never abort an otherwise-empty run.
-
-    Returns ``None`` — meaning "skip ``test_connection`` entirely" — when:
-      * the snapshot is empty (valid per FR-004/5/6 empty-filter case), OR
-      * snapshot row 0's ``project_name`` is absent, non-``str``, or empty
-        (defensive guard against bad data; treat as empty snapshot).
-
-    Single-sourced probe logic: any future caller that needs the same
-    decision MUST reuse this helper rather than reimplementing it inline.
+    Only path-resolution and filesystem-write failures are normalized here.
+    Programmer errors in serialization logic must still escape as unexpected
+    exceptions so Site D5 retains meaning.
     """
-    if not selection_snapshot:
-        return None
-    raw = selection_snapshot[0].get("project_name")
-    if not isinstance(raw, str) or not raw:
-        return None
-    return raw
+    from .persistence.database import DatabaseError
+
+    try:
+        summary_path = safe_join(artifacts_dir, "run_summary.json")
+    except (OSError, ValueError) as e:
+        raise DatabaseError(
+            f"backfill-comments could not resolve run summary artifact path: {e}"
+        ) from e
+
+    try:
+        writer = summary.write
+        writer(summary_path)
+    except OSError as e:
+        raise DatabaseError(
+            "backfill-comments could not write run summary artifact "
+            f"({summary_path}): {e}"
+        ) from e
 
 
 def cmd_generate_csv(args: Namespace) -> int:

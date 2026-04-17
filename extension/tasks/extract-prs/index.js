@@ -78,9 +78,6 @@ function buildExtractArgs(config) {
 }
 
 const ALLOWED_MODES = Object.freeze(["extract", "backfill-comments"]);
-const HIDDEN_DEFAULT_INPUTS = Object.freeze({
-  commentsMaxPrsPerRun: "100",
-});
 
 /**
  * Pure validator for mode + cross-mode input guards. Returns either
@@ -150,12 +147,7 @@ function validateModeInputs(mode, inputs) {
       };
     }
   }
-  if (
-    !isNeutralHiddenDefault(
-      "commentsMaxPrsPerRun",
-      inputs.commentsMaxPrsPerRun,
-    )
-  ) {
+  if (isMeaningfullySet(inputs.commentsMaxPrsPerRun)) {
     return {
       ok: false,
       message:
@@ -190,17 +182,6 @@ function validateModeInputs(mode, inputs) {
 function isMeaningfullySet(value) {
   if (value == null) return false;
   return String(value).trim() !== "";
-}
-
-function normalizeTaskInputValue(value) {
-  if (value == null) return "";
-  return String(value).trim();
-}
-
-function isNeutralHiddenDefault(name, value) {
-  const normalized = normalizeTaskInputValue(value);
-  if (normalized === "") return true;
-  return normalized === HIDDEN_DEFAULT_INPUTS[name];
 }
 
 /**
