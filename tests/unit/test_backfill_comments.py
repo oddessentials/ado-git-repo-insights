@@ -2577,6 +2577,95 @@ class TestPreLoopConnectivity:
         finally:
             db2.close()
 
+    def test_all_prs_failing_in_loop_still_exits_success(self, tmp_path: Path) -> None:
+        """SC-012: a 100%-failure run is a loop-completed run, exit 0.
+
+        Authoritative contract:
+          - specs/058-backfill-comments/spec.md:19 Q&A — exit 0 on loop
+            completion regardless of per-PR failure rate; non-zero is
+            reserved for fatal pre-loop errors.
+          - specs/058-backfill-comments/spec.md:346 SC-012 — "A run in which
+            every attempted pull request fails still exits with status code
+            zero, and its run_summary.json artifact carries counts accurate
+            enough for a downstream consumer to enforce its own failure-rate
+            policy."
+          - contracts/cli-subcommand.md:233 — exit code 0 row includes
+            "100%-failure" explicitly.
+          - contracts/cli-subcommand.md:271,273 — final_status="success" and
+            first_fatal_error=null on every loop-completed run.
+
+        Downstream consumers enforce their own failure-rate policy by
+        reading counts.prs_updated and the per-PR failure warnings.
+        """
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(
+            db,
+            "pr1",
+            pr_id=1,
+            project="ProjectA",
+            repo="r1",
+            closed_date="2026-01-01T00:00:00Z",
+        )
+        _insert_pr(
+            db,
+            "pr2",
+            pr_id=2,
+            project="ProjectA",
+            repo="r1",
+            closed_date="2026-01-02T00:00:00Z",
+        )
+        db.close()
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        client = _mock_client(
+            raises={
+                "1": ExtractionError("ADO API failure"),
+                "2": ExtractionError("ADO API failure"),
+            }
+        )
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        # Exit 0 on loop completion.
+        assert exit_code == 0
+        assert client.get_pr_threads.call_count == 2
+
+        # final_status = "success", first_fatal_error = None on loop-completed
+        # runs (contract lines 271 and 273).
+        assert artifact.get("final_status") == "success"
+        assert artifact.get("first_fatal_error") is None
+
+        # Counts accurate enough for a downstream consumer to enforce its
+        # own failure-rate policy (SC-012 verbatim).
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 0
+
+        warnings = artifact.get("warnings", [])
+        assert isinstance(warnings, list)
+
+        # Per-PR failure warnings preserved — one per Failed PR in
+        # FR-019b parser-stable form.
+        per_pr_failures = [
+            w for w in warnings if isinstance(w, str) and "failed to process PR" in w
+        ]
+        assert len(per_pr_failures) == 2, warnings
+        assert any("pr1" in w for w in per_pr_failures), per_pr_failures
+        assert any("pr2" in w for w in per_pr_failures), per_pr_failures
+
+        # Exactly one Site C loop-complete warning with processed=0 failed=T.
+        loop_complete = [
+            w for w in warnings if isinstance(w, str) and "loop-complete:" in w
+        ]
+        assert len(loop_complete) == 1, warnings
+        assert "processed=0" in loop_complete[0]
+        assert "failed=2" in loop_complete[0]
+
+        # No fatal-abort warning — this is not a fatal path.
+        assert not any(
+            isinstance(w, str) and w.startswith("backfill-comments: fatal-abort:")
+            for w in warnings
+        ), warnings
+
 
 # ---------------------------------------------------------------------------
 # #29-32 FlagValidation

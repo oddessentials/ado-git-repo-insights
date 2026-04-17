@@ -1552,7 +1552,12 @@ def cmd_backfill_comments(args: Namespace) -> int:
         #   (a) org-scoped connectivity probe — Site D3 fatal on bad PAT / org.
         #   (b) selection snapshot — filtered SQL, no network.
         #   (c) opening anchor log — FR-018a.
-        #   (d) per-PR loop owns project/repository-level failures.
+        #   (d) per-PR loop owns project/repository-level failures. Per the
+        #       FR-019 exit-code contract and SC-012, 100%-failure (every
+        #       attempted PR failed) remains a loop-completed run: exit 0,
+        #       final_status="success", first_fatal_error=null. Downstream
+        #       consumers enforce their own failure-rate policy via the
+        #       run_summary.json artifact (counts + warnings list).
         eligible_count = _count_uncovered_prs_for_backfill(
             db,
             args.organization,
