@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS pr_threads (
 CREATE INDEX IF NOT EXISTS idx_pr_threads_updated ON pr_threads(last_updated);
 
 CREATE TABLE IF NOT EXISTS pr_comments (
-    comment_id TEXT PRIMARY KEY,
+    comment_id TEXT NOT NULL,
     thread_id TEXT NOT NULL,
     pull_request_uid TEXT NOT NULL,
     author_id TEXT NOT NULL,
@@ -163,6 +163,10 @@ CREATE TABLE IF NOT EXISTS pr_comments (
     created_at TEXT NOT NULL,
     last_updated TEXT,
     is_deleted INTEGER DEFAULT 0,
+    -- Composite PK: ADO comment IDs are thread-scoped (every thread's first
+    -- comment is id=1).  A single-column PK on comment_id would collapse
+    -- cross-thread and cross-PR rows via ON CONFLICT, dropping data silently.
+    PRIMARY KEY (pull_request_uid, thread_id, comment_id),
     FOREIGN KEY (pull_request_uid, thread_id) REFERENCES pr_threads(pull_request_uid, thread_id),
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
     FOREIGN KEY (author_id) REFERENCES users(user_id)
@@ -177,9 +181,10 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version (v4: PR-scoped thread identity + comments_extracted_at)
+-- Insert initial schema version (v5: PR-scoped thread identity + comments_extracted_at
+-- + composite PK on pr_comments for thread-scoped ADO comment IDs).
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (4, datetime('now'));
+VALUES (5, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)

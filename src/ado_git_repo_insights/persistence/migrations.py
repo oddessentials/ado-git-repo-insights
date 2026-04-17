@@ -457,10 +457,80 @@ def _ensure_v4_pr_comments(conn: Connection) -> None:
     logger.info("Rebuilt pr_comments with composite FK")
 
 
+# v5 pr_comments DDL — composite PK (pull_request_uid, thread_id, comment_id).
+# ADO comment IDs are thread-scoped (every thread's first comment is id=1);
+# the v4 single-column PK on comment_id caused cross-thread and cross-PR
+# upserts to collide via ON CONFLICT, collapsing the table to ~1 row
+# regardless of upstream volume.
+_V5_PR_COMMENTS_DDL = """
+    CREATE TABLE pr_comments (
+        comment_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        pull_request_uid TEXT NOT NULL,
+        author_id TEXT NOT NULL,
+        content TEXT,
+        comment_type TEXT,
+        created_at TEXT NOT NULL,
+        last_updated TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        PRIMARY KEY (pull_request_uid, thread_id, comment_id),
+        FOREIGN KEY (pull_request_uid, thread_id)
+            REFERENCES pr_threads(pull_request_uid, thread_id),
+        FOREIGN KEY (pull_request_uid)
+            REFERENCES pull_requests(pull_request_uid),
+        FOREIGN KEY (author_id) REFERENCES users(user_id)
+    )
+"""
+
+
+def migrate_v4_to_v5(conn: Connection) -> None:
+    """Rebuild pr_comments with composite PK; reset coverage markers.
+
+    Schema v4 → v5:
+    - Drop the v4 ``pr_comments`` table (single-column PK on thread-scoped
+      comment_id caused silent cross-thread data loss — existing rows are
+      lossy by definition and are not preserved).
+    - Recreate ``pr_comments`` with composite PK
+      ``(pull_request_uid, thread_id, comment_id)``.
+    - Reset every ``pull_requests.comments_extracted_at`` to NULL so
+      ``backfill-comments`` reselects every previously-covered PR and
+      re-fetches its comments under the correct schema.
+    - Recreate required indexes.
+
+    All four steps plus the ``schema_version`` bump run inside a single
+    ``BEGIN IMMEDIATE`` transaction so a mid-migration failure leaves
+    the database in its pre-migration state (either all changes commit
+    or none do).  ``BEGIN IMMEDIATE`` takes the writer lock up front so
+    no other writer can interleave.
+
+    Idempotent: ``_apply_migrations`` only calls this when
+    ``schema_version < 5``; a DB already at v5 is a no-op.
+    """
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DROP TABLE IF EXISTS pr_comments")
+        conn.execute(_V5_PR_COMMENTS_DDL)
+        conn.execute(
+            "UPDATE pull_requests SET comments_extracted_at = NULL "
+            "WHERE comments_extracted_at IS NOT NULL"
+        )
+        _ensure_pr_comments_indexes(conn)
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+            "VALUES (5, datetime('now'))"
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    logger.info("Applied migration v4 → v5 (pr_comments composite PK)")
+
+
 # Version-keyed migration registry.  Keys are the *target* version;
 # the function upgrades from (key - 1) -> key.
 MIGRATIONS: dict[int, Callable[[Connection], None]] = {
     2: migrate_v1_to_v2,
     3: migrate_v2_to_v3,
     4: migrate_v3_to_v4,
+    5: migrate_v4_to_v5,
 }

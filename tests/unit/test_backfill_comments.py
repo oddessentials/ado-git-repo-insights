@@ -2739,3 +2739,122 @@ class TestFlagValidation:
                 ]
             )
         assert exc.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Realistic ADO-shaped comment ID regression (pr_comments composite PK)
+# ---------------------------------------------------------------------------
+
+
+def _make_thread_with_thread_scoped_comment_id(
+    tid: int,
+    updated: str = "2026-01-16T00:00:00Z",
+    author_id: str = "ua",
+) -> dict[str, object]:
+    """Build a thread whose sole comment has id=1 regardless of the thread id.
+
+    Mirrors real ADO behavior: comment IDs are thread-scoped, so every
+    thread's first comment is always id=1.  The original ``_make_thread``
+    helper uses ``tid * 100`` (globally unique) which accidentally
+    sidestepped the single-column-PK collision bug.
+    """
+    return {
+        "id": tid,
+        "status": "active",
+        "lastUpdatedDate": updated,
+        "publishedDate": updated,
+        "isDeleted": False,
+        "comments": [
+            {
+                "id": 1,
+                "author": {
+                    "id": author_id,
+                    "displayName": "Author",
+                    "uniqueName": "a@x",
+                },
+                "content": f"comment in thread {tid}",
+                "commentType": "text",
+                "publishedDate": updated,
+                "lastUpdatedDate": updated,
+                "isDeleted": False,
+            }
+        ],
+    }
+
+
+class TestRealisticAdoShapedCommentIds:
+    """E2E regression guard for the ``pr_comments`` composite-PK fix.
+
+    ADO comment IDs are thread-scoped — every thread's first comment is
+    id=1.  The pre-fix schema used ``comment_id TEXT PRIMARY KEY`` and
+    ``ON CONFLICT(comment_id) DO UPDATE``, so cross-thread and cross-PR
+    upserts collided and the final ``pr_comments`` row count collapsed
+    to ~1 regardless of how many threads carried comments upstream.
+
+    This test seeds the mock client with realistic thread-scoped IDs
+    (every thread's comment has id=1) and verifies every comment
+    persists as its own row.
+    """
+
+    def test_multi_pr_multi_thread_comments_all_persist_with_id_1(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(
+            db,
+            "pr1",
+            pr_id=1,
+            project="ProjectA",
+            repo="r1",
+            closed_date="2026-01-01T00:00:00Z",
+        )
+        _insert_pr(
+            db,
+            "pr2",
+            pr_id=2,
+            project="ProjectA",
+            repo="r1",
+            closed_date="2026-01-02T00:00:00Z",
+        )
+        db.close()
+
+        threads_pr1 = [
+            _make_thread_with_thread_scoped_comment_id(10),
+            _make_thread_with_thread_scoped_comment_id(11),
+            _make_thread_with_thread_scoped_comment_id(12),
+        ]
+        threads_pr2 = [
+            _make_thread_with_thread_scoped_comment_id(20),
+            _make_thread_with_thread_scoped_comment_id(21),
+            _make_thread_with_thread_scoped_comment_id(22),
+        ]
+        client = _mock_client(per_pr={"1": threads_pr1, "2": threads_pr2})
+
+        args = _make_args(tmp_path, tmp_path / "test.db")
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0, artifact
+        assert artifact.get("first_fatal_error") is None
+
+        db2 = DatabaseManager(tmp_path / "test.db")
+        db2.connect()
+        try:
+            thread_count = db2.execute(
+                "SELECT COUNT(*) AS n FROM pr_threads"
+            ).fetchone()["n"]
+            comment_count = db2.execute(
+                "SELECT COUNT(*) AS n FROM pr_comments"
+            ).fetchone()["n"]
+            assert thread_count == 6, thread_count
+            assert comment_count == 6, comment_count
+
+            # Every PR has exactly 3 comments, each tied to a distinct thread.
+            for pr_uid in ("pr1", "pr2"):
+                per_pr = db2.execute(
+                    "SELECT COUNT(DISTINCT thread_id) AS n FROM pr_comments "
+                    "WHERE pull_request_uid = ?",
+                    (pr_uid,),
+                ).fetchone()["n"]
+                assert per_pr == 3, (pr_uid, per_pr)
+        finally:
+            db2.close()

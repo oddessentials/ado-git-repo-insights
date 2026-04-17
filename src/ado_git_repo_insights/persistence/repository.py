@@ -611,7 +611,7 @@ class PRRepository:
                 comment_id, thread_id, pull_request_uid, author_id,
                 content, comment_type, created_at, last_updated, is_deleted
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(comment_id) DO UPDATE SET
+            ON CONFLICT(pull_request_uid, thread_id, comment_id) DO UPDATE SET
                 content = excluded.content,
                 last_updated = excluded.last_updated,
                 is_deleted = excluded.is_deleted
