@@ -1349,18 +1349,23 @@ def cmd_backfill_comments(args: Namespace) -> int:
             raise ConfigurationError("PAT is required")
         api_config = APIConfig()
 
-        # ADO client + pre-loop test_connection (Site D3 on failure).
+        # ADO client (constructor is pure — no network). Site D3's
+        # test_connection runs below, AFTER the selection snapshot
+        # materializes, so the probe can reflect the filtered scope.
         client = ADOClient(
             organization=args.organization,
             pat=pat_value,
             config=api_config,
         )
 
-        probe_project = _resolve_backfill_probe_project(parsed_projects, db)
-        if probe_project is not None:
-            client.test_connection(probe_project)
-
-        # T013 selection snapshot + opening anchor (FR-018a).
+        # Execution order (locked):
+        #   (a) selection snapshot — filtered SQL, no network.
+        #   (b) opening anchor log — FR-018a.
+        #   (c) probe project resolution — row 0 of snapshot, or None.
+        #   (d) test_connection — only when probe is non-None. Empty
+        #       filtered selection skips the probe entirely so a stale
+        #       or inaccessible project outside the filter window can
+        #       never abort an otherwise-empty run.
         selection_snapshot = _select_uncovered_prs_for_backfill(
             db,
             parsed_projects,
@@ -1373,6 +1378,9 @@ def cmd_backfill_comments(args: Namespace) -> int:
             _BACKFILL_WARNING_PREFIX + "backfill run over %d pull request(s)",
             total_count,
         )
+        probe_project = _get_probe_project(selection_snapshot)
+        if probe_project is not None:
+            client.test_connection(probe_project)
 
         # T014 per-PR loop with Sites A (per-PR failure) and per-PR
         # commit/rollback (FR-012 / FR-013 / FR-013a).
@@ -1560,37 +1568,31 @@ def _format_backfill_date(value: date | None) -> str:
     return (value or date.today()).isoformat()
 
 
-def _resolve_backfill_probe_project(
-    parsed_projects: list[str], db: DatabaseManager
+def _get_probe_project(
+    selection_snapshot: list[Mapping[str, object]],
 ) -> str | None:
-    """Pick a project name to probe ``client.test_connection`` against.
+    """Return the project_name to probe ``test_connection`` against, or None.
 
-    Fallback chain (first non-empty wins):
-      1. ``parsed_projects[0]`` — the shared-helper-parsed ``--projects``
-         list supplied at the call site (see ``cmd_backfill_comments``).
-      2. A sample ``project_name`` from the uncovered-completed-PR set.
-      3. ``None`` — skip ``test_connection`` entirely (empty-database
-         degenerate case; subsequent selection returns an empty list and
-         Site C fires with ``processed=0 failed=0``).
+    Pure helper — no DB queries, no network. The probe project is always
+    derived from row 0 of the already-filtered selection snapshot so the
+    connectivity check stays strictly bounded to what the per-PR loop
+    will actually process. A stale or inaccessible project outside the
+    filter window can never abort an otherwise-empty run.
 
-    The YAML-config fallback step is absent by design: contracts/cli-
-    subcommand.md §10 excludes ``--config`` from this subcommand's surface,
-    and ``cmd_backfill_comments`` does not call ``load_config`` (FR-004
-    allows projectless invocation, which ``Config.__post_init__`` would
-    reject).
+    Returns ``None`` — meaning "skip ``test_connection`` entirely" — when:
+      * the snapshot is empty (valid per FR-004/5/6 empty-filter case), OR
+      * snapshot row 0's ``project_name`` is absent, non-``str``, or empty
+        (defensive guard against bad data; treat as empty snapshot).
+
+    Single-sourced probe logic: any future caller that needs the same
+    decision MUST reuse this helper rather than reimplementing it inline.
     """
-    if parsed_projects:
-        return parsed_projects[0]
-    row = db.execute(
-        "SELECT project_name FROM pull_requests "
-        "WHERE status='completed' AND comments_extracted_at IS NULL "
-        "LIMIT 1"
-    ).fetchone()
-    if row is not None:
-        project = row["project_name"] if hasattr(row, "keys") else row[0]
-        if project:
-            return cast(str, project)
-    return None
+    if not selection_snapshot:
+        return None
+    raw = selection_snapshot[0].get("project_name")
+    if not isinstance(raw, str) or not raw:
+        return None
+    return raw
 
 
 def cmd_generate_csv(args: Namespace) -> int:

@@ -24,6 +24,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ado_git_repo_insights.cli import (
+    _get_probe_project,
     _select_uncovered_prs_for_backfill,
     cmd_backfill_comments,
     create_parser,
@@ -1324,6 +1325,132 @@ class TestEndToEnd:
         counts = artifact.get("counts")
         assert isinstance(counts, dict)
         assert counts.get("prs_updated") == 2
+
+
+# ---------------------------------------------------------------------------
+# ConnectionProbe — P2 contract fix (probe from filtered snapshot)
+# ---------------------------------------------------------------------------
+
+
+class TestConnectionProbe:
+    """P2: ``test_connection`` probes the filtered selection, not the
+    broader DB. Locks FR-004/5/6 empty-filter semantics and FR-030d-style
+    parity between declared filter and network work.
+    """
+
+    def test_get_probe_project_picks_row_zero_or_none(self) -> None:
+        """Unit test on the pure helper. Covers: empty snapshot returns
+        None; row 0 with a valid string wins; null / non-str / empty
+        project_name at row 0 is treated as "no probe" (defensive guard
+        against bad data); later rows are never consulted.
+        """
+        # Empty snapshot → None.
+        assert _get_probe_project([]) is None
+
+        # Row 0 valid str → returned unchanged.
+        assert _get_probe_project([{"project_name": "ProjectA"}]) == "ProjectA"
+
+        # Row 0 null → None (defensive).
+        assert _get_probe_project([{"project_name": None}]) is None
+
+        # Row 0 empty str → None.
+        assert _get_probe_project([{"project_name": ""}]) is None
+
+        # Row 0 wrong type → None.
+        assert _get_probe_project([{"project_name": 42}]) is None
+
+        # Only row 0 consulted — later rows ignored.
+        assert (
+            _get_probe_project(
+                [
+                    {"project_name": "First"},
+                    {"project_name": "Second"},
+                ]
+            )
+            == "First"
+        )
+
+    def test_empty_filtered_snapshot_skips_connection_probe(
+        self, tmp_path: Path
+    ) -> None:
+        """A filtered selection that matches zero PRs MUST NOT call
+        ``test_connection`` against any project — not even a DB-sample
+        project outside the filter window (regression against the old
+        _resolve_backfill_probe_project behavior).
+        """
+        db = _create_backfill_db(tmp_path)
+        # Seed a completed PR outside the --since window. It would be a
+        # valid DB-sample fallback project under the old behavior, but
+        # the filtered snapshot is empty so no probe should fire.
+        _insert_pr(
+            db,
+            "old",
+            pr_id=1,
+            project="ProjectA",
+            closed_date="2024-01-01T00:00:00Z",
+        )
+        db.close()
+
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            since=date(2026, 1, 1),
+            until=date(2026, 6, 1),
+        )
+        client = _mock_client()
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0
+        assert client.test_connection.call_count == 0
+        assert client.get_pr_threads.call_count == 0
+        # Full-shape empty-selection artifact.
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 0
+
+    def test_probe_respects_since_until_filter(self, tmp_path: Path) -> None:
+        """When a filter excludes project A but includes project B, the
+        probe MUST target project B (the actual snapshot's row 0),
+        not any project from the broader DB.
+        """
+        db = _create_backfill_db(tmp_path)
+        # ProjectA PR is outside the window.
+        _insert_pr(
+            db,
+            "a-old",
+            pr_id=1,
+            project="ProjectA",
+            repo="r1",
+            closed_date="2024-01-01T00:00:00Z",
+        )
+        # ProjectB PR is inside the window.
+        _insert_pr(
+            db,
+            "b-new",
+            pr_id=2,
+            project="ProjectB",
+            repo="r2",
+            closed_date="2026-02-15T00:00:00Z",
+        )
+        db.close()
+
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            since=date(2026, 1, 1),
+            until=date(2026, 6, 1),
+            max_threads=0,
+        )
+        client = _mock_client(per_pr={"2": [_make_thread(20)]})
+        exit_code, _ = _run_backfill(args, client=client)
+
+        assert exit_code == 0
+        assert client.test_connection.call_count == 1
+        # Probe target is ProjectB (the only project the filter retains).
+        call_args = client.test_connection.call_args
+        positional_args = call_args.args if call_args else ()
+        called_project = positional_args[0] if positional_args else None
+        assert called_project == "ProjectB", call_args
 
 
 # ---------------------------------------------------------------------------
