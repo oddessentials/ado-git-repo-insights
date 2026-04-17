@@ -1648,11 +1648,11 @@ def cmd_backfill_comments(args: Namespace) -> int:
 def _format_backfill_date(value: date | None) -> str:
     """Serialize a backfill date filter for the run_summary artifact.
 
-    Mirrors extract's ``str(config.date_range.start or date.today())``
-    pattern but preserves None as today's date (RunSummary fields are
-    non-optional strings).
+    Backfill treats omitted ``--since`` / ``--until`` as unbounded, so
+    the artifact must preserve missing bounds as empty strings rather
+    than inventing a concrete date.
     """
-    return (value or date.today()).isoformat()
+    return value.isoformat() if value is not None else ""
 
 
 def _get_probe_project(

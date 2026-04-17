@@ -1372,6 +1372,75 @@ class TestEndToEnd:
         assert counts.get("prs_updated") == 2
 
 
+class TestBackfillRunSummaryDateRange:
+    """Regression coverage for backfill-only artifact date serialization."""
+
+    def test_no_bounds_preserves_empty_strings_and_full_artifact_shape(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        args = _make_args(tmp_path, tmp_path / "test.db", max_threads=0)
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0
+        date_range = artifact.get("date_range")
+        assert isinstance(date_range, dict)
+        assert date_range.get("start") == ""
+        assert date_range.get("end") == ""
+        assert artifact.get("final_status") == "success"
+        counts = artifact.get("counts")
+        assert isinstance(counts, dict)
+        assert counts.get("prs_updated") == 1
+
+    def test_since_only_preserves_unset_end_as_empty_string(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            since=date(2026, 1, 1),
+            max_threads=0,
+        )
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0
+        date_range = artifact.get("date_range")
+        assert isinstance(date_range, dict)
+        assert date_range.get("start") == "2026-01-01"
+        assert date_range.get("end") == ""
+
+    def test_until_only_preserves_unset_start_as_empty_string(
+        self, tmp_path: Path
+    ) -> None:
+        db = _create_backfill_db(tmp_path)
+        _insert_pr(db, "p1", pr_id=1, closed_date="2026-01-01T00:00:00Z")
+        db.close()
+
+        args = _make_args(
+            tmp_path,
+            tmp_path / "test.db",
+            until=date(2026, 6, 1),
+            max_threads=0,
+        )
+        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        exit_code, artifact = _run_backfill(args, client=client)
+
+        assert exit_code == 0
+        date_range = artifact.get("date_range")
+        assert isinstance(date_range, dict)
+        assert date_range.get("start") == ""
+        assert date_range.get("end") == "2026-06-01"
+
+
 class TestBackfillDatabasePreconditions:
     """Backfill requires an existing, non-empty extracted database."""
 
