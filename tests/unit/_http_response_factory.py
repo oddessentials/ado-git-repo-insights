@@ -15,6 +15,8 @@ pattern) does not pick it up as a test file.
 
 from __future__ import annotations
 
+import json as _json
+
 import requests
 
 
@@ -22,6 +24,7 @@ def make_response(
     status: int = 200,
     location: str | None = None,
     content: bytes = b"{}",
+    json_body: object = None,
     url: str = "https://example.com/api",
 ) -> requests.Response:
     """Build a minimal real ``requests.Response``.
@@ -33,6 +36,11 @@ def make_response(
         content: Raw bytes for ``response.content`` (and ``.json()``).
             Defaults to an empty JSON object so ``.json()`` succeeds
             without the caller having to pass JSON every time.
+            Ignored when ``json_body`` is provided.
+        json_body: Python object to JSON-serialize as the response body.
+            Overrides ``content`` when provided.  Convenience for tests
+            that would otherwise have to write
+            ``content=json.dumps({...}).encode()``.
         url: Request URL recorded on the response.
 
     Returns:
@@ -41,7 +49,10 @@ def make_response(
     """
     r = requests.Response()
     r.status_code = status
-    r._content = content
+    if json_body is not None:
+        r._content = _json.dumps(json_body).encode()
+    else:
+        r._content = content
     r.url = url
     if location is not None:
         r.headers["Location"] = location

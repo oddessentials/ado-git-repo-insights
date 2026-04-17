@@ -26,6 +26,7 @@ from ado_git_repo_insights.extractor.ado_client import ADOClient
 from ado_git_repo_insights.extractor.pr_extractor import PRExtractor
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
+from tests.unit._http_response_factory import make_response
 
 
 def make_mock_pr(
@@ -98,20 +99,14 @@ class TestMultiProjectScoping:
         db, config, _ = multi_project_setup
 
         # Project Alpha: PR 100 in repo-alpha
-        alpha_response = MagicMock()
-        alpha_response.json.return_value = {
-            "value": [make_mock_pr(100, "repo-alpha", "AlphaRepo")]
-        }
-        alpha_response.headers = {}
-        alpha_response.raise_for_status = MagicMock()
+        alpha_response = make_response(
+            json_body={"value": [make_mock_pr(100, "repo-alpha", "AlphaRepo")]}
+        )
 
         # Project Beta: PR 100 in repo-beta (same PR ID, different repo)
-        beta_response = MagicMock()
-        beta_response.json.return_value = {
-            "value": [make_mock_pr(100, "repo-beta", "BetaRepo")]
-        }
-        beta_response.headers = {}
-        beta_response.raise_for_status = MagicMock()
+        beta_response = make_response(
+            json_body={"value": [make_mock_pr(100, "repo-beta", "BetaRepo")]}
+        )
 
         mock_get.side_effect = [alpha_response, beta_response]
 
@@ -144,19 +139,13 @@ class TestMultiProjectScoping:
         db, config, tmp_path = multi_project_setup
 
         # Create responses for each project
-        alpha_response = MagicMock()
-        alpha_response.json.return_value = {
-            "value": [make_mock_pr(1, "repo-a", "RepoA")]
-        }
-        alpha_response.headers = {}
-        alpha_response.raise_for_status = MagicMock()
+        alpha_response = make_response(
+            json_body={"value": [make_mock_pr(1, "repo-a", "RepoA")]}
+        )
 
-        beta_response = MagicMock()
-        beta_response.json.return_value = {
-            "value": [make_mock_pr(2, "repo-b", "RepoB")]
-        }
-        beta_response.headers = {}
-        beta_response.raise_for_status = MagicMock()
+        beta_response = make_response(
+            json_body={"value": [make_mock_pr(2, "repo-b", "RepoB")]}
+        )
 
         mock_get.side_effect = [alpha_response, beta_response]
 
@@ -196,19 +185,17 @@ class TestMultiProjectScoping:
         # Same author in both projects
         common_author = "user-shared"
 
-        alpha_response = MagicMock()
-        alpha_response.json.return_value = {
-            "value": [make_mock_pr(1, "repo-a", "RepoA", author_id=common_author)]
-        }
-        alpha_response.headers = {}
-        alpha_response.raise_for_status = MagicMock()
+        alpha_response = make_response(
+            json_body={
+                "value": [make_mock_pr(1, "repo-a", "RepoA", author_id=common_author)]
+            }
+        )
 
-        beta_response = MagicMock()
-        beta_response.json.return_value = {
-            "value": [make_mock_pr(2, "repo-b", "RepoB", author_id=common_author)]
-        }
-        beta_response.headers = {}
-        beta_response.raise_for_status = MagicMock()
+        beta_response = make_response(
+            json_body={
+                "value": [make_mock_pr(2, "repo-b", "RepoB", author_id=common_author)]
+            }
+        )
 
         mock_get.side_effect = [alpha_response, beta_response]
 
@@ -234,19 +221,13 @@ class TestMultiProjectScoping:
         """Repositories are correctly scoped to their projects."""
         db, config, tmp_path = multi_project_setup
 
-        alpha_response = MagicMock()
-        alpha_response.json.return_value = {
-            "value": [make_mock_pr(1, "repo-alpha", "AlphaRepo")]
-        }
-        alpha_response.headers = {}
-        alpha_response.raise_for_status = MagicMock()
+        alpha_response = make_response(
+            json_body={"value": [make_mock_pr(1, "repo-alpha", "AlphaRepo")]}
+        )
 
-        beta_response = MagicMock()
-        beta_response.json.return_value = {
-            "value": [make_mock_pr(2, "repo-beta", "BetaRepo")]
-        }
-        beta_response.headers = {}
-        beta_response.raise_for_status = MagicMock()
+        beta_response = make_response(
+            json_body={"value": [make_mock_pr(2, "repo-beta", "BetaRepo")]}
+        )
 
         mock_get.side_effect = [alpha_response, beta_response]
 
@@ -279,15 +260,13 @@ class TestMultiProjectScoping:
         """Projects table contains both extracted projects."""
         db, config, tmp_path = multi_project_setup
 
-        alpha_response = MagicMock()
-        alpha_response.json.return_value = {"value": [make_mock_pr(1, "r1", "R1")]}
-        alpha_response.headers = {}
-        alpha_response.raise_for_status = MagicMock()
+        alpha_response = make_response(
+            json_body={"value": [make_mock_pr(1, "r1", "R1")]}
+        )
 
-        beta_response = MagicMock()
-        beta_response.json.return_value = {"value": [make_mock_pr(2, "r2", "R2")]}
-        beta_response.headers = {}
-        beta_response.raise_for_status = MagicMock()
+        beta_response = make_response(
+            json_body={"value": [make_mock_pr(2, "r2", "R2")]}
+        )
 
         mock_get.side_effect = [alpha_response, beta_response]
 
