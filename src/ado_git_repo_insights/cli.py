@@ -1344,18 +1344,36 @@ def cmd_backfill_comments(args: Namespace) -> int:
 
     db: DatabaseManager | None = None
     try:
+        # DB preflight. Every failure mode here MUST surface as DatabaseError
+        # so the outer ``except DatabaseError`` (Site D2) owns the exit path.
+        # ``Path.exists()`` / ``is_file()`` / ``stat()`` can raise ``OSError``
+        # (permission denied on the parent dir, disconnected network drive,
+        # symlink loop, path too long, etc.). Without the wrap below, those
+        # escape to Site D5's generic ``except Exception`` branch and the
+        # artifact carries a ``fatal-abort: ...`` warning without the
+        # ``Database error:`` prefix the contract expects for unopenable
+        # databases.
         db_path = Path(args.database)
-        if not db_path.exists():
+        try:
+            path_exists = db_path.exists()
+            path_is_file = db_path.is_file() if path_exists else False
+            path_size = db_path.stat().st_size if path_is_file else 0
+        except OSError as e:
+            raise DatabaseError(
+                "backfill-comments could not inspect the database path "
+                f"({db_path}): {e}"
+            ) from e
+        if not path_exists:
             raise DatabaseError(
                 "backfill-comments requires an existing extracted database; "
                 f"database not found: {db_path}"
             )
-        if not db_path.is_file():
+        if not path_is_file:
             raise DatabaseError(
                 "backfill-comments requires an existing extracted database file; "
                 f"not a file: {db_path}"
             )
-        if db_path.stat().st_size <= 0:
+        if path_size <= 0:
             raise DatabaseError(
                 "backfill-comments requires a non-empty extracted database file; "
                 f"database is empty: {db_path}"

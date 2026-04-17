@@ -1429,6 +1429,49 @@ class TestBackfillDatabasePreconditions:
         assert artifact.get("final_status") == "failed"
         assert "not a file" in str(artifact.get("first_fatal_error", ""))
 
+    def test_oserror_during_preflight_routes_through_site_d2(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression lock: if ``Path.exists`` / ``is_file`` / ``stat`` raise
+        ``OSError`` during the DB preflight (permission denied on the parent
+        directory, disconnected network drive, symlink loop, path too long),
+        the failure MUST surface as ``DatabaseError`` and route through Site
+        D2. Without the wrap, the raw ``OSError`` escapes to Site D5's
+        generic ``except Exception`` branch, and the artifact loses the
+        ``"Database error:"`` prefix the contract guarantees for unopenable
+        databases.
+        """
+        db_path = tmp_path / "cursed.db"
+        db_path.write_bytes(b"\x00")  # exists + nonzero, but preflight will raise
+        args = _make_args(tmp_path, db_path)
+        artifact_path = args.artifacts_dir / "run_summary.json"
+
+        real_exists = Path.exists
+
+        def fake_exists(self: Path) -> bool:
+            if self == db_path:
+                raise PermissionError("simulated permission denied on parent")
+            return real_exists(self)
+
+        monkeypatch.setattr(Path, "exists", fake_exists)
+
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client.ADOClient"
+        ) as ado_client_cls:
+            exit_code = cmd_backfill_comments(args)
+
+        assert exit_code == 1
+        ado_client_cls.assert_not_called()
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert artifact.get("final_status") == "failed"
+        fatal = str(artifact.get("first_fatal_error", ""))
+        # Site D2 (not D5) — the artifact MUST carry the "Database error:"
+        # prefix and the specific "could not inspect" phrase from the wrap.
+        assert fatal.startswith("Database error:"), fatal
+        assert "could not inspect" in fatal, fatal
+        # Confirm the underlying OSError cause propagated through str().
+        assert "simulated permission denied" in fatal, fatal
+
 
 # ---------------------------------------------------------------------------
 # ConnectionProbe — P2 contract fix (probe from filtered snapshot)
