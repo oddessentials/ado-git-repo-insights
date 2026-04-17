@@ -178,6 +178,25 @@ function isMeaningfullySet(value) {
 }
 
 /**
+ * Render the `projects` input for the configuration-logging block. `projects`
+ * is optional in `backfill-comments` mode, so the raw value can be `null` /
+ * `undefined` / `""` — calling `.split()` on those crashes the task before it
+ * ever invokes the CLI. This helper is the single place that knows how to
+ * render the input for the log.
+ *
+ * Returns a human-readable comma-joined list, or a neutral placeholder when
+ * nothing was meaningfully set (backfill-mode default).
+ */
+function formatProjectsForDisplay(raw) {
+  if (!isMeaningfullySet(raw)) return "(no filter — all projects eligible)";
+  return String(raw)
+    .split(/[\n,]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
  * Build the argument vector passed to `python -m ado_git_repo_insights.cli
  * backfill-comments`. Keeps flag-shaping logic next to `buildExtractArgs`
  * so unit tests can exercise the production function directly.
@@ -519,13 +538,7 @@ async function run() {
     console.log("ADO Git Repo Insights - Configuration");
     console.log("=".repeat(50));
     console.log(`Organization: ${organization}`);
-    console.log(
-      `Projects: ${projects
-        .split(/[\n,]/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .join(", ")}`,
-    );
+    console.log(`Projects: ${formatProjectsForDisplay(projects)}`);
     console.log(`Database (input): ${databaseInput}`);
     console.log(`Database (resolved): ${databasePath}`);
     console.log(`Output (input): ${outputDirInput}`);
@@ -752,6 +765,7 @@ function runPython(pythonCmd, args, extraEnv = {}) {
 module.exports = {
   buildExtractArgs,
   buildBackfillArgs,
+  formatProjectsForDisplay,
   isMeaningfullySet,
   validateModeInputs,
   validateNonNegativeInt,

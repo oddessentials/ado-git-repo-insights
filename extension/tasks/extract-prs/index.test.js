@@ -50,6 +50,7 @@ Module._load = function interceptedLoad(request, parent, ...rest) {
 const {
   buildExtractArgs,
   buildBackfillArgs,
+  formatProjectsForDisplay,
   isMeaningfullySet,
   validateModeInputs,
   validateNonNegativeInt,
@@ -659,7 +660,45 @@ function testValidateModeInputsIncludeCommentsBoolean() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 20: extract mode requires projects
+// Test 20: formatProjectsForDisplay is null-safe (regression: backfill-mode
+// config logging crashed when `projects` was omitted, because the inline
+// `projects.split(...)` at index.js:523 ran on `null`).
+function testFormatProjectsForDisplayNullSafe() {
+  console.log(
+    "Test: formatProjectsForDisplay null-safe (backfill-mode omitted projects)...",
+  );
+  const EMPTY_PLACEHOLDER = "(no filter — all projects eligible)";
+  // Null / undefined / empty / whitespace all render as the placeholder
+  // without throwing — this is the regression lock.
+  for (const absent of [null, undefined, "", "   ", "\t\n"]) {
+    let out;
+    assert.doesNotThrow(() => {
+      out = formatProjectsForDisplay(absent);
+    }, `formatProjectsForDisplay(${JSON.stringify(absent)}) must not throw`);
+    assert.strictEqual(out, EMPTY_PLACEHOLDER);
+  }
+  // Single project, trimmed
+  assert.strictEqual(formatProjectsForDisplay("ProjectA"), "ProjectA");
+  assert.strictEqual(formatProjectsForDisplay("  ProjectA  "), "ProjectA");
+  // Comma-separated
+  assert.strictEqual(
+    formatProjectsForDisplay("ProjectA,ProjectB"),
+    "ProjectA, ProjectB",
+  );
+  // Newline-separated (multi-line Azure input)
+  assert.strictEqual(
+    formatProjectsForDisplay("ProjectA\nProjectB\nProjectC"),
+    "ProjectA, ProjectB, ProjectC",
+  );
+  // Mixed with empty entries filtered out
+  assert.strictEqual(
+    formatProjectsForDisplay("ProjectA,,\n\nProjectB,\n"),
+    "ProjectA, ProjectB",
+  );
+  console.log("  ✓ Passed\n");
+}
+
+// Test 21: extract mode requires projects
 function testValidateModeInputsExtractRequiresProjects() {
   console.log("Test: validateModeInputs extract-mode requires projects...");
   for (const emptyProjects of [undefined, null, "", "   "]) {
@@ -712,6 +751,7 @@ function runTests() {
     testValidateModeInputsExtractRejectsBackfillKnobs();
     testValidateModeInputsBackfillRejectsExtractKnobs();
     testValidateModeInputsIncludeCommentsBoolean();
+    testFormatProjectsForDisplayNullSafe();
     testValidateModeInputsExtractRequiresProjects();
 
     console.log("=".repeat(50));
