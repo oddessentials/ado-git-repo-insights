@@ -101,6 +101,18 @@ def _parse_retry_after_value(header_value: str, default: int) -> int:
 
 logger = logging.getLogger(__name__)
 
+# Substrings that identify an ADO-family sign-in redirect target.  Used by
+# :meth:`ADOClient._get_or_raise` only to choose the error-message hint;
+# the 3xx classification is absolute (every 3xx raises) and does NOT branch
+# on these markers.  Assumption: ADO sign-in redirects land on one of
+# ``_signin`` paths or ``login.microsoftonline.com`` as of 2026-04.  If ADO
+# changes redirect domains, the unknown-Location branch still raises and
+# surfaces the Location verbatim, so the regression is loud, not silent.
+_SIGNIN_LOCATION_MARKERS: tuple[str, ...] = (
+    "_signin",
+    "login.microsoftonline.com",
+)
+
 
 class ExtractionError(Exception):
     """Extraction failed - causes run to fail (Invariant 7, Adjustment 4)."""
@@ -279,20 +291,32 @@ class ADOClient:
         delay = self.config.retry_delay_seconds
 
         for attempt in range(1, self.config.max_retries + 1):
+            response: requests.Response | None = None
             try:
-                response = requests.get(url, headers=self.headers, timeout=30)
-                response.raise_for_status()
-
+                response = self._get_or_raise(
+                    url, timeout=30, context=f"{self.organization}/{project}"
+                )
                 next_token = extract_continuation_token(response)
                 data = response.json()
                 return data.get("value", []), next_token
 
-            except (RequestException, HTTPError, json.JSONDecodeError) as e:
-                last_error = e
+            except (ExtractionError, json.JSONDecodeError) as e:
+                # Retry classification is preserved from the pre-refactor
+                # contract by unwrapping ``e.__cause__`` for ExtractionError
+                # originating in ``_get_or_raise``: RequestException and
+                # HTTPError still drive the retry/backoff loop exactly as
+                # before.  A 3xx raised by the helper has no ``__cause__``
+                # (classified entirely by the helper) and is retried
+                # identically — a bad PAT will exhaust retries and surface
+                # as ``Max retries exhausted`` with the helper's auth-hint
+                # message in ``last_error``.
+                cause = e.__cause__ if isinstance(e, ExtractionError) else None
+                classified: BaseException = cause if cause is not None else e
+                last_error = classified
                 self.stats.retries_used += 1
 
                 # Safe logging for JSON decode errors (Invariant 19: no auth headers)
-                if isinstance(e, json.JSONDecodeError):
+                if isinstance(e, json.JSONDecodeError) and response is not None:
                     self._log_invalid_response(response, e)
 
                 logger.warning(
@@ -333,8 +357,89 @@ class ADOClient:
 
         return add_continuation_token(base_url, token)
 
+    def _get_or_raise(
+        self,
+        url: str,
+        *,
+        timeout: float = 30,
+        context: str | None = None,
+    ) -> requests.Response:
+        """Single HTTP-GET surface for ADOClient; redirect-aware + PAT-aware.
+
+        Every HTTP GET in this client MUST route through this helper — the
+        invariant is AST-enforced by
+        :class:`tests.unit.test_retry_policy.TestAdoClientHttpHardening`.
+
+        Why: Azure DevOps answers unauthenticated REST calls with HTTP 302
+        to a sign-in page (resolving to 203 HTML under default redirect
+        follow).  ``raise_for_status`` only raises on 4xx/5xx, so a bare
+        ``requests.get`` would silently return a "successful" HTML page for
+        an invalid PAT.  This helper:
+
+        1. Calls ``requests.get`` with ``allow_redirects=False``.
+        2. Treats ANY 3xx as a failure and raises ``ExtractionError``.
+           The ``Location`` header is surfaced verbatim in the message.
+           Sign-in markers (see :data:`_SIGNIN_LOCATION_MARKERS`) affect
+           only the message's hint; classification of 3xx as an error is
+           absolute and does not branch on auth vs non-auth.
+        3. Calls ``raise_for_status`` for 4xx/5xx, wrapping the resulting
+           ``HTTPError`` in ``ExtractionError`` with ``__cause__`` preserved.
+        4. Wraps ``RequestException`` (network / DNS / timeout) in
+           ``ExtractionError`` with ``__cause__`` preserved so callers
+           (notably :meth:`_fetch_page`'s retry loop) can classify failures
+           by inspecting ``e.__cause__``.
+
+        Args:
+            url: Full URL to GET.
+            timeout: Per-request timeout in seconds (default 30 matches
+                pagination methods; probes call with ``timeout=10``).
+            context: Identity string embedded in error messages, e.g.
+                ``"organization TestOrg"`` or ``"TestOrg/TestProject"``.
+                Defaults to ``"organization {self.organization}"``.
+
+        Returns:
+            The successful ``requests.Response`` — callers consume
+            ``.json()`` / iterate pages / etc.
+
+        Raises:
+            ExtractionError: on any of the four failure paths above.
+                ``__cause__`` is set to the originating
+                ``RequestException`` / ``HTTPError`` where applicable
+                (not set for the 3xx branch; 3xx is classified entirely by
+                this helper).
+        """
+        ctx = context or f"organization {self.organization}"
+        try:
+            response = requests.get(
+                url,
+                headers=self.headers,
+                timeout=timeout,
+                allow_redirects=False,
+            )
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location", "<no Location>")
+                if any(marker in location for marker in _SIGNIN_LOCATION_MARKERS):
+                    hint = "likely invalid or expired PAT"
+                else:
+                    hint = (
+                        "redirect target is not a known sign-in endpoint; "
+                        "PAT may be valid but endpoint may have moved"
+                    )
+                raise ExtractionError(
+                    f"Failed to connect to {ctx}: "
+                    f"unexpected HTTP {response.status_code} redirect to "
+                    f"{location} ({hint})"
+                )
+            response.raise_for_status()
+            return response
+        except (RequestException, HTTPError) as e:
+            raise ExtractionError(f"Failed to connect to {ctx}: {e}") from e
+
     def test_connection(self, project: str) -> bool:
-        """Test connectivity to ADO API.
+        """Test project-scoped connectivity to ADO API.
+
+        Delegates to :meth:`_get_or_raise` so redirect-blindness protection
+        applies uniformly with all other HTTP call sites.
 
         Args:
             project: Project name to test.
@@ -343,19 +448,17 @@ class ADOClient:
             True if connection successful.
 
         Raises:
-            ExtractionError: If connection fails.
+            ExtractionError: If connection fails — network error, HTTP
+                4xx/5xx, or an unexpected 3xx indicating invalid/expired PAT.
         """
         url = f"{self.base_url}/{project}/_apis/git/repositories?api-version={self.config.version}"
-
-        try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            logger.info(f"Successfully connected to {self.organization}/{project}")
-            return True
-        except (RequestException, HTTPError) as e:
-            raise ExtractionError(
-                f"Failed to connect to {self.organization}/{project}: {e}"
-            ) from e
+        self._get_or_raise(
+            url,
+            timeout=10,
+            context=f"{self.organization}/{project}",
+        )
+        logger.info(f"Successfully connected to {self.organization}/{project}")
+        return True
 
     def test_organization_connection(self) -> bool:
         """Test organization-scoped connectivity to ADO API.
@@ -365,13 +468,9 @@ class ADOClient:
         on row-0 project scope or permissions unrelated to the actual
         repository/thread-fetch path.
 
-        Bad-PAT behavior: Azure DevOps responds with HTTP 302 to a sign-in
-        page (ultimately a 203 HTML payload after redirect) when the PAT is
-        invalid or expired.  Because 3xx is not 4xx, ``raise_for_status``
-        would not raise — and if ``allow_redirects`` is left at its default
-        ``True``, the probe would silently resolve to the 203 signin page
-        and report success.  The probe therefore runs with
-        ``allow_redirects=False`` and treats any 3xx as an auth failure.
+        Delegates to :meth:`_get_or_raise`, which enforces the
+        ``allow_redirects=False`` + 3xx-is-failure contract uniformly
+        across every ADOClient HTTP GET.
 
         Returns:
             True if connection successful.
@@ -381,32 +480,13 @@ class ADOClient:
                 4xx/5xx, or an unexpected 3xx indicating invalid/expired PAT.
         """
         url = f"{self.base_url}/_apis/connectionData?api-version={self.config.version}"
-
-        try:
-            response = requests.get(
-                url,
-                headers=self.headers,
-                timeout=10,
-                allow_redirects=False,
-            )
-            if 300 <= response.status_code < 400:
-                # ADO redirects authenticated API calls to a sign-in page
-                # when the PAT is invalid or expired.  The REST API endpoint
-                # should never legitimately 3xx; any redirect here is an
-                # auth failure.
-                location = response.headers.get("Location", "<no Location>")
-                raise ExtractionError(
-                    f"Failed to connect to organization {self.organization}: "
-                    f"unexpected HTTP {response.status_code} redirect to "
-                    f"{location} (likely invalid or expired PAT)"
-                )
-            response.raise_for_status()
-            logger.info(f"Successfully connected to organization {self.organization}")
-            return True
-        except (RequestException, HTTPError) as e:
-            raise ExtractionError(
-                f"Failed to connect to organization {self.organization}: {e}"
-            ) from e
+        self._get_or_raise(
+            url,
+            timeout=10,
+            context=f"organization {self.organization}",
+        )
+        logger.info(f"Successfully connected to organization {self.organization}")
+        return True
 
     # Phase 3.3: Team extraction methods
 
@@ -436,9 +516,11 @@ class ADOClient:
             page_url = add_continuation_token(base_url, continuation_token)
 
             try:
-                response = requests.get(page_url, headers=self.headers, timeout=30)
-                response.raise_for_status()
-
+                response = self._get_or_raise(
+                    page_url,
+                    timeout=30,
+                    context=f"{self.organization}/{project}",
+                )
                 continuation_token = extract_continuation_token(response)
                 data = response.json()
                 teams = data.get("value", [])
@@ -447,7 +529,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError, json.JSONDecodeError) as e:
+            except (ExtractionError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch teams for {project}: {e}"
                 ) from e
@@ -484,9 +566,11 @@ class ADOClient:
             page_url = add_continuation_token(base_url, continuation_token)
 
             try:
-                response = requests.get(page_url, headers=self.headers, timeout=30)
-                response.raise_for_status()
-
+                response = self._get_or_raise(
+                    page_url,
+                    timeout=30,
+                    context=f"{self.organization}/{project}",
+                )
                 continuation_token = extract_continuation_token(response)
                 data = response.json()
                 members = data.get("value", [])
@@ -495,7 +579,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError, json.JSONDecodeError) as e:
+            except (ExtractionError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch members for team {team_id}: {e}"
                 ) from e
@@ -541,20 +625,11 @@ class ADOClient:
             page_url = add_continuation_token(base_url, continuation_token)
 
             try:
-                response = requests.get(page_url, headers=self.headers, timeout=30)
-
-                # Handle rate limiting (429) with bounded backoff
-                if response.status_code == 429:
-                    retry_after = parse_retry_after(
-                        response.headers.get("Retry-After"),
-                        max_seconds=120,  # Cap at 2 minutes
-                    )
-                    logger.warning(f"Rate limited, waiting {retry_after}s")
-                    time.sleep(retry_after)
-                    continue
-
-                response.raise_for_status()
-
+                response = self._get_or_raise(
+                    page_url,
+                    timeout=30,
+                    context=f"{self.organization}/{project}",
+                )
                 continuation_token = extract_continuation_token(response)
                 data = response.json()
                 threads = data.get("value", [])
@@ -563,7 +638,24 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError, json.JSONDecodeError) as e:
+            except (ExtractionError, json.JSONDecodeError) as e:
+                # Rate-limit (429) handling: route through the shared helper
+                # but preserve the original bounded-backoff + continue loop.
+                # The helper wraps HTTPError (including 429) in ExtractionError
+                # with ``__cause__`` set; unwrap and branch on the status.
+                cause = e.__cause__ if isinstance(e, ExtractionError) else None
+                if (
+                    isinstance(cause, HTTPError)
+                    and cause.response is not None
+                    and cause.response.status_code == 429
+                ):
+                    retry_after = parse_retry_after(
+                        cause.response.headers.get("Retry-After"),
+                        max_seconds=120,  # Cap at 2 minutes
+                    )
+                    logger.warning(f"Rate limited, waiting {retry_after}s")
+                    time.sleep(retry_after)
+                    continue
                 raise ExtractionError(
                     f"Failed to fetch threads for PR {pull_request_id}: {e}"
                 ) from e

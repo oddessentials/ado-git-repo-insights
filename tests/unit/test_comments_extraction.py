@@ -78,19 +78,22 @@ class TestThreadExtraction:
         assert threads[1]["status"] == "fixed"
 
     def test_get_pr_threads_handles_429_rate_limit(self, client: ADOClient) -> None:
-        """Test that 429 response triggers bounded backoff (§6)."""
-        # First response is 429
-        rate_limit_response = MagicMock()
-        rate_limit_response.ok = False
-        rate_limit_response.status_code = 429
-        rate_limit_response.headers = {"Retry-After": "1"}
+        """Test that 429 response triggers bounded backoff (§6).
 
-        # Second response is success
-        success_response = MagicMock()
-        success_response.ok = True
-        success_response.status_code = 200
-        success_response.headers = {}
-        success_response.json.return_value = {"value": [{"id": 1}]}
+        After the _get_or_raise refactor the 429 comes back as an
+        HTTPError wrapped in ExtractionError; get_pr_threads unwraps via
+        ``e.__cause__`` and preserves the original continue-on-429 loop.
+        """
+        import json as _json
+
+        from tests.unit._http_response_factory import make_response
+
+        rate_limit_response = make_response(status=429)
+        rate_limit_response.headers["Retry-After"] = "1"
+        success_response = make_response(
+            status=200,
+            content=_json.dumps({"value": [{"id": 1}]}).encode(),
+        )
 
         with patch("requests.get", side_effect=[rate_limit_response, success_response]):
             with patch("time.sleep") as mock_sleep:
