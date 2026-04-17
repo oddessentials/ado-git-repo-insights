@@ -753,13 +753,17 @@ function testValidateModeInputsExtractRequiresProjects() {
   console.log("  ✓ Passed\n");
 }
 
-// Test 23: task manifest must keep the shared thread-cap input surfaced for
-// backfill mode as well as extract-with-comments. The lowest-risk manifest-only
-// shape is to leave this shared input visible rather than gating it behind the
-// extract-only includeComments flag.
+// Test 23: task manifest must expose the shared thread-cap input in BOTH
+// extract-with-comments (`includeComments = true`) AND backfill-comments
+// modes — and only in those modes. Accepted visibleRule shapes: no rule
+// (always visible; pollutes extract UX when includeComments=false but not
+// a correctness bug) or a precise OR rule that admits both modes.
+// Rejected: any rule that omits `mode = backfill-comments` (hides the
+// field in backfill mode — the original bug) or that omits
+// `includeComments = true` (breaks existing extract users).
 function testTaskManifestKeepsSharedThreadCapVisible() {
   console.log(
-    "Test: task.json keeps commentsMaxThreadsPerPr visible for backfill mode...",
+    "Test: task.json visibleRule on commentsMaxThreadsPerPr admits both extract-with-comments and backfill modes...",
   );
   const taskJsonPath = path.join(__dirname, "task.json");
   const taskJson = JSON.parse(fs.readFileSync(taskJsonPath, "utf8"));
@@ -767,11 +771,24 @@ function testTaskManifestKeepsSharedThreadCapVisible() {
     ({ name }) => name === "commentsMaxThreadsPerPr",
   );
   assert(input, "commentsMaxThreadsPerPr input must exist in task.json");
-  assert.strictEqual(
-    Object.prototype.hasOwnProperty.call(input, "visibleRule"),
-    false,
-    "commentsMaxThreadsPerPr must not be hidden behind an extract-only visibleRule",
-  );
+  const visibleRule = input.visibleRule;
+  if (visibleRule !== undefined) {
+    assert.strictEqual(
+      typeof visibleRule,
+      "string",
+      `visibleRule must be a string; got ${typeof visibleRule}`,
+    );
+    assert(
+      visibleRule.includes("mode = backfill-comments"),
+      `commentsMaxThreadsPerPr visibleRule must admit backfill-comments mode. ` +
+        `Current: ${JSON.stringify(visibleRule)}`,
+    );
+    assert(
+      visibleRule.includes("includeComments = true"),
+      `commentsMaxThreadsPerPr visibleRule must admit extract mode with ` +
+        `includeComments=true. Current: ${JSON.stringify(visibleRule)}`,
+    );
+  }
   console.log("  ✓ Passed\n");
 }
 

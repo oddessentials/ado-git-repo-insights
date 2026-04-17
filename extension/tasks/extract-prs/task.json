@@ -94,6 +94,7 @@
             "label": "Max Threads per PR",
             "required": false,
             "defaultValue": "50",
+            "visibleRule": "includeComments = true || mode = backfill-comments",
             "helpMarkDown": "Maximum threads to fetch per PR. Non-negative integer; 0 means unlimited."
         },
         {

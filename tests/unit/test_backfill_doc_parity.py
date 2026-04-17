@@ -28,6 +28,7 @@ and forces both to move together. No assertion here is always-green.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -37,6 +38,7 @@ _EXTENSION_DOC = REPO_ROOT / "docs" / "user-guide" / "extension.md"
 _CLI_DOC = REPO_ROOT / "docs" / "reference" / "cli-reference.md"
 _TASK_DOC = REPO_ROOT / "docs" / "reference" / "task-reference.md"
 _CLI_SOURCE = REPO_ROOT / "src" / "ado_git_repo_insights" / "cli.py"
+_TASK_MANIFEST = REPO_ROOT / "extension" / "tasks" / "extract-prs" / "task.json"
 
 _RATE_PATTERN = re.compile(
     r"(~\s*1\s*PR\s*/\s*sec|one\s+PR\s+per\s+second)",
@@ -176,6 +178,93 @@ def test_sample_pipeline_backfill_block_precedes_csv_generation() -> None:
         "CSVs (generated from pre-backfill DB state), hiding newly-covered "
         "comments from PowerBI consumers until the next pipeline run."
     )
+
+
+def test_task_json_exposes_backfill_shared_inputs_in_backfill_mode() -> None:
+    """Inputs documented in task-reference.md as "shared with extract mode"
+    must remain reachable in backfill-comments mode via task.json.
+
+    Regression being locked: task.json had
+    ``visibleRule: "includeComments = true"`` on ``commentsMaxThreadsPerPr``,
+    hiding the field in backfill mode where ``includeComments`` is neither
+    set nor allowed (the task rejects ``includeComments: true`` in
+    backfill mode per cross-mode input rejection). task-reference.md
+    documents the input as a shared backfill input, so docs promised a
+    UI affordance the manifest did not expose.
+
+    A Python-side companion to the node-assert lock in
+    ``extension/tasks/extract-prs/index.test.js``
+    (``testTaskManifestKeepsSharedThreadCapVisible``). Cross-artifact
+    verification: task-reference.md ↔ task.json, not just node tests ↔
+    task.json.
+    """
+    task_manifest = json.loads(_TASK_MANIFEST.read_text(encoding="utf-8"))
+    task_reference = _TASK_DOC.read_text(encoding="utf-8")
+
+    # Sanity anchor 1 — task-reference.md still documents the input.
+    # If the doc is restructured and this sentinel disappears, the test
+    # must be re-scoped rather than silently going green.
+    assert "commentsMaxThreadsPerPr" in task_reference, (
+        "task-reference.md no longer mentions commentsMaxThreadsPerPr. "
+        "Either the feature was removed or the doc was restructured — "
+        "re-scope this test."
+    )
+    # Sanity anchor 2 — the doc must still describe backfill-mode inputs
+    # using the "shared with extract mode" phrasing that signals the
+    # cross-mode availability this test protects.
+    assert "shared with extract mode" in task_reference, (
+        "task-reference.md no longer describes backfill inputs as 'shared "
+        "with extract mode'. Re-scope this test to match the current "
+        "phrasing before it becomes vacuous."
+    )
+
+    # Manifest assertion — the input must be exposed in BOTH
+    # extract-with-comments (``includeComments = true``) AND
+    # backfill-comments mode. Accepted shapes:
+    #   * no visibleRule (always visible; pollutes extract UX when
+    #     includeComments=false, but not a correctness bug)
+    #   * a precise OR rule that admits both modes
+    # Rejected:
+    #   * a rule that omits ``mode = backfill-comments`` (hides the field
+    #     in backfill mode — the original bug)
+    #   * a rule that omits ``includeComments = true`` (breaks existing
+    #     extract users who enabled comments)
+    raw_inputs = task_manifest.get("inputs", [])
+    assert isinstance(raw_inputs, list), (
+        f"task.json `inputs` must be a list; got {type(raw_inputs).__name__}."
+    )
+    matching = [
+        entry
+        for entry in raw_inputs
+        if isinstance(entry, dict) and entry.get("name") == "commentsMaxThreadsPerPr"
+    ]
+    assert len(matching) == 1, (
+        "task.json must declare exactly one `commentsMaxThreadsPerPr` "
+        f"input; found {len(matching)}."
+    )
+    visible_rule = matching[0].get("visibleRule")
+    if visible_rule is not None:
+        assert isinstance(visible_rule, str), (
+            "task.json `visibleRule` must be a string; got "
+            f"{type(visible_rule).__name__}."
+        )
+        assert "mode = backfill-comments" in visible_rule, (
+            "task.json visibleRule on `commentsMaxThreadsPerPr` does not "
+            "admit backfill-comments mode, hiding the field where "
+            "task-reference.md documents it as shared. Acceptable: no "
+            "visibleRule, or a rule including `mode = backfill-comments` "
+            "via an OR (e.g., "
+            "`includeComments = true || mode = backfill-comments`). "
+            f"Current: {visible_rule!r}"
+        )
+        assert "includeComments = true" in visible_rule, (
+            "task.json visibleRule on `commentsMaxThreadsPerPr` does not "
+            "admit extract mode with `includeComments=true`, which would "
+            "break existing extract users who enabled comments. "
+            "Acceptable: no visibleRule, or a rule including "
+            "`includeComments = true` via an OR. "
+            f"Current: {visible_rule!r}"
+        )
 
 
 def test_extension_md_documents_legacy_schema_precondition() -> None:
