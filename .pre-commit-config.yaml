@@ -91,3 +91,11 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+
+      - id: cli-reference-drift
+        name: CLI reference drift (docs/reference/cli-reference.md ↔ create_parser())
+        entry: python scripts/generate_cli_reference.py --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -454,6 +454,10 @@ class TestPreflightCiParity:
                 "extension-tests",
                 "Validate Test Results (Extension)",
             ),
+            "CLI reference drift": (
+                "cli-reference-drift",
+                "Check cli-reference.md against parser",
+            ),
         }
 
         for gate_name, (job_name, step_name) in expected.items():
@@ -474,8 +478,80 @@ class TestPreflightCiParity:
             "extension-tests",
             "parity-gate",
             "secret-scan",
+            "cli-reference-drift",
         ):
             assert job_name in jobs
+
+
+class TestCliReferenceGateParity:
+    """Parity-drift coverage for the cli-reference drift gate (issue #285).
+
+    Contract: preflight CommandSpec, the CI ``cli-reference-drift`` job
+    step, and the ``.pre-commit-config.yaml`` hook all invoke the exact
+    same command — ``python scripts/generate_cli_reference.py --check``
+    — so the three entry points cannot diverge. This is the
+    one-command-per-gate invariant applied to the new doc-drift surface.
+    """
+
+    _EXPECTED_COMMAND = "python scripts/generate_cli_reference.py --check"
+
+    def test_preflight_commandspec_invokes_generator_check(self) -> None:
+        preflight = _normalized_preflight_commands(PARITY_BASELINE_PATH)
+        assert "CLI reference drift" in preflight, (
+            "preflight CommandSpec 'CLI reference drift' is missing. "
+            "run_pr_preflight.py must carry this gate so pre-push catches "
+            "doc drift locally before CI does."
+        )
+        normalized = preflight["CLI reference drift"].replace("__PYTHON__", "python")
+        assert normalized == self._EXPECTED_COMMAND, (
+            f"preflight CommandSpec 'CLI reference drift' invokes "
+            f"{normalized!r}; expected {self._EXPECTED_COMMAND!r}. The "
+            f"single authoritative command invariant requires identical "
+            f"invocation across preflight, CI, and pre-commit."
+        )
+
+    def test_ci_step_invokes_generator_check(self) -> None:
+        step = _find_ci_step(
+            "cli-reference-drift", "Check cli-reference.md against parser"
+        )
+        ci_commands = _extract_shell_commands(str(step["run"]))
+        assert self._EXPECTED_COMMAND in ci_commands, (
+            f"CI step 'Check cli-reference.md against parser' does not "
+            f"invoke {self._EXPECTED_COMMAND!r}; got {ci_commands!r}."
+        )
+
+    def test_precommit_hook_invokes_generator_check(self) -> None:
+        config = yaml.safe_load(
+            (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        )
+        local_repo = next(
+            (repo for repo in config.get("repos", []) if repo.get("repo") == "local"),
+            None,
+        )
+        assert local_repo is not None, (
+            ".pre-commit-config.yaml has no local repo entry; the "
+            "cli-reference-drift hook must live in the local-hooks block."
+        )
+        hooks = local_repo.get("hooks", [])
+        match = next(
+            (hook for hook in hooks if hook.get("id") == "cli-reference-drift"),
+            None,
+        )
+        assert match is not None, (
+            ".pre-commit-config.yaml is missing the 'cli-reference-drift' "
+            "hook. Pre-commit parity requires this hook so the gate fires "
+            "through husky pre-push in addition to run_pr_preflight.py."
+        )
+        assert match.get("entry") == self._EXPECTED_COMMAND, (
+            f".pre-commit-config.yaml hook 'cli-reference-drift' entry "
+            f"{match.get('entry')!r} does not match the authoritative "
+            f"command {self._EXPECTED_COMMAND!r}."
+        )
+        assert match.get("stages") == ["pre-push"], (
+            f".pre-commit-config.yaml hook 'cli-reference-drift' stages "
+            f"{match.get('stages')!r} should be ['pre-push'] to match the "
+            f"repo convention for Python-level drift checks."
+        )
 
 
 class TestFormatCheckParity:

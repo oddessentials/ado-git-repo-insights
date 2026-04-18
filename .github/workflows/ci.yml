@@ -440,6 +440,30 @@ jobs:
           echo "Marker found in: $MARKER_FOUND"
         shell: bash
 
+  # Guard: Block drift between docs/reference/cli-reference.md and the
+  # argparse parser. The doc's generated regions, the golden SHA fixture,
+  # and the per-subcommand --help snapshots are emitted by
+  # scripts/generate_cli_reference.py from src/ado_git_repo_insights/cli.py;
+  # --check flags any divergence so the doc can never lie about flag
+  # names, defaults, required/optional status, or help text.
+  # See: LOCAL_CI_PARITY_INVARIANTS.md row 34.
+  cli-reference-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Check cli-reference.md against parser
+        run: python scripts/generate_cli_reference.py --check
+
   # Guard: Enforce centralized pagination token handling (SC-009)
   # Prevents direct continuationToken string concatenation (parameter injection vector)
   # See: specs/017-security-fixes/spec.md for security requirements
