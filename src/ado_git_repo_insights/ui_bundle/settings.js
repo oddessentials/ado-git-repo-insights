@@ -50,10 +50,26 @@ var PRInsightsSettings = (() => {
     return option;
   }
 
+  // ../ui/modules/shared/focus-trap.ts
+  var trapStates = /* @__PURE__ */ new WeakMap();
+  function restoreFocus(controller) {
+    const state = trapStates.get(controller);
+    controller.abort();
+    if (state && state.returnTarget && !state.returnTarget.isConnected) {
+      return;
+    }
+    state?.returnTarget?.focus();
+  }
+
   // ../ui/modules/drilldown/lifecycle-signals.ts
   var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
 
   // ../ui/modules/shared/detail-panel.ts
+  var panelEls = null;
+  var panelState = "closed";
+  var activeContext = null;
+  var focusTrapController = null;
+  var openScopedController = null;
   var comparisonActive = false;
   {
     const lifetimeComparisonListener = (evt) => {
@@ -61,6 +77,34 @@ var PRInsightsSettings = (() => {
       comparisonActive = e2.detail.enabled;
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+  }
+  function isDetailPanelOpen() {
+    return panelState === "opening" || panelState === "open";
+  }
+  function dismissDetailPanel(reason) {
+    if (!isDetailPanelOpen()) return;
+    panelState = "closing";
+    openScopedController?.abort();
+    openScopedController = null;
+    const trigger = activeContext?.triggerElement ?? null;
+    if (focusTrapController) {
+      if (trigger && trigger.isConnected) {
+        restoreFocus(focusTrapController);
+        trigger.focus();
+      } else {
+        restoreFocus(focusTrapController);
+      }
+      focusTrapController = null;
+    }
+    finalizeClose();
+    void reason;
+  }
+  function finalizeClose() {
+    if (panelEls) {
+      panelEls.root.classList.remove("is-open");
+    }
+    activeContext = null;
+    panelState = "closed";
   }
 
   // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
@@ -602,6 +646,87 @@ var PRInsightsSettings = (() => {
       toast.remove();
     }, durationMs);
   }
+
+  // ../ui/modules/drilldown/comparison-advisory.ts
+  var CHART_CONTAINER_IDS = [
+    "throughput-chart",
+    "cycle-time-trend",
+    "reviewer-activity"
+  ];
+  var SUMMARY_CARDS_SELECTOR = ".summary-cards";
+  var COMPARISON_BANNER_ID = "comparison-banner";
+  var BANNER_NOTE_CLASS = "comparison-advisory-banner";
+  var DISABLED_ATTR = "data-drilldown-disabled";
+  var DISABLED_VALUE = "comparison";
+  var ADVISORY_MESSAGE = "Drill-down is unavailable during comparison. Exit comparison to use it.";
+  var isActive = false;
+  var activeToast = null;
+  var activeToastTimer = null;
+  function dismissActiveToast() {
+    if (activeToastTimer !== null) {
+      clearTimeout(activeToastTimer);
+      activeToastTimer = null;
+    }
+    if (activeToast && activeToast.isConnected) {
+      activeToast.remove();
+    }
+    activeToast = null;
+  }
+  function getChartContainers() {
+    const out = [];
+    for (const id of CHART_CONTAINER_IDS) {
+      const el = document.getElementById(id);
+      if (el) out.push(el);
+    }
+    const summary = document.querySelector(SUMMARY_CARDS_SELECTOR);
+    if (summary) out.push(summary);
+    return out;
+  }
+  function mountBanner() {
+    const banner = document.getElementById(COMPARISON_BANNER_ID);
+    if (!banner) return;
+    if (banner.querySelector(`.${BANNER_NOTE_CLASS}`)) return;
+    const note = createElement(
+      "div",
+      { class: BANNER_NOTE_CLASS, role: "note" },
+      ADVISORY_MESSAGE
+    );
+    banner.appendChild(note);
+  }
+  function unmountBanner() {
+    const banner = document.getElementById(COMPARISON_BANNER_ID);
+    if (!banner) return;
+    const note = banner.querySelector(`.${BANNER_NOTE_CLASS}`);
+    if (note) {
+      note.remove();
+    }
+  }
+  function setChartDisabled(enabled) {
+    for (const el of getChartContainers()) {
+      if (enabled) {
+        el.setAttribute(DISABLED_ATTR, DISABLED_VALUE);
+      } else {
+        el.removeAttribute(DISABLED_ATTR);
+      }
+    }
+  }
+  var comparisonListener = (evt) => {
+    const e2 = evt;
+    if (e2.detail.enabled) {
+      isActive = true;
+      mountBanner();
+      setChartDisabled(true);
+      if (isDetailPanelOpen()) {
+        dismissDetailPanel("comparison-toggled");
+      }
+    } else {
+      isActive = false;
+      unmountBanner();
+      setChartDisabled(false);
+      dismissActiveToast();
+    }
+  };
+  window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
   // ../ui/artifact-client.ts
   var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([

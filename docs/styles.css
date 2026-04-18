@@ -3087,3 +3087,64 @@ input[type="search"]::placeholder {
         transition: none;
     }
 }
+
+/* ============================================================================
+ * Comparison-mode drill-down advisory (feature 059 / FR-060..062)
+ *
+ * Three cues combine to make disabled drill-down feel intentional:
+ *   - .comparison-advisory-banner inside #comparison-banner
+ *   - [data-drilldown-disabled="comparison"] subdued affordance on the
+ *     chart clickable descendants
+ *   - .comparison-advisory-toast transient message on attempted click
+ * ========================================================================== */
+
+.comparison-advisory-banner {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    border-radius: var(--radius);
+}
+
+/* Subdued affordance on clickable chart descendants when comparison disables
+ * drill-down. Only applies to elements that declared themselves clickable via
+ * drill-down data attributes so hover/info tooltips remain unaffected. */
+[data-drilldown-disabled="comparison"] [data-drilldown-week],
+[data-drilldown-disabled="comparison"] [data-drilldown-reviewer-id],
+[data-drilldown-disabled="comparison"] [data-drilldown-target-chart] {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.comparison-advisory-toast {
+    position: fixed;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-size: 13px;
+    max-width: 320px;
+    z-index: 110;
+    pointer-events: none;
+    animation: comparison-advisory-toast-in 120ms ease-out;
+}
+
+@keyframes comparison-advisory-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .comparison-advisory-toast {
+        animation: none;
+    }
+}

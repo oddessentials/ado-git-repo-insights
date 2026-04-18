@@ -8,3 +8,4 @@
  */
 
 export * from "./lifecycle-signals";
+export * from "./comparison-advisory";
