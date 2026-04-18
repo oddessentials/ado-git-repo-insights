@@ -589,3 +589,192 @@ class TestSafeExtractImport:
         from ado_git_repo_insights.utils.safe_extract import ZipSlipError
 
         assert issubclass(ZipSlipError, Exception)
+
+
+# =============================================================================
+# Artifact-type dispatch for contract validation (#297)
+# =============================================================================
+
+
+class TestStageArtifactsArtifactDispatch:
+    """stage-artifacts must apply CONTRACT.md validation only to 'aggregates'.
+
+    Pre-fix defect (issue #297): the contract check ran unconditionally, so
+    staging any non-aggregates artifact (e.g. 'ado-insights-db') produced a
+    non-zero exit even on a successful download, because those artifacts do
+    not publish 'dataset-manifest.json'. Post-fix behavior:
+
+    - 'aggregates' still validates (primary contract path unchanged)
+    - 'ado-insights-db' skips validation with an explicit INFO log
+    - Any unrecognized artifact name fails fast with an error (guards
+      against typos silently masquerading as success — a correctness
+      guarantee, not a convenience)
+    """
+
+    @staticmethod
+    def _build_args(tmp_path: Path, artifact: str) -> object:
+        from argparse import Namespace
+
+        return Namespace(
+            org="testorg",
+            project="testproj",
+            pipeline_id=1,
+            artifact=artifact,
+            pat="fake-pat",
+            out=tmp_path / "out",
+            run_id=None,
+            serve=False,
+            open=False,
+            port=8080,
+        )
+
+    @staticmethod
+    def _install_http_mocks(monkeypatch: pytest.MonkeyPatch, zip_bytes: bytes) -> None:
+        """Mock requests.get to satisfy build-lookup, artifact-info, and download."""
+
+        from unittest.mock import MagicMock
+
+        def fake_get(url: str, **_kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            resp.raise_for_status = lambda: None
+            resp.status_code = 200
+            if "/build/builds?" in url:
+                resp.json.return_value = {
+                    "value": [
+                        {
+                            "id": 1,
+                            "result": "succeeded",
+                            "finishTime": "2026-04-17T00:00:00Z",
+                        }
+                    ]
+                }
+            elif "/artifacts?" in url:
+                resp.json.return_value = {
+                    "resource": {"downloadUrl": "https://fake/download"}
+                }
+            else:
+                # Artifact download: serve the fake ZIP bytes in one chunk.
+                resp.iter_content = lambda chunk_size=8192: iter([zip_bytes])
+            return resp
+
+        monkeypatch.setattr("requests.get", fake_get)
+
+    @staticmethod
+    def _make_zip(members: dict[str, bytes]) -> bytes:
+        """Build a ZIP byte string with the given path → contents entries."""
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            for name, data in members.items():
+                zf.writestr(name, data)
+        return buf.getvalue()
+
+    def test_ado_insights_db_skips_validation_and_exits_0(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """`--artifact ado-insights-db` bypasses the aggregates contract
+        and succeeds on download alone. The validator must not be called.
+        """
+        from ado_git_repo_insights.cli import cmd_stage_artifacts
+
+        zip_bytes = self._make_zip(
+            {"ado-insights-db/ado-insights.sqlite": b"fake-sqlite-content"}
+        )
+        self._install_http_mocks(monkeypatch, zip_bytes)
+
+        validator_calls: list[Path] = []
+
+        def spy_validator(out_dir: Path) -> tuple[bool, str, int]:
+            validator_calls.append(out_dir)
+            return (True, "", 1)
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._validate_staged_artifacts", spy_validator
+        )
+
+        args = self._build_args(tmp_path, "ado-insights-db")
+        with caplog.at_level(logging.INFO, logger="ado_git_repo_insights.cli"):
+            result = cmd_stage_artifacts(args)
+
+        assert result == 0, "ado-insights-db should exit 0 on successful download"
+        assert validator_calls == [], (
+            "aggregates contract validator must not run for ado-insights-db"
+        )
+        assert "Skipping contract validation" in caplog.text
+
+    def test_aggregates_still_invokes_contract_validator(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--artifact aggregates` preserves the primary contract path.
+
+        Regression lock: the #297 fix must not break the aggregates case.
+        """
+        from ado_git_repo_insights.cli import cmd_stage_artifacts
+
+        zip_bytes = self._make_zip({"dataset-manifest.json": b"{}"})
+        self._install_http_mocks(monkeypatch, zip_bytes)
+
+        validator_calls: list[Path] = []
+
+        def spy_validator(out_dir: Path) -> tuple[bool, str, int]:
+            validator_calls.append(out_dir)
+            return (True, "", 1)
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._validate_staged_artifacts", spy_validator
+        )
+
+        args = self._build_args(tmp_path, "aggregates")
+        result = cmd_stage_artifacts(args)
+
+        assert result == 0
+        assert len(validator_calls) == 1, (
+            "aggregates must still run the contract validator"
+        )
+
+    def test_unknown_artifact_fails_fast_with_actionable_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A typo like `aggreagtes` must exit 1, not silently succeed.
+
+        Prevents contract-integrity loss from misspellings. The validator
+        must NOT run either — if it did, the 'dataset-manifest.json not
+        found' error would mask the real problem (the typo).
+        """
+        from ado_git_repo_insights.cli import cmd_stage_artifacts
+
+        zip_bytes = self._make_zip({"some-file.bin": b"payload"})
+        self._install_http_mocks(monkeypatch, zip_bytes)
+
+        validator_calls: list[Path] = []
+
+        def spy_validator(out_dir: Path) -> tuple[bool, str, int]:
+            validator_calls.append(out_dir)
+            return (True, "", 1)
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._validate_staged_artifacts", spy_validator
+        )
+
+        args = self._build_args(tmp_path, "aggreagtes")  # deliberate typo
+        with caplog.at_level(logging.ERROR, logger="ado_git_repo_insights.cli"):
+            result = cmd_stage_artifacts(args)
+
+        assert result == 1, "unknown artifact name must fail fast"
+        assert validator_calls == [], (
+            "validator must not run on unknown artifact names — the typo itself "
+            "is the actionable failure and must not be masked"
+        )
+        assert "Unknown artifact type" in caplog.text
+        assert "'aggregates'" in caplog.text
+        assert "'ado-insights-db'" in caplog.text

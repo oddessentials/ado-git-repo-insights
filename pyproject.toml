@@ -167,6 +167,7 @@ module = [
     "demo_generation_common",
     "demo_shell",
     "env_guard",
+    "generate_cli_reference",
     "invariant_contracts",
     "manage_generated_artifacts",
     "pytest_cov_launcher_plugin",

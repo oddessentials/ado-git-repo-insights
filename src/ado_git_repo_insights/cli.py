@@ -2601,13 +2601,32 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         if was_normalized:
             logger.info("Nested layout detected and normalized to flat structure")
 
-        # Step 5: Validate contract compliance (fail fast)
-        is_valid, error_msg, schema_version = _validate_staged_artifacts(out_dir)
-        if not is_valid:
-            logger.error(f"Contract validation failed: {error_msg}")
+        # Step 5: Validate contract compliance, scoped to artifact type (#297).
+        # CONTRACT.md (dataset-manifest.json, aggregate_index, weekly_rollups,
+        # distributions) applies only to the aggregates artifact. Other known
+        # artifact types publish different file shapes and must not be gated
+        # on the aggregates contract. Unknown artifact names fail fast rather
+        # than silently succeeding — protects against typos like
+        # --artifact aggreagtes masquerading as a passing run.
+        if args.artifact == "aggregates":
+            is_valid, error_msg, schema_version = _validate_staged_artifacts(out_dir)
+            if not is_valid:
+                logger.error(f"Contract validation failed: {error_msg}")
+                logger.error(
+                    "Staged artifacts do not meet CONTRACT.md requirements. "
+                    "Verify the pipeline publishes artifacts correctly."
+                )
+                return 1
+        elif args.artifact == "ado-insights-db":
+            logger.info(
+                f"Skipping contract validation for artifact '{args.artifact}' "
+                f"(CONTRACT.md applies to 'aggregates' only)"
+            )
+            schema_version = 0
+        else:
             logger.error(
-                "Staged artifacts do not meet CONTRACT.md requirements. "
-                "Verify the pipeline publishes artifacts correctly."
+                f"Unknown artifact type: {args.artifact!r}. "
+                f"Supported artifact types: 'aggregates', 'ado-insights-db'."
             )
             return 1
 
