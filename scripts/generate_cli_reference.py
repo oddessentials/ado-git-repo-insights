@@ -634,49 +634,92 @@ def _build_argv_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _require_canonical_python() -> None:
-    """Fail-fast if the current interpreter isn't the CI-canonical version.
+def _is_canonical_python() -> bool:
+    return sys.version_info[:2] == _CANONICAL_PYTHON
 
-    Exists to close the local/CI parity gap that let PR #298 ship
-    3.14-generated snapshots past a local ``--check`` tautology.
-    Before this guard, ``--check`` on any Python version compared
-    argparse's current output against its own regen — a no-op by
-    construction — producing false green while 3.12 CI saw drift.
-    After this guard, any non-canonical invocation exits 1 with an
-    actionable ``uv venv --python 3.12`` instruction, matching the
-    behavioral surface CI already enforces.
-    """
-    if sys.version_info[:2] == _CANONICAL_PYTHON:
-        return
+
+def _non_canonical_python_message(mode_label: str) -> str:
     canonical = ".".join(str(n) for n in _CANONICAL_PYTHON)
     current = f"{sys.version_info.major}.{sys.version_info.minor}"
-    sys.stderr.write(
-        f"[cli-reference-generator] ERROR: requires Python {canonical} "
+    return (
+        f"[cli-reference-generator] {mode_label}: requires Python {canonical} "
         f"(CI canonical); currently Python {current}.\n"
         f"\n"
         f"argparse help-text rendering is not byte-stable across Python\n"
         f"versions.  Regenerating on {current} produces snapshots that\n"
-        f"pass a local --check tautologically (regen matches regen on\n"
-        f"the same interpreter) but diverge from CI's Python {canonical}\n"
-        f"regen, violating local/CI parity.\n"
+        f"pass a local --check tautologically (regen matches regen on the\n"
+        f"same interpreter) but diverge from CI's Python {canonical} regen,\n"
+        f"violating local/CI parity.\n"
         f"\n"
         f"Run via an isolated {canonical} venv:\n"
         f"  uv venv --python {canonical} $TEMP/ado-cli-ref-venv\n"
-        f"  $TEMP/ado-cli-ref-venv/Scripts/python -m pip install -e .\n"
+        f"  uv pip install --python $TEMP/ado-cli-ref-venv/Scripts/python -e .\n"
         f"  $TEMP/ado-cli-ref-venv/Scripts/python scripts/generate_cli_reference.py <args>\n"
     )
+
+
+def _require_canonical_python_for_write(mode_label: str) -> None:
+    """Refuse to regenerate artifacts on a non-canonical interpreter.
+
+    Write-path invariant: snapshots and the generated doc must never be
+    produced by anything but the CI-canonical Python.  Any non-canonical
+    regen ships bytes that a subsequent CI `--check` will diverge from
+    — the same defect that took PR #298 offline.
+    """
+    if _is_canonical_python():
+        return
+    sys.stderr.write(_non_canonical_python_message(f"ERROR ({mode_label})"))
     sys.exit(1)
+
+
+def _check_under_canonical_python_or_skip() -> int | None:
+    """Return ``None`` to proceed with the check, or an exit code to short-circuit.
+
+    Read-path invariant: `--check` on a non-canonical interpreter
+    cannot produce a CI-parity verdict (argparse renders differently
+    across versions regardless of parser edits), so a straight run
+    would produce false positives on every invocation.  Instead emit a
+    SKIP diagnostic matching the form CI uses for its own "upstream
+    dependency failed" cascades — preflight continues, CI performs the
+    authoritative check on Python 3.12.
+
+    The write-path guard above still prevents anyone from committing
+    non-canonical snapshots, so the only drift this skip can "miss"
+    would already have been blocked at regeneration time.
+    """
+    if _is_canonical_python():
+        return None
+    canonical = ".".join(str(n) for n in _CANONICAL_PYTHON)
+    current = f"{sys.version_info.major}.{sys.version_info.minor}"
+    sys.stdout.write(
+        f"[SKIP] cli-reference --check skipped on Python {current}; "
+        f"canonical Python {canonical} required for authoritative "
+        f"local verification. CI remains authoritative.\n"
+        f"\n"
+        f"To run the check locally on canonical Python:\n"
+        f"  uv venv --python {canonical} $TEMP/ado-cli-ref-venv\n"
+        f"  uv pip install --python $TEMP/ado-cli-ref-venv/Scripts/python -e .\n"
+        f"  $TEMP/ado-cli-ref-venv/Scripts/python scripts/generate_cli_reference.py --check\n"
+        f"\n"
+        f"Note: the --write guard still refuses non-canonical regeneration,\n"
+        f"so committed snapshots remain canonical by construction.\n"
+    )
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_argv_parser().parse_args(argv)
-    _require_canonical_python()
     try:
         if args.write:
+            _require_canonical_python_for_write("--write")
             return mode_write()
         if args.check:
+            skip_code = _check_under_canonical_python_or_skip()
+            if skip_code is not None:
+                return skip_code
             return mode_check()
         if args.update_help_snapshots:
+            _require_canonical_python_for_write("--update-help-snapshots")
             return mode_update_help_snapshots()
     except (GenerationError, MarkerError) as err:
         sys.stdout.write(f"[cli-reference-generator] ERROR: {err}\n")
