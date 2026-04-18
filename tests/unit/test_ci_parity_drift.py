@@ -749,11 +749,18 @@ class TestPartialBranchesParity:
         )
         hits = [line for line in result.stdout.splitlines() if line]
 
+        # Allowlist covers the single authoritative call site
+        # (extension/package.json), the script itself, the two test files
+        # that exercise it, and the contributor-facing ratchet doc. The doc
+        # references the script path as a discovery pointer to the
+        # LOCKED_ZERO_FILES source; it is not a call site, so allowing
+        # mentions there does not weaken the no-direct-invocation contract.
         allowed_prefixes = (
             "extension/package.json:",
             "scripts/check_partial_branches.py:",
             "tests/unit/test_ci_parity_drift.py:",
             "tests/unit/test_check_partial_branches.py:",
+            "docs/development/ratchets.md:",
         )
         disallowed = [h for h in hits if not h.startswith(allowed_prefixes)]
         assert not disallowed, (
