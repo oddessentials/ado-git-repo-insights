@@ -373,7 +373,7 @@ jobs:
 
   # Guard: Block coverage threshold changes without explicit marker
   # Prevents accidental lowering of coverage standards
-  # See: extension/COVERAGE_RATCHET.md for threshold update policy
+  # See: docs/development/ratchets.md for threshold update workflow
   threshold-change-guard:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -431,7 +431,14 @@ jobs:
             echo "::error::Add [threshold-update] to a commit SUBJECT line if this change is intentional"
             echo "::error::(scanned via \`git log --oneline\`; markers in commit bodies are NOT honored)"
             echo ""
-            echo "See: extension/COVERAGE_RATCHET.md for threshold update policy"
+            echo "See: docs/development/ratchets.md for the threshold update workflow"
+            echo ""
+            echo "Canonical env (authoritative for threshold values and floor values):"
+            echo "  Python     : ubuntu-latest + Python 3.12"
+            echo "  Extension  : ubuntu-latest + Node 22"
+            echo "Local measurements on other OS/runtime combinations may differ — re-compute"
+            echo "on the canonical leg before filing a ratchet change."
+            echo ""
             echo "Formula: threshold = floor(actual_coverage - 2.0)"
             exit 1
           fi
@@ -523,7 +530,7 @@ jobs:
     # ============================================================================
     # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Python 3.12
     # Do NOT change this matrix without updating threshold baseline in pyproject.toml
-    # See: extension/COVERAGE_RATCHET.md for ratchet formula and canonical environment
+    # See: docs/development/ratchets.md for ratchet formula and canonical environment
     # ============================================================================
     strategy:
       fail-fast: false
@@ -959,7 +966,7 @@ jobs:
   # ============================================================================
   # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Node 22
   # Do NOT change this environment without updating threshold baseline in jest.config.ts
-  # See: extension/COVERAGE_RATCHET.md for ratchet formula and canonical environment
+  # See: docs/development/ratchets.md for ratchet formula and canonical environment
   # ============================================================================
   extension-tests:
     runs-on: ubuntu-latest

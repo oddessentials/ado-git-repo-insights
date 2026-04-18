@@ -141,9 +141,9 @@ Tests run across the full OS x Python version matrix defined in
 `requires-python` floor in `pyproject.toml` defines packaging
 compatibility; CI validates a specific subset of that range.
 
-The test count floor is defined in
-[`.test-floor-contract.json`](/.test-floor-contract.json) — both pre-push
-hooks and CI read this file to enforce minimum test collection counts.
+For the test-count floor and coverage-threshold workflows — including the
+recovery decision tree, marker rules, and the Python/TypeScript
+asymmetry — see [Ratchets](ratchets.md).
 
 ### Local CI Parity
 

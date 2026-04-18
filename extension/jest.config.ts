@@ -21,17 +21,17 @@ const config: Config = {
   // Tier 2: Critical paths require higher coverage (schemas, core logic)
   //
   // IMPORTANT: Thresholds are set 1-2% below current coverage to prevent
-  // regression while allowing for minor fluctuations. See COVERAGE_RATCHET.md
-  // for the plan to incrementally increase these thresholds.
+  // regression while allowing for minor fluctuations. See
+  // docs/development/ratchets.md for the ratchet workflow.
   //
   // See: specs/009-enterprise-coverage-upgrade for coverage target plan
-  // See: COVERAGE_RATCHET.md for ratchet-up plan
+  // See: COVERAGE_RATCHET.md for the TS per-file ratchet-up plan
   // Current global: ~55%, Target: 70% (Phase 6)
   // ============================================================================
   coverageThreshold: {
     // Tier 1: Global baseline - allows modules without DOM mocking
     // Thresholds computed using formula: floor(actual - 2.0)
-    // See: COVERAGE_RATCHET.md for ratchet formula and canonical environment
+    // See: docs/development/ratchets.md for ratchet formula and canonical environment
     // Updated: 2026-01-30 - using conservative values pending CI canonical baseline
     // Note: Local coverage varies; CI canonical leg (ubuntu-latest + Node 22) is authoritative
     global: {

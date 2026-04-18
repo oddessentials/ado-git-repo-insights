@@ -2176,6 +2176,59 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
         ), "schema_version must stay at 5 after rollback (v6 insert undone)"
         post_conn.close()
 
+    def test_begin_immediate_failure_does_not_rollback_or_mask_error(
+        self, tmp_path: Path
+    ) -> None:
+        """migrate_v5_to_v6 MUST NOT issue ROLLBACK after a failed BEGIN IMMEDIATE.
+
+        If the initial ``BEGIN IMMEDIATE`` raises (e.g., another writer
+        holds the lock), no transaction is open. An unconditional
+        ``ROLLBACK`` would itself raise
+        ``OperationalError: cannot rollback - no transaction is active``
+        and shadow the real lock error, making the migration failure
+        much harder to diagnose.  migrate_v5_to_v6 guards this the same
+        way as migrate_v4_to_v5 (via ``txn_started`` flag); this test
+        locks that branch so the guard cannot regress.
+
+        Real-shape reproduction: hold the writer lock on one connection
+        and invoke the migration on a second connection with
+        ``busy_timeout=0`` so ``BEGIN IMMEDIATE`` raises immediately
+        without retrying. The original "database is locked" message
+        must surface; the masking "cannot rollback" form must not.
+        """
+        import sqlite3
+
+        from ado_git_repo_insights.persistence.migrations import migrate_v5_to_v6
+
+        db_path = tmp_path / "begin_fails.db"
+        self._create_v5_db_without_metadata(db_path)
+
+        # Holder acquires the writer lock via autocommit-mode BEGIN.
+        holder = sqlite3.connect(str(db_path), isolation_level=None)
+        holder.execute("BEGIN IMMEDIATE")
+        try:
+            # Migrator uses autocommit to mirror DatabaseManager.connect
+            # (database.py uses isolation_level=None); busy_timeout=0
+            # forces the second BEGIN to raise immediately instead of
+            # spinning.
+            migrator = sqlite3.connect(str(db_path), isolation_level=None)
+            migrator.execute("PRAGMA busy_timeout = 0")
+            try:
+                with pytest.raises(sqlite3.OperationalError) as excinfo:
+                    migrate_v5_to_v6(migrator)
+                message = str(excinfo.value).lower()
+                assert "database is locked" in message, message
+                # The masking "cannot rollback - no transaction is
+                # active" text from the previous unguarded
+                # implementation must NOT appear.
+                assert "cannot rollback" not in message, message
+                assert not migrator.in_transaction
+            finally:
+                migrator.close()
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+
 
 class TestConnectFailFastOnPartialDatabases:
     """Fail-fast preservation when opening a partial / foreign DB.
