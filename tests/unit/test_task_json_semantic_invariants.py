@@ -63,15 +63,22 @@ _VSS_MANIFEST = _EXTENSION_DIR / "vss-extension.json"
 #            | 'StartsWith'  | 'NotStartsWith'
 #
 # ``_BOOL_SPLIT_RE`` peels top-level boolean operators; ``_TERM_RE``
-# parses one operand. Optional parens around a term keep the parser
-# tolerant of future wrapped-subexpression edits.
+# parses one operand. The term regex intentionally has NO paren
+# tolerance: a trailing ``\)?`` silently consumed the final ``)`` of
+# any RHS ending in a paren (e.g. ``mode = Extract PRs (default)``
+# reached the checker as ``Extract PRs (default``), corrupting
+# checker input so tests passed for the wrong reason. ADO's visibleRule
+# grammar is flat (no parenthesised subexpressions inside a term); if
+# expression-level parens ever arrive, handle them in a separate
+# pre-pass over ``_BOOL_SPLIT_RE`` output rather than re-introducing
+# silent paren-stripping here.
 _BOOL_SPLIT_RE = re.compile(r"\s*(?:\|\||&&)\s*")
 _TERM_RE = re.compile(
-    r"^\s*\(?\s*"
+    r"^\s*"
     r"(?P<lhs>[A-Za-z_][A-Za-z0-9_]*)\s*"
     r"(?P<op>=|!=|>=|<=|>|<|"
     r"EndsWith|NotEndsWith|Contains|NotContains|StartsWith|NotStartsWith)"
-    r"\s*(?P<rhs>.+?)\s*\)?\s*$"
+    r"\s*(?P<rhs>.+?)\s*$"
 )
 
 
@@ -460,6 +467,23 @@ def test_vss_extension_manifest_source_paths_exist() -> None:
 # Adversarial tests — prove each checker catches the violation class    #
 # it claims to. Required by "Never claim enforcement without proof".    #
 # --------------------------------------------------------------------- #
+
+
+def test_parse_term_preserves_trailing_paren_in_rhs() -> None:
+    """RHS values ending in ``)`` must be returned verbatim.
+
+    Previous ``_TERM_RE`` had a trailing ``\\)?`` that silently consumed
+    the final ``)`` of any unquoted RHS ending in a paren — e.g.
+    ``mode = Extract PRs (default)`` was parsed with
+    rhs=``Extract PRs (default`` (one char short). Downstream checkers
+    still rejected the mangled value as "not an option key", so tests
+    passed for the wrong reason: the checker never saw the real string.
+
+    Caught by Codex stop-hook; this test locks the fix so the regex
+    cannot quietly re-introduce paren-stripping.
+    """
+    parsed = _parse_term("mode = Extract PRs (default)")
+    assert parsed == ("mode", "=", "Extract PRs (default)"), parsed
 
 
 def test_dep_order_checker_rejects_simple_forward_reference() -> None:
