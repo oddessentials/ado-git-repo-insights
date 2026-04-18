@@ -2092,3 +2092,104 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
             assert meta["capped"] is False
         finally:
             db.close()
+
+
+class TestConnectFailFastOnPartialDatabases:
+    """Fail-fast preservation when opening a partial / foreign DB.
+
+    Regression locked by this class: the v5→v6 work briefly moved
+    ``_apply_migrations()`` BEFORE ``_validate_schema()`` in
+    ``DatabaseManager.connect()`` so migrations could add the new
+    ``comments_extraction_metadata`` table. That order regressed fail-fast
+    for partial databases — migrations ran against files missing
+    fundamental tables (e.g. ``extraction_metadata``, ``organizations``)
+    and either mutated them or crashed with migration-specific errors
+    instead of the clear ``Missing tables: {...}`` rejection that
+    ``_validate_schema`` had always produced. See Codex stop-hook review
+    from 2026-04-17.
+
+    Fix locked by tests in this class:
+        connect() validates the fundamental-tables set BEFORE running
+        migrations (so partial DBs are rejected without any side effect)
+        and re-validates the complete required set after migrations (so
+        a migration that silently fails to create a v6+ table still
+        raises).
+    """
+
+    @staticmethod
+    def _file_sha256(path: Path) -> str:
+        import hashlib
+
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def test_partial_db_missing_fundamental_table_rejected_without_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        """A DB that has ``pull_requests`` but lacks ``extraction_metadata``
+        / ``organizations`` must be rejected by connect() with no write
+        to the file — migrations MUST NOT run against a partial DB.
+        """
+        db_path = tmp_path / "partial.db"
+        conn = sqlite3.connect(db_path)
+        try:
+            # A stray table but none of the fundamental identifiers.
+            conn.execute("CREATE TABLE pull_requests (id INTEGER PRIMARY KEY)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        sha_before = self._file_sha256(db_path)
+
+        manager = DatabaseManager(db_path)
+        with pytest.raises(Exception, match="Missing tables"):
+            manager.connect()
+
+        sha_after = self._file_sha256(db_path)
+        assert sha_after == sha_before, (
+            "DatabaseManager.connect() mutated a partial database before "
+            "rejecting it. _validate_tables_present(_FUNDAMENTAL_TABLES) "
+            "must run BEFORE _apply_migrations() so that partial / "
+            "foreign databases fail fast without side effects."
+        )
+
+    def test_empty_db_rejected_without_mutation(self, tmp_path: Path) -> None:
+        """A completely empty SQLite file (zero tables) must be rejected
+        with the clear Missing-tables error, not a migration-internal
+        error message.
+        """
+        db_path = tmp_path / "empty.db"
+        conn = sqlite3.connect(db_path)
+        conn.close()  # creates an empty DB file
+
+        sha_before = self._file_sha256(db_path)
+
+        manager = DatabaseManager(db_path)
+        with pytest.raises(Exception, match="Missing tables"):
+            manager.connect()
+
+        sha_after = self._file_sha256(db_path)
+        assert sha_after == sha_before
+
+    def test_v5_db_accepted_and_migrated_to_v6(self, tmp_path: Path) -> None:
+        """A legitimate pre-v6 DB — all fundamental tables present, but
+        the v6-added ``comments_extraction_metadata`` is not yet there —
+        must connect, migrate, and pass post-migration validation. This
+        is the scenario the two-phase order exists to support.
+        """
+        db_path = tmp_path / "v5_legit.db"
+        TestMigrationV5ToV6CommentsExtractionMetadata._create_v5_db_without_metadata(
+            TestMigrationV5ToV6CommentsExtractionMetadata(), db_path
+        )
+
+        manager = DatabaseManager(db_path)
+        manager.connect()
+        try:
+            assert manager.get_schema_version() == 6
+            # Post-migration validation sees the migration-added table.
+            cursor = manager.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='comments_extraction_metadata'"
+            )
+            assert cursor.fetchone() is not None
+        finally:
+            manager.close()
