@@ -88,6 +88,18 @@
             "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. If left blank, 100 is used for rate-limit protection."
         },
         {
+            "name": "mode",
+            "type": "pickList",
+            "label": "Mode",
+            "required": false,
+            "defaultValue": "extract",
+            "options": {
+                "extract": "Extract PRs (default)",
+                "backfill-comments": "Backfill comment coverage for historical PRs"
+            },
+            "helpMarkDown": "Which CLI subcommand to run. `extract` (default) pulls PR metadata for the configured date range and, when `includeComments` is on, also fetches comments for the most recent PRs in that window. `backfill-comments` drains `pr_threads`/`pr_comments` coverage for PRs already in the database whose `comments_extracted_at` is NULL (oldest first); it is how you catch up historical PRs after flipping `includeComments` on. Extract-only inputs (`startDate`, `endDate`, `backfillDays`, `includeComments`, `commentsMaxPrsPerRun`) are rejected in `backfill-comments` mode and vice versa."
+        },
+        {
             "name": "commentsMaxThreadsPerPr",
             "type": "string",
             "label": "Max Threads per PR",
@@ -137,18 +149,6 @@
             "required": false,
             "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
             "visibleRule": "enableInsights = true"
-        },
-        {
-            "name": "mode",
-            "type": "pickList",
-            "label": "Mode",
-            "required": false,
-            "defaultValue": "extract",
-            "options": {
-                "extract": "Extract PRs (default)",
-                "backfill-comments": "Backfill comment coverage for historical PRs"
-            },
-            "helpMarkDown": "Which CLI subcommand to run. `extract` (default) pulls PR metadata for the configured date range and, when `includeComments` is on, also fetches comments for the most recent PRs in that window. `backfill-comments` drains `pr_threads`/`pr_comments` coverage for PRs already in the database whose `comments_extracted_at` is NULL (oldest first); it is how you catch up historical PRs after flipping `includeComments` on. Extract-only inputs (`startDate`, `endDate`, `backfillDays`, `includeComments`, `commentsMaxPrsPerRun`) are rejected in `backfill-comments` mode and vice versa."
         },
         {
             "name": "backfillSince",
