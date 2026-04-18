@@ -7525,6 +7525,28 @@ var PRInsightsDashboard = (() => {
     return JSON.stringify(prev) !== JSON.stringify(next);
   }
 
+  // ../ui/modules/drilldown/lifecycle-signals.ts
+  var FILTERS_CHANGED_EVENT = "drilldown:filters-changed";
+  var TAB_CHANGED_EVENT = "drilldown:tab-changed";
+  var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
+  function publishFiltersChanged(detail) {
+    window.dispatchEvent(
+      new CustomEvent(FILTERS_CHANGED_EVENT, { detail })
+    );
+  }
+  function publishTabChanged(detail) {
+    window.dispatchEvent(
+      new CustomEvent(TAB_CHANGED_EVENT, { detail })
+    );
+  }
+  function publishComparisonToggled(detail) {
+    window.dispatchEvent(
+      new CustomEvent(COMPARISON_TOGGLED_EVENT, {
+        detail
+      })
+    );
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -7545,6 +7567,7 @@ var PRInsightsDashboard = (() => {
   var typeaheadReviewer = null;
   var typeaheadAuthor = null;
   var comparisonMode = false;
+  var previousActiveTabId = "metrics";
   var cachedRollups = [];
   var currentBuildId = null;
   var chipsDelegatedElement = null;
@@ -8025,6 +8048,7 @@ var PRInsightsDashboard = (() => {
     } else {
       if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
+    publishFiltersChanged({ reason: "user-change" });
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
@@ -8321,6 +8345,13 @@ var PRInsightsDashboard = (() => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);
       content.classList.toggle("hidden", content.id !== `tab-${tabId}`);
     });
+    if (tabId !== previousActiveTabId) {
+      publishTabChanged({
+        activeTabId: tabId,
+        previousTabId: previousActiveTabId
+      });
+      previousActiveTabId = tabId;
+    }
     updateUrlState();
   }
   function populateFilterDropdowns(dimensions) {
@@ -8658,6 +8689,7 @@ var PRInsightsDashboard = (() => {
     if (comparisonMode) {
       updateComparisonBanner();
     }
+    publishComparisonToggled({ enabled: comparisonMode });
     updateUrlState();
     void refreshMetrics();
   }
@@ -8665,6 +8697,7 @@ var PRInsightsDashboard = (() => {
     comparisonMode = false;
     elements.get("compare-toggle")?.classList.remove("active");
     elements.get("comparison-banner")?.classList.add("hidden");
+    publishComparisonToggled({ enabled: false });
     updateUrlState();
     void refreshMetrics();
   }

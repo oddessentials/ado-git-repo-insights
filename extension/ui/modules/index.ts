@@ -61,3 +61,6 @@ export * from "./sdk";
 
 // Loading state (refresh-cycle state machine for Metrics tab)
 export * from "./loading-state";
+
+// Drill-down lifecycle signals + (future) per-chart drill-down glue
+export * from "./drilldown";
