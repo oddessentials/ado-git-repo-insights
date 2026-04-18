@@ -1,10 +1,16 @@
 """Tests for ``scripts/generate_cli_reference.py``.
 
-These tests lock the generator's structural behavior against ``create_parser()``.
-Doc-level parity tests (generated regions byte-exact against the committed
-``docs/reference/cli-reference.md``, golden-hash fixture check, marker-layout
-checks) are added alongside the initial doc regeneration in a later commit so
-every intermediate commit keeps a green test suite.
+Two tiers of coverage:
+
+1. Generator-internal behavior — parser introspection, action filtering,
+   table rendering, idempotency, performance-claim guards, and ``--help``
+   snapshot parity. These do not depend on the committed doc.
+2. Doc-level parity — every generated region in
+   ``docs/reference/cli-reference.md`` is byte-exact with the current
+   parser output, the committed golden SHA fixture matches, markers are
+   paired, and hand-written prose outside marker regions is preserved
+   across regeneration. This tier is the bar that keeps ``--help`` and
+   the doc from drifting.
 """
 
 from __future__ import annotations
@@ -20,6 +26,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR_SCRIPT = REPO_ROOT / "scripts" / "generate_cli_reference.py"
 SNAPSHOT_DIR = REPO_ROOT / "tests" / "unit" / "fixtures" / "help_snapshots"
+DOC_PATH = REPO_ROOT / "docs" / "reference" / "cli-reference.md"
+GOLDEN_SHA_PATH = (
+    REPO_ROOT
+    / "tests"
+    / "unit"
+    / "fixtures"
+    / "cli_reference_generated_sections.sha256"
+)
 
 
 def _load_generator_module() -> ModuleType:
@@ -281,4 +295,108 @@ def test_help_output_matches_snapshot(
         f"an intentional UX contract change, regenerate with "
         f"`python scripts/generate_cli_reference.py --update-help-snapshots` "
         f"and commit the updated fixture."
+    )
+
+
+# ---------- Tier 2: doc-level parity locks ----------
+
+
+def test_committed_doc_has_markers_for_every_generated_section(
+    gen: ModuleType, parser: argparse.ArgumentParser
+) -> None:
+    doc_text = DOC_PATH.read_text(encoding="utf-8")
+    blocks = gen._split_into_blocks(doc_text)
+    doc_section_ids = {
+        kind.removeprefix("generated:")
+        for kind, _ in blocks
+        if kind.startswith("generated:")
+    }
+    parser_section_ids = {s.section_id for s in gen.collect_sections(parser)}
+    assert doc_section_ids == parser_section_ids, (
+        f"cli-reference.md marker IDs {doc_section_ids} do not match parser "
+        f"section IDs {parser_section_ids}. "
+        f"Missing markers: {parser_section_ids - doc_section_ids}. "
+        f"Orphan markers: {doc_section_ids - parser_section_ids}."
+    )
+
+
+def test_doc_markers_are_paired_and_ordered(gen: ModuleType) -> None:
+    # _split_into_blocks raises MarkerError on any pairing or ordering
+    # violation (nested BEGIN, orphan END, mismatched pair IDs, unterminated
+    # BEGIN). Calling it on the committed doc is the smallest, most
+    # authoritative test of the marker contract.
+    doc_text = DOC_PATH.read_text(encoding="utf-8")
+    gen._split_into_blocks(doc_text)  # raises on any marker violation
+
+
+def test_generated_regions_match_parser_output(
+    gen: ModuleType, parser: argparse.ArgumentParser
+) -> None:
+    doc_text = DOC_PATH.read_text(encoding="utf-8")
+    sections_by_id = {s.section_id: s for s in gen.collect_sections(parser)}
+    blocks = gen._split_into_blocks(doc_text)
+    for kind, content in blocks:
+        if not kind.startswith("generated:"):
+            continue
+        section_id = kind.removeprefix("generated:")
+        expected = sections_by_id[section_id].body.rstrip("\n")
+        actual = content.rstrip("\n")
+        assert actual == expected, (
+            f"generated region {section_id!r} in cli-reference.md has "
+            f"drifted from the parser. Regenerate with "
+            f"`python scripts/generate_cli_reference.py --write`.\n"
+            f"--- committed ---\n{actual}\n"
+            f"--- expected ---\n{expected}\n"
+        )
+
+
+def test_golden_sha_fixture_matches_current_parser_output(
+    gen: ModuleType, parser: argparse.ArgumentParser
+) -> None:
+    assert GOLDEN_SHA_PATH.exists(), (
+        f"missing golden SHA fixture at {GOLDEN_SHA_PATH.relative_to(REPO_ROOT)}; "
+        f"regenerate with `python scripts/generate_cli_reference.py --write`"
+    )
+    committed = GOLDEN_SHA_PATH.read_text(encoding="utf-8").strip()
+    expected = gen.compute_golden_hash(gen.collect_sections(parser))
+    assert committed == expected, (
+        f"golden SHA fixture has drifted from the parser. "
+        f"committed={committed!r} expected={expected!r}. "
+        f"Regenerate with `python scripts/generate_cli_reference.py --write`."
+    )
+
+
+def test_hand_written_prose_preserved_across_regeneration(
+    gen: ModuleType, parser: argparse.ArgumentParser
+) -> None:
+    # _render_doc is the function --write uses. Call it on the committed
+    # doc text and assert that every non-generated block emerges identical.
+    # A generator bug that edits outside its markers would fail this test
+    # even if the parity test above still passes.
+    doc_text = DOC_PATH.read_text(encoding="utf-8")
+    sections = gen.collect_sections(parser)
+    rendered = gen._render_doc(doc_text, sections)
+    original_blocks = gen._split_into_blocks(doc_text)
+    rendered_blocks = gen._split_into_blocks(rendered)
+    assert len(original_blocks) == len(rendered_blocks)
+    for (orig_kind, orig_content), (rend_kind, rend_content) in zip(
+        original_blocks, rendered_blocks, strict=True
+    ):
+        assert orig_kind == rend_kind
+        if orig_kind.startswith("generated:"):
+            continue  # generated content is expected to change
+        assert orig_content == rend_content, (
+            f"hand-written block of kind {orig_kind!r} was modified by "
+            f"regeneration — the generator must only touch content between "
+            f"markers.\n--- before ---\n{orig_content}\n"
+            f"--- after ---\n{rend_content}\n"
+        )
+
+
+def test_mode_check_passes_on_committed_state(gen: ModuleType) -> None:
+    assert gen.mode_check() == 0, (
+        "scripts/generate_cli_reference.py --check reports drift against "
+        "the committed docs/reference/cli-reference.md, golden SHA, or "
+        "help-snapshot fixtures. Regenerate with "
+        "`python scripts/generate_cli_reference.py --write`."
     )

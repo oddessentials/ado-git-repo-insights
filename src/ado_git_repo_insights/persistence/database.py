@@ -87,8 +87,11 @@ class DatabaseManager:
                 self._initialize_schema()
             else:
                 logger.info(f"Connected to existing database at {self.db_path}")
-                self._validate_schema()
+                # Migrate BEFORE validating so migrations can repair any
+                # schema shape the current required_tables list enforces
+                # (e.g. comments_extraction_metadata added in v5→v6).
                 self._apply_migrations()
+                self._validate_schema()
 
         except sqlite3.Error as e:
             self.close()  # Ensure connection is closed on error
@@ -120,6 +123,7 @@ class DatabaseManager:
         """
         required_tables = [
             "extraction_metadata",
+            "comments_extraction_metadata",
             "organizations",
             "projects",
             "repositories",

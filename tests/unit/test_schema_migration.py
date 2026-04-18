@@ -179,8 +179,8 @@ class TestMigrationV1ToV2:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            # All pending migrations applied: v1→v2→v3→v4
-            assert db.get_schema_version() == 5
+            # All pending migrations applied: v1→v2→v3→v4→v5→v6
+            assert db.get_schema_version() == 6
         finally:
             db.close()
 
@@ -217,25 +217,25 @@ class TestMigrationIdempotency:
         db_path = tmp_path / "test.db"
         _create_v1_database(db_path)
 
-        # First connect: migrates v1 → v2
+        # First connect: migrates v1 → v6
         db = DatabaseManager(db_path)
         db.connect()
         db.close()
 
-        assert _get_schema_version(db_path) == 5
+        assert _get_schema_version(db_path) == 6
 
         # Second connect: should be a no-op
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 5
+            assert db2.get_schema_version() == 6
             assert "reviewed_at" in _get_column_names(db_path, "reviewers")
         finally:
             db2.close()
 
 
 class TestFreshInstall:
-    """T006: new database starts at v4 with all columns."""
+    """New database starts at current latest version with all columns."""
 
     def test_fresh_db_has_reviewed_at(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
@@ -266,12 +266,12 @@ class TestFreshInstall:
         finally:
             db.close()
 
-    def test_fresh_db_starts_at_version_4(self, tmp_path: Path) -> None:
+    def test_fresh_db_starts_at_current_latest_version(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 5
+            assert db.get_schema_version() == 6
         finally:
             db.close()
 
@@ -1788,3 +1788,307 @@ class TestIndexParity:
             f"  Fresh only: {fresh - migrated}\n"
             f"  Migrated only: {migrated - fresh}"
         )
+
+
+class TestMigrationV5ToV6CommentsExtractionMetadata:
+    """v5 → v6: create comments_extraction_metadata for legacy pre-existing DBs.
+
+    Root cause:
+        The table was added to ``SCHEMA_SQL`` but no earlier migration ever
+        created it.  Any DB whose file predates that SCHEMA_SQL change kept
+        running through every migration cycle without gaining the table,
+        so the first call to ``update_comments_extraction_metadata()``
+        crashed with ``sqlite3.OperationalError: no such table`` after
+        comment extraction had already done 20s of work and committed
+        per-PR rows to pr_threads/pr_comments.  Live repro: ADO pipeline
+        build 332 on oddessentials (task 2.8.0), 1044 PRs extracted then
+        lost because the downstream Publish steps were skipped.
+
+    Fix locked by tests in this module:
+        v5→v6 migration creates the table (idempotent via IF NOT EXISTS),
+        backfills the singleton row from per-PR markers when any PR has
+        comments_extracted_at set, and advances schema_version to 6.
+    """
+
+    # v5 schema WITHOUT comments_extraction_metadata — reproduces the
+    # affected vintage (DBs created before the table was added to
+    # SCHEMA_SQL but after v4→v5 ran to rebuild pr_comments).
+    _V5_SCHEMA_WITHOUT_METADATA_SQL = """
+        CREATE TABLE extraction_metadata (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            last_extraction_date TEXT NOT NULL,
+            last_extraction_timestamp TEXT NOT NULL
+        );
+        CREATE TABLE organizations (organization_name TEXT PRIMARY KEY);
+        CREATE TABLE projects (
+            project_name TEXT PRIMARY KEY,
+            organization_name TEXT NOT NULL
+        );
+        CREATE TABLE repositories (
+            repository_id TEXT PRIMARY KEY,
+            repository_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            organization_name TEXT NOT NULL
+        );
+        CREATE TABLE users (
+            user_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            email TEXT
+        );
+        CREATE TABLE pull_requests (
+            pull_request_uid TEXT PRIMARY KEY,
+            pull_request_id INTEGER NOT NULL,
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            repository_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            description TEXT,
+            creation_date TEXT NOT NULL,
+            closed_date TEXT,
+            cycle_time_minutes REAL,
+            review_time_minutes REAL,
+            comments_extracted_at TEXT,
+            raw_json TEXT
+        );
+        CREATE TABLE reviewers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pull_request_uid TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            vote INTEGER NOT NULL,
+            repository_id TEXT NOT NULL,
+            reviewed_at TEXT,
+            UNIQUE(pull_request_uid, user_id)
+        );
+        CREATE TABLE pr_threads (
+            thread_id TEXT NOT NULL,
+            pull_request_uid TEXT NOT NULL,
+            status TEXT,
+            thread_context TEXT,
+            last_updated TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_deleted INTEGER DEFAULT 0,
+            PRIMARY KEY (pull_request_uid, thread_id)
+        );
+        CREATE TABLE pr_comments (
+            comment_id TEXT NOT NULL,
+            thread_id TEXT NOT NULL,
+            pull_request_uid TEXT NOT NULL,
+            author_id TEXT NOT NULL,
+            content TEXT,
+            comment_type TEXT,
+            created_at TEXT NOT NULL,
+            last_updated TEXT,
+            is_deleted INTEGER DEFAULT 0,
+            PRIMARY KEY (pull_request_uid, thread_id, comment_id)
+        );
+        CREATE TABLE schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );
+        INSERT INTO schema_version (version, applied_at) VALUES (5, datetime('now'));
+    """
+
+    def _create_v5_db_without_metadata(
+        self, path: Path, *, seed_coverage: bool = False
+    ) -> None:
+        conn = sqlite3.connect(str(path))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript(self._V5_SCHEMA_WITHOUT_METADATA_SQL)
+        conn.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        conn.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) "
+            "VALUES ('r1', 'repo', 'proj', 'org')"
+        )
+        if seed_coverage:
+            # 3 PRs — 2 have per-PR coverage markers, 1 does not.  Threads
+            # and comments exist only for the covered PRs.
+            conn.execute(
+                "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+                "organization_name, project_name, repository_id, user_id, "
+                "title, status, creation_date, comments_extracted_at) "
+                "VALUES ('r1-1', 1, 'org', 'proj', 'r1', 'u1', 'PR 1', "
+                "'completed', '2026-04-10T10:00:00Z', '2026-04-17T02:15:00Z')"
+            )
+            conn.execute(
+                "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+                "organization_name, project_name, repository_id, user_id, "
+                "title, status, creation_date, comments_extracted_at) "
+                "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', 'PR 2', "
+                "'completed', '2026-04-11T10:00:00Z', '2026-04-17T02:16:00Z')"
+            )
+            conn.execute(
+                "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+                "organization_name, project_name, repository_id, user_id, "
+                "title, status, creation_date) "
+                "VALUES ('r1-3', 3, 'org', 'proj', 'r1', 'u1', 'PR 3', "
+                "'completed', '2026-04-12T10:00:00Z')"
+            )
+            conn.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, status, "
+                "last_updated, created_at) "
+                "VALUES ('t1', 'r1-1', 'active', '2026-04-17T02:15:00Z', "
+                "'2026-04-17T02:15:00Z')"
+            )
+            conn.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, status, "
+                "last_updated, created_at) "
+                "VALUES ('t1', 'r1-2', 'active', '2026-04-17T02:16:00Z', "
+                "'2026-04-17T02:16:00Z')"
+            )
+            conn.execute(
+                "INSERT INTO pr_comments (comment_id, thread_id, "
+                "pull_request_uid, author_id, content, comment_type, created_at) "
+                "VALUES ('1', 't1', 'r1-1', 'u1', 'LGTM', 'text', "
+                "'2026-04-17T02:15:30Z')"
+            )
+            conn.execute(
+                "INSERT INTO pr_comments (comment_id, thread_id, "
+                "pull_request_uid, author_id, content, comment_type, created_at) "
+                "VALUES ('1', 't1', 'r1-2', 'u1', 'ship it', 'text', "
+                "'2026-04-17T02:16:30Z')"
+            )
+        conn.commit()
+        conn.close()
+
+    def test_pre_migration_state_reproduces_bug(self, tmp_path: Path) -> None:
+        """Sanity check: seeded DB lacks the table (crash precondition)."""
+        db_path = tmp_path / "v5_precondition.db"
+        self._create_v5_db_without_metadata(db_path)
+
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='comments_extraction_metadata'"
+        ).fetchone()
+        conn.close()
+        assert row is None, (
+            "Test fixture must start without comments_extraction_metadata — "
+            "otherwise the v5→v6 migration is a no-op here"
+        )
+
+    def test_connect_creates_table_and_advances_to_v6(self, tmp_path: Path) -> None:
+        """Legacy v5 DB gains the missing table and advances to schema v6."""
+        db_path = tmp_path / "v5_to_v6.db"
+        self._create_v5_db_without_metadata(db_path)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 6
+
+            cols = _get_column_names(db_path, "comments_extraction_metadata")
+            assert cols == {
+                "id",
+                "last_run_timestamp",
+                "prs_processed",
+                "threads_fetched",
+                "comments_fetched",
+                "capped",
+            }
+        finally:
+            db.close()
+
+    def test_backfill_row_reflects_per_pr_evidence(self, tmp_path: Path) -> None:
+        """When per-PR markers exist, the singleton row is derived from them.
+
+        Pre-existing oddessentials-shape DB: 2 PRs covered (each with one
+        thread and one comment), 1 PR uncovered.  Backfill must produce
+        prs_processed=2, threads_fetched=2, comments_fetched=2, last_run_
+        timestamp = max(comments_extracted_at), capped=0.
+        """
+        db_path = tmp_path / "v5_backfill.db"
+        self._create_v5_db_without_metadata(db_path, seed_coverage=True)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            row = db.execute(
+                "SELECT id, last_run_timestamp, prs_processed, "
+                "threads_fetched, comments_fetched, capped "
+                "FROM comments_extraction_metadata"
+            ).fetchone()
+            assert row is not None, "backfill row must be present when evidence exists"
+            assert row["id"] == 1
+            assert row["last_run_timestamp"] == "2026-04-17T02:16:00Z"
+            assert row["prs_processed"] == 2
+            assert row["threads_fetched"] == 2
+            assert row["comments_fetched"] == 2
+            assert row["capped"] == 0
+        finally:
+            db.close()
+
+    def test_no_backfill_row_when_no_evidence(self, tmp_path: Path) -> None:
+        """No per-PR marker → no fabricated row (last_run_timestamp is NOT NULL)."""
+        db_path = tmp_path / "v5_no_evidence.db"
+        self._create_v5_db_without_metadata(db_path)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) AS cnt FROM comments_extraction_metadata"
+            ).fetchone()
+            assert int(row["cnt"]) == 0, (
+                "Empty is correct when no PR has been marked — "
+                "the next --include-comments run will populate the row"
+            )
+        finally:
+            db.close()
+
+    def test_migration_is_idempotent(self, tmp_path: Path) -> None:
+        """Second connect after migration is a no-op and preserves backfill row."""
+        db_path = tmp_path / "v5_idempotent.db"
+        self._create_v5_db_without_metadata(db_path, seed_coverage=True)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        db.close()
+
+        db2 = DatabaseManager(db_path)
+        db2.connect()
+        try:
+            assert db2.get_schema_version() == 6
+            row = db2.execute(
+                "SELECT COUNT(*) AS cnt FROM comments_extraction_metadata"
+            ).fetchone()
+            assert int(row["cnt"]) == 1, "idempotent re-run must not duplicate rows"
+        finally:
+            db2.close()
+
+    def test_update_comments_extraction_metadata_no_longer_crashes(
+        self, tmp_path: Path
+    ) -> None:
+        """End-to-end lock on the live repro: the call that crashed in prod
+        (cli.py:797 → repository.py:680) now persists the singleton row.
+        """
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        db_path = tmp_path / "v5_end_to_end.db"
+        self._create_v5_db_without_metadata(db_path)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            repo = PRRepository(db)
+            repo.update_comments_extraction_metadata(
+                last_run_timestamp="2026-04-18T02:17:00Z",
+                prs_processed=1044,
+                threads_fetched=8000,
+                comments_fetched=12000,
+                capped=False,
+            )
+            db.connection.commit()
+
+            meta = repo.get_comments_extraction_metadata()
+            assert meta is not None
+            assert meta["prs_processed"] == 1044
+            assert meta["threads_fetched"] == 8000
+            assert meta["comments_fetched"] == 12000
+            assert meta["capped"] is False
+        finally:
+            db.close()
