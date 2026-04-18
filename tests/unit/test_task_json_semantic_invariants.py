@@ -86,17 +86,19 @@ def _parse_term(term: str) -> tuple[str, str, str] | None:
     Returns ``None`` on malformed input so callers can emit a contextual
     failure including which input's rule produced the malformed operand.
 
-    Symmetric surrounding quotes on the RHS are stripped — ADO accepts
-    both quoted and unquoted RHS in practice; structural tests treat
-    them identically.
+    RHS is returned verbatim (whitespace-trimmed only — quotes are NOT
+    stripped). ADO's marketplace evaluator does not coerce quoted RHS
+    against typed inputs: ``flag = "true"`` against a boolean never
+    matches, and ``mode = "backfill-comments"`` against a pickList
+    never matches either. Leaving quote-stripping out of the parser
+    means the boolean / pickList checkers naturally reject quoted
+    variants instead of silently accepting them — which is what the
+    invariant docstrings promise.
     """
     match = _TERM_RE.match(term)
     if match is None:
         return None
-    rhs = match.group("rhs").strip()
-    if len(rhs) >= 2 and rhs[0] == rhs[-1] and rhs[0] in ("'", '"'):
-        rhs = rhs[1:-1]
-    return match.group("lhs"), match.group("op"), rhs
+    return match.group("lhs"), match.group("op"), match.group("rhs").strip()
 
 
 def _load_task_manifest() -> dict[str, object]:
@@ -621,6 +623,60 @@ def test_boolean_checker_rejects_numeric_rhs() -> None:
     violations = _find_boolean_rhs_violations(inputs)
     assert len(violations) == 1, violations
     assert "'1'" in violations[0], violations[0]
+
+
+def test_boolean_checker_rejects_double_quoted_true() -> None:
+    """Quoted RHS never coerces to boolean in ADO's evaluator. The
+    parser must NOT quietly strip the quotes — otherwise the boolean
+    invariant silently accepts the literal string ``"true"`` that the
+    docstring explicitly calls out as a rejection case.
+    """
+    inputs: list[dict[str, object]] = [
+        {"name": "flag", "type": "boolean"},
+        {"name": "gated", "type": "string", "visibleRule": 'flag = "true"'},
+    ]
+    violations = _find_boolean_rhs_violations(inputs)
+    assert len(violations) == 1, violations
+    assert '"true"' in violations[0], violations[0]
+    assert "literal `true`" in violations[0], violations[0]
+
+
+def test_boolean_checker_rejects_single_quoted_true() -> None:
+    """Single-quoted variant of the same silent-miss hazard. Covers the
+    second quote character the parser must also leave intact.
+    """
+    inputs: list[dict[str, object]] = [
+        {"name": "flag", "type": "boolean"},
+        {"name": "gated", "type": "string", "visibleRule": "flag = 'true'"},
+    ]
+    violations = _find_boolean_rhs_violations(inputs)
+    assert len(violations) == 1, violations
+    assert "'true'" in violations[0], violations[0]
+    assert "literal `true`" in violations[0], violations[0]
+
+
+def test_picklist_checker_rejects_quoted_option_key() -> None:
+    """pickList matching is exact-key-only; wrapping a valid key in
+    quotes (``mode = "backfill-comments"``) is NOT the same comparison
+    and silently never matches the ADO evaluator. The parser must
+    leave quotes intact so this case reaches the key-set check and is
+    rejected as unknown.
+    """
+    inputs: list[dict[str, object]] = [
+        {
+            "name": "mode",
+            "type": "pickList",
+            "options": {"extract": "Extract", "backfill-comments": "Backfill"},
+        },
+        {
+            "name": "gated",
+            "type": "string",
+            "visibleRule": 'mode = "backfill-comments"',
+        },
+    ]
+    violations = _find_picklist_rhs_violations(inputs)
+    assert violations, "checker must reject quoted pickList RHS"
+    assert any('"backfill-comments"' in v for v in violations), violations
 
 
 def test_boolean_checker_accepts_true_and_false_literals() -> None:
