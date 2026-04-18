@@ -301,68 +301,8 @@ def test_extension_md_documents_legacy_schema_precondition() -> None:
     )
 
 
-_VISIBLE_RULE_LHS_RE = re.compile(
-    r"([A-Za-z_][A-Za-z0-9_]*)\s*"
-    r"(?:=|!=|>=?|<=?|EndsWith|NotEndsWith|Contains|NotContains|StartsWith|NotStartsWith)"
-)
-
-
-def test_task_json_inputs_declared_before_visible_rule_references() -> None:
-    """Every input referenced by another input's ``visibleRule`` must
-    appear earlier in the ``inputs`` array.
-
-    Azure DevOps marketplace's ``PackageValidationStep`` rejects uploads
-    whose task manifest declares an input AFTER another input whose
-    ``visibleRule`` references it. Regression for the 2026-04-17
-    marketplace rejection where the ``mode`` pickList was appended at
-    the end of ``inputs`` while ``commentsMaxThreadsPerPr.visibleRule``
-    was concurrently updated to reference ``mode`` — marketplace
-    returned::
-
-        Task definition input 'mode' should come before Task
-        definition input 'commentsMaxThreadsPerPr' as per dependent
-        inputs order ...
-
-    Fix: move the referenced input earlier in the array. This test
-    catches any future forward-reference across all inputs.
-    """
-    task_manifest = json.loads(_TASK_MANIFEST.read_text(encoding="utf-8"))
-    inputs = task_manifest.get("inputs", [])
-    assert isinstance(inputs, list), (
-        f"task.json `inputs` must be a list; got {type(inputs).__name__}."
-    )
-    name_to_index: dict[str, int] = {}
-    for idx, entry in enumerate(inputs):
-        assert isinstance(entry, dict), (
-            f"task.json `inputs[{idx}]` must be a mapping; got {type(entry).__name__}."
-        )
-        name = entry.get("name")
-        assert isinstance(name, str), (
-            f"task.json `inputs[{idx}].name` must be a string; got {type(name).__name__}."
-        )
-        assert name, f"task.json `inputs[{idx}].name` must be non-empty."
-        name_to_index[name] = idx
-
-    for idx, entry in enumerate(inputs):
-        rule = entry.get("visibleRule")
-        if rule is None:
-            continue
-        assert isinstance(rule, str), (
-            f"task.json `inputs[{idx}].visibleRule` must be a string; "
-            f"got {type(rule).__name__}."
-        )
-        for ref_name in _VISIBLE_RULE_LHS_RE.findall(rule):
-            ref_idx = name_to_index.get(ref_name)
-            assert ref_idx is not None, (
-                f"input {entry['name']!r} visibleRule references unknown "
-                f"input {ref_name!r}; rule={rule!r}"
-            )
-            assert ref_idx < idx, (
-                f"input {entry['name']!r} (index {idx}) visibleRule "
-                f"references {ref_name!r} (index {ref_idx}); Azure "
-                f"DevOps marketplace PackageValidationStep requires "
-                f"inputs in dependency order — {ref_name!r} must be "
-                f"declared BEFORE {entry['name']!r}. Move the "
-                f"{ref_name!r} input earlier in task.json's inputs "
-                f"array. Rule: {rule!r}"
-            )
+# NOTE: The task.json input-dependency-order lock, along with three other
+# structural invariants that defend against marketplace PackageValidationStep
+# rejections, now lives in ``test_task_json_semantic_invariants.py``. This
+# module stays scoped to backfill-comments doc-vs-code parity claims; new
+# server-side rule locks go in the semantic-invariants registry.
