@@ -102,6 +102,17 @@ elsewhere. Hardcoded counts, line numbers, and matrix dimensions rot silently.
 Prerequisite versions users must install (Node.js 22, Python 3.12+) are fine to state
 directly — they are actionable requirements, not derived counts.
 
+### Test-Count Floor & Coverage Thresholds
+
+Adding tests requires bumping the matching suite in `.test-floor-contract.json`
+in the same commit. Changing a coverage threshold (`pyproject.toml::fail_under`
+or any `extension/jest.config.ts` threshold, global or per-file) requires
+`[threshold-update]` in the commit subject. Bypass markers for test-count drift
+(`[ratchet-realignment]`, `[ratchet-test-removal]`) apply to Python only —
+extension drift has no marker escape. See
+[docs/development/ratchets.md](docs/development/ratchets.md) for the full
+workflow, recovery decision tree, and the partial-branches baseline gate.
+
 ### CI Checks
 
 All PRs must pass the discrete CI jobs declared in

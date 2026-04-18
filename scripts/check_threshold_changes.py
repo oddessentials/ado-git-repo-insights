@@ -85,7 +85,13 @@ def check_threshold_changes(base_ref: str) -> int:
         "commit bodies are NOT honored)."
     )
     print("")
-    print("See: extension/COVERAGE_RATCHET.md for threshold update policy")
+    print("See: docs/development/ratchets.md for the threshold update workflow")
+    print("")
+    print("Canonical env (authoritative for threshold values and floor values):")
+    print("  Python     : ubuntu-latest + Python 3.12")
+    print("  Extension  : ubuntu-latest + Node 22")
+    print("Local measurements on other OS/runtime combinations may differ — re-compute")
+    print("on the canonical leg before filing a ratchet change.")
     return 1
 
 

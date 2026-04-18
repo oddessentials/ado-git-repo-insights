@@ -1,18 +1,36 @@
 #!/usr/bin/env python3
-"""Enforce per-commit ``--min-collected`` ratchet-bump discipline (issue #280).
+"""Enforce per-commit ratchet-bump discipline for the test-count floor (issue #280).
 
-Strict-equality gate. At HEAD, the actual collected test count for both
-the Python and Extension suites MUST equal the declared ``--min-collected``
-floor, AND the two authoritative sites — ``scripts/run_pr_preflight.py``
-and ``.github/workflows/ci.yml`` — MUST agree with each other. Any drift
+Strict-equality gate. The floor lives in ``.test-floor-contract.json`` and is
+read at both authoritative sites — ``scripts/run_pr_preflight.py`` and
+``.github/workflows/ci.yml`` — via ``--min-collected-artifact``. At HEAD, the
+actual collected test count for both the Python and Extension suites MUST
+equal the declared floor, AND the two sites MUST agree with each other.
+A legacy inline ``--min-collected=N`` flag on either site is also parsed
+defensively so a transition slip does not create a silent bypass. Any drift
 in either dimension fails the gate.
+
+Python per-commit accounting: the gate walks the first-parent range
+``{base-ref}..HEAD``, snapshots each commit and its parent, and compares
+``floor_delta == actual_delta`` per commit. Bypass markers waive equality
+drift only on the specific commit whose subject contains the marker, and
+they never waive inter-file parity.
+
+Extension equality drift is NEVER waived by markers because
+``extension/test-results.xml`` is not tracked in git, so per-commit historical
+snapshots cannot be materialized.
 
 Bypass markers (must appear in a commit SUBJECT line in the range
 ``{base-ref}..HEAD``; scanned via ``git log --oneline``, so markers
 placed in commit bodies do NOT take effect):
     [ratchet-realignment]    Floor jumped by more than the test-add delta
-                             (catching up on historical drift).
+                             (catching up on historical drift). Python only.
     [ratchet-test-removal]   Floor decreased intentionally for test removal.
+                             Python only.
+
+See ``docs/development/ratchets.md`` for the contributor workflow (how to
+bump the floor, how to recover from drift, and the Python/Extension
+asymmetry around marker waivers).
 
 Design notes (plan v4 fixes):
     Fix 1 — CI YAML parsed with :mod:`scripts._ci_yaml_parser` which folds
@@ -34,7 +52,7 @@ Design notes (plan v4 fixes):
             actually consumes (Extension JUnit) is asserted present.
 
 Exit codes:
-    0  Aligned or marker-exempted.
+    0  Aligned or marker-exempted (Python equality drift only).
     1  Drift detected (strict-equality or inter-file parity).
     2  Setup error (missing file, shallow clone, malformed YAML, etc.).
 """
@@ -129,6 +147,20 @@ _CI_EXT_STEP = "Validate Test Results (Extension)"
 
 _MIN_COLLECTED_FLAG = "--min-collected"
 _MIN_COLLECTED_RE = re.compile(re.escape(_MIN_COLLECTED_FLAG) + r"=(\d+)")
+
+# Verbatim canonical-env message surfaced at every drift exit so Windows /
+# macOS contributors never have to ask "why does CI disagree with my local
+# run?". Kept in sync with `docs/development/ratchets.md`,
+# `scripts/check_threshold_changes.py`, and the `threshold-change-guard`
+# block in `.github/workflows/ci.yml` — update all four together.
+_CANONICAL_ENV_MSG = (
+    "Canonical env (authoritative for threshold values and floor values):\n"
+    "  Python     : ubuntu-latest + Python 3.12\n"
+    "  Extension  : ubuntu-latest + Node 22\n"
+    "Local measurements on other OS/runtime combinations may differ "
+    "— re-compute\n"
+    "on the canonical leg before filing a ratchet change."
+)
 
 # Cleanup retry policy for the collector tempfile. Windows antivirus /
 # deferred-close handles can briefly fail an unlink just after the child
@@ -1420,6 +1452,7 @@ def run_gate(
                 "the same value in the same commit.",
                 file=sys.stderr,
             )
+        print(_CANONICAL_ENV_MSG, file=sys.stderr)
         return EXIT_DRIFT
 
     if report.equality:
@@ -1455,6 +1488,7 @@ def run_gate(
                     f"{_failure_summary(python_failure)}",
                     file=sys.stderr,
                 )
+                print(_CANONICAL_ENV_MSG, file=sys.stderr)
                 return EXIT_DRIFT
             python_exempted = True
         if markers and actual.extension != preflight_floors.extension:
@@ -1468,6 +1502,7 @@ def run_gate(
                 "in git, so markers are ignored for extension equality drift.",
                 file=sys.stderr,
             )
+            print(_CANONICAL_ENV_MSG, file=sys.stderr)
             return EXIT_DRIFT
         if python_exempted:
             markers_text = " / ".join(sorted(markers))
@@ -1491,6 +1526,7 @@ def run_gate(
             "markers in commit bodies are NOT honored).",
             file=sys.stderr,
         )
+        print(_CANONICAL_ENV_MSG, file=sys.stderr)
         return EXIT_DRIFT
 
     print(
@@ -1509,9 +1545,11 @@ def run_gate(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Enforce actual == --min-collected floor at HEAD for Python and "
-            "Extension test suites, and inter-file parity between "
-            "run_pr_preflight.py and ci.yml. See issue #280."
+            "Enforce per-commit strict-equality between the declared "
+            "test-count floor in .test-floor-contract.json and the "
+            "actual collected count for Python and Extension, plus "
+            "inter-file parity between run_pr_preflight.py and ci.yml. "
+            "See issue #280 and docs/development/ratchets.md."
         )
     )
     parser.add_argument(
