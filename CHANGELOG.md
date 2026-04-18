@@ -1,3 +1,15 @@
+## [101.10.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.10.0...v101.10.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* **#291:** extend check_partial_branches.py parity allowlist to ratchets.md ([d9938d2](https://github.com/oddessentials/ado-git-repo-insights/commit/d9938d22eb40ad5b3a306a5c3b0074b99dedf6ba)), closes [#291](https://github.com/oddessentials/ado-git-repo-insights/issues/291)
+* **#291:** scrub allowlist substring before scanning, not whole-line exempt ([dc48290](https://github.com/oddessentials/ado-git-repo-insights/commit/dc48290f3adf2449a3ce2049fd8584ee740f0747)), closes [#291](https://github.com/oddessentials/ado-git-repo-insights/issues/291) [#299](https://github.com/oddessentials/ado-git-repo-insights/issues/299) [#299](https://github.com/oddessentials/ado-git-repo-insights/issues/299)
+* **#291:** tighten check_partial_branches.py doc allowlist to non-invocation mentions ([9ebb5b8](https://github.com/oddessentials/ado-git-repo-insights/commit/9ebb5b8a0187691ca71377f1686ec4d397aebde9)), closes [#291](https://github.com/oddessentials/ado-git-repo-insights/issues/291)
+* **#293:** codify task.json semantic invariants with compound-expression parser ([447a72e](https://github.com/oddessentials/ado-git-repo-insights/commit/447a72e677f4140b603e11e294e77e3869d3c3f4)), closes [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293) [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293)
+* **#293:** drop paren tolerance in _TERM_RE — was silently truncating trailing-paren RHS ([4a1b450](https://github.com/oddessentials/ado-git-repo-insights/commit/4a1b450ad251dccdfedc77abc8b21d152ee4ded4)), closes [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293) [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293)
+* **#293:** stop stripping quotes in _parse_term — quoted RHS must fail ([96b0bf7](https://github.com/oddessentials/ado-git-repo-insights/commit/96b0bf776cfd580edbc0f1cc1601dc06be177dc0)), closes [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293) [#293](https://github.com/oddessentials/ado-git-repo-insights/issues/293)
+
 # [101.10.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.9.0...v101.10.0) (2026-04-18)
 
 
