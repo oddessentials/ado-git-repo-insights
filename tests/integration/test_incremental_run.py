@@ -26,6 +26,7 @@ from ado_git_repo_insights.extractor.ado_client import ADOClient
 from ado_git_repo_insights.extractor.pr_extractor import PRExtractor
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
+from tests.unit._http_response_factory import make_response
 
 
 def make_mock_pr(
@@ -94,10 +95,9 @@ class TestIncrementalExtraction:
         db, config, _ = incremental_setup
 
         # Mock API to return 2 PRs
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"value": [make_mock_pr(1), make_mock_pr(2)]}
-        mock_response.headers = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = make_response(
+            json_body={"value": [make_mock_pr(1), make_mock_pr(2)]}
+        )
         mock_get.return_value = mock_response
 
         client = ADOClient("TestOrg", "test-pat", config.api)
@@ -126,10 +126,7 @@ class TestIncrementalExtraction:
         """Second run with same data doesn't create duplicates."""
         db, config, _ = incremental_setup
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"value": [make_mock_pr(1)]}
-        mock_response.headers = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = make_response(json_body={"value": [make_mock_pr(1)]})
         mock_get.return_value = mock_response
 
         config.date_range.start = date(2024, 1, 15)
@@ -157,10 +154,7 @@ class TestIncrementalExtraction:
         db, config, _ = incremental_setup
         repo = PRRepository(db)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"value": [make_mock_pr(1)]}
-        mock_response.headers = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = make_response(json_body={"value": [make_mock_pr(1)]})
         mock_get.return_value = mock_response
 
         config.date_range.start = date(2024, 1, 15)
@@ -190,20 +184,14 @@ class TestIncrementalExtraction:
         db, config, _ = incremental_setup
 
         # First run: PR with original title
-        mock_response1 = MagicMock()
-        mock_response1.json.return_value = {
-            "value": [make_mock_pr(1, title="Original Title")]
-        }
-        mock_response1.headers = {}
-        mock_response1.raise_for_status = MagicMock()
+        mock_response1 = make_response(
+            json_body={"value": [make_mock_pr(1, title="Original Title")]}
+        )
 
         # Second run: PR with updated title
-        mock_response2 = MagicMock()
-        mock_response2.json.return_value = {
-            "value": [make_mock_pr(1, title="Updated Title")]
-        }
-        mock_response2.headers = {}
-        mock_response2.raise_for_status = MagicMock()
+        mock_response2 = make_response(
+            json_body={"value": [make_mock_pr(1, title="Updated Title")]}
+        )
 
         mock_get.side_effect = [mock_response1, mock_response2]
 
@@ -235,10 +223,7 @@ class TestIncrementalExtraction:
         # Pre-set extraction metadata
         repo.update_extraction_metadata("TestOrg", "TestProject", date(2024, 1, 14))
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"value": []}
-        mock_response.headers = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = make_response(json_body={"value": []})
         mock_get.return_value = mock_response
 
         # Don't set date_range - should use incremental mode

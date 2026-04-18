@@ -1,0 +1,25 @@
+{
+  "counts": {
+    "prs_fetched": 0,
+    "prs_updated": 0,
+    "rows_per_csv": {}
+  },
+  "date_range": {
+    "end": "2026-04-16",
+    "start": "2026-04-16"
+  },
+  "final_status": "failed",
+  "first_fatal_error": "test fatal error",
+  "git_sha": "abcdef0",
+  "organization": "unknown",
+  "per_project_status": {},
+  "projects": [],
+  "timings": {
+    "export_seconds": 0.0,
+    "extract_seconds": 0.0,
+    "persist_seconds": 0.0,
+    "total_seconds": 0.0
+  },
+  "tool_version": "test-1.0",
+  "warnings": []
+}

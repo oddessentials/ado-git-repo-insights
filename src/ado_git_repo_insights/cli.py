@@ -7,11 +7,14 @@ import importlib.util
 import logging
 import re
 import shutil
+import sqlite3
 import sys
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
@@ -25,7 +28,11 @@ if TYPE_CHECKING:
     from .config import Config
     from .extractor.ado_client import ADOClient
     from .persistence.database import DatabaseManager
+    from .persistence.repository import PRRepository
     from .types import AdoThread
+    from .utils.run_summary import RunSummary
+
+from .persistence.database import DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +71,75 @@ def _non_negative_int(value: str) -> int:
             "(digits only, no sign, no whitespace)"
         )
     return int(value)
+
+
+_BACKFILL_DESCRIPTION = (
+    "Drain historical PR thread coverage for completed pull requests whose "
+    "thread\ndata has never been fetched. The subcommand selects the oldest "
+    "uncovered pull\nrequest first, breaks ties by the pull request's stable "
+    "identifier, and skips\nany pull request whose coverage marker is already "
+    "set.\n\n"
+    "The selection set is materialized once at run start; pull requests "
+    "inserted or\nmodified during the run cannot enter the working set. Each "
+    "selected pull\nrequest is processed inside its own per-PR atomic database "
+    "transaction: on\nsuccess the thread rows, comment rows, user rows, and "
+    "the coverage marker\nupdate commit together; on per-pull-request failure "
+    "or mid-iteration\ninterruption (SIGINT/SIGTERM), the transaction rolls "
+    "back and the pull\nrequest's database state is left bit-identical to its "
+    "pre-iteration state, so\nthe next invocation will reselect it. Pull "
+    "requests whose transactions\ncommitted before a failure or interruption "
+    "persist.\n\n"
+    "Upstream rate-limit and retry behavior is inherited from the configured\n"
+    "extraction API client: per-pull-request retries are bounded, and per-pull-"
+    "\nrequest failures after retry exhaustion are isolated (the run continues "
+    "with\nthe next pull request; the failed pull request is recorded in the "
+    "run-summary\nartifact and remains selectable on the next invocation). A "
+    "run whose loop\nreaches completion exits with status code zero regardless "
+    "of the per-pull-\nrequest failure rate; non-zero exit codes are reserved "
+    "for fatal pre-loop\nerrors."
+)
+
+_BACKFILL_EPILOG = (
+    "Examples:\n\n"
+    "  # Drain every uncovered completed PR in the database (no filters):\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite\n\n"
+    "  # Limit a single run to 500 oldest PRs, closed on or after 2024-01-01:\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite \\\n"
+    "      --since 2024-01-01 --limit 500\n\n"
+    "  # Scope to two projects, closed in Q1 2025:\n"
+    "  ado-insights backfill-comments \\\n"
+    '      --organization myorg --pat "$ADO_PAT" \\\n'
+    "      --database ado-insights.sqlite \\\n"
+    '      --projects "ProjectA, ProjectB" \\\n'
+    "      --since 2025-01-01 --until 2025-04-01\n"
+)
+
+
+def _parse_iso_date_argtype(raw: str) -> date:
+    """argparse type for flags that accept a ``YYYY-MM-DD`` ISO-8601 date.
+
+    Delegates validation to the pure ``_parse_iso_date`` helper in
+    ``config.py`` and translates any ``ValueError`` into
+    ``argparse.ArgumentTypeError`` so argparse exits with code 2 on
+    malformed input.
+
+    Shared by extract (``--start-date`` / ``--end-date``) and backfill
+    (``--since`` / ``--until``) so both entry points validate identically
+    (FR-030d parity contract; returns a ``date`` object consumed by
+    ``load_config`` which accepts either str or date).
+    """
+    from .config import _parse_iso_date
+
+    try:
+        return _parse_iso_date(raw)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"{raw!r} is not a valid YYYY-MM-DD date: {e}"
+        ) from e
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -129,12 +205,12 @@ def create_parser() -> argparse.ArgumentParser:
     )
     extract_parser.add_argument(
         "--start-date",
-        type=str,
+        type=_parse_iso_date_argtype,
         help="Override start date (YYYY-MM-DD)",
     )
     extract_parser.add_argument(
         "--end-date",
-        type=str,
+        type=_parse_iso_date_argtype,
         help="Override end date (YYYY-MM-DD)",
     )
     extract_parser.add_argument(
@@ -160,6 +236,129 @@ def create_parser() -> argparse.ArgumentParser:
         type=_non_negative_int,
         default=50,
         help="Max threads to fetch per PR (optional limit; 0 = unlimited)",
+    )
+
+    # Backfill-comments command (058): drain historical thread coverage
+    backfill_parser = subparsers.add_parser(
+        "backfill-comments",
+        help=(
+            "Backfill PR thread coverage for historical completed PRs "
+            "(oldest uncovered first)"
+        ),
+        description=_BACKFILL_DESCRIPTION,
+        epilog=_BACKFILL_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    backfill_parser.add_argument(
+        "--organization",
+        required=True,
+        type=str,
+        help=(
+            "Azure DevOps organization name (required). Must match the "
+            "organization the target pull requests belong to; used to "
+            "construct the upstream thread-fetch URL."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--pat",
+        required=True,
+        type=str,
+        help=(
+            "Personal Access Token with Code (Read) scope (required). The "
+            "token MUST have read access to every repository whose pull "
+            "requests fall within the run's selection scope; pull requests "
+            "in repositories the token cannot read will surface as per-pull-"
+            "request failures in the run-summary artifact."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--database",
+        type=Path,
+        default=Path("ado-insights.sqlite"),
+        help=(
+            "Path to the SQLite database file to operate on (default: "
+            "'ado-insights.sqlite'). The database MUST already exist and "
+            "MUST contain the pull_requests, pr_threads, and pr_comments "
+            "tables. Databases that lack pr_threads and pr_comments (legacy "
+            "schema) trigger a successful no-op with a legacy-schema-skip "
+            "warning."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--projects",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of project names to restrict the run to "
+            "(default: no filter — all projects are eligible). Entries are "
+            "trimmed of surrounding whitespace, empty entries are dropped, "
+            "and input order is preserved; the match against each pull "
+            "request's stored project_name is case-sensitive and exact. "
+            "Parsing is behaviorally identical to the project-list input "
+            "accepted by 'extract'; invalid entries do not raise — they "
+            "simply match zero pull requests."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--since",
+        type=_parse_iso_date_argtype,
+        default=None,
+        help=(
+            "Inclusive closed-date lower bound, in YYYY-MM-DD form (default: "
+            "no lower bound). Pull requests with closed_date strictly less "
+            "than this value are excluded from the selection. Combines with "
+            "--until to form the half-open interval [since, until). Date-"
+            "shape validation is behaviorally identical to 'extract "
+            "--start-date'; malformed values (e.g., 2024-13-99 or not-a-date) "
+            "are rejected before any database or network work begins."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--until",
+        type=_parse_iso_date_argtype,
+        default=None,
+        help=(
+            "Exclusive closed-date upper bound, in YYYY-MM-DD form (default: "
+            "no upper bound). Pull requests with closed_date greater than or "
+            "equal to this value are excluded from the selection. Combines "
+            "with --since to form the half-open interval [since, until); "
+            "'--since X --until X' matches zero pull requests (valid but "
+            "empty filter, not an error). Date-shape validation is "
+            "behaviorally identical to 'extract --end-date'; malformed values "
+            "are rejected before any database or network work begins."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--limit",
+        type=_non_negative_int,
+        default=0,
+        help=(
+            "Maximum number of pull requests to process in this run "
+            "(default: 0, which means unbounded — every uncovered pull "
+            "request matching the filters is processed). Negative values "
+            "are rejected. The limit is applied after the --projects / "
+            "--since / --until filters, so '--limit N' bounds the count of "
+            "processed pull requests, not the count of candidate pull "
+            "requests before filtering. Use a finite --limit to bound a "
+            "single invocation's API budget; re-invoke with the same "
+            "arguments to continue draining from where the last run stopped."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--comments-max-threads-per-pr",
+        type=_non_negative_int,
+        default=50,
+        help=(
+            "Maximum number of threads to fetch per pull request (default: "
+            "50, matching the extract flow's default; 0 means unlimited). "
+            "When a pull request's thread count exceeds this cap, the "
+            "earliest threads returned by the upstream API are persisted "
+            "and the dropped remainder is inspected against local storage "
+            "to decide whether the pull request's coverage marker can be "
+            "set (when every dropped thread is already stored and current) "
+            "or MUST be left unchanged (when any dropped thread is missing "
+            "or stale locally). Negative values are rejected."
+        ),
     )
 
     # Generate CSV command
@@ -476,8 +675,6 @@ def _extract_comments(
     Returns:
         Stats dict with threads, comments, prs_processed, capped.
     """
-    import json
-
     from .extractor.ado_client import ExtractionError
     from .persistence.repository import PRRepository
 
@@ -490,8 +687,8 @@ def _extract_comments(
         "capped": False,
     }
 
-    # Get recently completed PRs to extract comments for
-    # Limit by max_prs to avoid rate limiting
+    # Get recently completed PRs to extract comments for.
+    # Limit by max_prs to avoid rate limiting.
     cursor = db.execute(
         """
         SELECT pull_request_uid, pull_request_id, repository_id, project_name
@@ -509,116 +706,62 @@ def _extract_comments(
 
     for pr_row in prs_to_process:
         pr_uid = pr_row["pull_request_uid"]
-        pr_id = pr_row["pull_request_id"]
-        repo_id = pr_row["repository_id"]
-        project_name = pr_row["project_name"]
 
         try:
-            # Fetch threads from API
-            threads = client.get_pr_threads(
-                project=project_name,
-                repository_id=repo_id,
-                pull_request_id=pr_id,
+            # Pre-iteration coverage-marker snapshot — added by the #289 fix
+            # (commit 740810fd). MUST be preserved across the T003 refactor
+            # so Case 2's sub-decision (2a set-when-null vs 2b
+            # preserve-non-null) stays stable. Lock #5 in tasks.md.
+            pre_iteration_stamp_row = db.execute(
+                "SELECT comments_extracted_at FROM pull_requests "
+                "WHERE pull_request_uid = ?",
+                (pr_uid,),
+            ).fetchone()
+            pre_iteration_comments_extracted_at = (
+                pre_iteration_stamp_row["comments_extracted_at"]
+                if pre_iteration_stamp_row is not None
+                else None
             )
 
-            # Apply max_threads_per_pr limit.  Keep a reference to the
-            # full API response so we can check whether dropped threads
-            # have unseen updates (needed for the coverage stamp decision).
-            all_threads = threads
-            pr_threads_truncated = (
-                max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
+            outcome = _fetch_and_upsert_threads_for_pr(
+                client, db, repo, pr_row, max_threads_per_pr
             )
-            if pr_threads_truncated:
-                threads = all_threads[:max_threads_per_pr]
-
-            for thread in threads:
-                thread_id = str(thread.get("id", ""))
-                thread_updated = thread.get("lastUpdatedDate", "")
-                thread_created = thread.get("publishedDate", thread_updated)
-                thread_status = thread.get("status", "unknown")
-
-                # §6: Per-thread incremental sync — skip only if this
-                # specific thread exists locally and is current.  The old
-                # MAX(last_updated) check could skip threads that were
-                # NEVER fetched (e.g. after a prior truncated run where
-                # dropped threads had older lastUpdatedDate).
-                local_thread = db.execute(
-                    "SELECT last_updated FROM pr_threads "
-                    "WHERE pull_request_uid = ? AND thread_id = ?",
-                    (pr_uid, thread_id),
-                ).fetchone()
-                if (
-                    local_thread is not None
-                    and thread_updated <= local_thread["last_updated"]
-                ):
-                    continue
-
-                # Serialize thread context
-                thread_context = None
-                if "threadContext" in thread:
-                    thread_context = json.dumps(thread["threadContext"])
-
-                # Upsert thread
-                repo.upsert_thread(
-                    thread_id=thread_id,
-                    pull_request_uid=pr_uid,
-                    status=thread_status,
-                    thread_context=thread_context,
-                    last_updated=thread_updated,
-                    created_at=thread_created,
-                    is_deleted=thread.get("isDeleted", False),
-                )
-                stats["threads"] = int(stats["threads"]) + 1
-
-                # Process comments in thread
-                for comment in thread.get("comments", []):
-                    comment_id = str(comment.get("id", ""))
-                    author = comment.get("author", {})
-                    author_id = author.get("id", "unknown")
-
-                    # Upsert author first to avoid FK violation (same as P2 fix)
-                    repo.upsert_user(
-                        user_id=author_id,
-                        display_name=author.get("displayName", "Unknown"),
-                        email=author.get("uniqueName"),
-                    )
-
-                    repo.upsert_comment(
-                        comment_id=comment_id,
-                        thread_id=thread_id,
-                        pull_request_uid=pr_uid,
-                        author_id=author_id,
-                        content=comment.get("content"),
-                        comment_type=comment.get("commentType", "text"),
-                        created_at=comment.get("publishedDate", ""),
-                        last_updated=comment.get("lastUpdatedDate"),
-                        is_deleted=comment.get("isDeleted", False),
-                    )
-                    stats["comments"] = int(stats["comments"]) + 1
-
+            # Per-thread / per-comment counts roll up from the helper's
+            # return value so extract's existing stats contract survives
+            # the refactor (FR-034; test_extract_comments.py:337, 371).
+            stats["threads"] = int(stats["threads"]) + outcome.threads_upserted
+            stats["comments"] = int(stats["comments"]) + outcome.comments_upserted
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
             # Update per-PR coverage marker based on fetch completeness.
             #
-            # Three cases:
+            # Three cases (post-#289-fix; preserved bit-for-bit from 740810fd):
             #   1. No truncation → stamp with current time (complete fetch).
-            #   2. Truncated AND any dropped thread is missing locally or
-            #      has a newer API version than stored → clear stamp.
-            #   3. Truncated BUT every dropped thread exists locally with
-            #      a last_updated ≥ the API lastUpdatedDate → no-op
-            #      (local data still complete from prior runs).
-            if not pr_threads_truncated:
+            #   2. Truncated AND every dropped thread is stored and current:
+            #      2a. pre-iteration marker NULL → stamp with current time.
+            #      2b. pre-iteration marker non-NULL → preserve (operator-reset
+            #          recovery; avoids clear-then-restamp loops).
+            #   3. Truncated AND at least one dropped thread is missing or
+            #      stale → clear marker to NULL so the PR is reselected.
+            if not outcome.truncated:
                 db.execute(
                     "UPDATE pull_requests SET comments_extracted_at = ? "
                     "WHERE pull_request_uid = ?",
                     (datetime.now(UTC).isoformat(), pr_uid),
                 )
-            elif _dropped_threads_all_stored(
-                db, pr_uid, all_threads[max_threads_per_pr:]
-            ):
-                # Every dropped thread is already stored and current.
-                # Prior stamp (if any) correctly reflects completeness.
-                pass
+            elif _dropped_threads_all_stored(db, pr_uid, outcome.dropped_threads):
+                # comments_extracted_at is a completion marker, not
+                # provenance: downstream readers distinguish NULL
+                # (incomplete) from non-NULL (complete enough to trust).
+                # Use the pre-iteration snapshot so the decision is stable
+                # within this iteration.
+                if pre_iteration_comments_extracted_at is None:
+                    db.execute(
+                        "UPDATE pull_requests SET comments_extracted_at = ? "
+                        "WHERE pull_request_uid = ?",
+                        (datetime.now(UTC).isoformat(), pr_uid),
+                    )
+                # else (Case 2b): preserve prior non-NULL marker.
             else:
                 # At least one dropped thread is missing or stale locally.
                 db.execute(
@@ -660,6 +803,385 @@ def _extract_comments(
     )
     db.connection.commit()
     return stats
+
+
+@dataclass(frozen=True)
+class FetchedThreadsPayload:
+    """Network-fetched thread payload for a single PR.
+
+    This object is fully materialized before any explicit SQLite transaction
+    begins in the backfill path. It therefore carries everything the caller
+    needs for both persistence and the post-persist marker decision, with no
+    need for lazy remote reads once ``BEGIN IMMEDIATE`` has started.
+    """
+
+    threads: list[AdoThread]
+    truncated: bool
+    dropped_threads: list[AdoThread]
+
+
+@dataclass(frozen=True)
+class FetchOutcome:
+    """Per-PR persist result returned by thread extraction helpers.
+
+    Pure data — no coverage-marker read/write. Callers own the stamp decision.
+
+    Thread/comment counts are carried on the outcome so the helper remains a
+    single-return, no-mutated-parameter boundary while preserving extract's
+    existing ``stats["threads"]`` / ``stats["comments"]`` contract
+    (FR-034 regression lock: tests/unit/test_extract_comments.py:337, 371).
+    """
+
+    status: Literal["ok", "failed"]
+    truncated: bool
+    dropped_threads: list[AdoThread]
+    threads_upserted: int
+    comments_upserted: int
+
+
+def _fetch_threads_for_pr(
+    client: ADOClient,
+    pr_row: Mapping[str, object],
+    max_threads_per_pr: int,
+) -> FetchedThreadsPayload:
+    """Fetch and shape a PR's thread payload without touching the database.
+
+    This phase owns all remote I/O. Callers that need explicit transactional
+    control must invoke this helper before starting ``BEGIN IMMEDIATE`` so
+    network latency, rate-limit sleeps, and retry paths never extend SQLite
+    writer-lock time.
+    """
+    pr_id = cast(int, pr_row["pull_request_id"])
+    repo_id = cast(str, pr_row["repository_id"])
+    project_name = cast(str, pr_row["project_name"])
+
+    all_threads = client.get_pr_threads(
+        project=project_name,
+        repository_id=repo_id,
+        pull_request_id=pr_id,
+    )
+
+    pr_threads_truncated = (
+        max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
+    )
+    threads = (
+        all_threads[:max_threads_per_pr] if pr_threads_truncated else list(all_threads)
+    )
+    dropped_threads = all_threads[max_threads_per_pr:] if pr_threads_truncated else []
+    return FetchedThreadsPayload(
+        threads=threads,
+        truncated=pr_threads_truncated,
+        dropped_threads=dropped_threads,
+    )
+
+
+def _persist_threads_for_pr(
+    db: DatabaseManager,
+    repo: PRRepository,
+    pr_row: Mapping[str, object],
+    payload: FetchedThreadsPayload,
+) -> FetchOutcome:
+    """Persist a pre-fetched PR thread payload using database work only.
+
+    Side effects: writes to pr_threads, pr_comments, users via ``repo``.
+    Does NOT update pull_requests.comments_extracted_at.
+    Does NOT call db.connection.commit() or db.connection.rollback().
+    Performs no network I/O, no probe calls, no retries, and no sleeps.
+
+    Callers own the per-PR commit boundary and the coverage-marker stamp
+    decision. Both extract (its own 3-case logic with the #289 fix's
+    Case 2 sub-decision) and backfill (the simplified 2-outcome rule)
+    read from the returned FetchOutcome and apply their own policies.
+    """
+    import json
+
+    pr_uid = cast(str, pr_row["pull_request_uid"])
+
+    threads_upserted = 0
+    comments_upserted = 0
+
+    for thread in payload.threads:
+        thread_id = str(thread.get("id", ""))
+        thread_updated = thread.get("lastUpdatedDate", "")
+        thread_created = thread.get("publishedDate", thread_updated)
+        thread_status = thread.get("status", "unknown")
+
+        # §6: Per-thread incremental sync — skip only if this specific
+        # thread exists locally and is current. The old MAX(last_updated)
+        # check could skip threads that were NEVER fetched (e.g. after a
+        # prior truncated run where dropped threads had older
+        # lastUpdatedDate).
+        local_thread = db.execute(
+            "SELECT last_updated FROM pr_threads "
+            "WHERE pull_request_uid = ? AND thread_id = ?",
+            (pr_uid, thread_id),
+        ).fetchone()
+        if local_thread is not None and thread_updated <= local_thread["last_updated"]:
+            continue
+
+        thread_context = None
+        if "threadContext" in thread:
+            thread_context = json.dumps(thread["threadContext"])
+
+        repo.upsert_thread(
+            thread_id=thread_id,
+            pull_request_uid=pr_uid,
+            status=thread_status,
+            thread_context=thread_context,
+            last_updated=thread_updated,
+            created_at=thread_created,
+            is_deleted=thread.get("isDeleted", False),
+        )
+        threads_upserted += 1
+
+        for comment in thread.get("comments", []):
+            comment_id = str(comment.get("id", ""))
+            author = comment.get("author", {})
+            author_id = author.get("id", "unknown")
+
+            # Upsert author first to avoid FK violation (same as P2 fix).
+            repo.upsert_user(
+                user_id=author_id,
+                display_name=author.get("displayName", "Unknown"),
+                email=author.get("uniqueName"),
+            )
+
+            repo.upsert_comment(
+                comment_id=comment_id,
+                thread_id=thread_id,
+                pull_request_uid=pr_uid,
+                author_id=author_id,
+                content=comment.get("content"),
+                comment_type=comment.get("commentType", "text"),
+                created_at=comment.get("publishedDate", ""),
+                last_updated=comment.get("lastUpdatedDate"),
+                is_deleted=comment.get("isDeleted", False),
+            )
+            comments_upserted += 1
+
+    return FetchOutcome(
+        status="ok",
+        truncated=payload.truncated,
+        dropped_threads=payload.dropped_threads,
+        threads_upserted=threads_upserted,
+        comments_upserted=comments_upserted,
+    )
+
+
+def _fetch_and_upsert_threads_for_pr(
+    client: ADOClient,
+    db: DatabaseManager,
+    repo: PRRepository,
+    pr_row: Mapping[str, object],
+    max_threads_per_pr: int,
+) -> FetchOutcome:
+    """Fetch threads, then persist them for a single PR.
+
+    This compatibility wrapper preserves the existing extract-path call shape.
+    Callers that need to ensure no SQLite transaction spans remote I/O should
+    call ``_fetch_threads_for_pr`` and ``_persist_threads_for_pr`` separately.
+    """
+    payload = _fetch_threads_for_pr(client, pr_row, max_threads_per_pr)
+    return _persist_threads_for_pr(db, repo, pr_row, payload)
+
+
+# Single source of truth for the backfill-comments discriminator prefix
+# (plan §4 invariant INV-8). This literal MUST NOT appear anywhere else
+# in cli.py; the AST parity test in
+# tests/unit/test_backfill_comments.py::TestBackfillWarningEmissionParity
+# asserts the literal occurs exactly once in this module.
+_BACKFILL_WARNING_PREFIX = "backfill-comments: "
+
+
+def _append_backfill_warning(warnings: list[str], body: str) -> None:
+    """Append a discriminator-prefixed warning to a backfill warnings list.
+
+    All backfill warning emissions (Sites A / B / C / D1–D5 in plan §4)
+    MUST route through this helper. Per-site inline
+    ``warnings.append(f"backfill-comments: ...")`` is forbidden; the AST
+    parity test asserts the discriminator prefix literal appears only
+    inside this function's body and the ``_BACKFILL_WARNING_PREFIX``
+    constant in cli.py.
+
+    ``warnings`` is typed as ``list[str]`` so the helper works against
+    both the function-local ``warnings_list`` accumulated during the
+    per-PR loop and the ``RunSummary.warnings`` list on a
+    ``create_minimal_summary()`` return value (Sites D1–D5).
+    """
+    warnings.append(f"{_BACKFILL_WARNING_PREFIX}{body}")
+
+
+def _classify_backfill_schema_tables(present: set[str]) -> bool:
+    """Classify backfill-comments table presence; return True only for legacy skip."""
+    if "pull_requests" not in present:
+        raise DatabaseError(
+            "backfill-comments requires the pull_requests table; "
+            "database is not a recognized extracted insights database"
+        )
+
+    has_threads = "pr_threads" in present
+    has_comments = "pr_comments" in present
+    if not has_threads and not has_comments:
+        return True
+    if has_threads and has_comments:
+        return False
+
+    missing_table = "pr_threads" if not has_threads else "pr_comments"
+    present_table = "pr_comments" if not has_threads else "pr_threads"
+    raise DatabaseError(
+        "backfill-comments requires both pr_threads and pr_comments tables; "
+        f"missing table: {missing_table}; present table: {present_table}; "
+        "database appears partially corrupted or mis-targeted"
+    )
+
+
+def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
+    """Return True only for the exact legacy insights shape with both thread tables absent.
+
+    Queries ``sqlite_master`` without side effects. The helper owns the
+    schema discriminator for ``backfill-comments``:
+    - missing ``pull_requests`` -> not an insights DB, raise ``DatabaseError``
+    - both ``pr_threads`` and ``pr_comments`` absent -> legacy no-op
+    - both present -> modern schema, continue normally
+    - exactly one absent -> broken or mis-targeted DB, raise ``DatabaseError``
+    """
+    try:
+        row = db.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name IN "
+            "('pull_requests', 'pr_threads', 'pr_comments')"
+        ).fetchall()
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not inspect database schema: {e}"
+        ) from e
+
+    present = {r["name"] if hasattr(r, "keys") else r[0] for r in row}
+    return _classify_backfill_schema_tables(present)
+
+
+def _legacy_schema_missing_thread_tables_raw(db_path: Path) -> bool:
+    """Return legacy-schema classification from the on-disk file before migrations."""
+    conn: sqlite3.Connection | None = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name IN "
+            "('pull_requests', 'pr_threads', 'pr_comments')"
+        ).fetchall()
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not inspect database schema: {e}"
+        ) from e
+    finally:
+        if conn is not None:
+            conn.close()
+
+    present = {r[0] for r in row}
+    return _classify_backfill_schema_tables(present)
+
+
+def _select_uncovered_prs_for_backfill(
+    db: DatabaseManager,
+    organization: str,
+    projects: list[str],
+    since: date | None,
+    until: date | None,
+    limit: int,
+) -> list[Mapping[str, object]]:
+    """Select the oldest uncovered completed PRs matching the backfill filters.
+
+    Selection predicates (plan §3):
+      - ``status = 'completed'`` — only completed PRs.
+      - ``comments_extracted_at IS NULL`` — only uncovered PRs (INV-1).
+      - ``organization_name = ?`` — only PRs stored for the requested org.
+      - Optional ``project_name IN (...)`` — when ``projects`` is non-empty.
+      - Optional ``closed_date >= since`` — inclusive lower bound.
+      - Optional ``closed_date < until`` — half-open upper bound (INV-4).
+      - Optional ``LIMIT`` — when ``limit > 0`` (INV-5: 0 means unbounded).
+
+    Ordering: ``closed_date ASC, pull_request_uid ASC`` — oldest first,
+    stable tiebreak (INV-2).
+
+    Result is fully materialized via ``cursor.fetchall()`` before return
+    (FR-011a snapshot stability). Rows inserted or modified during the
+    subsequent loop cannot enter the returned list.
+    """
+    clauses: list[str] = [
+        "status = 'completed'",
+        "comments_extracted_at IS NULL",
+        "organization_name = ?",
+    ]
+    params: list[str | int] = [organization]
+
+    if projects:
+        placeholders = ", ".join("?" for _ in projects)
+        clauses.append(f"project_name IN ({placeholders})")
+        params.extend(projects)
+    if since is not None:
+        clauses.append("closed_date >= ?")
+        params.append(since.isoformat())
+    if until is not None:
+        clauses.append("closed_date < ?")
+        params.append(until.isoformat())
+
+    sql = (
+        "SELECT pull_request_uid, pull_request_id, repository_id, "
+        "project_name, closed_date\n"
+        "FROM pull_requests\n"
+        "WHERE " + "\n  AND ".join(clauses) + "\n"
+        "ORDER BY closed_date ASC, pull_request_uid ASC"
+    )
+    if limit > 0:
+        sql += "\nLIMIT ?"
+        params.append(limit)
+
+    try:
+        cursor = db.execute(sql, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not select candidate pull requests: {e}"
+        ) from e
+
+
+def _count_uncovered_prs_for_backfill(
+    db: DatabaseManager,
+    organization: str,
+    projects: list[str],
+    since: date | None,
+    until: date | None,
+) -> int:
+    """Count eligible uncovered completed PRs for the requested org."""
+    clauses: list[str] = [
+        "status = 'completed'",
+        "comments_extracted_at IS NULL",
+        "organization_name = ?",
+    ]
+    params: list[str] = [organization]
+
+    if projects:
+        placeholders = ", ".join("?" for _ in projects)
+        clauses.append(f"project_name IN ({placeholders})")
+        params.extend(projects)
+    if since is not None:
+        clauses.append("closed_date >= ?")
+        params.append(since.isoformat())
+    if until is not None:
+        clauses.append("closed_date < ?")
+        params.append(until.isoformat())
+
+    sql = "SELECT COUNT(*) AS cnt\nFROM pull_requests\nWHERE " + "\n  AND ".join(
+        clauses
+    )
+    try:
+        row = db.execute(sql, tuple(params)).fetchone()
+        return int(row["cnt"]) if row is not None else 0
+    except sqlite3.Error as e:
+        raise DatabaseError(
+            f"backfill-comments could not count candidate pull requests: {e}"
+        ) from e
 
 
 def cmd_extract(args: Namespace) -> int:
@@ -877,6 +1399,479 @@ def cmd_extract(args: Namespace) -> int:
         )
         minimal_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
         return 1
+
+
+def cmd_backfill_comments(args: Namespace) -> int:
+    """Execute the backfill-comments subcommand.
+
+    Drains historical PR thread coverage for completed pull requests whose
+    thread data has never been fetched. See plan.md §4 for the 8
+    discriminator-emission sites (A, B, C, D1–D5) and contracts/cli-
+    subcommand.md for the full public contract.
+
+    Returns:
+        0 — per-PR loop ran to completion (regardless of per-PR failure rate).
+        0 — legacy-schema no-op (successful skip per FR-017).
+        1 — fatal pre-loop error (ConfigurationError / DatabaseError /
+            ExtractionError).
+        130 — KeyboardInterrupt (re-raised for main() to set exit code).
+        1 — unexpected Exception (re-raised for main() to set exit code).
+    """
+    import os
+
+    from .config import APIConfig, ConfigurationError, _parse_projects_list
+    from .extractor.ado_client import ADOClient, ExtractionError
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .persistence.repository import PRRepository
+    from .utils.run_summary import (
+        RunCounts,
+        RunSummary,
+        RunTimings,
+        create_minimal_summary,
+        get_git_sha,
+        get_tool_version,
+    )
+
+    start_time = time.perf_counter()
+    timing = RunTimings()
+    warnings_list: list[str] = []
+    processed_count = 0
+    failed_count = 0
+    metadata_threads_fetched = 0
+    metadata_comments_fetched = 0
+
+    # FR-030d parity: parse ``--projects`` once at entry. Both omitted
+    # (``None``) and explicit empty-string (``""``) normalize to ``[]``
+    # via the shared helper, so the two surfaces behave identically.
+    # Every downstream consumer (probe-project fallback, selection SQL,
+    # RunSummary.projects) reads this single list.
+    parsed_projects = _parse_projects_list(args.projects)
+
+    db: DatabaseManager | None = None
+    try:
+        # DB preflight. Every failure mode here MUST surface as DatabaseError
+        # so the outer ``except DatabaseError`` (Site D2) owns the exit path.
+        # ``Path.exists()`` / ``is_file()`` / ``stat()`` can raise ``OSError``
+        # (permission denied on the parent dir, disconnected network drive,
+        # symlink loop, path too long, etc.). Without the wrap below, those
+        # escape to Site D5's generic ``except Exception`` branch and the
+        # artifact carries a ``fatal-abort: ...`` warning without the
+        # ``Database error:`` prefix the contract expects for unopenable
+        # databases.
+        db_path = Path(args.database)
+        try:
+            path_exists = db_path.exists()
+            path_is_file = db_path.is_file() if path_exists else False
+            path_size = db_path.stat().st_size if path_is_file else 0
+        except OSError as e:
+            raise DatabaseError(
+                "backfill-comments could not inspect the database path "
+                f"({db_path}): {e}"
+            ) from e
+        if not path_exists:
+            raise DatabaseError(
+                "backfill-comments requires an existing extracted database; "
+                f"database not found: {db_path}"
+            )
+        if not path_is_file:
+            raise DatabaseError(
+                "backfill-comments requires an existing extracted database file; "
+                f"not a file: {db_path}"
+            )
+        if path_size <= 0:
+            raise DatabaseError(
+                "backfill-comments requires a non-empty extracted database file; "
+                f"database is empty: {db_path}"
+            )
+
+        # Pass 2 locked execution order: raw schema probe → DB connect →
+        # config validation → ADO client → test_connection → snapshot → loop.
+        # Legacy/partial-schema discrimination must inspect the on-disk file
+        # before ``DatabaseManager.connect()`` auto-migrates older schemas.
+        if _legacy_schema_missing_thread_tables_raw(db_path):
+            legacy_msg = (
+                "pr_threads and pr_comments tables not present; "
+                "run a migration or extract with --include-comments first"
+            )
+            logger.warning(_BACKFILL_WARNING_PREFIX + "%s", legacy_msg)
+            _append_backfill_warning(warnings_list, f"legacy-schema-skip: {legacy_msg}")
+            timing.total_seconds = time.perf_counter() - start_time
+            run_summary = RunSummary(
+                tool_version=get_tool_version(),
+                git_sha=get_git_sha(),
+                organization=getattr(args, "organization", "") or "unknown",
+                projects=parsed_projects,
+                date_range_start=_format_backfill_date(getattr(args, "since", None)),
+                date_range_end=_format_backfill_date(getattr(args, "until", None)),
+                counts=RunCounts(),
+                timings=timing,
+                warnings=warnings_list,
+                final_status="success",
+                per_project_status={},
+                first_fatal_error=None,
+            )
+            _write_backfill_run_summary(run_summary, args.artifacts_dir)
+            logger.info(
+                _BACKFILL_WARNING_PREFIX
+                + "skipped (legacy schema; no thread storage tables)"
+            )
+            run_summary.print_final_line()
+            run_summary.emit_ado_commands()
+            return 0
+
+        db = DatabaseManager(db_path)
+        try:
+            db.connect()
+        except OSError as e:
+            raise DatabaseError(
+                f"backfill-comments could not connect to the database ({db_path}): {e}"
+            ) from e
+
+        # Inline config validation (Site D1 on failure). Backfill deliberately
+        # skips ``load_config``: contracts/cli-subcommand.md §10 excludes
+        # ``--config`` from this subcommand, and ``Config.__post_init__``
+        # rejects empty projects, which would break backfill's documented
+        # "no filter — all projects eligible" default (FR-004 / contracts §4.4).
+        if not args.organization:
+            raise ConfigurationError("organization is required")
+        pat_value = args.pat or os.environ.get("ADO_PAT", "")
+        if not pat_value:
+            raise ConfigurationError("PAT is required")
+        api_config = APIConfig()
+
+        # ADO client (constructor is pure — no network). Backfill owns an
+        # organization-scoped pre-loop probe so invalid PAT / org input fails
+        # fast without depending on any selected PR's project.
+        client = ADOClient(
+            organization=args.organization,
+            pat=pat_value,
+            config=api_config,
+        )
+        client.test_organization_connection()
+
+        # Execution order (locked):
+        #   (a) org-scoped connectivity probe — Site D3 fatal on bad PAT / org.
+        #   (b) selection snapshot — filtered SQL, no network.
+        #   (c) opening anchor log — FR-018a.
+        #   (d) per-PR loop owns project/repository-level failures. Per the
+        #       FR-019 exit-code contract and SC-012, 100%-failure (every
+        #       attempted PR failed) remains a loop-completed run: exit 0,
+        #       final_status="success", first_fatal_error=null. Downstream
+        #       consumers enforce their own failure-rate policy via the
+        #       run_summary.json artifact (counts + warnings list).
+        eligible_count = _count_uncovered_prs_for_backfill(
+            db,
+            args.organization,
+            parsed_projects,
+            args.since,
+            args.until,
+        )
+        selection_snapshot = _select_uncovered_prs_for_backfill(
+            db,
+            args.organization,
+            parsed_projects,
+            args.since,
+            args.until,
+            args.limit,
+        )
+        total_count = len(selection_snapshot)
+        logger.info(
+            _BACKFILL_WARNING_PREFIX + "backfill run over %d pull request(s)",
+            total_count,
+        )
+
+        # T014 per-PR loop with Sites A (per-PR failure) and per-PR
+        # commit/rollback (FR-012 / FR-013 / FR-013a).
+        repo = PRRepository(db)
+        from .utils.run_summary import normalize_error_message
+
+        for ordinal, pr_row in enumerate(selection_snapshot, start=1):
+            pr_uid = cast(str, pr_row["pull_request_uid"])
+            outcome_label: Literal["Processed", "Failed"]
+            transaction_open = False
+            try:
+                fetched_payload = _fetch_threads_for_pr(
+                    client, pr_row, args.comments_max_threads_per_pr
+                )
+
+                # FR-012 / FR-013 / FR-013a: per-PR atomicity. DatabaseManager
+                # opens its connection with ``isolation_level=None`` (autocommit),
+                # so ``db.connection.commit()`` / ``rollback()`` alone would be
+                # no-ops — every upsert would persist the instant it fires and
+                # a mid-iteration failure would leave partial rows for the PR.
+                # Wrapping each iteration in an explicit ``BEGIN IMMEDIATE`` …
+                # ``COMMIT`` / ``ROLLBACK`` is what makes the per-PR atomic
+                # contract hold.
+                #
+                # ``BEGIN IMMEDIATE`` (not plain ``BEGIN``) acquires the write
+                # lock up front so a second process cannot interleave writes
+                # mid-persist. The remote thread payload is fully fetched before
+                # this point so no network call, retry, or sleep path can extend
+                # SQLite writer-lock time.
+                assert not db.connection.in_transaction, (
+                    "per-PR iteration started while a transaction was already "
+                    "open; backfill atomicity contract violated"
+                )
+                stage = "begin transaction"
+                try:
+                    db.execute("BEGIN IMMEDIATE")
+                    transaction_open = True
+                    stage = "persist threads"
+                    outcome = _persist_threads_for_pr(db, repo, pr_row, fetched_payload)
+                    # Simplified 2-outcome rule (FR-015): never enters extract's
+                    # preserve branch — truncation-verified-complete → SET,
+                    # truncation-clear → leave unchanged (still NULL; reselected
+                    # next run).
+                    stage = "verify dropped-thread coverage"
+                    all_dropped_threads_stored = (not outcome.truncated) or (
+                        _dropped_threads_all_stored(db, pr_uid, outcome.dropped_threads)
+                    )
+                    if all_dropped_threads_stored:
+                        stage = "update comments_extracted_at"
+                        db.execute(
+                            "UPDATE pull_requests SET comments_extracted_at = ? "
+                            "WHERE pull_request_uid = ?",
+                            (datetime.now(UTC).isoformat(), pr_uid),
+                        )
+                    stage = "commit transaction"
+                    db.execute("COMMIT")
+                    transaction_open = False
+                except sqlite3.Error as e:
+                    if stage == "begin transaction":
+                        raise DatabaseError(
+                            "backfill-comments could not begin transaction "
+                            f"for PR {pr_uid}: {e}"
+                        ) from e
+                    if stage == "persist threads":
+                        raise DatabaseError(
+                            f"backfill-comments could not persist threads for PR {pr_uid}: {e}"
+                        ) from e
+                    if stage == "verify dropped-thread coverage":
+                        raise DatabaseError(
+                            "backfill-comments could not verify dropped-thread "
+                            f"coverage for PR {pr_uid}: {e}"
+                        ) from e
+                    if stage == "update comments_extracted_at":
+                        raise DatabaseError(
+                            "backfill-comments could not update "
+                            f"comments_extracted_at for PR {pr_uid}: {e}"
+                        ) from e
+                    raise DatabaseError(
+                        "backfill-comments could not commit transaction "
+                        f"for PR {pr_uid}: {e}"
+                    ) from e
+            except ExtractionError as e:
+                if transaction_open and db.connection.in_transaction:
+                    db.execute("ROLLBACK")
+                _append_backfill_warning(
+                    warnings_list,
+                    f"failed to process PR {pr_uid}: {normalize_error_message(str(e))}",
+                )
+                outcome_label = "Failed"
+                failed_count += 1
+            except BaseException:
+                # Ensure the per-PR transaction rolls back before any
+                # re-raise (KeyboardInterrupt, DatabaseError, anything
+                # unexpected). Site D4 / D5 in the outer try own the exit
+                # codes; this clause only guarantees no transaction leaks.
+                if transaction_open and db.connection.in_transaction:
+                    db.execute("ROLLBACK")
+                raise
+            else:
+                outcome_label = "Processed"
+                processed_count += 1
+                metadata_threads_fetched += outcome.threads_upserted
+                metadata_comments_fetched += outcome.comments_upserted
+
+            # FR-018c: progress line strictly AFTER commit/rollback resolves.
+            logger.info(
+                _BACKFILL_WARNING_PREFIX + "covered PR %s (%d of %d) [%s]",
+                pr_uid,
+                ordinal,
+                total_count,
+                outcome_label,
+            )
+
+        # Site C (unconditional — fires even when total_count == 0).
+        _append_backfill_warning(
+            warnings_list,
+            f"loop-complete: processed={processed_count} failed={failed_count}",
+        )
+
+        # FR-016: review-timestamp recomputation (reuses extract's hook).
+        try:
+            _backfill_review_timestamps_if_needed(db)
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f"backfill-comments could not recompute review timestamps: {e}"
+            ) from e
+
+        # Normalize SQLite write/commit failures here into DatabaseError so
+        # Site D2 owns the exit path (matching _backfill_review_timestamps_if_
+        # needed above and the per-PR loop's sqlite3.Error handling). Without
+        # this wrap, a missing/corrupt comments_extraction_metadata table or
+        # any other sqlite3.Error would escape to Site D5 and surface as a
+        # generic "fatal-abort:" artifact rather than the contract's
+        # "fatal-abort: Database error:" D2 form.
+        try:
+            repo.update_comments_extraction_metadata(
+                last_run_timestamp=datetime.now(UTC).isoformat(),
+                prs_processed=processed_count,
+                threads_fetched=metadata_threads_fetched,
+                comments_fetched=metadata_comments_fetched,
+                capped=bool(
+                    args.limit > 0 and eligible_count > len(selection_snapshot)
+                ),
+            )
+            db.connection.commit()
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f"backfill-comments could not persist comments extraction metadata: {e}"
+            ) from e
+
+        # Build full-shape success RunSummary (schema unchanged per FR-025a).
+        timing.total_seconds = time.perf_counter() - start_time
+        counts = RunCounts(prs_fetched=0, prs_updated=processed_count)
+        run_summary = RunSummary(
+            tool_version=get_tool_version(),
+            git_sha=get_git_sha(),
+            organization=args.organization,
+            projects=parsed_projects,
+            date_range_start=_format_backfill_date(args.since),
+            date_range_end=_format_backfill_date(args.until),
+            counts=counts,
+            timings=timing,
+            warnings=warnings_list,
+            final_status="success",
+            per_project_status={},
+            first_fatal_error=None,
+        )
+        _write_backfill_run_summary(run_summary, args.artifacts_dir)
+        logger.info(
+            _BACKFILL_WARNING_PREFIX + "processed %d pull requests (%d failures)",
+            processed_count,
+            failed_count,
+        )
+        run_summary.print_final_line()
+        run_summary.emit_ado_commands()
+        return 0
+
+    except ConfigurationError as e:
+        # Site D1 (FR-019a).
+        logger.error(f"Configuration error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(
+            f"Configuration error: {e}", args.artifacts_dir
+        )
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Configuration error: {normalize_error_message(str(e))}",
+        )
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
+        return 1
+    except DatabaseError as e:
+        # Site D2 (FR-019b).
+        logger.error(f"Database error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(f"Database error: {e}", args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Database error: {normalize_error_message(str(e))}",
+        )
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
+        return 1
+    except ExtractionError as e:
+        # Site D3 (FR-019c) — pre-loop only. Per-PR ExtractionError is
+        # caught in Site A inside the loop and does not re-raise.
+        logger.error(f"Extraction error: {e}")
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(f"Extraction error: {e}", args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: Extraction error: {normalize_error_message(str(e))}",
+        )
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
+        return 1
+    except KeyboardInterrupt:
+        # Site D4 — write artifact with discriminator, then re-raise so
+        # main()'s handler owns exit code 130 (INV-8).
+        minimal = create_minimal_summary(
+            "Operation cancelled by user", args.artifacts_dir
+        )
+        _append_backfill_warning(
+            minimal.warnings, "fatal-abort: Operation cancelled by user"
+        )
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
+        raise
+    except Exception as e:
+        # Site D5 — write artifact with discriminator, then re-raise so
+        # main()'s handler owns exit code 1 (INV-8). MUST be last clause.
+        from .utils.run_summary import normalize_error_message
+
+        minimal = create_minimal_summary(str(e), args.artifacts_dir)
+        _append_backfill_warning(
+            minimal.warnings,
+            f"fatal-abort: {normalize_error_message(str(e))}",
+        )
+        try:
+            _write_backfill_run_summary(minimal, args.artifacts_dir)
+        except DatabaseError as write_error:
+            logger.error(f"Database error: {write_error}")
+        raise
+    finally:
+        if db is not None:
+            db.close()
+
+
+def _format_backfill_date(value: date | None) -> str:
+    """Serialize a backfill date filter for the run_summary artifact.
+
+    Backfill treats omitted ``--since`` / ``--until`` as unbounded, so
+    the artifact must preserve missing bounds as empty strings rather
+    than inventing a concrete date.
+    """
+    return value.isoformat() if value is not None else ""
+
+
+def _write_backfill_run_summary(summary: RunSummary, artifacts_dir: Path) -> None:
+    """Persist the backfill run summary with D2 classification on path/IO errors.
+
+    Only path-resolution and filesystem-write failures are normalized here.
+    Programmer errors in serialization logic must still escape as unexpected
+    exceptions so Site D5 retains meaning.
+    """
+    from .persistence.database import DatabaseError
+
+    try:
+        summary_path = safe_join(artifacts_dir, "run_summary.json")
+    except (OSError, ValueError) as e:
+        raise DatabaseError(
+            f"backfill-comments could not resolve run summary artifact path: {e}"
+        ) from e
+
+    try:
+        writer = summary.write
+        writer(summary_path)
+    except OSError as e:
+        raise DatabaseError(
+            "backfill-comments could not write run summary artifact "
+            f"({summary_path}): {e}"
+        ) from e
 
 
 def cmd_generate_csv(args: Namespace) -> int:
@@ -2137,6 +3132,8 @@ def main() -> int:
     try:
         if args.command == "extract":
             return cmd_extract(args)
+        elif args.command == "backfill-comments":
+            return cmd_backfill_comments(args)
         elif args.command == "generate-csv":
             return cmd_generate_csv(args)
         elif args.command == "generate-aggregates":

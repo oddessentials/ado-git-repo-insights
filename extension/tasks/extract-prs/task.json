@@ -24,8 +24,8 @@
             "name": "projects",
             "type": "multiLine",
             "label": "Projects",
-            "required": true,
-            "helpMarkDown": "List of project names (one per line or comma-separated)"
+            "required": false,
+            "helpMarkDown": "List of project names (one per line or comma-separated). Required in extract mode; optional in backfill-comments mode (empty = all projects eligible)."
         },
         {
             "name": "pat",
@@ -84,9 +84,20 @@
             "type": "string",
             "label": "Max PRs for Comment Extraction",
             "required": false,
-            "defaultValue": "100",
             "visibleRule": "includeComments = true",
-            "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. Defaults to 100 for rate-limit protection."
+            "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. If left blank, 100 is used for rate-limit protection."
+        },
+        {
+            "name": "mode",
+            "type": "pickList",
+            "label": "Mode",
+            "required": false,
+            "defaultValue": "extract",
+            "options": {
+                "extract": "Extract PRs (default)",
+                "backfill-comments": "Backfill comment coverage for historical PRs"
+            },
+            "helpMarkDown": "Which CLI subcommand to run. `extract` (default) pulls PR metadata for the configured date range and, when `includeComments` is on, also fetches comments for the most recent PRs in that window. `backfill-comments` drains `pr_threads`/`pr_comments` coverage for PRs already in the database whose `comments_extracted_at` is NULL (oldest first); it is how you catch up historical PRs after flipping `includeComments` on. Extract-only inputs (`startDate`, `endDate`, `backfillDays`, `includeComments`, `commentsMaxPrsPerRun`) are rejected in `backfill-comments` mode and vice versa."
         },
         {
             "name": "commentsMaxThreadsPerPr",
@@ -94,7 +105,7 @@
             "label": "Max Threads per PR",
             "required": false,
             "defaultValue": "50",
-            "visibleRule": "includeComments = true",
+            "visibleRule": "includeComments = true || mode = backfill-comments",
             "helpMarkDown": "Maximum threads to fetch per PR. Non-negative integer; 0 means unlimited."
         },
         {
@@ -138,6 +149,30 @@
             "required": false,
             "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
             "visibleRule": "enableInsights = true"
+        },
+        {
+            "name": "backfillSince",
+            "type": "string",
+            "label": "Backfill: Since Date",
+            "required": false,
+            "visibleRule": "mode = backfill-comments",
+            "helpMarkDown": "Only backfill PRs closed on or after this date (YYYY-MM-DD). Optional; omit to include all uncovered PRs."
+        },
+        {
+            "name": "backfillUntil",
+            "type": "string",
+            "label": "Backfill: Until Date",
+            "required": false,
+            "visibleRule": "mode = backfill-comments",
+            "helpMarkDown": "Only backfill PRs closed strictly before this date (YYYY-MM-DD), exclusive. Optional; omit to include all uncovered PRs."
+        },
+        {
+            "name": "backfillLimit",
+            "type": "string",
+            "label": "Backfill: PR Limit per Run",
+            "required": false,
+            "visibleRule": "mode = backfill-comments",
+            "helpMarkDown": "Maximum PRs processed this run. Non-negative integer; `0` or omitted means no limit. Use this to keep a run within your pipeline's timeout — at roughly 1 PR/second steady-state, a 60-minute pipeline comfortably handles ~3000 PRs with buffer. Re-runs are automatically resumable (already-covered PRs are excluded)."
         }
     ],
     "execution": {

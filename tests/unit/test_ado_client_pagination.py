@@ -7,6 +7,7 @@ DoD 3.1: Pagination Completeness
 
 from __future__ import annotations
 
+import json as _json
 from datetime import UTC, date
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,7 @@ import pytest
 
 from ado_git_repo_insights.config import APIConfig
 from ado_git_repo_insights.extractor.ado_client import ADOClient, ExtractionError
+from tests.unit._http_response_factory import make_response
 
 
 @pytest.fixture
@@ -42,15 +44,20 @@ def client(api_config: APIConfig) -> ADOClient:
 def make_mock_response(
     prs: list[dict],
     continuation_token: str | None = None,
-) -> MagicMock:
-    """Create a mock requests.Response with PR data."""
-    response = MagicMock()
-    response.json.return_value = {"value": prs}
-    response.headers = {}
+):
+    """Create a real requests.Response with PR data.
+
+    Routes through ``_http_response_factory.make_response`` so
+    ``ADOClient._get_or_raise``'s 3xx check (``300 <= status < 400``)
+    sees an integer status code, not a MagicMock.
+    """
+    r = make_response(
+        status=200,
+        content=_json.dumps({"value": prs}).encode(),
+    )
     if continuation_token:
-        response.headers["x-ms-continuationtoken"] = continuation_token
-    response.raise_for_status = MagicMock()
-    return response
+        r.headers["x-ms-continuationtoken"] = continuation_token
+    return r
 
 
 class TestPaginationCompleteness:
@@ -621,17 +628,11 @@ class TestRateLimitingWithRetryAfter:
         self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
     ) -> None:
         """429 with integer Retry-After is respected."""
-        # First call: 429 with Retry-After
-        rate_limited = MagicMock()
-        rate_limited.status_code = 429
-        rate_limited.headers = {"Retry-After": "30"}
-
-        # Second call: success
-        success_response = MagicMock()
-        success_response.status_code = 200
-        success_response.headers = {}
-        success_response.raise_for_status = MagicMock()
-        success_response.json.return_value = {"value": []}
+        rate_limited = make_response(status=429)
+        rate_limited.headers["Retry-After"] = "30"
+        success_response = make_response(
+            status=200, content=_json.dumps({"value": []}).encode()
+        )
 
         mock_get.side_effect = [rate_limited, success_response]
 
@@ -646,15 +647,11 @@ class TestRateLimitingWithRetryAfter:
         self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
     ) -> None:
         """429 with large Retry-After is capped at 120 seconds."""
-        rate_limited = MagicMock()
-        rate_limited.status_code = 429
-        rate_limited.headers = {"Retry-After": "300"}  # 5 minutes
-
-        success_response = MagicMock()
-        success_response.status_code = 200
-        success_response.headers = {}
-        success_response.raise_for_status = MagicMock()
-        success_response.json.return_value = {"value": []}
+        rate_limited = make_response(status=429)
+        rate_limited.headers["Retry-After"] = "300"  # 5 minutes
+        success_response = make_response(
+            status=200, content=_json.dumps({"value": []}).encode()
+        )
 
         mock_get.side_effect = [rate_limited, success_response]
 
@@ -669,15 +666,11 @@ class TestRateLimitingWithRetryAfter:
         self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
     ) -> None:
         """429 with invalid Retry-After uses default (60 seconds)."""
-        rate_limited = MagicMock()
-        rate_limited.status_code = 429
-        rate_limited.headers = {"Retry-After": "invalid-value"}
-
-        success_response = MagicMock()
-        success_response.status_code = 200
-        success_response.headers = {}
-        success_response.raise_for_status = MagicMock()
-        success_response.json.return_value = {"value": []}
+        rate_limited = make_response(status=429)
+        rate_limited.headers["Retry-After"] = "invalid-value"
+        success_response = make_response(
+            status=200, content=_json.dumps({"value": []}).encode()
+        )
 
         mock_get.side_effect = [rate_limited, success_response]
 

@@ -181,6 +181,48 @@ ado-insights extract ...
 
 ---
 
+## Comment Extraction and Backfill
+
+### "Backfill exited 0 but no PRs were processed"
+
+**Cause:** The database schema predates the thread storage tables.
+The subcommand logs a legacy-schema warning and exits 0 without work.
+
+**Check:** Look for the legacy-schema warning in the backfill
+`run_summary.json` artifact (`warnings` list) or the pipeline log.
+
+**Fix:** Run the extract pipeline once under the current CLI / task
+version — schema migrations add the thread tables automatically — then
+re-run backfill.
+
+### Per-PR failures reported but the run exited 0
+
+**By design.** A per-PR extraction error leaves that PR's coverage
+marker NULL so the next invocation reselects it. The loop continues
+with the next PR, and the run exits 0 as long as the loop reached the
+end.
+
+**Fix:** Re-run backfill. For a persistently-failing PR, inspect its
+entry in the `run_summary.json` artifact's `warnings` list for the
+normalized error message.
+
+### "Backfill hits pipeline timeout"
+
+**Fix:** Size `--limit` (CLI) / `backfillLimit` (task) to fit inside
+your job timeout at an empirical rate of roughly ~1 PR/sec — see the
+[sizing table](extension.md#sizing-backfilllimit). Interrupted runs are
+resumable: PRs whose per-PR transaction already committed stay covered;
+the next run picks up where the previous one stopped.
+
+### "How do I know backfill is done?"
+
+See the [extension guide's observable-signals
+table](extension.md#how-to-tell-its-working). A drained backlog is a
+run whose opening log line reports an empty selection, with no per-PR
+progress lines and a zero-count closing line.
+
+---
+
 ## Pipeline Issues (Extension)
 
 ### "Task not found" error

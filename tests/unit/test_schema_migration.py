@@ -180,7 +180,7 @@ class TestMigrationV1ToV2:
         db.connect()
         try:
             # All pending migrations applied: v1→v2→v3→v4
-            assert db.get_schema_version() == 4
+            assert db.get_schema_version() == 5
         finally:
             db.close()
 
@@ -222,13 +222,13 @@ class TestMigrationIdempotency:
         db.connect()
         db.close()
 
-        assert _get_schema_version(db_path) == 4
+        assert _get_schema_version(db_path) == 5
 
         # Second connect: should be a no-op
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 4
+            assert db2.get_schema_version() == 5
             assert "reviewed_at" in _get_column_names(db_path, "reviewers")
         finally:
             db2.close()
@@ -271,7 +271,7 @@ class TestFreshInstall:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 4
+            assert db.get_schema_version() == 5
         finally:
             db.close()
 
@@ -285,6 +285,23 @@ class TestMigrationV2ToV3CoverageBackfill:
     overstatement.  One subsequent --include-comments run converges
     coverage to the correct value.
     """
+
+    @pytest.fixture(autouse=True)
+    def _freeze_migrations_at_v4(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Stop auto-migrations at v4 so v4→v5 (which resets every
+        ``comments_extracted_at`` to NULL as part of the pr_comments
+        composite-PK rebuild) does not destroy the v2→v3 coverage-backfill
+        state under test here.  The v4→v5 migration has its own dedicated
+        test class in ``test_schema_migration_v4_to_v5.py``.
+        """
+        from ado_git_repo_insights.persistence.migrations import (
+            MIGRATIONS as _SOURCE_MIGRATIONS,
+        )
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.persistence.database.MIGRATIONS",
+            {k: v for k, v in _SOURCE_MIGRATIONS.items() if k < 5},
+        )
 
     # Shared v2 schema DDL for all tests in this class.
     _V2_SCHEMA_SQL = """
@@ -766,6 +783,23 @@ class TestMigrationV3ToV4DedupAndRecovery:
     F2 — Stale _pr_threads_v3 / _pr_comments_v3 recovered or dropped
     F3 — Composite FK validated structurally, not just by column name
     """
+
+    @pytest.fixture(autouse=True)
+    def _freeze_migrations_at_v4(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Stop auto-migrations at v4 so v4→v5 (which drops pr_comments and
+        resets every ``comments_extracted_at`` as part of the composite-PK
+        rebuild) does not destroy the v3→v4 dedup/recovery state under test
+        here.  The v4→v5 migration has its own dedicated test class in
+        ``test_schema_migration_v4_to_v5.py``.
+        """
+        from ado_git_repo_insights.persistence.migrations import (
+            MIGRATIONS as _SOURCE_MIGRATIONS,
+        )
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.persistence.database.MIGRATIONS",
+            {k: v for k, v in _SOURCE_MIGRATIONS.items() if k < 5},
+        )
 
     # v3 schema: v2 + comments_extracted_at column, version=3.
     # pr_threads still has thread_id TEXT PRIMARY KEY (single-column PK)

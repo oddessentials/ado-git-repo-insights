@@ -19,12 +19,25 @@ Complete reference for the `ExtractPullRequests@2` Azure DevOps pipeline task.
 | Input | Description |
 |-------|-------------|
 | `organization` | Azure DevOps organization name |
-| `projects` | Project names (one per line or comma-separated) |
 | `pat` | Personal Access Token with Code (Read) scope |
+| `projects` | Project names (one per line or comma-separated). **Required in `extract` mode; optional in `backfill-comments` mode** (empty = all projects eligible). |
 
 ---
 
-## Optional Inputs
+## Mode
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `mode` | `extract` | Which CLI subcommand to run. `extract` pulls PR metadata for the configured date range (with optional comment extraction for recent PRs). `backfill-comments` drains comment coverage for historical PRs whose `comments_extracted_at` is NULL. |
+
+See [Backfilling Historical PR Comments](../user-guide/extension.md#backfilling-historical-pr-comments) for the end-to-end walkthrough.
+
+---
+
+## Optional Inputs (Extract Mode)
+
+These inputs are valid only when `mode: extract` (the default). Using any of
+them with `mode: backfill-comments` causes the task to fail fast.
 
 | Input | Default | Description |
 |-------|---------|-------------|
@@ -32,9 +45,53 @@ Complete reference for the `ExtractPullRequests@2` Azure DevOps pipeline task.
 | `outputDir` | `$(Pipeline.Workspace)/csv_output` | CSV output directory |
 | `startDate` | Auto-detected | Override start date (YYYY-MM-DD) |
 | `endDate` | Yesterday | Override end date (YYYY-MM-DD) |
-| `backfillDays` | None | Days to backfill for convergence |
+| `backfillDays` | None | Days to re-extract for PR-metadata convergence |
+| `includeComments` | `false` | Extract PR discussion threads inline while extracting PR metadata |
+| `commentsMaxPrsPerRun` | `100` | Cap on how many PRs have comments fetched in a single extract run (rate-limit protection) |
+| `commentsMaxThreadsPerPr` | `50` | Cap on how many threads are fetched per PR; `0` = unlimited |
 | `generateAggregates` | `true` | Generate JSON aggregates for dashboard |
 | `aggregatesDir` | `$(Pipeline.Workspace)/aggregates` | Aggregates output directory |
+| `enablePredictions` | `false` | Prophet-based trend forecasting in `generateAggregates` |
+| `enableInsights` | `false` | OpenAI-powered insights in `generateAggregates` |
+| `openaiApiKey` | None | `$(OPENAI_API_KEY)` from a variable group; required when `enableInsights: true` |
+
+---
+
+## Optional Inputs (Backfill-Comments Mode)
+
+These inputs are valid only when `mode: backfill-comments`. Using any of them
+with `mode: extract` causes the task to fail fast.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `backfillSince` | None | Only backfill PRs closed on or after this date (YYYY-MM-DD) |
+| `backfillUntil` | None | Only backfill PRs closed strictly before this date (YYYY-MM-DD, exclusive) |
+| `backfillLimit` | `0` (no limit) | Maximum PRs processed per run. Sized against your pipeline's job timeout at ~1 PR/sec (empirical, not a guarantee); see the [extension user guide](../user-guide/extension.md#sizing-backfilllimit). |
+| `commentsMaxThreadsPerPr` | `50` | Cap on how many threads are fetched per PR; `0` = unlimited (shared with extract mode) |
+| `database` | `$(Pipeline.Workspace)/data/ado-insights.sqlite` | SQLite database path (shared with extract mode) |
+| `generateAggregates` | `true` | Run aggregates after backfill so `review_time` metrics refresh |
+| `aggregatesDir` | `$(Pipeline.Workspace)/aggregates` | Aggregates output directory (shared) |
+| `enablePredictions` | `false` | Prophet-based trend forecasting in `generateAggregates` (shared) |
+| `enableInsights` | `false` | OpenAI-powered insights in `generateAggregates` (shared) |
+| `openaiApiKey` | None | Required when `enableInsights: true` (shared) |
+
+---
+
+## Cross-Mode Input Rejection
+
+The task rejects mixed-intent input combinations before any API call so a
+pipeline misconfiguration fails within the first few seconds of the run.
+The full rejection rule set:
+
+| Mode | Rejected inputs | Reason |
+|------|-----------------|--------|
+| `extract`           | `backfillSince`, `backfillUntil`, `backfillLimit` | Backfill-only knobs. |
+| `extract`           | Missing/empty `projects`                          | Required in extract mode. |
+| `backfill-comments` | `startDate`, `endDate`, `backfillDays`            | Use `backfillSince` / `backfillUntil` instead; `backfillDays` has no backfill analogue. |
+| `backfill-comments` | `includeComments: true`                            | Backfill always fetches comments; enabling this is mixed intent. |
+| `backfill-comments` | `commentsMaxPrsPerRun`                             | Use `backfillLimit` instead. |
+
+Empty-string inputs (`startDate: ""`, etc.) that the Azure platform auto-populates are treated as *not set* and do not trigger the guard — only a non-empty meaningfully-set value fails the run.
 
 ---
 

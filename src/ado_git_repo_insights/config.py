@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,59 @@ logger = logging.getLogger(__name__)
 
 class ConfigurationError(Exception):
     """Configuration validation error."""
+
+
+def _parse_projects_list(raw: str | None) -> list[str]:
+    """Parse a comma-separated projects list into a trimmed, ordered list.
+
+    Tolerant: splits on ``,``, trims whitespace, drops empties, preserves order.
+    Never raises; invalid entries match zero PRs at selection time.
+    ``None`` and ``""`` return ``[]``.
+
+    Shared by extract (``--projects``) and backfill (``--projects``) so the
+    two entry points parse identically (FR-030d parity contract).
+    """
+    if not raw:
+        return []
+    return [entry for entry in (part.strip() for part in raw.split(",")) if entry]
+
+
+_STRICT_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _parse_iso_date(raw: str) -> date:
+    """Parse a strict ``YYYY-MM-DD`` ISO-8601 calendar date.
+
+    Raises ``ValueError`` on any format mismatch (wrong separator, wrong
+    field widths, compact ``YYYYMMDD``, ISO-week ``YYYY-Www-D``, ordinal
+    ``YYYY-DDD``, or anything embedded in a longer string) or invalid
+    calendar value (month 13, day 30 in February, etc.). Callers at
+    argparse boundaries wrap into ``ArgumentTypeError``; callers at
+    ``load_config`` let the ``ValueError`` surface for
+    ``ConfigurationError`` wrapping.
+
+    The regex gate is necessary because Python 3.11+ expanded
+    ``date.fromisoformat`` to accept many ISO-8601 forms beyond
+    ``YYYY-MM-DD``; without the gate, compact / week / ordinal forms
+    would slip past documented contract of "strict YYYY-MM-DD" (see
+    argparse ``--since`` / ``--until`` help strings + FR-005).
+
+    Shared by extract (``--start-date`` / ``--end-date``) and backfill
+    (``--since`` / ``--until``) so both entry points validate
+    identically (FR-030d parity contract).
+    """
+    if not isinstance(raw, str) or _STRICT_ISO_DATE_RE.fullmatch(raw) is None:
+        raise ValueError(f"date must be YYYY-MM-DD: {raw!r}")
+    return date.fromisoformat(raw)
+
+
+def _coerce_plain_date(raw: object) -> date:
+    """Accept plain ``date`` values while rejecting ``datetime`` instances."""
+    if isinstance(raw, datetime):
+        raise ValueError(f"date must be YYYY-MM-DD: {raw!r}")
+    if isinstance(raw, date):
+        return raw
+    return _parse_iso_date(str(raw))
 
 
 @dataclass
@@ -99,8 +153,8 @@ def load_config(
     projects: str | None = None,
     pat: str | None = None,
     database: Path | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
     backfill_days: int | None = None,
 ) -> Config:
     """Load configuration from file and/or CLI arguments.
@@ -113,8 +167,10 @@ def load_config(
         projects: Comma-separated project names (CLI override).
         pat: Personal Access Token (CLI override).
         database: Database path (CLI override).
-        start_date: Start date YYYY-MM-DD (CLI override).
-        end_date: End date YYYY-MM-DD (CLI override).
+        start_date: Start date (CLI override). Accepts either a pre-parsed
+            ``datetime.date`` (argparse with ``type=_parse_iso_date_argtype``)
+            or a ``YYYY-MM-DD`` string (programmatic callers / tests).
+        end_date: End date (CLI override); same tolerant shape as start_date.
         backfill_days: Backfill window in days (CLI override).
 
     Returns:
@@ -136,7 +192,7 @@ def load_config(
     if organization:
         config_data["organization"] = organization
     if projects:
-        config_data["projects"] = [p.strip() for p in projects.split(",")]
+        config_data["projects"] = _parse_projects_list(projects)
     if pat:
         config_data["pat"] = pat
     elif not config_data.get("pat"):
@@ -198,20 +254,24 @@ def load_config(
     date_range = DateRangeConfig()
     dr_data = _sub("date_range")
     try:
-        if start_date:
-            date_range.start = date.fromisoformat(start_date)
+        if start_date and isinstance(start_date, str):
+            date_range.start = _parse_iso_date(start_date)
+        elif start_date is not None:
+            date_range.start = _coerce_plain_date(start_date)
         elif dr_data.get("start"):
-            date_range.start = date.fromisoformat(str(dr_data["start"]))
+            date_range.start = _coerce_plain_date(dr_data["start"])
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid start_date format (expected YYYY-MM-DD): {e}"
         ) from e
 
     try:
-        if end_date:
-            date_range.end = date.fromisoformat(end_date)
+        if end_date and isinstance(end_date, str):
+            date_range.end = _parse_iso_date(end_date)
+        elif end_date is not None:
+            date_range.end = _coerce_plain_date(end_date)
         elif dr_data.get("end"):
-            date_range.end = date.fromisoformat(str(dr_data["end"]))
+            date_range.end = _coerce_plain_date(dr_data["end"])
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid end_date format (expected YYYY-MM-DD): {e}"

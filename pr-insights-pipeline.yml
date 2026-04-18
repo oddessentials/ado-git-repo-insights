@@ -73,7 +73,12 @@ stages:
               pip install ado-git-repo-insights
             displayName: 'Install Package'
 
-          # Conditional: Incremental extraction (non-Sunday or manual runs)
+          # Conditional: Incremental extraction (non-Sunday or manual runs).
+          # To enable PR comment extraction, add `--include-comments` to the
+          # ado-insights extract call below. New incremental runs will start
+          # fetching thread data for newly-closed PRs. See the one-time,
+          # opt-in backfill-comments block further down for covering
+          # historical PRs that predate the --include-comments change.
           - script: |
               echo "##[section]Running INCREMENTAL extraction"
               ado-insights extract \
@@ -97,6 +102,35 @@ stages:
                 --backfill-days 60
             displayName: 'Extract PRs (Backfill)'
             condition: and(succeeded(), eq(variables['Build.Reason'], 'Schedule'), eq(variables['System.DayOfWeek'], 'Sunday'))
+
+          # -----------------------------------------------------------------
+          # One-time historical comment backfill (OPT-IN, NOT a standing step)
+          #
+          # Uncomment the block below ONLY after enabling --include-comments
+          # on the extract step above, and ONLY to cover historical PRs that
+          # predate that change. Re-comment or delete once the backfill run
+          # reports no remaining PRs to process; this is not meant to run on
+          # every pipeline invocation.
+          #
+          # Placed BEFORE Generate CSVs below so the run that performs the
+          # backfill publishes CSVs that include the newly-covered comments.
+          # Moving it after Generate CSVs would publish stale CSVs generated
+          # from pre-backfill DB state.
+          #
+          # Sizing: --limit runs at roughly ~1 PR/sec (empirical, not a
+          # guarantee). See docs/user-guide/extension.md#sizing-backfilllimit
+          # for fitting --limit inside your job timeout.
+          # -----------------------------------------------------------------
+          # - script: |
+          #     ado-insights backfill-comments \
+          #       --organization $(ORGANIZATION) \
+          #       --projects "$(PROJECTS)" \
+          #       --pat $(PAT_SECRET) \
+          #       --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+          #       --artifacts-dir "$(Pipeline.Workspace)/run_artifacts" \
+          #       --limit 2500
+          #   displayName: 'Backfill Historical Comments (one-time)'
+          #   condition: succeeded()
 
           # Generate CSVs for PowerBI
           - script: |

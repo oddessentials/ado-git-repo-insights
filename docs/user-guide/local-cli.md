@@ -287,6 +287,37 @@ ado-insights extract \
 | Daily | Incremental | Capture new PRs |
 | Weekly (Sundays) | Backfill 60 days | Convergence for late changes |
 
+### Backfill Historical Comments
+
+The `--backfill-days` flag above re-extracts PR metadata to converge
+late reviewer votes and status updates. It does **not** backfill PR
+comment thread data.
+
+If you enable `--include-comments` on extract after historical PRs are
+already in the database, those historical PRs are never retroactively
+covered by incremental runs. Use the separate `backfill-comments`
+subcommand for a one-time catch-up:
+
+```bash
+ado-insights backfill-comments \
+  --organization MyOrg \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite \
+  --limit 2500
+```
+
+**Precondition:** the database must already contain the `pr_threads` /
+`pr_comments` tables (created by schema migrations on any modern
+extract run). Running backfill against an older schema exits 0 without
+processing — run your extract pipeline once under the current CLI
+version first.
+
+See [CLI Command Reference § backfill-comments](../reference/cli-reference.md#backfill-comments)
+for the full flag list, and the [Extension User Guide § Backfilling
+Historical PR Comments](extension.md#backfilling-historical-pr-comments)
+for sizing guidance and observable-signals reference (same behavior
+whether you run the CLI or the ADO extension task).
+
 ---
 
 ## Configuration File

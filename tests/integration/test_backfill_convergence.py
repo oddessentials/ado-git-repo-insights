@@ -26,6 +26,7 @@ from ado_git_repo_insights.extractor.ado_client import ADOClient
 from ado_git_repo_insights.extractor.pr_extractor import PRExtractor
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
+from tests.unit._http_response_factory import make_response
 
 
 def make_mock_pr(
@@ -109,12 +110,9 @@ class TestBackfillConvergence:
             "vote": 0,
         }
 
-        mock_response1 = MagicMock()
-        mock_response1.json.return_value = {
-            "value": [make_mock_pr(1, reviewers=[initial_reviewer])]
-        }
-        mock_response1.headers = {}
-        mock_response1.raise_for_status = MagicMock()
+        mock_response1 = make_response(
+            json_body={"value": [make_mock_pr(1, reviewers=[initial_reviewer])]}
+        )
 
         mock_get.return_value = mock_response1
 
@@ -142,12 +140,9 @@ class TestBackfillConvergence:
             "vote": 10,
         }
 
-        mock_response2 = MagicMock()
-        mock_response2.json.return_value = {
-            "value": [make_mock_pr(1, reviewers=[updated_reviewer])]
-        }
-        mock_response2.headers = {}
-        mock_response2.raise_for_status = MagicMock()
+        mock_response2 = make_response(
+            json_body={"value": [make_mock_pr(1, reviewers=[updated_reviewer])]}
+        )
 
         mock_get.return_value = mock_response2
 
@@ -180,10 +175,7 @@ class TestBackfillConvergence:
         initial_pr = make_mock_pr(1)
         initial_pr["closedDate"] = "2024-01-15T12:00:00Z"
 
-        mock_response1 = MagicMock()
-        mock_response1.json.return_value = {"value": [initial_pr]}
-        mock_response1.headers = {}
-        mock_response1.raise_for_status = MagicMock()
+        mock_response1 = make_response(json_body={"value": [initial_pr]})
 
         mock_get.return_value = mock_response1
 
@@ -205,10 +197,7 @@ class TestBackfillConvergence:
         updated_pr = make_mock_pr(1)
         updated_pr["closedDate"] = "2024-01-16T18:00:00Z"
 
-        mock_response2 = MagicMock()
-        mock_response2.json.return_value = {"value": [updated_pr]}
-        mock_response2.headers = {}
-        mock_response2.raise_for_status = MagicMock()
+        mock_response2 = make_response(json_body={"value": [updated_pr]})
 
         mock_get.return_value = mock_response2
 
@@ -234,10 +223,7 @@ class TestBackfillConvergence:
         # Initial PR with title "Old Title"
         initial_pr = make_mock_pr(1, title="Old Title")
 
-        mock_response1 = MagicMock()
-        mock_response1.json.return_value = {"value": [initial_pr]}
-        mock_response1.headers = {}
-        mock_response1.raise_for_status = MagicMock()
+        mock_response1 = make_response(json_body={"value": [initial_pr]})
 
         mock_get.return_value = mock_response1
 
@@ -251,10 +237,7 @@ class TestBackfillConvergence:
         # Updated PR with title "New Title"
         updated_pr = make_mock_pr(1, title="New Title")
 
-        mock_response2 = MagicMock()
-        mock_response2.json.return_value = {"value": [updated_pr]}
-        mock_response2.headers = {}
-        mock_response2.raise_for_status = MagicMock()
+        mock_response2 = make_response(json_body={"value": [updated_pr]})
 
         mock_get.return_value = mock_response2
 
@@ -280,10 +263,9 @@ class TestBackfillConvergence:
         db, config, _ = backfill_setup
 
         # Initial: no reviewers
-        mock_response1 = MagicMock()
-        mock_response1.json.return_value = {"value": [make_mock_pr(1, reviewers=[])]}
-        mock_response1.headers = {}
-        mock_response1.raise_for_status = MagicMock()
+        mock_response1 = make_response(
+            json_body={"value": [make_mock_pr(1, reviewers=[])]}
+        )
 
         mock_get.return_value = mock_response1
 
@@ -307,12 +289,9 @@ class TestBackfillConvergence:
             "vote": 10,
         }
 
-        mock_response2 = MagicMock()
-        mock_response2.json.return_value = {
-            "value": [make_mock_pr(1, reviewers=[new_reviewer])]
-        }
-        mock_response2.headers = {}
-        mock_response2.raise_for_status = MagicMock()
+        mock_response2 = make_response(
+            json_body={"value": [make_mock_pr(1, reviewers=[new_reviewer])]}
+        )
 
         mock_get.return_value = mock_response2
 

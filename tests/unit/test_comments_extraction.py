@@ -78,19 +78,22 @@ class TestThreadExtraction:
         assert threads[1]["status"] == "fixed"
 
     def test_get_pr_threads_handles_429_rate_limit(self, client: ADOClient) -> None:
-        """Test that 429 response triggers bounded backoff (§6)."""
-        # First response is 429
-        rate_limit_response = MagicMock()
-        rate_limit_response.ok = False
-        rate_limit_response.status_code = 429
-        rate_limit_response.headers = {"Retry-After": "1"}
+        """Test that 429 response triggers bounded backoff (§6).
 
-        # Second response is success
-        success_response = MagicMock()
-        success_response.ok = True
-        success_response.status_code = 200
-        success_response.headers = {}
-        success_response.json.return_value = {"value": [{"id": 1}]}
+        After the _get_or_raise refactor the 429 comes back as an
+        HTTPError wrapped in ExtractionError; get_pr_threads unwraps via
+        ``e.__cause__`` and preserves the original continue-on-429 loop.
+        """
+        import json as _json
+
+        from tests.unit._http_response_factory import make_response
+
+        rate_limit_response = make_response(status=429)
+        rate_limit_response.headers["Retry-After"] = "1"
+        success_response = make_response(
+            status=200,
+            content=_json.dumps({"value": [{"id": 1}]}).encode(),
+        )
 
         with patch("requests.get", side_effect=[rate_limit_response, success_response]):
             with patch("time.sleep") as mock_sleep:
@@ -239,6 +242,169 @@ class TestThreadPersistence:
         row = cursor.fetchone()
         assert row is not None
         assert "test comment" in row["content"]
+
+    def _seed_second_pr(self, db: DatabaseManager) -> str:
+        """Insert a second PR in the same repo/project. Returns its uid."""
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, creation_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo1-2",
+                2,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "Second Test PR",
+                "completed",
+                "2026-01-02T10:00:00Z",
+            ),
+        )
+        db.connection.commit()
+        return "repo1-2"
+
+    def test_upsert_comment_two_threads_same_pr_same_id_persists_two_rows(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        """ADO comment IDs are thread-scoped: every thread's first comment is id=1.
+
+        Two different threads in the same PR both inserting comment_id='1'
+        must persist as TWO rows, not collapse into one.  Regression guard
+        against the single-column `comment_id TEXT PRIMARY KEY` / narrow
+        ON CONFLICT that silently overwrote cross-thread comments.
+        """
+        pr_uid = self.setup_pr(db)
+        now = datetime.now(UTC).isoformat()
+
+        for thread_id in ("t-a", "t-b"):
+            repo.upsert_thread(
+                thread_id=thread_id,
+                pull_request_uid=pr_uid,
+                status="active",
+                thread_context=None,
+                last_updated=now,
+                created_at=now,
+            )
+            repo.upsert_comment(
+                comment_id="1",
+                thread_id=thread_id,
+                pull_request_uid=pr_uid,
+                author_id="user1",
+                content=f"comment on {thread_id}",
+                comment_type="text",
+                created_at=now,
+            )
+        db.connection.commit()
+
+        rows = db.execute(
+            "SELECT thread_id, content FROM pr_comments "
+            "WHERE pull_request_uid = ? AND comment_id = ? "
+            "ORDER BY thread_id",
+            (pr_uid, "1"),
+        ).fetchall()
+        assert len(rows) == 2
+        assert rows[0]["thread_id"] == "t-a"
+        assert rows[0]["content"] == "comment on t-a"
+        assert rows[1]["thread_id"] == "t-b"
+        assert rows[1]["content"] == "comment on t-b"
+
+    def test_upsert_comment_two_prs_same_thread_same_id_persists_two_rows(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        """Two different PRs each inserting (thread_id='1', comment_id='1')
+        must persist as TWO rows.  Regression guard against any narrower
+        PK that would scope only on thread_id + comment_id.
+        """
+        pr_uid_a = self.setup_pr(db)
+        pr_uid_b = self._seed_second_pr(db)
+        now = datetime.now(UTC).isoformat()
+
+        for pr_uid in (pr_uid_a, pr_uid_b):
+            repo.upsert_thread(
+                thread_id="1",
+                pull_request_uid=pr_uid,
+                status="active",
+                thread_context=None,
+                last_updated=now,
+                created_at=now,
+            )
+            repo.upsert_comment(
+                comment_id="1",
+                thread_id="1",
+                pull_request_uid=pr_uid,
+                author_id="user1",
+                content=f"comment on {pr_uid}",
+                comment_type="text",
+                created_at=now,
+            )
+        db.connection.commit()
+
+        rows = db.execute(
+            "SELECT pull_request_uid, content FROM pr_comments "
+            "WHERE thread_id = ? AND comment_id = ? "
+            "ORDER BY pull_request_uid",
+            ("1", "1"),
+        ).fetchall()
+        assert len(rows) == 2
+        assert rows[0]["pull_request_uid"] == pr_uid_a
+        assert rows[0]["content"] == f"comment on {pr_uid_a}"
+        assert rows[1]["pull_request_uid"] == pr_uid_b
+        assert rows[1]["content"] == f"comment on {pr_uid_b}"
+
+    def test_upsert_comment_same_3tuple_updates_in_place(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        """Re-upserting the same (pull_request_uid, thread_id, comment_id)
+        must update in place (content + last_updated), not duplicate.
+        The composite PK is a conflict target, not an insert blocker.
+        """
+        pr_uid = self.setup_pr(db)
+        created = "2026-01-01T00:00:00Z"
+        first_update = "2026-01-02T00:00:00Z"
+        second_update = "2026-01-03T00:00:00Z"
+
+        repo.upsert_thread(
+            thread_id="t-1",
+            pull_request_uid=pr_uid,
+            status="active",
+            thread_context=None,
+            last_updated=first_update,
+            created_at=created,
+        )
+        repo.upsert_comment(
+            comment_id="1",
+            thread_id="t-1",
+            pull_request_uid=pr_uid,
+            author_id="user1",
+            content="original content",
+            comment_type="text",
+            created_at=created,
+            last_updated=first_update,
+        )
+        repo.upsert_comment(
+            comment_id="1",
+            thread_id="t-1",
+            pull_request_uid=pr_uid,
+            author_id="user1",
+            content="edited content",
+            comment_type="text",
+            created_at=created,
+            last_updated=second_update,
+        )
+        db.connection.commit()
+
+        rows = db.execute(
+            "SELECT content, last_updated FROM pr_comments "
+            "WHERE pull_request_uid = ? AND thread_id = ? AND comment_id = ?",
+            (pr_uid, "t-1", "1"),
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["content"] == "edited content"
+        assert rows[0]["last_updated"] == second_update
 
 
 class TestCommentsCoverage:
