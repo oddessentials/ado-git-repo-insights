@@ -152,16 +152,20 @@ earlier commit's drift. Marker scope is per-commit first-parent.
 
 ### Extension test-count drift
 
-One path only: re-measure with `cd extension && pnpm test:coverage`, update
-`extension.min_collected` in the test-floor contract, stage together. Markers
-are ignored for extension drift because `extension/test-results.xml` is not
-tracked in git, so per-commit historical snapshots cannot be materialized.
+One path only: repeat the TypeScript "I added tests" flow above
+(`cd extension && pnpm test:coverage` to refresh the JUnit artifact, then
+run the ratchet gate to print the authoritative count, then update
+`extension.min_collected` in the test-floor contract). Markers are ignored
+for extension drift because `extension/test-results.xml` is not tracked in
+git, so per-commit historical snapshots cannot be materialized.
 
 ### Partial-branches regression or co-change required
 
-Run `pnpm --dir extension run test:partial-branches`. Apply the printed JSON
-patch. Stage in the same commit. For locked-zero files, drive the count to
-zero instead of raising the baseline.
+Regenerate the Jest LCOV artifact first (`cd extension && pnpm test:coverage`)
+so `extension/coverage/lcov.info` reflects HEAD, then run
+`cd extension && pnpm test:partial-branches`. Apply the printed JSON patch
+to the baseline. Stage in the same commit. For locked-zero files, drive the
+count to zero instead of raising the baseline.
 
 ### Coverage threshold drift
 

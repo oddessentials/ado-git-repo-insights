@@ -103,15 +103,21 @@ The following are intentionally excluded or have reduced requirements:
 
 ## Verification Commands
 
+This repo uses `pnpm` (enforced via `packageManager` in `package.json`); do
+not substitute `npm`. Run these from the repo root — the first `cd extension`
+stays in effect for the remaining commands in the same terminal.
+
 ```bash
-# Run with coverage report
-npm test -- --coverage
+cd extension
+
+# Run with coverage report (also emits the JUnit used by the ratchet-bump gate)
+pnpm test:coverage
 
 # Check specific file coverage
-npm test -- --coverage --collectCoverageFrom="ui/dataset-loader.ts"
+pnpm exec jest --coverage --collectCoverageFrom="ui/dataset-loader.ts"
 
 # Verbose coverage for a module
-npm test -- --coverage --collectCoverageFrom="ui/schemas/**/*.ts"
+pnpm exec jest --coverage --collectCoverageFrom="ui/schemas/**/*.ts"
 ```
 
 ## History
