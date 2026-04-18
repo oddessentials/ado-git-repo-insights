@@ -45,15 +45,24 @@ _ALLOWLIST = re.compile(r"npm install -g tfx-cli")
 
 
 def test_contributor_docs_use_pnpm_not_npm() -> None:
-    """Flag any `npm <subcommand>` invocation in locked contributor docs."""
+    """Flag any `npm <subcommand>` invocation in locked contributor docs.
+
+    The allowlist is applied as a *substring scrub*, not a whole-line
+    exemption. A line like ``npm install -g tfx-cli && npm test`` would
+    otherwise bypass the forbidden-pattern check entirely: the allowlist
+    matches the ``npm install -g tfx-cli`` token and a whole-line
+    ``continue`` would accept the trailing ``npm test`` without inspection.
+    Removing every allowlisted occurrence from the line first, then
+    scanning the residual, preserves the carve-out for the sanctioned
+    tfx-cli installer without creating an easy bypass for mixed lines.
+    """
     offenders: list[str] = []
     for doc in _LOCKED_DOCS:
         assert doc.exists(), f"locked doc missing: {doc.relative_to(_REPO_ROOT)}"
         text = doc.read_text(encoding="utf-8")
         for line_no, line in enumerate(text.splitlines(), start=1):
-            if _ALLOWLIST.search(line):
-                continue
-            if _FORBIDDEN_NPM.search(line):
+            residual = _ALLOWLIST.sub("", line)
+            if _FORBIDDEN_NPM.search(residual):
                 rel = doc.relative_to(_REPO_ROOT).as_posix()
                 offenders.append(f"  {rel}:{line_no}: {line.strip()}")
     assert not offenders, (
