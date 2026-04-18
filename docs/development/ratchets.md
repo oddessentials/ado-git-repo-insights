@@ -21,7 +21,7 @@ How the test-count and coverage-threshold gates work, how to update them, and ho
 | Policy | Python | TypeScript | Model | Marker |
 |---|---|---|---|---|
 | [Coverage threshold](#i-changed-a-coverage-threshold) | [`pyproject.toml::fail_under`](/pyproject.toml) | [`extension/jest.config.ts`](/extension/jest.config.ts) (global + per-file tiers) | Strict floor, raise-only | [`[threshold-update]`](#markers) — applies to both |
-| [Test-count floor](#i-added-tests) | [`.test-floor-contract.json::python.min_collected`](/.test-floor-contract.json) | [`.test-floor-contract.json::extension.min_collected`](/.test-floor-contract.json) | Strict equality; per-commit (Python), HEAD-only (Extension) | [`[ratchet-realignment]`](#markers) / [`[ratchet-test-removal]`](#markers) — **Python only** |
+| [Test-count floor](#i-added-tests) | [`.test-floor-contract.json`](/.test-floor-contract.json) → `python.min_collected` | same file → `extension.min_collected` | Strict equality; per-commit (Python), HEAD-only (Extension) | [`[ratchet-realignment]`](#markers) / [`[ratchet-test-removal]`](#markers) — **Python only** |
 | [Partial branches (TS-only, different model)](#partial-branches-different-model) | *n/a* | [`.coverage-partial-branches-baseline.json`](/.coverage-partial-branches-baseline.json) + `LOCKED_ZERO_FILES` in [`scripts/check_partial_branches.py`](/scripts/check_partial_branches.py) | **Baseline co-change** (counts move in both directions; several files locked at zero) | none |
 
 ---
@@ -98,9 +98,10 @@ about a missing or stale JUnit artifact.
 1. Compute the new threshold from actual coverage on the canonical leg
    (see [Canonical env](#canonical-env)):
    `threshold = floor(actual − 2.0)`.
-2. Edit the threshold at source — Python in [`pyproject.toml`](/pyproject.toml),
-   TypeScript in [`extension/jest.config.ts`](/extension/jest.config.ts)
-   (global `coverageThreshold` or any per-file key).
+2. Edit the threshold at source (see the [Source of truth](#source-of-truth)
+   table) — Python via `pyproject.toml` → `fail_under`, TypeScript via
+   `extension/jest.config.ts` (global `coverageThreshold` or any per-file
+   key).
 3. Add `[threshold-update]` to a commit subject line in the PR.
 
 **Per-file thresholds are enforced identically to globals.** Bumping
@@ -152,12 +153,17 @@ earlier commit's drift. Marker scope is per-commit first-parent.
 
 ### Extension test-count drift
 
-One path only: repeat the TypeScript "I added tests" flow above
-(`cd extension && pnpm test:coverage` to refresh the JUnit artifact, then
-run the ratchet gate to print the authoritative count, then update
-`extension.min_collected` in the test-floor contract). Markers are ignored
-for extension drift because `extension/test-results.xml` is not tracked in
-git, so per-commit historical snapshots cannot be materialized.
+One path:
+
+1. `cd extension && pnpm test:coverage` — refresh `extension/test-results.xml`.
+2. `python scripts/check_ratchet_bump.py --base-ref origin/main --junit-extension extension/test-results.xml` —
+   prints the authoritative extension count.
+3. Update the `extension.min_collected` key in the test-floor contract to
+   that count; stage with the code change that caused the drift.
+
+Markers are ignored for extension drift because `extension/test-results.xml`
+is not tracked in git, so per-commit historical snapshots cannot be
+materialized.
 
 ### Partial-branches regression or co-change required
 
