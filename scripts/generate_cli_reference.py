@@ -36,6 +36,20 @@ from typing import cast
 
 from ado_git_repo_insights.cli import create_parser as _create_parser
 
+_CANONICAL_PYTHON: tuple[int, int] = (3, 12)
+"""Python (major, minor) that CI uses for all cli-reference operations.
+
+Kept in sync with the ``test`` matrix in ``.github/workflows/ci.yml``
+and the ``cli-reference-drift`` standalone job. argparse help-text
+rendering is not byte-stable across Python versions — notably
+Python 3.14's usage formatter ignores the ``width`` constructor
+argument for the subparser-choices line where 3.12 honors it — so
+running this generator on a non-canonical version silently produces
+snapshots that pass a local tautological ``--check`` (regen against
+own regen) but diverge from CI's regen.  Pinning forces the
+drift-detection surface to be the SAME surface CI sees.
+"""
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOC_PATH = REPO_ROOT / "docs" / "reference" / "cli-reference.md"
 SNAPSHOT_DIR = REPO_ROOT / "tests" / "unit" / "fixtures" / "help_snapshots"
@@ -620,8 +634,43 @@ def _build_argv_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _require_canonical_python() -> None:
+    """Fail-fast if the current interpreter isn't the CI-canonical version.
+
+    Exists to close the local/CI parity gap that let PR #298 ship
+    3.14-generated snapshots past a local ``--check`` tautology.
+    Before this guard, ``--check`` on any Python version compared
+    argparse's current output against its own regen — a no-op by
+    construction — producing false green while 3.12 CI saw drift.
+    After this guard, any non-canonical invocation exits 1 with an
+    actionable ``uv venv --python 3.12`` instruction, matching the
+    behavioral surface CI already enforces.
+    """
+    if sys.version_info[:2] == _CANONICAL_PYTHON:
+        return
+    canonical = ".".join(str(n) for n in _CANONICAL_PYTHON)
+    current = f"{sys.version_info.major}.{sys.version_info.minor}"
+    sys.stderr.write(
+        f"[cli-reference-generator] ERROR: requires Python {canonical} "
+        f"(CI canonical); currently Python {current}.\n"
+        f"\n"
+        f"argparse help-text rendering is not byte-stable across Python\n"
+        f"versions.  Regenerating on {current} produces snapshots that\n"
+        f"pass a local --check tautologically (regen matches regen on\n"
+        f"the same interpreter) but diverge from CI's Python {canonical}\n"
+        f"regen, violating local/CI parity.\n"
+        f"\n"
+        f"Run via an isolated {canonical} venv:\n"
+        f"  uv venv --python {canonical} $TEMP/ado-cli-ref-venv\n"
+        f"  $TEMP/ado-cli-ref-venv/Scripts/python -m pip install -e .\n"
+        f"  $TEMP/ado-cli-ref-venv/Scripts/python scripts/generate_cli_reference.py <args>\n"
+    )
+    sys.exit(1)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_argv_parser().parse_args(argv)
+    _require_canonical_python()
     try:
         if args.write:
             return mode_write()

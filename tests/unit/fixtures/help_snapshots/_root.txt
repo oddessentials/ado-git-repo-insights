@@ -1,5 +1,6 @@
 usage: ado-insights [-h] [--version] [--log-format {console,jsonl}] [--artifacts-dir ARTIFACTS_DIR]
-                    {extract,backfill-comments,generate-csv,generate-aggregates,build-aggregates,stage-artifacts,dashboard,setup-path,doctor} ...
+                    {extract,backfill-comments,generate-csv,generate-aggregates,build-aggregates,stage-artifacts,dashboard,setup-path,doctor}
+                    ...
 
 Extract Azure DevOps PR metrics and generate PowerBI-compatible CSVs.
 
