@@ -1,3 +1,25 @@
+# [101.10.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.9.0...v101.10.0) (2026-04-18)
+
+
+### Bug Fixes
+
+* **#285:** mode-aware Python-version guard (hard-fail write, warned-skip check) ([d951cda](https://github.com/oddessentials/ado-git-repo-insights/commit/d951cda6ee1b15aed2ad8b0e676b95482fba4bf9)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285)
+* **#285:** move canonical-Python policy into mode functions; drop pytest skips ([b7ce05b](https://github.com/oddessentials/ado-git-repo-insights/commit/b7ce05bcfa6098f18a77f5686d795ba2b66ec795)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285)
+* **#285:** pin cli-reference generator to Python 3.12 + regenerate under canonical version ([535c081](https://github.com/oddessentials/ado-git-repo-insights/commit/535c081d073676724b4de7ad73d5980eff1957fd)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285) [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285) [#298](https://github.com/oddessentials/ado-git-repo-insights/issues/298)
+* **#285:** pin help width via HelpFormatter subclass (COLUMNS env unreliable) ([5686a28](https://github.com/oddessentials/ado-git-repo-insights/commit/5686a280bdac45a963f9899af1344c4bd3cd1924)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285) [#298](https://github.com/oddessentials/ado-git-repo-insights/issues/298) [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295) [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297)
+* **#297:** remove runbook exemption + close patch-coverage gaps ([3dfc253](https://github.com/oddessentials/ado-git-repo-insights/commit/3dfc253f95a907107208e237e0191f33a95f9b63)), closes [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297)
+* **#297:** scope stage-artifacts contract validation to aggregates ([fe9a0ea](https://github.com/oddessentials/ado-git-repo-insights/commit/fe9a0eab00961088c964470a842227d30a87e014)), closes [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297) [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297) [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285) [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297)
+* **#297:** tighten return type on test helper (mypy) ([98d2331](https://github.com/oddessentials/ado-git-repo-insights/commit/98d2331b132afd16c42df99d0440012defb1db08)), closes [#297](https://github.com/oddessentials/ado-git-repo-insights/issues/297)
+* **persistence:** include schema_version in fail-fast fundamentals ([9d10f3a](https://github.com/oddessentials/ado-git-repo-insights/commit/9d10f3a87c226040bad02828b00ecd84e9b034bd))
+* **persistence:** restore fail-fast on partial DBs (two-phase validation) ([ef75bdf](https://github.com/oddessentials/ado-git-repo-insights/commit/ef75bdfd8df40617fea4c4ebe8085454492cbd4b))
+
+
+### Features
+
+* **285:** add cli-reference generator + help enrichment (1/3) ([c88256b](https://github.com/oddessentials/ado-git-repo-insights/commit/c88256bffbd3dd0728b9a3b6c4a9e30c107323d5)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285)
+* **285:** regenerate cli-reference.md under generator (2/3) ([d75b094](https://github.com/oddessentials/ado-git-repo-insights/commit/d75b094f6700e6644f86a925147e3506346d7998)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285)
+* **285:** wire cli-reference-drift gate into preflight + CI + pre-commit (3/3) ([71f8376](https://github.com/oddessentials/ado-git-repo-insights/commit/71f8376633b76ead89942cc85b42fef227cb576d)), closes [#285](https://github.com/oddessentials/ado-git-repo-insights/issues/285)
+
 # [101.9.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.8.0...v101.9.0) (2026-04-18)
 
 
