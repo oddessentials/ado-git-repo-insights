@@ -54,10 +54,10 @@ description: "Task list for 059-chart-drill-down — Phase 1 cohort (shared Deta
 
 ### Step 2 — Focus trap (Commit B)
 
-- [ ] T010 [P] Create `extension/ui/modules/shared/focus-trap.ts` per `research.md` R-03: implement `trapFocus(root: HTMLElement): AbortController` that records `document.activeElement` as the return target, listens for `keydown` within `root`, cycles Tab/Shift-Tab through focusable descendants using the standard focusable selector (`[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])`); export a companion `restoreFocus(controller: AbortController)` that aborts and restores focus to the recorded element
-- [ ] T011 [P] Add `export * from "./focus-trap";` to `extension/ui/modules/shared/index.ts`
-- [ ] T012 [P] Create `extension/tests/modules/shared/focus-trap.test.ts`: forward-cycle test with three mock focusable elements; backward-cycle test; abort restores original `document.activeElement`; non-focusable descendants are skipped; trap on an empty root throws no errors and leaves focus unchanged
-- [ ] T013 Bump `.test-floor-contract.json` `extension.min_collected` by the exact number of Jest cases added by T012; commit T010–T013 together (Commit B)
+- [X] T010 [P] Create `extension/ui/modules/shared/focus-trap.ts` per `research.md` R-03: implement `trapFocus(root: HTMLElement): AbortController` that records `document.activeElement` as the return target, listens for `keydown` within `root`, cycles Tab/Shift-Tab through focusable descendants using the standard focusable selector (`[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])`); export a companion `restoreFocus(controller: AbortController)` that aborts and restores focus to the recorded element
+- [X] T011 [P] Add `export * from "./focus-trap";` to `extension/ui/modules/shared/index.ts`
+- [X] T012 [P] Create `extension/tests/modules/shared/focus-trap.test.ts`: forward-cycle test with three mock focusable elements; backward-cycle test; abort restores original `document.activeElement`; non-focusable descendants are skipped; trap on an empty root throws no errors and leaves focus unchanged
+- [X] T013 Bump `.test-floor-contract.json` `extension.min_collected` by the exact number of Jest cases added by T012; commit T010–T013 together (Commit B)
 
 ### Step 3 — DetailPanel core (Commit C)
 
