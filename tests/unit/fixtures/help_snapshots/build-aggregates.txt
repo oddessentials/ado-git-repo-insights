@@ -1,0 +1,22 @@
+usage: ado-insights build-aggregates [-h] --db DB [--out OUT] [--run-id RUN_ID]
+                                     [--enable-predictions] [--enable-insights]
+                                     [--insights-max-tokens INSIGHTS_MAX_TOKENS]
+                                     [--insights-cache-ttl-hours INSIGHTS_CACHE_TTL_HOURS]
+                                     [--insights-dry-run] [--serve] [--open] [--port PORT]
+
+options:
+  -h, --help            show this help message and exit
+  --db DB               Path to SQLite database file
+  --out OUT             Output directory for dataset files (default: ./dataset)
+  --run-id RUN_ID       Run ID for manifest metadata (default: local)
+  --enable-predictions  Generate ML predictions (Prophet if installed, else NumPy linear
+                        regression fallback)
+  --enable-insights     Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)
+  --insights-max-tokens INSIGHTS_MAX_TOKENS
+                        Maximum tokens for OpenAI insights response (default: 1000)
+  --insights-cache-ttl-hours INSIGHTS_CACHE_TTL_HOURS
+                        Cache TTL for insights in hours (default: 24)
+  --insights-dry-run    Generate prompt artifact without calling OpenAI API
+  --serve               Start local dashboard server after building aggregates
+  --open                Open browser automatically (requires --serve)
+  --port PORT           Local server port (requires --serve, default: 8080)

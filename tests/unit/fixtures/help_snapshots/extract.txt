@@ -1,0 +1,30 @@
+usage: ado-insights extract [-h] [--organization ORGANIZATION] [--projects PROJECTS] --pat PAT
+                            [--config CONFIG] [--database DATABASE] [--start-date START_DATE]
+                            [--end-date END_DATE] [--backfill-days BACKFILL_DAYS]
+                            [--include-comments]
+                            [--comments-max-prs-per-run COMMENTS_MAX_PRS_PER_RUN]
+                            [--comments-max-threads-per-pr COMMENTS_MAX_THREADS_PER_PR]
+
+options:
+  -h, --help            show this help message and exit
+  --organization ORGANIZATION
+                        Azure DevOps organization name (alternative to --config; requires
+                        --projects when used)
+  --projects PROJECTS   Comma-separated list of project names (required when --organization is
+                        used)
+  --pat PAT             Personal Access Token with Code (Read) scope
+  --config CONFIG       Path to config.yaml file
+  --database DATABASE   Path to SQLite database file
+  --start-date START_DATE
+                        Override start date (YYYY-MM-DD); auto-detected from the last-successful-
+                        run marker in the database when omitted
+  --end-date END_DATE   Override end date (YYYY-MM-DD); defaults to yesterday (UTC) when omitted
+  --backfill-days BACKFILL_DAYS
+                        Re-extract the last N days (overrides incremental mode to UPSERT over
+                        existing records for convergence with late-arriving state changes)
+  --include-comments    Extract PR discussion threads and comments into SQLite for auxiliary
+                        analytics outputs (feature-flagged)
+  --comments-max-prs-per-run COMMENTS_MAX_PRS_PER_RUN
+                        Max PRs to fetch comments for per run (rate limit protection)
+  --comments-max-threads-per-pr COMMENTS_MAX_THREADS_PER_PR
+                        Max threads to fetch per PR (optional limit; 0 = unlimited)
