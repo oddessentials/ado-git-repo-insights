@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -738,8 +739,17 @@ class TestPartialBranchesParity:
 
     def test_no_direct_check_partial_branches_outside_script(self) -> None:
         """Only the ``test:partial-branches`` script in
-        ``extension/package.json`` may reference ``check_partial_branches.py``
-        by path. All other call sites must go through the script name."""
+        ``extension/package.json`` may invoke ``check_partial_branches.py``
+        by path. All other call sites must go through the script name.
+
+        Contributor-facing docs may *mention* the script path for
+        discovery (e.g., pointing readers at where ``LOCKED_ZERO_FILES``
+        lives) — but they MUST NOT embed a direct-invocation command
+        line. A copy-pasteable ``python scripts/check_partial_branches.py
+        ...`` line in a doc is effectively a sanctioned call site; that
+        is exactly what this guard exists to prevent, so the doc carve-out
+        is scoped to non-invocation mentions only.
+        """
         result = subprocess.run(
             ["git", "grep", "-n", "--fixed-strings", "check_partial_branches.py"],
             capture_output=True,
@@ -749,25 +759,51 @@ class TestPartialBranchesParity:
         )
         hits = [line for line in result.stdout.splitlines() if line]
 
-        # Allowlist covers the single authoritative call site
-        # (extension/package.json), the script itself, the two test files
-        # that exercise it, and the contributor-facing ratchet doc. The doc
-        # references the script path as a discovery pointer to the
-        # LOCKED_ZERO_FILES source; it is not a call site, so allowing
-        # mentions there does not weaken the no-direct-invocation contract.
+        # Unconditional allowlist: the single authoritative call site
+        # (extension/package.json), the script itself, and the two test
+        # files that exercise it. Mentions inside these paths are not
+        # scanned for invocation patterns — they are the call site,
+        # the implementation, and its coverage, respectively.
         allowed_prefixes = (
             "extension/package.json:",
             "scripts/check_partial_branches.py:",
             "tests/unit/test_ci_parity_drift.py:",
             "tests/unit/test_check_partial_branches.py:",
-            "docs/development/ratchets.md:",
         )
-        disallowed = [h for h in hits if not h.startswith(allowed_prefixes)]
+        # Conditional allowlist: contributor-facing docs may mention the
+        # path for discovery prose and markdown links, but each hit is
+        # still screened for a direct-invocation command line. If a doc
+        # edit later adds ``python scripts/check_partial_branches.py ...``
+        # in a code fence or prose, that hit falls through to ``disallowed``
+        # and fails the gate exactly as a non-doc call site would.
+        doc_prefixes = ("docs/development/ratchets.md:",)
+        # Matches python-style direct invocations with an optional path
+        # prefix (e.g., ``scripts/``, ``../scripts/``). Kept deliberately
+        # narrow: it is the precise pattern the guard is trying to
+        # prohibit — not every mention of the word ``python``.
+        direct_invocation_re = re.compile(r"\bpython\s+\S*check_partial_branches\.py")
+
+        disallowed: list[str] = []
+        for hit in hits:
+            if hit.startswith(allowed_prefixes):
+                continue
+            if hit.startswith(doc_prefixes):
+                if direct_invocation_re.search(hit):
+                    disallowed.append(
+                        f"{hit}\n"
+                        "    ^-- direct-invocation pattern inside a "
+                        "contributor doc; use pnpm test:partial-branches"
+                    )
+                continue
+            disallowed.append(hit)
         assert not disallowed, (
             "Direct `check_partial_branches.py` reference found outside the "
             "authoritative script. All call sites must use `pnpm run "
             "test:partial-branches` (inside form) or `pnpm --dir extension "
-            "run test:partial-branches` (outside form).\n"
+            "run test:partial-branches` (outside form). Contributor docs may "
+            "mention the path for discovery but MUST NOT include invocation "
+            "command lines (e.g. `python scripts/check_partial_branches.py "
+            "...`).\n"
             "Disallowed hits:\n" + "\n".join(f"  {h}" for h in disallowed)
         )
 
