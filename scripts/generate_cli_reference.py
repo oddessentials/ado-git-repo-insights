@@ -27,12 +27,12 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
-import os
 import re
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from ado_git_repo_insights.cli import create_parser as _create_parser
 
@@ -398,17 +398,69 @@ def compute_golden_hash(sections: Sequence[GeneratedSection]) -> str:
     return hasher.hexdigest()
 
 
+class _HelpFormatterPinnedWidth(argparse.HelpFormatter):
+    """HelpFormatter with width pinned to ``DETERMINISTIC_COLUMNS``."""
+
+    def __init__(self, prog: str) -> None:
+        super().__init__(prog, width=int(DETERMINISTIC_COLUMNS))
+
+
+class _RawDescriptionHelpFormatterPinnedWidth(argparse.RawDescriptionHelpFormatter):
+    """RawDescriptionHelpFormatter with width pinned to ``DETERMINISTIC_COLUMNS``.
+
+    Preserves the raw-description behavior used by ``cli.py``'s ``extract``
+    subparser (``cli.py:250``) so its multi-line description survives
+    verbatim, while still forcing the deterministic width uniformly.
+    """
+
+    def __init__(self, prog: str) -> None:
+        super().__init__(prog, width=int(DETERMINISTIC_COLUMNS))
+
+
+# Explicit registry: base argparse formatter -> width-pinned subclass.
+# argparse ships five concrete HelpFormatter types; only the two used by
+# this project's parsers are registered. Unknown types fail fast rather
+# than falling back to a silent default, matching the project's
+# dispatch-on-unknown-key invariant (see #297 fix in cli.py).
+_PINNED_FORMATTERS: dict[type[argparse.HelpFormatter], type[argparse.HelpFormatter]] = {
+    argparse.HelpFormatter: _HelpFormatterPinnedWidth,
+    argparse.RawDescriptionHelpFormatter: _RawDescriptionHelpFormatterPinnedWidth,
+}
+
+
 def format_help_deterministic(parser: argparse.ArgumentParser) -> str:
-    """Render ``--help`` with a fixed width for cross-OS reproducibility."""
-    previous = os.environ.get("COLUMNS")
-    os.environ["COLUMNS"] = DETERMINISTIC_COLUMNS
+    """Render ``--help`` with a fixed width for cross-OS reproducibility.
+
+    argparse's default ``HelpFormatter`` reads width from
+    ``shutil.get_terminal_size()``, which respects ``$COLUMNS`` only on
+    some Python versions and OSes — Python 3.14 on Windows, for example,
+    ignores it and uses the detected console width, producing help
+    output wider than intended. Pinning ``width`` via the constructor
+    argument (rather than the env var) bypasses the terminal-size
+    lookup entirely and is honored uniformly across every Python
+    version and platform.
+
+    The temporary ``formatter_class`` swap preserves the parser's
+    original class on exit so other call sites (including the CLI's own
+    ``--help``) see no behavioral change.
+    """
+    # argparse types ``formatter_class`` as the opaque internal
+    # ``_FormatterClass = Callable[[str], HelpFormatter]`` alias; narrow
+    # once at the boundary so the registry lookup is statically typed.
+    original = cast(type[argparse.HelpFormatter], parser.formatter_class)
+    pinned = _PINNED_FORMATTERS.get(original)
+    if pinned is None:
+        raise ValueError(
+            f"Unsupported HelpFormatter type: {original.__name__}. "
+            f"Add a pinned-width subclass to _PINNED_FORMATTERS before "
+            f"using it on a parser consumed by this generator. Known "
+            f"types: {sorted(cls.__name__ for cls in _PINNED_FORMATTERS)}"
+        )
+    parser.formatter_class = pinned
     try:
         return parser.format_help()
     finally:
-        if previous is None:
-            os.environ.pop("COLUMNS", None)
-        else:
-            os.environ["COLUMNS"] = previous
+        parser.formatter_class = original
 
 
 def collect_help_snapshots(

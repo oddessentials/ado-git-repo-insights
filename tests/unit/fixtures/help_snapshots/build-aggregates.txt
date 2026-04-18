@@ -9,8 +9,8 @@ options:
   --db DB               Path to SQLite database file
   --out OUT             Output directory for dataset files (default: ./dataset)
   --run-id RUN_ID       Run ID for manifest metadata (default: local)
-  --enable-predictions  Generate ML predictions (Prophet if installed, else NumPy linear
-                        regression fallback)
+  --enable-predictions  Generate ML predictions (Prophet if installed, else NumPy linear regression
+                        fallback)
   --enable-insights     Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)
   --insights-max-tokens INSIGHTS_MAX_TOKENS
                         Maximum tokens for OpenAI insights response (default: 1000)

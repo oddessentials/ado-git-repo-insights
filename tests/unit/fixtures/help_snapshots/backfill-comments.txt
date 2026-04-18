@@ -31,35 +31,35 @@ options:
   -h, --help            show this help message and exit
   --organization ORGANIZATION
                         Azure DevOps organization name (required). Must match the organization the
-                        target pull requests belong to; used to construct the upstream thread-
-                        fetch URL.
-  --pat PAT             Personal Access Token with Code (Read) scope (required). The token MUST
-                        have read access to every repository whose pull requests fall within the
-                        run's selection scope; pull requests in repositories the token cannot read
-                        will surface as per-pull-request failures in the run-summary artifact.
+                        target pull requests belong to; used to construct the upstream thread-fetch
+                        URL.
+  --pat PAT             Personal Access Token with Code (Read) scope (required). The token MUST have
+                        read access to every repository whose pull requests fall within the run's
+                        selection scope; pull requests in repositories the token cannot read will
+                        surface as per-pull-request failures in the run-summary artifact.
   --database DATABASE   Path to the SQLite database file to operate on (default: 'ado-
                         insights.sqlite'). The database MUST already exist and MUST contain the
                         pull_requests, pr_threads, and pr_comments tables. Databases that lack
-                        pr_threads and pr_comments (legacy schema) trigger a successful no-op with
-                        a legacy-schema-skip warning.
+                        pr_threads and pr_comments (legacy schema) trigger a successful no-op with a
+                        legacy-schema-skip warning.
   --projects PROJECTS   Comma-separated list of project names to restrict the run to (default: no
                         filter — all projects are eligible). Entries are trimmed of surrounding
                         whitespace, empty entries are dropped, and input order is preserved; the
-                        match against each pull request's stored project_name is case-sensitive
-                        and exact. Parsing is behaviorally identical to the project-list input
-                        accepted by 'extract'; invalid entries do not raise — they simply match
-                        zero pull requests.
+                        match against each pull request's stored project_name is case-sensitive and
+                        exact. Parsing is behaviorally identical to the project-list input accepted
+                        by 'extract'; invalid entries do not raise — they simply match zero pull
+                        requests.
   --since SINCE         Inclusive closed-date lower bound, in YYYY-MM-DD form (default: no lower
                         bound). Pull requests with closed_date strictly less than this value are
                         excluded from the selection. Combines with --until to form the half-open
-                        interval [since, until). Date-shape validation is behaviorally identical
-                        to 'extract --start-date'; malformed values (e.g., 2024-13-99 or not-a-
-                        date) are rejected before any database or network work begins.
+                        interval [since, until). Date-shape validation is behaviorally identical to
+                        'extract --start-date'; malformed values (e.g., 2024-13-99 or not-a-date)
+                        are rejected before any database or network work begins.
   --until UNTIL         Exclusive closed-date upper bound, in YYYY-MM-DD form (default: no upper
                         bound). Pull requests with closed_date greater than or equal to this value
-                        are excluded from the selection. Combines with --since to form the half-
-                        open interval [since, until); '--since X --until X' matches zero pull
-                        requests (valid but empty filter, not an error). Date-shape validation is
+                        are excluded from the selection. Combines with --since to form the half-open
+                        interval [since, until); '--since X --until X' matches zero pull requests
+                        (valid but empty filter, not an error). Date-shape validation is
                         behaviorally identical to 'extract --end-date'; malformed values are
                         rejected before any database or network work begins.
   --limit LIMIT         Maximum number of pull requests to process in this run (default: 0, which
@@ -72,13 +72,13 @@ options:
                         run stopped.
   --comments-max-threads-per-pr COMMENTS_MAX_THREADS_PER_PR
                         Maximum number of threads to fetch per pull request (default: 50, matching
-                        the extract flow's default; 0 means unlimited). When a pull request's
-                        thread count exceeds this cap, the earliest threads returned by the
-                        upstream API are persisted and the dropped remainder is inspected against
-                        local storage to decide whether the pull request's coverage marker can be
-                        set (when every dropped thread is already stored and current) or MUST be
-                        left unchanged (when any dropped thread is missing or stale locally).
-                        Negative values are rejected.
+                        the extract flow's default; 0 means unlimited). When a pull request's thread
+                        count exceeds this cap, the earliest threads returned by the upstream API
+                        are persisted and the dropped remainder is inspected against local storage
+                        to decide whether the pull request's coverage marker can be set (when every
+                        dropped thread is already stored and current) or MUST be left unchanged
+                        (when any dropped thread is missing or stale locally). Negative values are
+                        rejected.
 
 Examples:
 
