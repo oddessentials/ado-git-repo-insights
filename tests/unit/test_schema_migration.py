@@ -2193,3 +2193,53 @@ class TestConnectFailFastOnPartialDatabases:
             assert cursor.fetchone() is not None
         finally:
             manager.close()
+
+    def test_db_missing_schema_version_rejected_without_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        """A DB that has every data table but lacks ``schema_version``
+        must be rejected by connect() — not silently treated as v0.
+
+        ``get_schema_version()`` has an ``except sqlite3.Error: return 0``
+        fallback that triggers when the table is missing; without the
+        fundamental-tables check catching it first, ``_apply_migrations()``
+        would then try to run every migration from v1 onward against
+        already-populated tables, crashing on CREATE collisions or
+        corrupting data on RENAME-based rebuilds. Flagged by Codex
+        stop-hook review 2026-04-17.
+        """
+        db_path = tmp_path / "no_schema_version.db"
+        conn = sqlite3.connect(db_path)
+        try:
+            # Create every fundamental table EXCEPT schema_version. Use
+            # stripped-down DDL — just enough to get past
+            # `sqlite_master` name lookups; the test does not exercise
+            # row operations.
+            for name in (
+                "extraction_metadata",
+                "organizations",
+                "projects",
+                "repositories",
+                "users",
+                "pull_requests",
+                "reviewers",
+            ):
+                conn.execute(f"CREATE TABLE {name} (id INTEGER PRIMARY KEY)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        sha_before = self._file_sha256(db_path)
+
+        manager = DatabaseManager(db_path)
+        with pytest.raises(Exception, match="Missing tables.*schema_version"):
+            manager.connect()
+
+        sha_after = self._file_sha256(db_path)
+        assert sha_after == sha_before, (
+            "DatabaseManager.connect() mutated a schema_version-less "
+            "database before rejecting it. The fundamentals check must "
+            "include schema_version so get_schema_version()'s silent "
+            "return-0 fallback cannot cause migrations to run against "
+            "already-populated tables."
+        )

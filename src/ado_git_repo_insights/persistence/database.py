@@ -30,8 +30,18 @@ logger = logging.getLogger(__name__)
 # migration mutates the worktree. Narrower than _REQUIRED_TABLES on
 # purpose — it excludes later-added tables that legitimately migrate in
 # from older valid schemas.
+#
+# ``schema_version`` is included because ``get_schema_version()`` silently
+# returns 0 when the table is missing (via its ``except sqlite3.Error``
+# fallback). Without this check, a DB that has every data table but no
+# ``schema_version`` marker would be treated as v0 and all migrations
+# from v1 onward would run against already-populated tables — crashing
+# on CREATE statements that collide or, worse, corrupting data on
+# RENAME-based table rebuilds. Any legitimate ADO-insights DB carries
+# ``schema_version``; files without it are foreign.
 _FUNDAMENTAL_TABLES: frozenset[str] = frozenset(
     {
+        "schema_version",
         "extraction_metadata",
         "organizations",
         "projects",
