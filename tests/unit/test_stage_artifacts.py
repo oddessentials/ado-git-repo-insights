@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -612,9 +613,7 @@ class TestStageArtifactsArtifactDispatch:
     """
 
     @staticmethod
-    def _build_args(tmp_path: Path, artifact: str) -> object:
-        from argparse import Namespace
-
+    def _build_args(tmp_path: Path, artifact: str) -> Namespace:
         return Namespace(
             org="testorg",
             project="testproj",
