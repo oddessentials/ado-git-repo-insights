@@ -2922,3 +2922,168 @@ input[type="search"]::placeholder {
     color: var(--text-secondary);
     font-size: 12px;
 }
+
+/* ============================================================================
+ * DetailPanel — shared right-side drill-down drawer (feature 059 / Phase 1)
+ *
+ * Positioned fixed to the right edge. Off-screen (translateX 100%) until the
+ * is-open class is applied. Transitions honor prefers-reduced-motion.
+ * ========================================================================== */
+
+.detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(420px, 90vw);
+    max-width: 100vw;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 180ms ease-out;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.detail-panel.is-open {
+    transform: translateX(0);
+}
+
+.detail-panel-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 48px 12px 20px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+}
+
+.detail-panel-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.detail-panel-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.detail-panel-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.detail-panel-close:hover,
+.detail-panel-close:focus-visible {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.detail-panel-sections {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 12px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.detail-panel-section h3 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+}
+
+.detail-panel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.detail-panel-table th,
+.detail-panel-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-panel-table thead th {
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+}
+
+.detail-panel-stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    row-gap: 6px;
+    column-gap: 12px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.detail-panel-stats dt {
+    color: var(--text-secondary);
+}
+
+.detail-panel-stats dd {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 0;
+    text-align: right;
+}
+
+.detail-panel-stats dd[data-tone="positive"] {
+    color: var(--success);
+}
+
+.detail-panel-stats dd[data-tone="negative"] {
+    color: var(--error);
+}
+
+.detail-panel-section--empty-state {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.detail-panel-empty-detail {
+    margin: 0;
+}
+
+/* Highlight on the source chart element whose click opened the panel. */
+.is-drilldown-active {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .detail-panel {
+        transition: none;
+    }
+}

@@ -3692,6 +3692,85 @@ var PRInsightsDashboard = (() => {
   var LOW_WEEK_THRESHOLD = 3;
   var MODERATE_WEEK_THRESHOLD = 8;
 
+  // ../ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ../ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderNoData(container, message, hint) {
+    if (!container) return;
+    clearElement(container);
+    const p2 = createElement("p", { class: "no-data" }, message);
+    container.appendChild(p2);
+    if (hint) {
+      const hintEl = createElement("p", { class: "no-data-hint" }, hint);
+      container.appendChild(hintEl);
+    }
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function appendTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    const temp = document.createElement("div");
+    temp.innerHTML = trustedHtml;
+    while (temp.firstChild) {
+      container.appendChild(temp.firstChild);
+    }
+  }
+
+  // ../ui/modules/drilldown/lifecycle-signals.ts
+  var FILTERS_CHANGED_EVENT = "drilldown:filters-changed";
+  var TAB_CHANGED_EVENT = "drilldown:tab-changed";
+  var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
+  function publishFiltersChanged(detail) {
+    window.dispatchEvent(
+      new CustomEvent(FILTERS_CHANGED_EVENT, { detail })
+    );
+  }
+  function publishTabChanged(detail) {
+    window.dispatchEvent(
+      new CustomEvent(TAB_CHANGED_EVENT, { detail })
+    );
+  }
+  function publishComparisonToggled(detail) {
+    window.dispatchEvent(
+      new CustomEvent(COMPARISON_TOGGLED_EVENT, {
+        detail
+      })
+    );
+  }
+
+  // ../ui/modules/shared/detail-panel.ts
+  var comparisonActive = false;
+  {
+    const lifetimeComparisonListener = (evt) => {
+      const e2 = evt;
+      comparisonActive = e2.detail.enabled;
+    };
+    window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+  }
+
   // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
     if (minutes < 60) {
@@ -4126,53 +4205,6 @@ var PRInsightsDashboard = (() => {
       return DATASET_PATH;
     }
     return "./dataset";
-  }
-
-  // ../ui/modules/shared/security.ts
-  function escapeHtml(text) {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  }
-
-  // ../ui/modules/shared/render.ts
-  function clearElement(el) {
-    if (!el) return;
-    while (el.firstChild) {
-      el.removeChild(el.firstChild);
-    }
-  }
-  function createElement(tag, attributes, textContent) {
-    const el = document.createElement(tag);
-    if (attributes) {
-      for (const [key, value] of Object.entries(attributes)) {
-        el.setAttribute(key, value);
-      }
-    }
-    if (textContent !== void 0) {
-      el.textContent = textContent;
-    }
-    return el;
-  }
-  function renderNoData(container, message, hint) {
-    if (!container) return;
-    clearElement(container);
-    const p2 = createElement("p", { class: "no-data" }, message);
-    container.appendChild(p2);
-    if (hint) {
-      const hintEl = createElement("p", { class: "no-data-hint" }, hint);
-      container.appendChild(hintEl);
-    }
-  }
-  function renderTrustedHtml(container, trustedHtml) {
-    if (!container) return;
-    container.innerHTML = trustedHtml;
-  }
-  function appendTrustedHtml(container, trustedHtml) {
-    if (!container) return;
-    const temp = document.createElement("div");
-    temp.innerHTML = trustedHtml;
-    while (temp.firstChild) {
-      container.appendChild(temp.firstChild);
-    }
   }
 
   // ../ui/modules/shared/svg-path.ts
@@ -7523,28 +7555,6 @@ var PRInsightsDashboard = (() => {
   function hasStateChanged(prev, next) {
     if (prev === null) return true;
     return JSON.stringify(prev) !== JSON.stringify(next);
-  }
-
-  // ../ui/modules/drilldown/lifecycle-signals.ts
-  var FILTERS_CHANGED_EVENT = "drilldown:filters-changed";
-  var TAB_CHANGED_EVENT = "drilldown:tab-changed";
-  var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
-  function publishFiltersChanged(detail) {
-    window.dispatchEvent(
-      new CustomEvent(FILTERS_CHANGED_EVENT, { detail })
-    );
-  }
-  function publishTabChanged(detail) {
-    window.dispatchEvent(
-      new CustomEvent(TAB_CHANGED_EVENT, { detail })
-    );
-  }
-  function publishComparisonToggled(detail) {
-    window.dispatchEvent(
-      new CustomEvent(COMPARISON_TOGGLED_EVENT, {
-        detail
-      })
-    );
   }
 
   // ../ui/dashboard.ts

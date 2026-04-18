@@ -488,3 +488,138 @@ describe("Layer C: New component parity", () => {
     expect(raA.innerHTML).not.toBe("");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Layer D: DetailPanel idempotency (feature 059 / FR-010)
+// ---------------------------------------------------------------------------
+
+import {
+  openDetailPanel,
+  dismissDetailPanel,
+  isDetailPanelOpen,
+  makePanelContent,
+  makeBreakdownTable,
+  makeStatRow,
+  makeEmptyState,
+  type DrillDownContext,
+} from "../../ui/modules/shared/detail-panel";
+import { publishComparisonToggled } from "../../ui/modules/drilldown/lifecycle-signals";
+
+function makeDetailPanelTrigger(): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "t";
+  document.body.appendChild(btn);
+  return btn;
+}
+
+function getDetailPanelRoot(): HTMLElement {
+  const el = document.querySelector<HTMLElement>("aside.detail-panel");
+  if (!el) throw new Error("DetailPanel root not present in DOM");
+  return el;
+}
+
+describe("Layer D: DetailPanel idempotency", () => {
+  beforeEach(() => {
+    // DetailPanel tracks comparison state via a lifetime subscription; make
+    // sure prior tests haven't left it activated.
+    publishComparisonToggled({ enabled: false });
+  });
+  afterEach(() => {
+    if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+    document.body.innerHTML = "";
+  });
+
+  it("throughput DrillDownContext: re-opening with identical input produces identical innerHTML", () => {
+    const buildCtx = (): DrillDownContext => ({
+      sourceChart: "throughput",
+      focusedData: { kind: "throughput", weekIso: "2025-W12" },
+      triggerElement: makeDetailPanelTrigger(),
+      content: makePanelContent("Week of Mar 18 – 24, 2025", "47 PRs", [
+        makeBreakdownTable(
+          "By author",
+          ["Author", "PRs"],
+          [
+            { label: "alice", values: ["12"] },
+            { label: "bob", values: ["8"] },
+          ],
+        ),
+        makeBreakdownTable(
+          "By repository",
+          ["Repository", "PRs"],
+          [{ label: "backend-api", values: ["20"] }],
+        ),
+      ]),
+    });
+
+    openDetailPanel(buildCtx());
+    const htmlA = getDetailPanelRoot().innerHTML;
+
+    dismissDetailPanel("explicit-close-button");
+    openDetailPanel(buildCtx());
+    const htmlB = getDetailPanelRoot().innerHTML;
+
+    expect(htmlA).toBe(htmlB);
+    expect(htmlA).not.toBe("");
+  });
+
+  it("cycle-time DrillDownContext: re-opening with identical input produces identical innerHTML", () => {
+    const buildCtx = (): DrillDownContext => ({
+      sourceChart: "cycle-time",
+      focusedData: {
+        kind: "cycle-time",
+        weekIso: "2025-W12",
+        metric: "p50",
+      },
+      triggerElement: makeDetailPanelTrigger(),
+      content: makePanelContent(
+        "Week of Mar 18 – 24, 2025 — P50",
+        "Based on 42 PRs",
+        [
+          makeStatRow([
+            { label: "P50", value: "4.2h" },
+            { label: "P90", value: "18.1h" },
+          ]),
+        ],
+      ),
+    });
+
+    openDetailPanel(buildCtx());
+    const htmlA = getDetailPanelRoot().innerHTML;
+
+    dismissDetailPanel("explicit-close-button");
+    openDetailPanel(buildCtx());
+    const htmlB = getDetailPanelRoot().innerHTML;
+
+    expect(htmlA).toBe(htmlB);
+    expect(htmlA).not.toBe("");
+  });
+
+  it("reviewer DrillDownContext: re-opening with identical input produces identical innerHTML", () => {
+    const buildCtx = (): DrillDownContext => ({
+      sourceChart: "reviewer",
+      focusedData: { kind: "reviewer", reviewerId: "alice@example.com" },
+      triggerElement: makeDetailPanelTrigger(),
+      content: makePanelContent("alice@example.com", "12 reviews in period", [
+        makeStatRow([
+          { label: "Reviews", value: "12" },
+          { label: "PRs reviewed", value: "9" },
+        ]),
+        makeEmptyState(
+          "Per-repository breakdown",
+          "Cross-dimensional data is not yet available.",
+        ),
+      ]),
+    });
+
+    openDetailPanel(buildCtx());
+    const htmlA = getDetailPanelRoot().innerHTML;
+
+    dismissDetailPanel("explicit-close-button");
+    openDetailPanel(buildCtx());
+    const htmlB = getDetailPanelRoot().innerHTML;
+
+    expect(htmlA).toBe(htmlB);
+    expect(htmlA).not.toBe("");
+  });
+});

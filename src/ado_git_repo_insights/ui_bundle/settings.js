@@ -14,6 +14,55 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
+  // ../ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ../ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
+  }
+
+  // ../ui/modules/drilldown/lifecycle-signals.ts
+  var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
+
+  // ../ui/modules/shared/detail-panel.ts
+  var comparisonActive = false;
+  {
+    const lifetimeComparisonListener = (evt) => {
+      const e2 = evt;
+      comparisonActive = e2.detail.enabled;
+    };
+    window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+  }
+
   // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
   var e = parseInt("10000000000", 36);
   var t = Number.MAX_SAFE_INTEGER || 9007199254740991;
@@ -504,42 +553,6 @@ var PRInsightsSettings = (() => {
     window.addEventListener("resize", scheduleHostResize);
     windowListenerAttached = true;
     scheduleHostResize();
-  }
-
-  // ../ui/modules/shared/security.ts
-  function escapeHtml(text) {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  }
-
-  // ../ui/modules/shared/render.ts
-  function clearElement(el) {
-    if (!el) return;
-    while (el.firstChild) {
-      el.removeChild(el.firstChild);
-    }
-  }
-  function createElement(tag, attributes, textContent) {
-    const el = document.createElement(tag);
-    if (attributes) {
-      for (const [key, value] of Object.entries(attributes)) {
-        el.setAttribute(key, value);
-      }
-    }
-    if (textContent !== void 0) {
-      el.textContent = textContent;
-    }
-    return el;
-  }
-  function renderTrustedHtml(container, trustedHtml) {
-    if (!container) return;
-    container.innerHTML = trustedHtml;
-  }
-  function createOption(value, text, selected = false) {
-    const option = createElement("option", { value }, text);
-    if (selected) {
-      option.selected = true;
-    }
-    return option;
   }
 
   // ../ui/error-types.ts
