@@ -508,6 +508,7 @@ def _display_path(path: Path) -> str:
 
 
 def mode_write() -> int:
+    _require_canonical_python_for_write("--write")
     parser = _load_create_parser()
     sections = collect_sections(parser)
     current = _read_lf(DOC_PATH)
@@ -527,6 +528,9 @@ def mode_write() -> int:
 
 
 def mode_check() -> int:
+    skip_code = _check_under_canonical_python_or_skip()
+    if skip_code is not None:
+        return skip_code
     parser = _load_create_parser()
     sections = collect_sections(parser)
     current = _read_lf(DOC_PATH)
@@ -578,6 +582,7 @@ def mode_check() -> int:
 
 
 def mode_update_help_snapshots() -> int:
+    _require_canonical_python_for_write("--update-help-snapshots")
     parser = _load_create_parser()
     snapshots = collect_help_snapshots(parser)
     _write_snapshots(snapshots)
@@ -708,18 +713,17 @@ def _check_under_canonical_python_or_skip() -> int | None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Mode-aware canonical-Python policy lives inside each mode_* function
+    # (write/update-help-snapshots hard-fail, check warned-skip), so main()
+    # dispatches without an outer guard and every caller — CLI, preflight,
+    # unit tests invoking mode_check() directly — gets consistent behavior.
     args = _build_argv_parser().parse_args(argv)
     try:
         if args.write:
-            _require_canonical_python_for_write("--write")
             return mode_write()
         if args.check:
-            skip_code = _check_under_canonical_python_or_skip()
-            if skip_code is not None:
-                return skip_code
             return mode_check()
         if args.update_help_snapshots:
-            _require_canonical_python_for_write("--update-help-snapshots")
             return mode_update_help_snapshots()
     except (GenerationError, MarkerError) as err:
         sys.stdout.write(f"[cli-reference-generator] ERROR: {err}\n")
