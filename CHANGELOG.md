@@ -1,3 +1,44 @@
+# [101.9.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.8.0...v101.9.0) (2026-04-18)
+
+
+### Bug Fixes
+
+* **#289:** audit preserve-when-null reachability in _extract_comments ([0b7190a](https://github.com/oddessentials/ado-git-repo-insights/commit/0b7190a7e84b8ff0f407414639270419111cb443)), closes [#289](https://github.com/oddessentials/ado-git-repo-insights/issues/289)
+* **058:** allow projectless backfill — skip load_config in cmd_backfill_comments ([de74e77](https://github.com/oddessentials/ado-git-repo-insights/commit/de74e77dc4d83c7f2f417cf68bfb698f198f859e))
+* **058:** clear 4 mypy errors without suppressions ([7451356](https://github.com/oddessentials/ado-git-repo-insights/commit/7451356ec5e370f8a806ee8cb098e27fedcf87cc))
+* **058:** enforce strict YYYY-MM-DD in _parse_iso_date ([f4851ca](https://github.com/oddessentials/ado-git-repo-insights/commit/f4851ca1d448aa2025ba901c0a86b70eb2cc1481)), closes [#12](https://github.com/oddessentials/ado-git-repo-insights/issues/12)
+* **058:** harden backfill-comments docs + retire phase-1 scope guard ([210f72d](https://github.com/oddessentials/ado-git-repo-insights/commit/210f72daa37f4448e995399f5fc1ef42b70a38c6))
+* **058:** probe test_connection from filtered snapshot row 0 ([d31c09b](https://github.com/oddessentials/ado-git-repo-insights/commit/d31c09b570d42f9d4d6f2c8656b3992a166b3dc0))
+* **058:** wrap each backfill PR in BEGIN IMMEDIATE / COMMIT / ROLLBACK ([94d63cc](https://github.com/oddessentials/ado-git-repo-insights/commit/94d63cc41f3dbe35a90389457ffbf62e1c655002))
+* **058:** wrap OSError in backfill DB preflight so unopenable paths route through Site D2 ([a60a9b1](https://github.com/oddessentials/ado-git-repo-insights/commit/a60a9b10e60ee9c56a55d00f83703d337c6c5cee))
+* codex ([be791ab](https://github.com/oddessentials/ado-git-repo-insights/commit/be791abd2b23c9d7da9ee1f2287c96b868b57d2b))
+* codex rescues claude ([4485c65](https://github.com/oddessentials/ado-git-repo-insights/commit/4485c6537809386bf8eff4532e94d15cdf5ebe10))
+* codex rescues Claude again ([29c3f4d](https://github.com/oddessentials/ado-git-repo-insights/commit/29c3f4dbd18b96e56df1232c19bbfbd02871ca11))
+* codex tightening ([f4bc184](https://github.com/oddessentials/ado-git-repo-insights/commit/f4bc184355f33ad9e28973754679cea7e2014586))
+* enforce single org safely ([af8d724](https://github.com/oddessentials/ado-git-repo-insights/commit/af8d7241f9fd3f2b7479cef0dce1fd3b6f8479bc))
+* extension yaml fixes for comment backfill ([e0cc9b1](https://github.com/oddessentials/ado-git-repo-insights/commit/e0cc9b15ada99e7f2d2de61e51fb2d07d1da31a6))
+* **extension:** null-safe projects display in backfill mode ([308cc24](https://github.com/oddessentials/ado-git-repo-insights/commit/308cc24c92b5f124b9f8393eb660624b6746d2a8))
+* **extension:** reorder `mode` before `commentsMaxThreadsPerPr` in task.json ([ca06345](https://github.com/oddessentials/ado-git-repo-insights/commit/ca06345cd1c09fe013ca70117abdf2deba71d2ed))
+* **extractor:** narrow __cause__ unwrap to Exception in _fetch_page ([00ad412](https://github.com/oddessentials/ado-git-repo-insights/commit/00ad412dcb43caeeb4340e2394c041a04b9cd5dd))
+* **extractor:** test_organization_connection rejects bad-PAT 302 redirect ([5179515](https://github.com/oddessentials/ado-git-repo-insights/commit/51795150b1323a32295d1b0c35b32d8a9031c0d2))
+* legacy classification now requires pull_requests before treating a DB as supported legacy ([980d607](https://github.com/oddessentials/ado-git-repo-insights/commit/980d607415bd039d90c612f4a139cd006e016367))
+* **migrations,cli:** guard v5 rollback on failed BEGIN; D2-classify metadata write errors ([bde70b1](https://github.com/oddessentials/ado-git-repo-insights/commit/bde70b17c8a9ba855d89e31fd5f3291e7b69f532))
+* name both sides of mixed-state mismatch error ([1a3aa8b](https://github.com/oddessentials/ado-git-repo-insights/commit/1a3aa8b7d9685ef783697902c6fd769e8c5e6e2f))
+* organization-scoped ADO preflight in ADOClient instead of reusing test_connection(project) ([3bf8b1a](https://github.com/oddessentials/ado-git-repo-insights/commit/3bf8b1a49b888649b792851b48f6dd6650011cba))
+* **persistence:** pr_comments composite PK — comment_id=1 collisions ([fef180c](https://github.com/oddessentials/ado-git-repo-insights/commit/fef180c02ad78aef48635068c1ca70c020bb8a09))
+* re-raises the original KeyboardInterrupt ([b1c745d](https://github.com/oddessentials/ado-git-repo-insights/commit/b1c745dd969d5788590618ceb126dbce6a2d7c2a))
+* remove flight E ([b7c2325](https://github.com/oddessentials/ado-git-repo-insights/commit/b7c23255883f24f3da34bbc0ca56c55d7efbdfd1))
+* removes the hidden default from commentsMaxPrsPerRun ([9cf516d](https://github.com/oddessentials/ado-git-repo-insights/commit/9cf516d18989e9eed0d8b18a7134364e822388d4))
+* **tests:** route integration test mocks through make_response ([6d4fd6a](https://github.com/oddessentials/ado-git-repo-insights/commit/6d4fd6a20bbe3f801d805574ee8fc09f64e30712))
+* **tests:** use string-path monkeypatch for database.MIGRATIONS ([651a8bf](https://github.com/oddessentials/ado-git-repo-insights/commit/651a8bfc5f00b5b0f8c53be4fa3f9e3a6f0004f3))
+* unset backfill date filters ([40582f8](https://github.com/oddessentials/ado-git-repo-insights/commit/40582f83d7cb503af9ee791be5997518f787446f))
+* visibility of extension rules ([b4c60cd](https://github.com/oddessentials/ado-git-repo-insights/commit/b4c60cdb0842a61191912f3b053226f4f8fded83))
+
+
+### Features
+
+* **extension:** expose backfill-comments via mode switch ([2c084b2](https://github.com/oddessentials/ado-git-repo-insights/commit/2c084b254ceb0a5a9e66cbbe538b4594eb55d638))
+
 # [101.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.7.0...v101.8.0) (2026-04-16)
 
 
