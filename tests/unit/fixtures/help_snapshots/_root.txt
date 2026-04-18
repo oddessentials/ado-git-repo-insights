@@ -1,0 +1,28 @@
+usage: ado-insights [-h] [--version] [--log-format {console,jsonl}] [--artifacts-dir ARTIFACTS_DIR]
+                    {extract,backfill-comments,generate-csv,generate-aggregates,build-aggregates,stage-artifacts,dashboard,setup-path,doctor}
+                    ...
+
+Extract Azure DevOps PR metrics and generate PowerBI-compatible CSVs.
+
+positional arguments:
+  {extract,backfill-comments,generate-csv,generate-aggregates,build-aggregates,stage-artifacts,dashboard,setup-path,doctor}
+    extract             Extract PR data from Azure DevOps
+    backfill-comments   Backfill PR thread coverage for historical completed PRs (oldest uncovered
+                        first)
+    generate-csv        Generate CSV files from SQLite database
+    generate-aggregates
+                        Generate chunked JSON aggregates for UI (Phase 3)
+    build-aggregates    Build aggregates from local SQLite DB (DEV/SECONDARY - use stage-artifacts
+                        for production)
+    stage-artifacts     Download pipeline artifacts to local directory (RECOMMENDED for dashboard)
+    dashboard           Serve the PR Insights dashboard locally
+    setup-path          Configure shell PATH for pip users (not needed for pipx/uv)
+    doctor              Diagnose installation issues and detect conflicts
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --log-format {console,jsonl}
+                        Log format: console (human-readable) or jsonl (structured)
+  --artifacts-dir ARTIFACTS_DIR
+                        Directory for run artifacts (summary, logs)

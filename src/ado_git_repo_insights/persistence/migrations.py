@@ -534,6 +534,77 @@ def migrate_v4_to_v5(conn: Connection) -> None:
     logger.info("Applied migration v4 → v5 (pr_comments composite PK)")
 
 
+_V6_COMMENTS_EXTRACTION_METADATA_DDL = """
+    CREATE TABLE IF NOT EXISTS comments_extraction_metadata (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        last_run_timestamp TEXT NOT NULL,
+        prs_processed INTEGER NOT NULL DEFAULT 0,
+        threads_fetched INTEGER NOT NULL DEFAULT 0,
+        comments_fetched INTEGER NOT NULL DEFAULT 0,
+        capped INTEGER NOT NULL DEFAULT 0
+    )
+"""
+
+
+def migrate_v5_to_v6(conn: Connection) -> None:
+    """Create ``comments_extraction_metadata`` for legacy pre-existing DBs.
+
+    Schema v5 → v6:
+    The table is declared in ``SCHEMA_SQL`` (``models.py``) but no prior
+    migration ever created it.  Databases whose creation predates that
+    addition passed every migration cycle without gaining the table, so
+    the first call to ``update_comments_extraction_metadata()`` crashed
+    with ``sqlite3.OperationalError: no such table`` after comment
+    extraction had already completed (live repro: build 332 on oddessentials,
+    task 2.8.0, 1044 PRs extracted then lost at the final metadata write).
+
+    Backfill: the singleton ``id=1`` row is derived from the per-PR
+    ``comments_extracted_at`` markers when any exist — ``last_run_timestamp``
+    takes ``MAX(comments_extracted_at)``, counts are read from
+    ``pull_requests`` / ``pr_threads`` / ``pr_comments``, ``capped`` defaults
+    to ``0``.  When no PR has been marked yet (comment extraction never ran
+    on this DB), the table is left empty; ``last_run_timestamp`` is
+    ``NOT NULL`` so inserting a fabricated stamp would be worse than no row.
+
+    Runs inside ``BEGIN IMMEDIATE`` so a mid-migration failure rolls back
+    table creation along with the version bump — either all three statements
+    commit or none do.  Idempotent via ``IF NOT EXISTS`` + ``INSERT OR IGNORE``.
+    """
+    txn_started = False
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        txn_started = True
+        conn.execute(_V6_COMMENTS_EXTRACTION_METADATA_DDL)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO comments_extraction_metadata
+                (id, last_run_timestamp, prs_processed,
+                 threads_fetched, comments_fetched, capped)
+            SELECT
+                1,
+                (SELECT MAX(comments_extracted_at) FROM pull_requests
+                    WHERE comments_extracted_at IS NOT NULL),
+                (SELECT COUNT(*) FROM pull_requests
+                    WHERE comments_extracted_at IS NOT NULL),
+                (SELECT COUNT(*) FROM pr_threads),
+                (SELECT COUNT(*) FROM pr_comments),
+                0
+            WHERE (SELECT COUNT(*) FROM pull_requests
+                WHERE comments_extracted_at IS NOT NULL) > 0
+            """
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+            "VALUES (6, datetime('now'))"
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        if txn_started:
+            conn.execute("ROLLBACK")
+        raise
+    logger.info("Applied migration v5 → v6 (comments_extraction_metadata)")
+
+
 # Version-keyed migration registry.  Keys are the *target* version;
 # the function upgrades from (key - 1) -> key.
 MIGRATIONS: dict[int, Callable[[Connection], None]] = {
@@ -541,4 +612,5 @@ MIGRATIONS: dict[int, Callable[[Connection], None]] = {
     3: migrate_v2_to_v3,
     4: migrate_v3_to_v4,
     5: migrate_v4_to_v5,
+    6: migrate_v5_to_v6,
 }

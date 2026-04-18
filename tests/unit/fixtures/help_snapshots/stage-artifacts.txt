@@ -1,0 +1,18 @@
+usage: ado-insights stage-artifacts [-h] --org ORG --project PROJECT --pipeline-id PIPELINE_ID
+                                    [--artifact ARTIFACT] --pat PAT [--out OUT] [--run-id RUN_ID]
+                                    [--serve] [--open] [--port PORT]
+
+options:
+  -h, --help            show this help message and exit
+  --org ORG             Azure DevOps organization name
+  --project PROJECT     Azure DevOps project name
+  --pipeline-id PIPELINE_ID
+                        Pipeline definition ID. Selects most recent completed build (succeeded or
+                        partiallySucceeded) by finish time.
+  --artifact ARTIFACT   Artifact name to download (default: aggregates)
+  --pat PAT             Personal Access Token with Build (Read) scope
+  --out OUT             Output directory (default: ./run_artifacts)
+  --run-id RUN_ID       Specific pipeline run ID (default: latest successful)
+  --serve               Start local dashboard server after staging artifacts
+  --open                Open browser automatically (requires --serve)
+  --port PORT           Local server port (requires --serve, default: 8080)

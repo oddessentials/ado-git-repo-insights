@@ -181,10 +181,11 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version (v5: PR-scoped thread identity + comments_extracted_at
--- + composite PK on pr_comments for thread-scoped ADO comment IDs).
+-- Insert initial schema version (v6: ensures comments_extraction_metadata is
+-- present on every DB, including those whose creation predated the table's
+-- addition to SCHEMA_SQL — see migrate_v5_to_v6).
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (5, datetime('now'));
+VALUES (6, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)

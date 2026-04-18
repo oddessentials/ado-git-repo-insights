@@ -24,6 +24,44 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Tables that every version of this project's schema has carried. Their
+# absence on an existing-file connection means the file is not ours (or
+# is catastrophically damaged); connect() rejects such files before any
+# migration mutates the worktree. Narrower than _REQUIRED_TABLES on
+# purpose — it excludes later-added tables that legitimately migrate in
+# from older valid schemas.
+#
+# ``schema_version`` is included because ``get_schema_version()`` silently
+# returns 0 when the table is missing (via its ``except sqlite3.Error``
+# fallback). Without this check, a DB that has every data table but no
+# ``schema_version`` marker would be treated as v0 and all migrations
+# from v1 onward would run against already-populated tables — crashing
+# on CREATE statements that collide or, worse, corrupting data on
+# RENAME-based table rebuilds. Any legitimate ADO-insights DB carries
+# ``schema_version``; files without it are foreign.
+_FUNDAMENTAL_TABLES: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "extraction_metadata",
+        "organizations",
+        "projects",
+        "repositories",
+        "users",
+        "pull_requests",
+        "reviewers",
+    }
+)
+
+# Complete set of tables the current code path requires. Applied as a
+# post-migration sweep — any table in this set that is NOT in
+# _FUNDAMENTAL_TABLES must be created by a registered migration.
+_REQUIRED_TABLES: frozenset[str] = _FUNDAMENTAL_TABLES | frozenset(
+    {
+        "comments_extraction_metadata",  # introduced in v5→v6
+    }
+)
+
+
 class DatabaseError(Exception):
     """Database operation failed."""
 
@@ -87,8 +125,24 @@ class DatabaseManager:
                 self._initialize_schema()
             else:
                 logger.info(f"Connected to existing database at {self.db_path}")
-                self._validate_schema()
+                # Two-phase validation preserves fail-fast on partial /
+                # foreign databases while still letting migrations add
+                # newly-required tables on legacy DBs (e.g.
+                # comments_extraction_metadata in v5→v6):
+                #   1. Reject the connection if any _FUNDAMENTAL_TABLE is
+                #      missing — these tables have always been part of
+                #      this project's schema, so their absence means the
+                #      file is not ours (or is catastrophically damaged).
+                #      Running migrations against such a file would
+                #      mutate it before surfacing a clear error.
+                #   2. Apply pending migrations to bring the schema to
+                #      the current version.
+                #   3. Re-validate against the complete required set,
+                #      catching any migration that silently failed to
+                #      create a later-added table.
+                self._validate_tables_present(_FUNDAMENTAL_TABLES)
                 self._apply_migrations()
+                self._validate_tables_present(_REQUIRED_TABLES)
 
         except sqlite3.Error as e:
             self.close()  # Ensure connection is closed on error
@@ -113,27 +167,17 @@ class DatabaseManager:
         except sqlite3.Error as e:
             raise DatabaseError(f"Failed to initialize schema: {e}") from e
 
-    def _validate_schema(self) -> None:
-        """Validate that required tables exist.
+    def _validate_tables_present(self, required: frozenset[str]) -> None:
+        """Reject the connection if any table in ``required`` is missing.
 
         Invariant 9: If schema is invalid, fail fast with clear error.
         """
-        required_tables = [
-            "extraction_metadata",
-            "organizations",
-            "projects",
-            "repositories",
-            "users",
-            "pull_requests",
-            "reviewers",
-        ]
-
         cursor = self.connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
         existing_tables = {row["name"] for row in cursor.fetchall()}
 
-        missing = set(required_tables) - existing_tables
+        missing = required - existing_tables
         if missing:
             raise DatabaseError(
                 f"Database schema invalid. Missing tables: {missing}. "

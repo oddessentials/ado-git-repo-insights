@@ -1,0 +1,6 @@
+usage: ado-insights generate-csv [-h] --database DATABASE [--output OUTPUT]
+
+options:
+  -h, --help           show this help message and exit
+  --database DATABASE  Path to SQLite database file
+  --output OUTPUT      Output directory for CSV files

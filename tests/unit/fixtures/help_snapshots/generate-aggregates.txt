@@ -1,0 +1,22 @@
+usage: ado-insights generate-aggregates [-h] --database DATABASE [--output OUTPUT] [--run-id RUN_ID]
+                                        [--enable-ml-stubs] [--seed-base SEED_BASE]
+                                        [--enable-predictions] [--enable-insights]
+                                        [--insights-max-tokens INSIGHTS_MAX_TOKENS]
+                                        [--insights-cache-ttl-hours INSIGHTS_CACHE_TTL_HOURS]
+                                        [--insights-dry-run]
+
+options:
+  -h, --help            show this help message and exit
+  --database DATABASE   Path to SQLite database file
+  --output OUTPUT       Output directory for aggregate files
+  --run-id RUN_ID       Pipeline run ID for manifest metadata
+  --enable-ml-stubs     Generate stub predictions/insights (requires ALLOW_ML_STUBS=1 env var)
+  --seed-base SEED_BASE
+                        Base string for deterministic stub seeding
+  --enable-predictions  Enable Prophet-based trend forecasting (requires prophet package)
+  --enable-insights     Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)
+  --insights-max-tokens INSIGHTS_MAX_TOKENS
+                        Maximum tokens for OpenAI insights response (default: 1000)
+  --insights-cache-ttl-hours INSIGHTS_CACHE_TTL_HOURS
+                        Cache TTL for insights in hours (default: 24)
+  --insights-dry-run    Generate prompt artifact without calling OpenAI API

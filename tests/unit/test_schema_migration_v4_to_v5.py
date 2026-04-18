@@ -183,7 +183,7 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 5
+            assert db.get_schema_version() == 6
             pk_cols = [
                 row["name"]
                 for row in sorted(
@@ -339,7 +339,12 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
             holder.close()
 
     def test_migration_idempotent_when_rerun_at_v5(self, tmp_path: Path) -> None:
-        """A DB already at v5 must not re-run v4→v5."""
+        """A DB already at v5 must not re-run v4→v5.
+
+        First connect runs v4→v5 then v5→v6 (the latter creates
+        comments_extraction_metadata on this seed fixture which lacks it).
+        Second connect is a full no-op.
+        """
         db_path = tmp_path / "v5_rerun.db"
         conn = self._create_v4_db(db_path)
         conn.commit()
@@ -347,13 +352,13 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
 
         db = DatabaseManager(db_path)
         db.connect()
-        assert db.get_schema_version() == 5
+        assert db.get_schema_version() == 6
         db.close()
 
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 5
+            assert db2.get_schema_version() == 6
             pk_cols = [
                 row["name"]
                 for row in sorted(

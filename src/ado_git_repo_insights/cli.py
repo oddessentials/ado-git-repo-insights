@@ -179,12 +179,12 @@ def create_parser() -> argparse.ArgumentParser:
     extract_parser.add_argument(
         "--organization",
         type=str,
-        help="Azure DevOps organization name",
+        help="Azure DevOps organization name (alternative to --config; requires --projects when used)",
     )
     extract_parser.add_argument(
         "--projects",
         type=str,
-        help="Comma-separated list of project names",
+        help="Comma-separated list of project names (required when --organization is used)",
     )
     extract_parser.add_argument(
         "--pat",
@@ -206,24 +206,24 @@ def create_parser() -> argparse.ArgumentParser:
     extract_parser.add_argument(
         "--start-date",
         type=_parse_iso_date_argtype,
-        help="Override start date (YYYY-MM-DD)",
+        help="Override start date (YYYY-MM-DD); auto-detected from the last-successful-run marker in the database when omitted",
     )
     extract_parser.add_argument(
         "--end-date",
         type=_parse_iso_date_argtype,
-        help="Override end date (YYYY-MM-DD)",
+        help="Override end date (YYYY-MM-DD); defaults to yesterday (UTC) when omitted",
     )
     extract_parser.add_argument(
         "--backfill-days",
         type=int,
-        help="Number of days to backfill for convergence",
+        help="Re-extract the last N days (overrides incremental mode to UPSERT over existing records for convergence with late-arriving state changes)",
     )
     # Phase 3.4: Comments extraction (§6)
     extract_parser.add_argument(
         "--include-comments",
         action="store_true",
         default=False,
-        help="Extract PR threads and comments (feature-flagged)",
+        help="Extract PR discussion threads and comments into SQLite for auxiliary analytics outputs (feature-flagged)",
     )
     extract_parser.add_argument(
         "--comments-max-prs-per-run",
@@ -482,13 +482,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--enable-predictions",
         action="store_true",
         default=False,
-        help="Enable Prophet-based trend forecasting",
+        help="Generate ML predictions (Prophet if installed, else NumPy linear regression fallback)",
     )
     build_parser.add_argument(
         "--enable-insights",
         action="store_true",
         default=False,
-        help="Enable OpenAI-based insights",
+        help="Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)",
     )
     build_parser.add_argument(
         "--insights-max-tokens",
@@ -2601,13 +2601,32 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         if was_normalized:
             logger.info("Nested layout detected and normalized to flat structure")
 
-        # Step 5: Validate contract compliance (fail fast)
-        is_valid, error_msg, schema_version = _validate_staged_artifacts(out_dir)
-        if not is_valid:
-            logger.error(f"Contract validation failed: {error_msg}")
+        # Step 5: Validate contract compliance, scoped to artifact type (#297).
+        # CONTRACT.md (dataset-manifest.json, aggregate_index, weekly_rollups,
+        # distributions) applies only to the aggregates artifact. Other known
+        # artifact types publish different file shapes and must not be gated
+        # on the aggregates contract. Unknown artifact names fail fast rather
+        # than silently succeeding — protects against typos like
+        # --artifact aggreagtes masquerading as a passing run.
+        if args.artifact == "aggregates":
+            is_valid, error_msg, schema_version = _validate_staged_artifacts(out_dir)
+            if not is_valid:
+                logger.error(f"Contract validation failed: {error_msg}")
+                logger.error(
+                    "Staged artifacts do not meet CONTRACT.md requirements. "
+                    "Verify the pipeline publishes artifacts correctly."
+                )
+                return 1
+        elif args.artifact == "ado-insights-db":
+            logger.info(
+                f"Skipping contract validation for artifact '{args.artifact}' "
+                f"(CONTRACT.md applies to 'aggregates' only)"
+            )
+            schema_version = 0
+        else:
             logger.error(
-                "Staged artifacts do not meet CONTRACT.md requirements. "
-                "Verify the pipeline publishes artifacts correctly."
+                f"Unknown artifact type: {args.artifact!r}. "
+                f"Supported artifact types: 'aggregates', 'ado-insights-db'."
             )
             return 1
 

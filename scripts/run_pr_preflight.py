@@ -342,6 +342,14 @@ def build_commands(
             ),
         ),
         CommandSpec(
+            "CLI reference drift",
+            (
+                "__PYTHON__",
+                "scripts/generate_cli_reference.py",
+                "--check",
+            ),
+        ),
+        CommandSpec(
             "Python package build check",
             (
                 "__PYTHON__",

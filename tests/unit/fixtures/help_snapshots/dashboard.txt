@@ -1,0 +1,7 @@
+usage: ado-insights dashboard [-h] [--dataset DATASET] [--port PORT] [--open]
+
+options:
+  -h, --help         show this help message and exit
+  --dataset DATASET  Path to dataset folder or run_artifacts dir (default: ./run_artifacts)
+  --port PORT        Local server port (default: 8080)
+  --open             Open browser automatically

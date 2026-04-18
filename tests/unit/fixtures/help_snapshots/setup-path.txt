@@ -1,0 +1,6 @@
+usage: ado-insights setup-path [-h] [--print-only] [--remove]
+
+options:
+  -h, --help    show this help message and exit
+  --print-only  Output the PATH command without modifying any files
+  --remove      Remove previously added PATH configuration
