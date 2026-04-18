@@ -105,10 +105,9 @@ predates the `SCHEMA_SQL` change (issue #295, oddessentials build 332:
 
 Scenarios 0a + 0b close that loophole by replaying the pipeline command
 path against the real production vintage DB pulled from pipeline 15's
-`ado-insights-db` artifact. If 0b exits non-zero, **stop the runbook** —
-downstream scenarios will not detect the regression either. 0a is the
-one exception to the non-zero-exit-as-failure rule; see "Exit-code
-asymmetry" below.
+`ado-insights-db` artifact. If either 0a or 0b exits non-zero,
+**stop the runbook** — downstream scenarios will not detect the
+regression either.
 
 **Fixture specificity (do NOT substitute org/pipeline values in 0a/0b):**
 Unlike scenarios 1–15 where `oddessentials` is a maintainer example
@@ -132,31 +131,14 @@ ado-insights stage-artifacts `
   --pat $env:PAT --out "$qaRoot\staged"
 ```
 
-**Exit-code asymmetry (known quirk — do NOT treat as failure):**
-`stage-artifacts` exits **1** for `ado-insights-db` artifacts because its
-post-download contract-validation step applies an `aggregates`-only check
-(`dataset-manifest.json`) to every artifact indiscriminately. The trailing
-`Contract validation failed: dataset-manifest.json not found` ERROR is the
-benign surface of that bug. The download itself completes before the
-check fires, so the SQLite file is present and correct by the time the
-non-zero exit happens.
-
-**Because of this, 0a's success condition is a filesystem post-condition,
-NOT the CLI's exit code.** Downstream scenarios depend on 0a passing by
-file inspection; do not treat scenario 0a's non-zero exit as a
-stop-and-report signal even though the general runbook rule treats
-non-zero exits as failures. (0a joins scenarios 5, 6, 7, and 14 on the
-authoritative exemption list in "Stop-and-report triggers" below.) The
-proper fix — make `stage-artifacts` scope its
-contract check to `aggregates` artifacts only — is tracked in **#297**
-and would remove this exemption.
-
-**Verify (filesystem + schema post-condition):** build the path in
-PowerShell, `Test-Path` it, then hand it to Python as `argv[1]`. The
-Python one-liner is wrapped in **single quotes** so PowerShell does no
-variable expansion inside it — the path only enters Python via argv,
-avoiding any quoting / interpolation trap that would make 0a false-fail
-on a correctly staged fixture.
+**Verify (CLI exit 0 + filesystem + schema post-condition):** 0a passes
+when `stage-artifacts` exits 0 **and** the Python post-condition script
+below asserts cleanly. Build the path in PowerShell, `Test-Path` it,
+then hand it to Python as `argv[1]`. The Python one-liner is wrapped in
+**single quotes** so PowerShell does no variable expansion inside it —
+the path only enters Python via argv, avoiding any quoting /
+interpolation trap that would make 0a false-fail on a correctly staged
+fixture.
 
 ```powershell
 $stagedDb = Join-Path $qaRoot "staged\ado-insights-db\ado-insights.sqlite"
@@ -168,9 +150,8 @@ if (-not (Test-Path $stagedDb)) {
 python -c 'import sys, sqlite3; p = sys.argv[1]; c = sqlite3.connect(p); v = c.execute("SELECT MAX(version) v FROM schema_version").fetchone()[0]; pr = c.execute("SELECT COUNT(*) FROM pull_requests").fetchone()[0]; has_meta = any(r[0] == "comments_extraction_metadata" for r in c.execute("SELECT name FROM sqlite_master WHERE type=?", ("table",)).fetchall()); assert pr > 0 and v is not None, "0a FAILED: fixture empty or unreadable"; print(f"schema_version={v}, pull_requests={pr}, has_metadata_table={has_meta}")' "$stagedDb"
 ```
 
-If `Test-Path` returned true and the Python one-liner printed a line
-without raising `AssertionError`, 0a passed regardless of the CLI's exit
-code.
+If `Test-Path` returned true, `stage-artifacts` exited 0, and the Python
+one-liner printed a line without raising `AssertionError`, 0a passed.
 
 **Vintage check:** if the staged DB already lacks
 `comments_extraction_metadata` (as pipeline 15's artifact did on
@@ -600,11 +581,7 @@ Halt QA and surface findings on any of the following:
 
 - Python traceback in stdout or stderr
 - Non-zero exit code outside the designed pre-loop-fatal scenarios
-  (5, 6, 7, 14) **and** outside scenario 0a, which is exempt because
-  `stage-artifacts` exits 1 for `ado-insights-db` artifacts due to an
-  aggregates-only contract check applied indiscriminately (see 0a's
-  exit-code asymmetry note). 0a's success is determined by the
-  filesystem post-condition, not the CLI exit.
+  (5, 6, 7, 14)
 - Scenario 0a's Python post-condition script raising an
   `AssertionError` — indicates the staged DB is empty, unreadable, or
   otherwise unusable and downstream scenarios have nothing to run against

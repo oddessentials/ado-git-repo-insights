@@ -2093,6 +2093,89 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
         finally:
             db.close()
 
+    def test_rollback_leaves_schema_unchanged_on_mid_transaction_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """v5→v6 atomicity: a mid-transaction SQL failure rolls everything back.
+
+        Forces the backfill scalar subquery to raise by dropping pr_threads
+        AFTER seeding coverage markers on pull_requests.  With two PRs
+        carrying ``comments_extracted_at IS NOT NULL``, the outer WHERE
+        evaluates true and SQLite proceeds to compute the scalar subqueries,
+        including ``(SELECT COUNT(*) FROM pr_threads)`` which raises
+        ``OperationalError: no such table: pr_threads``.  The migration's
+        except branch must fire ROLLBACK and re-raise, leaving:
+
+        - ``comments_extraction_metadata`` absent (CREATE TABLE undone)
+        - ``schema_version`` still 5 (version-6 insert undone)
+
+        Without atomicity, a failed migration would leave the DB in a
+        half-migrated state where the table exists but no row reflects
+        reality, confusing every downstream consumer.
+        """
+        import sqlite3
+
+        from ado_git_repo_insights.persistence.migrations import migrate_v5_to_v6
+
+        db_path = tmp_path / "v5_rollback.db"
+        self._create_v5_db_without_metadata(db_path, seed_coverage=True)
+
+        # -- Guardrail: prove the pre-migration state explicitly so the
+        # -- rollback assertion below is load-bearing, not trivially
+        # -- satisfied by a fixture that never had the table anyway.
+        pre_conn = sqlite3.connect(str(db_path))
+        assert (
+            pre_conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+            == 5
+        ), "pre-migration fixture must start at schema_version=5"
+        pre_tables = {
+            r[0]
+            for r in pre_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        assert "comments_extraction_metadata" not in pre_tables, (
+            "pre-migration fixture must lack comments_extraction_metadata"
+        )
+        pre_conn.close()
+
+        # Damage the DB to force a mid-transaction failure during the
+        # backfill SELECT's scalar subqueries.
+        damage = sqlite3.connect(str(db_path))
+        damage.execute("DROP TABLE pr_threads")
+        damage.commit()
+        damage.close()
+
+        # Run the migration directly against a raw connection so the
+        # exception surfaces to the test (bypassing DatabaseManager.connect's
+        # catch-and-log layer).
+        conn = sqlite3.connect(str(db_path))
+        conn.isolation_level = None  # match DatabaseManager's autocommit mode
+        try:
+            with pytest.raises(
+                sqlite3.OperationalError, match="no such table: pr_threads"
+            ):
+                migrate_v5_to_v6(conn)
+        finally:
+            conn.close()
+
+        # Rollback assertions: nothing from the aborted migration persisted.
+        post_conn = sqlite3.connect(str(db_path))
+        post_tables = {
+            r[0]
+            for r in post_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        assert "comments_extraction_metadata" not in post_tables, (
+            "v5→v6 must NOT leave the table half-created after rollback"
+        )
+        assert (
+            post_conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+            == 5
+        ), "schema_version must stay at 5 after rollback (v6 insert undone)"
+        post_conn.close()
+
 
 class TestConnectFailFastOnPartialDatabases:
     """Fail-fast preservation when opening a partial / foreign DB.

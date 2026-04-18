@@ -738,6 +738,46 @@ class TestStageArtifactsArtifactDispatch:
             "aggregates must still run the contract validator"
         )
 
+    def test_aggregates_validator_failure_returns_1_and_logs_contract_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """`--artifact aggregates` that fails the CONTRACT.md check exits 1.
+
+        Locks the error-branch behavior: when `_validate_staged_artifacts`
+        returns `(False, error, _)`, `cmd_stage_artifacts` must emit BOTH
+        the specific contract-failure log line and the CONTRACT.md pointer
+        log line, then return 1. This is the primary contract-enforcement
+        path; regressing it would let malformed aggregates artifacts reach
+        the dashboard silently.
+        """
+        from ado_git_repo_insights.cli import cmd_stage_artifacts
+
+        zip_bytes = self._make_zip({"some-file.bin": b"not-a-manifest"})
+        self._install_http_mocks(monkeypatch, zip_bytes)
+
+        def failing_validator(out_dir: Path) -> tuple[bool, str, int]:
+            return (False, "dataset-manifest.json not found at " + str(out_dir), 0)
+
+        monkeypatch.setattr(
+            "ado_git_repo_insights.cli._validate_staged_artifacts",
+            failing_validator,
+        )
+
+        args = self._build_args(tmp_path, "aggregates")
+        with caplog.at_level(logging.ERROR, logger="ado_git_repo_insights.cli"):
+            result = cmd_stage_artifacts(args)
+
+        assert result == 1, "aggregates validation failure must return 1"
+        assert "Contract validation failed" in caplog.text, (
+            "must emit the specific failure message from the validator"
+        )
+        assert "CONTRACT.md requirements" in caplog.text, (
+            "must emit the CONTRACT.md pointer so operators know where to look"
+        )
+
     def test_unknown_artifact_fails_fast_with_actionable_error(
         self,
         tmp_path: Path,
