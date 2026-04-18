@@ -71,11 +71,13 @@ if you are unsure.
 
 ## Setup (every run)
 
-- Fresh temp DB path — delete any existing file at this path before the
-  first scenario
-- PAT exported to environment, not a file
-- A working directory (`$qaRoot` below) where artifacts, the DB, and any
+- Working directory (`$qaRoot` below) where artifacts, the DB, and any
   manufactured fixture files live side-by-side
+- PAT exported to environment, not a file
+- Scenarios 0a and 0b run against a **production-vintage** DB pulled from
+  pipeline 15. Scenarios 1–15 run against a separate fresh DB at
+  `$qaRoot\qa.sqlite`. Keep the two DBs on different paths so 0b can
+  assert against the vintage without scenarios downstream perturbing it.
 
 ```powershell
 $env:PAT = "<your-pat>"
@@ -90,6 +92,159 @@ needed.
 ---
 
 ## Scenario catalog
+
+### 0. Production-vintage gate (MUST run first — blocks every downstream scenario)
+
+Scenarios 1–15 operate on a freshly-created DB whose schema matches the
+current `SCHEMA_SQL` exactly. That setup **cannot surface schema-drift bugs
+between `SCHEMA_SQL` and the `MIGRATIONS` registry** — any table added to
+`SCHEMA_SQL` without a paired migration will be present on every fresh DB
+the runbook creates, masking the crash that fires only on DBs whose file
+predates the `SCHEMA_SQL` change (issue #295, oddessentials build 332:
+`sqlite3.OperationalError: no such table: comments_extraction_metadata`).
+
+Scenarios 0a + 0b close that loophole by replaying the pipeline command
+path against the real production vintage DB pulled from pipeline 15's
+`ado-insights-db` artifact. If 0b exits non-zero, **stop the runbook** —
+downstream scenarios will not detect the regression either. 0a is the
+one exception to the non-zero-exit-as-failure rule; see "Exit-code
+asymmetry" below.
+
+**Fixture specificity (do NOT substitute org/pipeline values in 0a/0b):**
+Unlike scenarios 1–15 where `oddessentials` is a maintainer example
+substitutable for any target org, scenarios 0a + 0b are hardcoded to
+`oddessentials` + `--pipeline-id 15` + the four-project list by design.
+The production-vintage DB fixture that makes this gate useful lives on
+that specific pipeline. A fork maintainer running this against a
+different org would need to provision an equivalent vintage fixture
+upstream and update these two commands — substituting values without
+provisioning the fixture will false-fail. The rest of the runbook's
+"substitute your own" guidance applies from scenario 1 onward.
+
+#### 0a. Stage the production-vintage DB
+
+> **PAT scope:** Build (Read) for artifact download
+
+```powershell
+ado-insights stage-artifacts `
+  --org oddessentials --project oddessentials `
+  --pipeline-id 15 --artifact ado-insights-db `
+  --pat $env:PAT --out "$qaRoot\staged"
+```
+
+**Exit-code asymmetry (known quirk — do NOT treat as failure):**
+`stage-artifacts` exits **1** for `ado-insights-db` artifacts because its
+post-download contract-validation step applies an `aggregates`-only check
+(`dataset-manifest.json`) to every artifact indiscriminately. The trailing
+`Contract validation failed: dataset-manifest.json not found` ERROR is the
+benign surface of that bug. The download itself completes before the
+check fires, so the SQLite file is present and correct by the time the
+non-zero exit happens.
+
+**Because of this, 0a's success condition is a filesystem post-condition,
+NOT the CLI's exit code.** Downstream scenarios depend on 0a passing by
+file inspection; do not treat scenario 0a's non-zero exit as a
+stop-and-report signal even though the general runbook rule treats
+non-zero exits as failures. (0a joins scenarios 5, 6, 7, and 14 on the
+authoritative exemption list in "Stop-and-report triggers" below.) The
+proper fix — make `stage-artifacts` scope its
+contract check to `aggregates` artifacts only — is tracked in **#297**
+and would remove this exemption.
+
+**Verify (filesystem + schema post-condition):** build the path in
+PowerShell, `Test-Path` it, then hand it to Python as `argv[1]`. The
+Python one-liner is wrapped in **single quotes** so PowerShell does no
+variable expansion inside it — the path only enters Python via argv,
+avoiding any quoting / interpolation trap that would make 0a false-fail
+on a correctly staged fixture.
+
+```powershell
+$stagedDb = Join-Path $qaRoot "staged\ado-insights-db\ado-insights.sqlite"
+
+if (-not (Test-Path $stagedDb)) {
+    throw "0a FAILED: staged SQLite file not present at $stagedDb"
+}
+
+python -c 'import sys, sqlite3; p = sys.argv[1]; c = sqlite3.connect(p); v = c.execute("SELECT MAX(version) v FROM schema_version").fetchone()[0]; pr = c.execute("SELECT COUNT(*) FROM pull_requests").fetchone()[0]; has_meta = any(r[0] == "comments_extraction_metadata" for r in c.execute("SELECT name FROM sqlite_master WHERE type=?", ("table",)).fetchall()); assert pr > 0 and v is not None, "0a FAILED: fixture empty or unreadable"; print(f"schema_version={v}, pull_requests={pr}, has_metadata_table={has_meta}")' "$stagedDb"
+```
+
+If `Test-Path` returned true and the Python one-liner printed a line
+without raising `AssertionError`, 0a passed regardless of the CLI's exit
+code.
+
+**Vintage check:** if the staged DB already lacks
+`comments_extraction_metadata` (as pipeline 15's artifact did on
+2026-04-17), `has_metadata_table` prints `False` — no synthetic strip is
+needed, proceed straight to 0b. If `has_metadata_table=True` (fixture
+pipeline refreshed after a migration bump), drop it explicitly so 0b
+exercises the pre-migration shape — same argv-based pattern:
+
+```powershell
+python -c 'import sys, sqlite3; c = sqlite3.connect(sys.argv[1]); c.execute("DROP TABLE IF EXISTS comments_extraction_metadata"); c.commit(); c.close()' "$stagedDb"
+```
+
+Record the baseline row counts from `pull_requests`, `pr_threads`,
+`pr_comments`, and the count of `comments_extracted_at IS NOT NULL` rows
+for comparison after 0b.
+
+#### 0b. Pipeline command path against the vintage DB
+
+> **PAT scope:** Code (Read) for extraction
+
+Mirrors the extension's `mode: extract` task with `includeComments=true`
+— the exact invocation that crashed oddessentials build 332. Run
+directly against the staged DB (no copy — we want any schema change made
+by the migration to persist for inspection):
+
+```powershell
+ado-insights --artifacts-dir "$qaRoot\artifacts\0b-extract-with-comments" `
+  extract `
+  --organization oddessentials --projects "oddessentials,marketing,engineering,hospitality" `
+  --pat $env:PAT `
+  --database "$stagedDb" `
+  --backfill-days 15 `
+  --include-comments `
+  --comments-max-prs-per-run 100 `
+  --comments-max-threads-per-pr 50
+```
+
+Reusing `$stagedDb` set in 0a rather than rebuilding the path inline —
+keeps the two scenarios pointing at the same file and avoids drift.
+
+**Pre-written expected outcome** (post-#295 fix — this is what green
+looks like):
+- `exit_code == 0`
+- Log line `Extracting PR comments (--include-comments enabled)` present
+- No `sqlite3.OperationalError: no such table: comments_extraction_metadata`
+  in stderr — this is the build-332 regression signature
+- Terminal summary `[OK] SUCCESS: <N> PRs extracted, 0 CSVs written (<T>s)`
+
+**DB post-state assertions:** same argv-based pattern as 0a — path
+entered via `sys.argv[1]`, Python `-c` string single-quoted so PowerShell
+cannot interpolate into it, SQL parameterized to sidestep quote-escape
+issues.
+
+```powershell
+python -c 'import sys, sqlite3; p = sys.argv[1]; c = sqlite3.connect(p); c.row_factory = sqlite3.Row; v = c.execute("SELECT MAX(version) v FROM schema_version").fetchone()[0]; assert v == 6, f"0b FAILED: schema_version={v} (expected 6)"; has_meta = any(r[0] == "comments_extraction_metadata" for r in c.execute("SELECT name FROM sqlite_master WHERE type=?", ("table",)).fetchall()); assert has_meta, "0b FAILED: comments_extraction_metadata absent post-run"; row = c.execute("SELECT * FROM comments_extraction_metadata").fetchone(); assert row is not None, "0b FAILED: metadata singleton row never written"; processed = row["prs_processed"]; assert processed > 0, f"0b FAILED: prs_processed={processed} (expected > 0)"; print(f"0b verification passed: {dict(row)}")' "$stagedDb"
+```
+
+Only double-quoted strings inside the Python code so PowerShell's
+single-quoted `-c` argument passes them through unchanged; the
+`processed` local dodges the need for any `row['...']` key access that
+would otherwise collide with the PowerShell string delimiter.
+
+**Stop-and-report signals** (what build 332 produced pre-fix — any of
+these means the #295 fix regressed):
+- `sqlite3.OperationalError: no such table: comments_extraction_metadata`
+- `exit_code != 0` despite a clean PR-extraction summary
+- Post-run DB at `schema_version < 6`
+- `comments_extraction_metadata` still absent post-run
+- `prs_processed == 0` in the metadata row
+
+If 0a + 0b both pass, the migration is honored against the real
+production vintage. Scenarios 1–15 can proceed against `$qaRoot\qa.sqlite`.
+
+---
 
 ### A. Happy paths
 
@@ -445,7 +600,18 @@ Halt QA and surface findings on any of the following:
 
 - Python traceback in stdout or stderr
 - Non-zero exit code outside the designed pre-loop-fatal scenarios
-  (5, 6, 7, 14)
+  (5, 6, 7, 14) **and** outside scenario 0a, which is exempt because
+  `stage-artifacts` exits 1 for `ado-insights-db` artifacts due to an
+  aggregates-only contract check applied indiscriminately (see 0a's
+  exit-code asymmetry note). 0a's success is determined by the
+  filesystem post-condition, not the CLI exit.
+- Scenario 0a's Python post-condition script raising an
+  `AssertionError` — indicates the staged DB is empty, unreadable, or
+  otherwise unusable and downstream scenarios have nothing to run against
+- Scenario 0b exiting non-zero, producing a
+  `sqlite3.OperationalError: no such table` traceback, leaving
+  `schema_version < 6` post-run, or leaving `comments_extraction_metadata`
+  absent — this is the #295 regression signature (oddessentials build 332)
 - `counts.prs_updated` does not match the pre-written expectation
 - `comments_extracted_at IS NULL` on a PR that scenario 2 should have
   covered
