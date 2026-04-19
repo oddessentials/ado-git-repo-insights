@@ -599,6 +599,47 @@ class TestFormatCheckParity:
             f"got: {preflight['Extension format check']!r}"
         )
 
+    def test_format_check_precedes_all_other_extension_specs(self) -> None:
+        """Lock the fail-fast ordering from commit 03863591:
+        ``Extension format check`` MUST run before every other
+        ``Extension *`` CommandSpec in the preflight list.
+
+        Prettier check takes <3 s; Extension build check /
+        Extension UI bundle / Extension Jest CI / Extension VSIX
+        artifact inspection / Extension smoke tests cost orders of
+        magnitude more time. Placing format:check first saves
+        ~1-5 min of wasted cycle time on every prettier-drift
+        incident (observed twice on branch 059-us1-throughput —
+        Slice 3 commit 49793dd0 and Slice 2b commit 679dc04d both
+        hit prettier drift that would have been caught ~5 min
+        earlier under this ordering).
+
+        If this test blocks a legitimate reorder, update
+        run_pr_preflight.py and this test in the same commit, and
+        update the rationale comment above the CommandSpec block."""
+        preflight = _normalized_preflight_commands()
+        ordered_names = list(preflight.keys())
+        assert "Extension format check" in ordered_names, (
+            "Extension format check missing from preflight — see "
+            "test_preflight_has_extension_format_check_spec."
+        )
+        format_idx = ordered_names.index("Extension format check")
+        other_extension = [
+            (idx, name)
+            for idx, name in enumerate(ordered_names)
+            if name.startswith("Extension ") and name != "Extension format check"
+        ]
+        later = [(idx, name) for idx, name in other_extension if idx < format_idx]
+        assert not later, (
+            "Extension format check must precede every other 'Extension *' "
+            "CommandSpec, but these run earlier:\n"
+            + "\n".join(f"  pos {idx}: {name}" for idx, name in later)
+            + f"\nExtension format check is at position {format_idx}. "
+            "Move `Extension format check` back to the top of the "
+            "Extension block in run_pr_preflight.py, or update this "
+            "test with the new fail-fast rationale."
+        )
+
     def test_test_ci_includes_format_check(self) -> None:
         """The ``test:ci`` script runs inside ``extension/`` by definition
         (it is a script in ``extension/package.json``), so the authoritative
