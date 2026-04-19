@@ -1,0 +1,494 @@
+/**
+ * Shared DetailPanel component.
+ *
+ * A single right-side dialog/dismissable overlay consumed by the Phase 1
+ * drill-down cohort (throughput, cycle-time, reviewer). Per
+ * `specs/059-chart-drill-down/contracts/detail-panel-api.md`:
+ *
+ *   - One DOM root appended lazily to document.body; opens toggle
+ *     `is-open` class, content is replaced in place (idempotent).
+ *   - Content shape is a sealed discriminated union (`PanelSection`)
+ *     with three variants today (`breakdown-table`, `stat-row`,
+ *     `empty-state`) — Phase 2 extends by adding new variants.
+ *   - Dismissal reasons: escape-key / outside-click / filters-changed
+ *     / tab-changed / comparison-toggled / explicit-close-button.
+ *     Filters-changed is hard: no content revalidation between event
+ *     and CLOSING (FR-005).
+ *   - Keyboard focus is trapped within the panel via
+ *     `shared/focus-trap.ts`; focus is returned to the trigger element
+ *     on dismiss (FR-007 / FR-008).
+ *
+ * The panel tracks comparison-mode state via a lifetime subscription to
+ * COMPARISON_TOGGLED_EVENT — when active, openDetailPanel warns and
+ * no-ops. The comparison-advisory module (Commit D of this feature)
+ * provides the user-visible cue for that path.
+ */
+
+import { createElement, appendText, clearElement } from "./render";
+import { trapFocus, restoreFocus } from "./focus-trap";
+import {
+  COMPARISON_TOGGLED_EVENT,
+  FILTERS_CHANGED_EVENT,
+  TAB_CHANGED_EVENT,
+  type ComparisonToggledEvent,
+  type TabChangedEvent,
+} from "../drilldown/lifecycle-signals";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface PanelRow {
+  readonly label: string;
+  readonly values: readonly string[];
+}
+
+export interface PanelStat {
+  readonly label: string;
+  readonly value: string;
+  readonly tone?: "neutral" | "positive" | "negative";
+}
+
+export interface BreakdownTableSection {
+  readonly type: "breakdown-table";
+  readonly title: string;
+  readonly columns: readonly [string, string, ...string[]];
+  readonly rows: readonly PanelRow[];
+}
+
+export interface StatRowSection {
+  readonly type: "stat-row";
+  readonly stats: readonly PanelStat[];
+}
+
+export interface EmptyStateSection {
+  readonly type: "empty-state";
+  readonly title: string;
+  readonly detail: string;
+}
+
+export type PanelSection =
+  | BreakdownTableSection
+  | StatRowSection
+  | EmptyStateSection;
+
+export interface PanelContent {
+  readonly title: string;
+  readonly subtitle: string | null;
+  readonly sections: readonly PanelSection[];
+}
+
+export type DismissReason =
+  | "escape-key"
+  | "outside-click"
+  | "filters-changed"
+  | "tab-changed"
+  | "comparison-toggled"
+  | "explicit-close-button";
+
+export interface DrillDownContext {
+  readonly sourceChart: "throughput" | "cycle-time" | "reviewer";
+  readonly focusedData:
+    | { readonly kind: "throughput"; readonly weekIso: string }
+    | {
+        readonly kind: "cycle-time";
+        readonly weekIso: string;
+        readonly metric: "p50" | "p90";
+      }
+    | { readonly kind: "reviewer"; readonly reviewerId: string };
+  readonly triggerElement: HTMLElement;
+  readonly content: PanelContent;
+}
+
+// ---------------------------------------------------------------------------
+// Construction helpers — enforce content invariants at build time.
+// ---------------------------------------------------------------------------
+
+export function makePanelContent(
+  title: string,
+  subtitle: string | null,
+  sections: readonly PanelSection[],
+): PanelContent {
+  if (title.length === 0) {
+    throw new TypeError("PanelContent.title MUST be non-empty");
+  }
+  if (sections.length === 0) {
+    throw new TypeError(
+      "PanelContent.sections MUST contain at least one section",
+    );
+  }
+  return { title, subtitle, sections };
+}
+
+export function makeBreakdownTable(
+  title: string,
+  columns: readonly [string, string, ...string[]],
+  rows: readonly PanelRow[],
+): BreakdownTableSection {
+  const expectedValues = columns.length - 1;
+  for (const row of rows) {
+    if (row.values.length !== expectedValues) {
+      throw new TypeError(
+        `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`,
+      );
+    }
+  }
+  return { type: "breakdown-table", title, columns, rows };
+}
+
+export function makeStatRow(stats: readonly PanelStat[]): StatRowSection {
+  return { type: "stat-row", stats };
+}
+
+export function makeEmptyState(
+  title: string,
+  detail: string,
+): EmptyStateSection {
+  return { type: "empty-state", title, detail };
+}
+
+// ---------------------------------------------------------------------------
+// Panel state and lifetime-scoped comparison tracker
+// ---------------------------------------------------------------------------
+
+type PanelState = "closed" | "opening" | "open" | "closing";
+
+interface ActivePanel {
+  readonly root: HTMLElement; // <aside> — no specialized DOM interface exists
+  readonly sectionsRoot: HTMLElement;
+  readonly titleEl: HTMLElement;
+  readonly subtitleEl: HTMLElement;
+  readonly closeBtn: HTMLButtonElement;
+}
+
+let panelEls: ActivePanel | null = null;
+let panelState: PanelState = "closed";
+let activeContext: DrillDownContext | null = null;
+let focusTrapController: AbortController | null = null;
+let openScopedController: AbortController | null = null;
+
+// Lifetime tracker for comparison mode — set on every
+// COMPARISON_TOGGLED_EVENT so openDetailPanel can refuse cleanly.
+let comparisonActive = false;
+{
+  const lifetimeComparisonListener: EventListener = (evt) => {
+    const e = evt as ComparisonToggledEvent;
+    comparisonActive = e.detail.enabled;
+  };
+  window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+}
+
+// ---------------------------------------------------------------------------
+// DOM construction
+// ---------------------------------------------------------------------------
+
+function ensurePanelEls(): ActivePanel {
+  // Bust the cache if the DOM was cleared (tests do this) or the root was
+  // otherwise removed from the document.
+  if (panelEls && !panelEls.root.isConnected) {
+    panelEls = null;
+    panelState = "closed";
+    activeContext = null;
+    openScopedController?.abort();
+    openScopedController = null;
+    focusTrapController?.abort();
+    focusTrapController = null;
+  }
+  if (panelEls) return panelEls;
+
+  const root = document.createElement("aside");
+  root.className = "detail-panel";
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-labelledby", "detail-panel-title");
+
+  const header = createElement("div", { class: "detail-panel-header" });
+
+  const titleEl = createElement("h2", { id: "detail-panel-title" });
+  header.appendChild(titleEl);
+
+  const subtitleEl = createElement("p", { class: "detail-panel-subtitle" });
+  header.appendChild(subtitleEl);
+
+  const closeBtn = createElement(
+    "button",
+    {
+      type: "button",
+      class: "detail-panel-close",
+      "aria-label": "Close detail panel",
+    },
+    "×",
+  );
+  closeBtn.addEventListener("click", () => {
+    dismissDetailPanel("explicit-close-button");
+  });
+  header.appendChild(closeBtn);
+
+  root.appendChild(header);
+
+  const sectionsRoot = createElement("div", {
+    class: "detail-panel-sections",
+  });
+  root.appendChild(sectionsRoot);
+
+  document.body.appendChild(root);
+
+  panelEls = { root, sectionsRoot, titleEl, subtitleEl, closeBtn };
+  return panelEls;
+}
+
+function renderContent(els: ActivePanel, content: PanelContent): void {
+  // Title + subtitle
+  clearElement(els.titleEl);
+  appendText(els.titleEl, content.title);
+
+  clearElement(els.subtitleEl);
+  if (content.subtitle !== null) {
+    appendText(els.subtitleEl, content.subtitle);
+    els.subtitleEl.style.display = "";
+  } else {
+    els.subtitleEl.style.display = "none";
+  }
+
+  // Sections
+  clearElement(els.sectionsRoot);
+  for (const section of content.sections) {
+    els.sectionsRoot.appendChild(renderSection(section));
+  }
+}
+
+function renderSection(section: PanelSection): HTMLElement {
+  switch (section.type) {
+    case "breakdown-table":
+      return renderBreakdownTable(section);
+    case "stat-row":
+      return renderStatRow(section);
+    case "empty-state":
+      return renderEmptyState(section);
+  }
+}
+
+function renderBreakdownTable(section: BreakdownTableSection): HTMLElement {
+  const wrapper = createElement("section", {
+    class: "detail-panel-section detail-panel-section--breakdown-table",
+  });
+  const heading = createElement("h3", {}, section.title);
+  wrapper.appendChild(heading);
+
+  const table = createElement("table", { class: "detail-panel-table" });
+  const thead = createElement("thead");
+  const headerRow = createElement("tr");
+  for (const col of section.columns) {
+    const th = createElement("th", { scope: "col" }, col);
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = createElement("tbody");
+  for (const row of section.rows) {
+    const tr = createElement("tr");
+    const firstCell = createElement("th", { scope: "row" }, row.label);
+    tr.appendChild(firstCell);
+    for (const value of row.values) {
+      tr.appendChild(createElement("td", {}, value));
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+
+  return wrapper;
+}
+
+function renderStatRow(section: StatRowSection): HTMLElement {
+  const wrapper = createElement("section", {
+    class: "detail-panel-section detail-panel-section--stat-row",
+  });
+  const list = createElement("dl", { class: "detail-panel-stats" });
+  for (const stat of section.stats) {
+    const dt = createElement("dt", {}, stat.label);
+    const ddAttrs: Record<string, string> = {};
+    if (stat.tone !== undefined) {
+      ddAttrs["data-tone"] = stat.tone;
+    }
+    const dd = createElement("dd", ddAttrs, stat.value);
+    list.appendChild(dt);
+    list.appendChild(dd);
+  }
+  wrapper.appendChild(list);
+  return wrapper;
+}
+
+function renderEmptyState(section: EmptyStateSection): HTMLElement {
+  const wrapper = createElement("section", {
+    class: "detail-panel-section detail-panel-section--empty-state",
+  });
+  wrapper.appendChild(createElement("h3", {}, section.title));
+  wrapper.appendChild(
+    createElement("p", { class: "detail-panel-empty-detail" }, section.detail),
+  );
+  return wrapper;
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions for open-scoped dismissal
+// ---------------------------------------------------------------------------
+
+function installOpenScopedListeners(els: ActivePanel): AbortController {
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  // Escape key — capture on document so we catch it regardless of focus.
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Escape" && panelState === "open") {
+        event.preventDefault();
+        dismissDetailPanel("escape-key");
+      }
+    },
+    { signal },
+  );
+
+  // Outside click
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (panelState !== "open") return;
+      const target = event.target;
+      if (target instanceof Node && !els.root.contains(target)) {
+        dismissDetailPanel("outside-click");
+      }
+    },
+    { signal },
+  );
+
+  // Filters changed — HARD dismiss. Do NOT do any content work here.
+  window.addEventListener(
+    FILTERS_CHANGED_EVENT,
+    () => {
+      if (panelState === "open" || panelState === "opening") {
+        dismissDetailPanel("filters-changed");
+      }
+    },
+    { signal },
+  );
+
+  // Tab changed — dismiss only when leaving the Metrics tab.
+  window.addEventListener(
+    TAB_CHANGED_EVENT,
+    (evt) => {
+      const e = evt as TabChangedEvent;
+      if (e.detail.activeTabId !== "metrics" && panelState === "open") {
+        dismissDetailPanel("tab-changed");
+      }
+    },
+    { signal },
+  );
+
+  // Comparison toggled — dismiss only when entering comparison.
+  window.addEventListener(
+    COMPARISON_TOGGLED_EVENT,
+    (evt) => {
+      const e = evt as ComparisonToggledEvent;
+      if (e.detail.enabled && panelState === "open") {
+        dismissDetailPanel("comparison-toggled");
+      }
+    },
+    { signal },
+  );
+
+  return controller;
+}
+
+// ---------------------------------------------------------------------------
+// Public lifecycle API
+// ---------------------------------------------------------------------------
+
+export function isDetailPanelOpen(): boolean {
+  return panelState === "opening" || panelState === "open";
+}
+
+export function openDetailPanel(context: DrillDownContext): void {
+  // Re-validate content at the boundary (construction helpers do this, but a
+  // caller might have hand-rolled a PanelContent).
+  if (context.content.title.length === 0) {
+    throw new TypeError("PanelContent.title MUST be non-empty");
+  }
+  if (context.content.sections.length === 0) {
+    throw new TypeError(
+      "PanelContent.sections MUST contain at least one section",
+    );
+  }
+
+  if (comparisonActive) {
+    console.warn(
+      "[detail-panel] openDetailPanel called while comparison mode is active; no-op. " +
+        "Callers should route to comparison-advisory.showComparisonAdvisoryToast in that case.",
+    );
+    return;
+  }
+
+  // Refuse to re-enter while mid-close animation — dismiss first.
+  if (panelState === "closing") {
+    finalizeClose();
+  }
+
+  const els = ensurePanelEls();
+
+  const wasOpen = isDetailPanelOpen();
+  activeContext = context;
+  renderContent(els, context.content);
+
+  if (!wasOpen) {
+    els.root.classList.add("is-open");
+    panelState = "opening";
+    // Treat opening as complete synchronously for test determinism;
+    // CSS transition runs in parallel but does not gate state.
+    panelState = "open";
+
+    openScopedController = installOpenScopedListeners(els);
+    focusTrapController = trapFocus(els.root);
+  }
+}
+
+export function dismissDetailPanel(reason: DismissReason): void {
+  if (!isDetailPanelOpen()) return;
+
+  panelState = "closing";
+
+  // Tear down subscriptions BEFORE any other work. This is what makes the
+  // filters-changed dismiss "hard": by aborting listeners first we cannot
+  // accidentally re-enter the render path via a later signal. Tests spy on
+  // renderContent / sectionsRoot children to verify the FR-005 invariant.
+  openScopedController?.abort();
+  openScopedController = null;
+
+  // Focus restoration — target is the context.triggerElement captured on open
+  // (FR-008). Fall back to focus-trap's recorded return if somehow unavailable.
+  const trigger = activeContext?.triggerElement ?? null;
+  if (focusTrapController) {
+    if (trigger && trigger.isConnected) {
+      restoreFocus(focusTrapController);
+      trigger.focus();
+    } else {
+      restoreFocus(focusTrapController);
+    }
+    focusTrapController = null;
+  }
+
+  finalizeClose();
+  // Reason is consumed by subscribers who already observed the triggering
+  // event; it is surfaced here primarily for future telemetry / debugging
+  // hooks. Reference the parameter to satisfy noUnusedParameters.
+  void reason;
+}
+
+function finalizeClose(): void {
+  if (panelEls) {
+    panelEls.root.classList.remove("is-open");
+  }
+  activeContext = null;
+  panelState = "closed";
+}

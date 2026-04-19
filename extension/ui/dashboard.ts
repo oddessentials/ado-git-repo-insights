@@ -91,6 +91,10 @@ import {
   getInFlightState,
   hasStateChanged,
   type EffectiveState,
+  // Drill-down lifecycle signals (publishers only — dashboard is the sole emitter)
+  publishFiltersChanged,
+  publishTabChanged,
+  publishComparisonToggled,
 } from "./modules";
 
 // Dashboard state
@@ -120,6 +124,10 @@ let typeaheadTeam: TypeaheadInstance | null = null;
 let typeaheadReviewer: TypeaheadInstance | null = null;
 let typeaheadAuthor: TypeaheadInstance | null = null;
 let comparisonMode = false;
+// Tracks the previously-active tab so switchTab() can emit a TabChangedEvent
+// with both the new and previous ids (per lifecycle-signals contract) and
+// suppress the emit when a user clicks the already-active tab.
+let previousActiveTabId: string = "metrics";
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
 let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
@@ -897,6 +905,12 @@ async function refreshMetrics(): Promise<void> {
     if (!hasStateChanged(lastEffectiveState, candidateState)) return;
   }
 
+  // Drill-down: announce filter-change now that we've committed to an actual
+  // refresh (post no-op-guard). Subscribers that hard-dismiss on this event
+  // must not do DOM work against the about-to-change state — see
+  // specs/059-chart-drill-down/contracts/lifecycle-signals.md.
+  publishFiltersChanged({ reason: "user-change" });
+
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
   if (metricsSection && loadingRegions.length > 0) {
@@ -1403,6 +1417,16 @@ function switchTab(tabId: string): void {
     content.classList.toggle("hidden", content.id !== `tab-${tabId}`);
   });
 
+  // Drill-down: emit TabChangedEvent only when the active tab actually
+  // changed. Clicking the already-active tab is a no-op for subscribers.
+  if (tabId !== previousActiveTabId) {
+    publishTabChanged({
+      activeTabId: tabId,
+      previousTabId: previousActiveTabId,
+    });
+    previousActiveTabId = tabId;
+  }
+
   updateUrlState();
 }
 
@@ -1899,6 +1923,15 @@ function restoreStateFromUrl(): void {
     comparisonMode = true;
     elements.get("compare-toggle")?.classList.add("active");
     elements.get("comparison-banner")?.classList.remove("hidden");
+    // Drill-down guard sync (spec 059 / FR-060): toggleComparisonMode and
+    // exitComparisonMode emit this event, but the deep-link restore path
+    // bypasses them. Without this emit the comparison-advisory banner
+    // never mounts, chart containers never gain the disabled attribute,
+    // and both detail-panel's internal `comparisonActive` tracker AND
+    // isDrilldownDisabledByComparison() stay `false` — so a user who
+    // loads the dashboard via ?compare=1 could still open a drill-down
+    // panel. Emit here to keep the guard synchronized on init.
+    publishComparisonToggled({ enabled: true });
   }
 }
 // ============================================================================
@@ -1920,6 +1953,12 @@ function toggleComparisonMode(): void {
     updateComparisonBanner();
   }
 
+  // Drill-down: emit comparison-toggled BEFORE refreshMetrics so subscribers
+  // (DetailPanel, comparison-advisory) see the more-specific event first;
+  // refreshMetrics' own publishFiltersChanged fires a moment later but is a
+  // no-op for already-closed panels.
+  publishComparisonToggled({ enabled: comparisonMode });
+
   updateUrlState();
   void refreshMetrics();
 }
@@ -1931,6 +1970,7 @@ function exitComparisonMode(): void {
   comparisonMode = false;
   elements.get("compare-toggle")?.classList.remove("active");
   elements.get("comparison-banner")?.classList.add("hidden");
+  publishComparisonToggled({ enabled: false });
   updateUrlState();
   void refreshMetrics();
 }

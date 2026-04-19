@@ -37,3 +37,16 @@ export const LOW_WEEK_THRESHOLD = 3;
  * Aligns with SPARKLINE_LOOKBACK_WEEKS — a full sparkline window.
  */
 export const MODERATE_WEEK_THRESHOLD = 8;
+
+/**
+ * Duration in milliseconds for the brief highlight applied to a full
+ * chart after the user clicks its summary-card sparkline
+ * (spec 059 / FR-051 — must be <= 2 seconds and self-dismissing).
+ */
+export const SPARKLINE_HIGHLIGHT_MS = 1500;
+
+/**
+ * Duration in milliseconds that the transient comparison-mode advisory
+ * toast stays visible before auto-dismissing (spec 059 / FR-061).
+ */
+export const COMPARISON_ADVISORY_TOAST_MS = 4000;

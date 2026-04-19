@@ -776,7 +776,17 @@ class TestPartialBranchesParity:
         # edit later adds ``python scripts/check_partial_branches.py ...``
         # in a code fence or prose, that hit falls through to ``disallowed``
         # and fails the gate exactly as a non-doc call site would.
-        doc_prefixes = ("docs/development/ratchets.md:",)
+        #
+        # CHANGELOG.md is included here because semantic-release auto-
+        # generates its entries from commit subjects; those subjects may
+        # legitimately reference the script path in prose form (e.g.,
+        # "extend check_partial_branches.py parity allowlist"). Release
+        # commits ship with ``[skip ci]``, so this allowlist entry is the
+        # only line of defense that keeps the gate consistent on the
+        # next branch push. The ``direct_invocation_re`` check below
+        # still prevents an actual ``python scripts/...`` invocation
+        # from being embedded in CHANGELOG.md.
+        doc_prefixes = ("docs/development/ratchets.md:", "CHANGELOG.md:")
         # Matches python-style direct invocations with an optional path
         # prefix (e.g., ``scripts/``, ``../scripts/``). Kept deliberately
         # narrow: it is the precise pattern the guard is trying to
