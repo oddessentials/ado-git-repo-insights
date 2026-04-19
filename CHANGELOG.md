@@ -1,3 +1,19 @@
+# [101.11.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.10.1...v101.11.0) (2026-04-19)
+
+
+### Bug Fixes
+
+* **#205:** sync drill-down guard on ?compare=1 deep-link load ([302b49c](https://github.com/oddessentials/ado-git-repo-insights/commit/302b49c0766ebc62e21a49987b6d213321d71fba)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#301](https://github.com/oddessentials/ado-git-repo-insights/issues/301) [#301](https://github.com/oddessentials/ado-git-repo-insights/issues/301)
+* **ci:** extend partial-branches doc allowlist to CHANGELOG.md ([2769473](https://github.com/oddessentials/ado-git-repo-insights/commit/2769473774d55414f1cd0da1ec5631f36ae6bc3b))
+
+
+### Features
+
+* **#205:** add comparison-mode drill-down advisory ([728b9a0](https://github.com/oddessentials/ado-git-repo-insights/commit/728b9a07a93d49e3515f6e23232ba5a066f09be2)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** add drill-down lifecycle signals foundation ([fadd6b2](https://github.com/oddessentials/ado-git-repo-insights/commit/fadd6b219fa7b5ce3b616e40f72b808b0292f283)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** add shared DetailPanel drawer with idempotent parity ([6e7e703](https://github.com/oddessentials/ado-git-repo-insights/commit/6e7e703aee8b55b3ec8d49ddc494b5ef899a5523)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** add shared focus-trap primitive ([4e06d35](https://github.com/oddessentials/ado-git-repo-insights/commit/4e06d357c0c4a277a94c8faf53750a68404c016b)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+
 ## [101.10.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.10.0...v101.10.1) (2026-04-18)
 
 
