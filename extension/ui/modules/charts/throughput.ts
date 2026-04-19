@@ -15,6 +15,7 @@ import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
+import { weekRangeForAria } from "../drilldown/week-range";
 
 /** Maximum data points rendered in the throughput chart (2 years of weekly data). */
 export const MAX_THROUGHPUT_POINTS = 104;
@@ -88,13 +89,19 @@ export function renderThroughputChart(
   const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
   const barsHtml = displayRollups
     .map((r, index) => {
-      const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
+      const count = r.pr_count || 0;
+      const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
       const wParts = r.week.split("-W");
       const weekLabel = wParts[1] ?? r.week;
       const showLabel = index % labelStep === 0;
+      // PR #302 P1.E — accessible name (parameterized via the shared
+      // weekRangeForAria helper so chart and panel labels can't drift)
+      // and aria-expanded reflecting the drill-down panel open state
+      // (toggled by the throughput-drilldown module on activate/dismiss).
+      const ariaLabel = `Drill into week of ${weekRangeForAria(r)}, ${count} PR${count === 1 ? "" : "s"}`;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}" data-drilldown-week="${escapeHtml(r.week)}" tabindex="0" role="button">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${count}" data-drilldown-week="${escapeHtml(r.week)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>

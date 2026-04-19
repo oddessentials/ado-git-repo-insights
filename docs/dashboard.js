@@ -6842,6 +6842,67 @@ var PRInsightsDashboard = (() => {
     return checkNotExtracted(ctx) ?? checkFilterCaused(ctx) ?? checkMinimumData(ctx) ?? checkDateRangeEmpty(ctx);
   }
 
+  // ../ui/modules/drilldown/week-range.ts
+  function parseIsoLocalDate(iso) {
+    const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m2) return null;
+    const year = Number(m2[1]);
+    const month = Number(m2[2]);
+    const day = Number(m2[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return date;
+  }
+  function isoWeekRange(week) {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(week);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const weekNum = Number(match[2]);
+    if (weekNum < 1 || weekNum > 53) return null;
+    const jan4 = new Date(year, 0, 4);
+    const mondayOffset = (jan4.getDay() + 6) % 7;
+    const start = new Date(jan4);
+    start.setDate(jan4.getDate() - mondayOffset + (weekNum - 1) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start, end };
+  }
+  function formatWeekRangeTitle(start, end) {
+    const startMonth = start.toLocaleDateString("en-US", { month: "short" });
+    const endMonth = end.toLocaleDateString("en-US", { month: "short" });
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+    if (startYear !== endYear) {
+      return `${startMonth} ${start.getDate()}, ${startYear} \u2013 ${endMonth} ${end.getDate()}, ${endYear}`;
+    }
+    if (startMonth === endMonth) {
+      return `${startMonth} ${start.getDate()} \u2013 ${end.getDate()}, ${startYear}`;
+    }
+    return `${startMonth} ${start.getDate()} \u2013 ${endMonth} ${end.getDate()}, ${startYear}`;
+  }
+  function formatWeekTitle(rollup) {
+    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+    if (start && end) {
+      return `Week of ${formatWeekRangeTitle(start, end)}`;
+    }
+    const range = isoWeekRange(rollup.week);
+    if (!range) return `Week ${rollup.week}`;
+    return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
+  }
+  function weekRangeForAria(rollup) {
+    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+    if (start && end) {
+      return formatWeekRangeTitle(start, end);
+    }
+    const range = isoWeekRange(rollup.week);
+    if (!range) return rollup.week;
+    return formatWeekRangeTitle(range.start, range.end);
+  }
+
   // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   var MAX_VISIBLE_LABELS = 16;
@@ -6882,12 +6943,14 @@ var PRInsightsDashboard = (() => {
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
     const barsHtml = displayRollups.map((r2, index) => {
-      const height = maxCount > 0 ? (r2.pr_count || 0) / maxCount * 100 : 0;
+      const count = r2.pr_count || 0;
+      const height = maxCount > 0 ? count / maxCount * 100 : 0;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
       const showLabel = index % labelStep === 0;
+      const ariaLabel = `Drill into week of ${weekRangeForAria(r2)}, ${count} PR${count === 1 ? "" : "s"}`;
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${r2.pr_count || 0}" data-drilldown-week="${escapeHtml(r2.week)}" tabindex="0" role="button">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${count}" data-drilldown-week="${escapeHtml(r2.week)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
@@ -7060,8 +7123,16 @@ var PRInsightsDashboard = (() => {
     }
     const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
     const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
-    const p50Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p50 })).filter((d2) => d2.value !== null);
-    const p90Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p90 })).filter((d2) => d2.value !== null);
+    const p50Data = displayRollups.map((r2) => ({
+      week: r2.week,
+      value: r2.cycle_time_p50,
+      ariaRange: weekRangeForAria(r2)
+    })).filter((d2) => d2.value !== null);
+    const p90Data = displayRollups.map((r2) => ({
+      week: r2.week,
+      value: r2.cycle_time_p90,
+      ariaRange: weekRangeForAria(r2)
+    })).filter((d2) => d2.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(
         container,
@@ -7091,13 +7162,14 @@ var PRInsightsDashboard = (() => {
         const dataIndex = displayRollups.findIndex((r2) => r2.week === d2.week);
         const x2 = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y2 = padding.top + chartHeight - (d2.value - minVal) / range * chartHeight;
-        return { x: x2, y: y2, week: d2.week, value: d2.value };
+        return { x: x2, y: y2, week: d2.week, value: d2.value, ariaRange: d2.ariaRange };
       });
       const pathD = buildLinePath(points);
       return { pathD, points };
     };
     const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
     const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+    const HIT_HALF = 12;
     const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
     const svgContent = `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
@@ -7117,11 +7189,16 @@ var PRInsightsDashboard = (() => {
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
-            <!-- Dots. data-tooltip="true" is required so addChartTooltips()
-                 in charts.ts can attach hover/tap listeners \u2014 without it the
-                 tooltip callback below is never invoked. -->
-            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p90" tabindex="0" role="button"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p50" tabindex="0" role="button"/>`).join("") : ""}
+            <!-- Dot triggers. Keyboard + click activation lives on the
+                 <g> wrapper (drill-down attrs + role/tabindex/aria-* +
+                 invisible 24x24 hit <rect>). The visible <circle> keeps
+                 the data-tooltip surface so addChartTooltips's pointer
+                 listeners stay anchored to the small visible dot \u2014 moving
+                 data-tooltip onto the <g> would shift the tooltip anchor
+                 onto the larger hit-rect bounding box.
+                 See specs/059-chart-drill-down + PR #302 review P1.D. -->
+            ${p90Path ? p90Path.points.map((p2) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p90" aria-expanded="false" aria-label="${escapeHtml(`Drill into P90 for week of ${p2.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p2.x - HIT_HALF}" y="${p2.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/></g>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p2) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p50" aria-expanded="false" aria-label="${escapeHtml(`Drill into P50 for week of ${p2.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p2.x - HIT_HALF}" y="${p2.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/></g>`).join("") : ""}
         </svg>
     `;
     const legendItems = [];
@@ -7256,14 +7333,14 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
-    const drilldownAttrs = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button"` : "";
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
+      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r2)}`)}"` : "";
       return `
-            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrs}>
+            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -8035,57 +8112,6 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
-  // ../ui/modules/drilldown/week-range.ts
-  function parseIsoLocalDate(iso) {
-    const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-    if (!m2) return null;
-    const year = Number(m2[1]);
-    const month = Number(m2[2]);
-    const day = Number(m2[3]);
-    const date = new Date(year, month - 1, day);
-    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-      return null;
-    }
-    return date;
-  }
-  function isoWeekRange(week) {
-    const match = /^(\d{4})-W(\d{1,2})$/.exec(week);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const weekNum = Number(match[2]);
-    if (weekNum < 1 || weekNum > 53) return null;
-    const jan4 = new Date(year, 0, 4);
-    const mondayOffset = (jan4.getDay() + 6) % 7;
-    const start = new Date(jan4);
-    start.setDate(jan4.getDate() - mondayOffset + (weekNum - 1) * 7);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return { start, end };
-  }
-  function formatWeekRangeTitle(start, end) {
-    const startMonth = start.toLocaleDateString("en-US", { month: "short" });
-    const endMonth = end.toLocaleDateString("en-US", { month: "short" });
-    const startYear = start.getFullYear();
-    const endYear = end.getFullYear();
-    if (startYear !== endYear) {
-      return `${startMonth} ${start.getDate()}, ${startYear} \u2013 ${endMonth} ${end.getDate()}, ${endYear}`;
-    }
-    if (startMonth === endMonth) {
-      return `${startMonth} ${start.getDate()} \u2013 ${end.getDate()}, ${startYear}`;
-    }
-    return `${startMonth} ${start.getDate()} \u2013 ${endMonth} ${end.getDate()}, ${startYear}`;
-  }
-  function formatWeekTitle(rollup) {
-    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
-    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
-    if (start && end) {
-      return `Week of ${formatWeekRangeTitle(start, end)}`;
-    }
-    const range = isoWeekRange(rollup.week);
-    if (!range) return `Week ${rollup.week}`;
-    return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
-  }
-
   // ../ui/modules/drilldown/throughput-drilldown.ts
   var ACTIVE_CLASS = "is-drilldown-active";
   function breakdownSection(title, columns, entries, emptyDetail) {
@@ -8131,6 +8157,7 @@ var PRInsightsDashboard = (() => {
     function clearActive() {
       if (activeTrigger) {
         activeTrigger.classList.remove(ACTIVE_CLASS);
+        activeTrigger.setAttribute("aria-expanded", "false");
         activeTrigger = null;
       }
     }
@@ -8167,6 +8194,7 @@ var PRInsightsDashboard = (() => {
       clearActive();
       activeTrigger = trigger;
       trigger.classList.add(ACTIVE_CLASS);
+      trigger.setAttribute("aria-expanded", "true");
       registerPanelObserver();
     }
     container.addEventListener(
@@ -8254,6 +8282,7 @@ var PRInsightsDashboard = (() => {
     function clearActive() {
       if (activeTrigger) {
         activeTrigger.classList.remove(ACTIVE_CLASS2);
+        activeTrigger.setAttribute("aria-expanded", "false");
         activeTrigger = null;
       }
     }
@@ -8293,6 +8322,7 @@ var PRInsightsDashboard = (() => {
       clearActive();
       activeTrigger = trigger;
       trigger.classList.add(ACTIVE_CLASS2);
+      trigger.setAttribute("aria-expanded", "true");
       registerPanelObserver();
     }
     container.addEventListener(
@@ -8407,6 +8437,7 @@ var PRInsightsDashboard = (() => {
     function clearActive() {
       if (activeTrigger) {
         activeTrigger.classList.remove(ACTIVE_CLASS3);
+        activeTrigger.setAttribute("aria-expanded", "false");
         activeTrigger = null;
       }
     }
@@ -8441,6 +8472,7 @@ var PRInsightsDashboard = (() => {
       clearActive();
       activeTrigger = trigger;
       trigger.classList.add(ACTIVE_CLASS3);
+      trigger.setAttribute("aria-expanded", "true");
       registerPanelObserver();
     }
     container.addEventListener(

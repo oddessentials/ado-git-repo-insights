@@ -38,15 +38,20 @@
  *   (the scrollIntoView call) is the application contract; the browser
  *   fulfilling that intent is a platform concern.
  *
- * Coverage in Slice 1:
- *   1. Same-origin sparkline tap — scrollIntoView intent + highlight class.
- *   2. Cross-origin sparkline tap — same contract, origin-agnostic.
- *   3. Filter-change dismisses an open detail panel (FR-008 sentinel for
- *      a11y P2-3 — locks current behavior so Slice 2 changes can be
- *      detected).
- *
- * Reserved for Slice 2 (added with the P1.D fix):
- *   4. Tab-reachability of cycle-time `<circle>` dots in real browsers.
+ * Coverage:
+ *   Slice 1:
+ *     1. Same-origin sparkline tap — scrollIntoView intent + highlight class.
+ *     2. Cross-origin sparkline tap — same contract, origin-agnostic.
+ *     3. Filter-change dismisses an open detail panel (FR-008 sentinel for
+ *        a11y P2-3 — locks current behavior so Slice 2 changes can be
+ *        detected).
+ *   Slice 2a (PR #302 P1.D + P1.E):
+ *     4. Cycle-time `<g>` dot triggers accept programmatic focus in a real
+ *        browser — covers WCAG 2.1.1 (Keyboard) for SVG triggers, where
+ *        jsdom is structurally unable to verify SVG focusability.
+ *     5. Bar / row / dot triggers carry parameterized aria-label content
+ *        via the shared weekRangeForAria helper — locks the
+ *        application-contract label shape.
  *
  * Contract: Uses data-testid + class selectors only. Screenshots captured
  * on every run per playwright.config.ts.
@@ -224,6 +229,66 @@ test.describe("Iframe drill-down smoke tests", () => {
     await page.screenshot({
       path: testInfo.outputPath("iframe-sparkline-cross-origin.png"),
     });
+  });
+
+  test("cycle-time <g> dot trigger accepts focus in a real browser (P1.D)", async ({
+    page,
+  }, testInfo) => {
+    await page.goto(SAME_ORIGIN_HOST);
+    await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
+
+    const frame = page.frameLocator("#dashboard-frame");
+    await frame
+      .locator("#main-content:not(.hidden)")
+      .waitFor({ timeout: SMOKE_TIMEOUT_MS });
+
+    // jsdom does not focus SVG elements regardless of tabindex. This
+    // assertion is the load-bearing P1.D acceptance: the new <g
+    // role="button" tabindex="0"> wrapper IS focusable in a real
+    // browser. If a future browser quirk regresses this, the user can
+    // no longer keyboard-reach cycle-time dots and SC-006 fails.
+    const dot = frame
+      .locator('g[role="button"][data-drilldown-metric="p50"]')
+      .first();
+    await dot.waitFor({ timeout: SMOKE_TIMEOUT_MS });
+    await dot.focus();
+
+    const isFocused = await dot.evaluate(
+      (el) => document.activeElement === el,
+    );
+    expect(isFocused).toBe(true);
+
+    await page.screenshot({
+      path: testInfo.outputPath("iframe-cycle-time-g-focus.png"),
+    });
+  });
+
+  test("trigger aria-labels carry weekRangeForAria-derived content (P1.E)", async ({
+    page,
+  }) => {
+    await page.goto(SAME_ORIGIN_HOST);
+    await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
+
+    const frame = page.frameLocator("#dashboard-frame");
+    await frame
+      .locator("#main-content:not(.hidden)")
+      .waitFor({ timeout: SMOKE_TIMEOUT_MS });
+
+    // Bar trigger: "Drill into week of <range>, <count> PR(s)".
+    const barLabel = await frame
+      .locator(".bar-container[data-drilldown-week]")
+      .first()
+      .getAttribute("aria-label");
+    expect(barLabel).toMatch(
+      /^Drill into week of .+ \d+ PR(s)?$/,
+    );
+
+    // Cycle-time dot trigger: "Drill into P50 for week of <range>".
+    const dotLabel = await frame
+      .locator('g[role="button"][data-drilldown-metric="p50"]')
+      .first()
+      .getAttribute("aria-label");
+    expect(dotLabel).toMatch(/^Drill into P50 for week of /);
   });
 
   test("filter change dismisses an open detail panel (FR-008 sentinel)", async ({

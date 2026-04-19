@@ -14,6 +14,7 @@ import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { weekRangeForAria } from "../drilldown/week-range";
 
 import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
 
@@ -176,18 +177,24 @@ export function renderReviewerActivity(
   // aggregate counts and have no single drill-down subject — drill-
   // down attributes are omitted so clicks are no-ops.
   const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
-  const drilldownAttrs = filterReviewerId
-    ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button"`
-    : "";
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;
       const pct = (count / maxReviewers) * 100;
       const wParts = r.week.split("-W");
       const weekLabel = wParts[1] ?? r.week;
+      // PR #302 P1.E — when filtered, each row carries an accessible
+      // name parameterized via weekRangeForAria (single source of truth
+      // shared with the panel title) plus aria-expanded reflecting the
+      // drill-down panel open state. The reviewer-drilldown module
+      // toggles aria-expanded on activate/dismiss; here we ship the
+      // initial "false" state alongside the other drill-down attrs.
+      const drilldownAttrsForRow = filterReviewerId
+        ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r)}`)}"`
+        : "";
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}"${drilldownAttrs}>
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>

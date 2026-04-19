@@ -114,6 +114,10 @@ export function installCycleTimeDrilldown(
   function clearActive(): void {
     if (activeTrigger) {
       activeTrigger.classList.remove(ACTIVE_CLASS);
+      // PR #302 P1.E — aria-expanded mirrors active class; symmetric
+      // with throughput-drilldown.ts and reviewer-drilldown.ts. Single
+      // dismiss-path coverage via the panel observer.
+      activeTrigger.setAttribute("aria-expanded", "false");
       activeTrigger = null;
     }
   }
@@ -161,6 +165,7 @@ export function installCycleTimeDrilldown(
     clearActive();
     activeTrigger = trigger;
     trigger.classList.add(ACTIVE_CLASS);
+    trigger.setAttribute("aria-expanded", "true");
     registerPanelObserver();
   }
 

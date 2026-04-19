@@ -113,3 +113,24 @@ export function formatWeekTitle(rollup: Rollup): string {
   if (!range) return `Week ${rollup.week}`;
   return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
 }
+
+/**
+ * Condensed week-range string suitable for parameterized aria-labels on
+ * chart triggers (e.g. "Mar 17 – 23, 2025"). Same date-resolution logic
+ * as `formatWeekTitle` but WITHOUT the "Week of " prefix — chart
+ * templates compose the full label inline as
+ * `Drill into {metric/count} for week of ${weekRangeForAria(rollup)}`.
+ *
+ * Single source of truth for the parameterized string so chart-side
+ * labels and panel-side titles cannot drift on the same rollup.
+ */
+export function weekRangeForAria(rollup: Rollup): string {
+  const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+  const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+  if (start && end) {
+    return formatWeekRangeTitle(start, end);
+  }
+  const range = isoWeekRange(rollup.week);
+  if (!range) return rollup.week;
+  return formatWeekRangeTitle(range.start, range.end);
+}

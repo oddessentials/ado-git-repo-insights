@@ -670,4 +670,72 @@ describe("throughput-drilldown", () => {
 
     expect(isDetailPanelOpen()).toBe(false);
   });
+
+  // -------------------------------------------------------------------------
+  // Comparison-mode keyboard guard (PR #302 P1.E checklist)
+  // -------------------------------------------------------------------------
+
+  it("keyboard Enter in comparison mode opens the advisory toast, NOT the panel", () => {
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups);
+
+    publishComparisonToggled({ enabled: true });
+    firstBar(container).dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+      }),
+    );
+
+    expect(isDetailPanelOpen()).toBe(false);
+    expect(document.querySelector(".comparison-advisory-toast")).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // aria-expanded toggle (PR #302 P1.E sentinel)
+  // -------------------------------------------------------------------------
+
+  describe("aria-expanded toggle", () => {
+    it("renders aria-expanded='false' on every bar at install time", () => {
+      const rollups = [makeRollup({ week: "2025-W11" }), makeRollup()];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups);
+
+      const bars = container.querySelectorAll<HTMLElement>(".bar-container");
+      expect(bars.length).toBe(2);
+      for (const bar of Array.from(bars)) {
+        expect(bar.getAttribute("aria-expanded")).toBe("false");
+      }
+    });
+
+    it("flips aria-expanded='true' on the activated bar when the panel opens", () => {
+      const rollups = [makeRollup()];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups);
+      const bar = firstBar(container);
+
+      click(bar);
+
+      expect(isDetailPanelOpen()).toBe(true);
+      expect(bar.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("resets aria-expanded='false' on the trigger via every dismiss path through clearActive", async () => {
+      const rollups = [makeRollup()];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups);
+      const bar = firstBar(container);
+
+      click(bar);
+      expect(bar.getAttribute("aria-expanded")).toBe("true");
+
+      dismissDetailPanel("explicit-close-button");
+      // MutationObserver on panel.is-open is async — let the microtask
+      // run so clearActive fires and resets aria-expanded.
+      await Promise.resolve();
+      expect(bar.getAttribute("aria-expanded")).toBe("false");
+    });
+  });
 });

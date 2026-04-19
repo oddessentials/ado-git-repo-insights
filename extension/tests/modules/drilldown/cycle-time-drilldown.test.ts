@@ -88,10 +88,12 @@ function dotFor(
   week: string,
   metric: "p50" | "p90",
 ): HTMLElement {
+  // Drill-down attrs live on the <g> wrapper (PR #302 P1.D); the
+  // visible <circle> keeps `.line-chart-dot` for tooltip/visual purposes.
   const dot = container.querySelector<HTMLElement>(
-    `.line-chart-dot[data-drilldown-week="${week}"][data-drilldown-metric="${metric}"]`,
+    `g[data-drilldown-week="${week}"][data-drilldown-metric="${metric}"]`,
   );
-  if (!dot) throw new Error(`line-chart-dot ${week}/${metric} not rendered`);
+  if (!dot) throw new Error(`g[data-drilldown-week=${week}/${metric}] not rendered`);
   return dot;
 }
 
@@ -396,8 +398,15 @@ describe("cycle-time-drilldown", () => {
     const container = mountChart(rollups);
     installCycleTimeDrilldown(container, rollups);
     const dot = dotFor(container, "2025-W10", "p50");
+    // Tooltip listener targets [data-tooltip], which lives on the inner
+    // <circle> (PR #302 P1.D — drill-down attrs moved to <g>, tooltip
+    // attrs stayed on <circle> so the tooltip anchor still matches the
+    // visible dot rather than the invisible 24x24 hit-rect bounding box).
+    const visibleCircle = dot.querySelector<SVGCircleElement>(
+      "circle.line-chart-dot",
+    )!;
 
-    dot.dispatchEvent(
+    visibleCircle.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         cancelable: true,
@@ -405,7 +414,7 @@ describe("cycle-time-drilldown", () => {
         clientY: 10,
       }),
     );
-    dot.dispatchEvent(
+    visibleCircle.dispatchEvent(
       new PointerEvent("pointerup", {
         bubbles: true,
         cancelable: true,
@@ -461,18 +470,28 @@ describe("cycle-time-drilldown", () => {
   // A11y attribute surface
   // -------------------------------------------------------------------------
 
-  it("dots expose a button-role focusable surface and orthogonal drilldown attributes", () => {
+  it("dot triggers expose a button-role focusable <g> and orthogonal visual <circle>", () => {
     const rollups = makeRollupSeries(4);
     const container = mountChart(rollups);
     const dot = dotFor(container, "2025-W10", "p50");
 
+    // Activation surface lives on the <g> wrapper (PR #302 P1.D).
+    expect(dot.tagName.toLowerCase()).toBe("g");
     expect(dot.getAttribute("tabindex")).toBe("0");
     expect(dot.getAttribute("role")).toBe("button");
-    // The lowercase `data-drilldown-metric` and uppercase `data-metric`
-    // are intentionally orthogonal — the tooltip layer reads the
-    // legacy uppercase attribute.
     expect(dot.getAttribute("data-drilldown-metric")).toBe("p50");
-    expect(dot.getAttribute("data-metric")).toBe("P50");
+    expect(dot.getAttribute("aria-expanded")).toBe("false");
+
+    // Visual surface stays on the inner <circle>; the legacy uppercase
+    // data-metric attribute is read by the tooltip layer and remains on
+    // the circle so the tooltip's bounding-rect anchor matches the dot
+    // and not the larger 24x24 hit-rect.
+    const visibleCircle = dot.querySelector<SVGCircleElement>(
+      "circle.line-chart-dot",
+    );
+    expect(visibleCircle).not.toBeNull();
+    expect(visibleCircle!.getAttribute("data-metric")).toBe("P50");
+    expect(visibleCircle!.getAttribute("data-tooltip")).toBe("true");
   });
 
   // -------------------------------------------------------------------------
@@ -619,5 +638,94 @@ describe("cycle-time-drilldown", () => {
     click(dot);
 
     expect(isDetailPanelOpen()).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Comparison-mode keyboard guard (PR #302 P1.E checklist)
+  // -------------------------------------------------------------------------
+
+  it("keyboard Enter in comparison mode opens the advisory toast, NOT the panel", () => {
+    const rollups = makeRollupSeries(4);
+    const container = mountChart(rollups);
+    installCycleTimeDrilldown(container, rollups);
+
+    publishComparisonToggled({ enabled: true });
+    dotFor(container, "2025-W10", "p50").dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+      }),
+    );
+
+    expect(isDetailPanelOpen()).toBe(false);
+    expect(document.querySelector(".comparison-advisory-toast")).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // aria-expanded toggle (PR #302 P1.E sentinel)
+  // -------------------------------------------------------------------------
+
+  describe("aria-expanded toggle", () => {
+    it("renders aria-expanded='false' on every <g> dot trigger at install time", () => {
+      const rollups = makeRollupSeries(4);
+      const container = mountChart(rollups);
+      installCycleTimeDrilldown(container, rollups);
+
+      const triggers = container.querySelectorAll<HTMLElement>(
+        "g[data-drilldown-week][data-drilldown-metric]",
+      );
+      expect(triggers.length).toBeGreaterThan(0);
+      for (const trigger of Array.from(triggers)) {
+        expect(trigger.getAttribute("aria-expanded")).toBe("false");
+      }
+    });
+
+    it("flips aria-expanded='true' on the activated <g> when the panel opens", () => {
+      const rollups = makeRollupSeries(4);
+      const container = mountChart(rollups);
+      installCycleTimeDrilldown(container, rollups);
+      const dot = dotFor(container, "2025-W10", "p50");
+
+      click(dot);
+
+      expect(isDetailPanelOpen()).toBe(true);
+      expect(dot.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("retargeting from p50 to p90 updates aria-expanded on both dots", () => {
+      const rollups = makeRollupSeries(4);
+      const container = mountChart(rollups);
+      installCycleTimeDrilldown(container, rollups);
+      const p50 = dotFor(container, "2025-W10", "p50");
+      const p90 = dotFor(container, "2025-W10", "p90");
+
+      click(p50);
+      expect(p50.getAttribute("aria-expanded")).toBe("true");
+      expect(p90.getAttribute("aria-expanded")).toBe("false");
+
+      // Retargeting goes through clearActive() synchronously inside
+      // activate() (no observer needed for the swap), so both attrs
+      // settle in the same tick.
+      click(p90);
+      expect(p50.getAttribute("aria-expanded")).toBe("false");
+      expect(p90.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("resets aria-expanded='false' on the trigger via every dismiss path through clearActive", async () => {
+      const rollups = makeRollupSeries(4);
+      const container = mountChart(rollups);
+      installCycleTimeDrilldown(container, rollups);
+      const dot = dotFor(container, "2025-W10", "p50");
+
+      click(dot);
+      expect(dot.getAttribute("aria-expanded")).toBe("true");
+
+      dismissDetailPanel("explicit-close-button");
+      // MutationObserver on panel.is-open is async — let the microtask
+      // run so clearActive fires and resets aria-expanded.
+      await Promise.resolve();
+      expect(dot.getAttribute("aria-expanded")).toBe("false");
+    });
   });
 });

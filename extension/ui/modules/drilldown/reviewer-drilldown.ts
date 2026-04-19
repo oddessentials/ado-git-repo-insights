@@ -155,6 +155,9 @@ export function installReviewerDrilldown(
   function clearActive(): void {
     if (activeTrigger) {
       activeTrigger.classList.remove(ACTIVE_CLASS);
+      // PR #302 P1.E — aria-expanded mirrors active class; symmetric
+      // with throughput-drilldown.ts and cycle-time-drilldown.ts.
+      activeTrigger.setAttribute("aria-expanded", "false");
       activeTrigger = null;
     }
   }
@@ -200,6 +203,7 @@ export function installReviewerDrilldown(
     clearActive();
     activeTrigger = trigger;
     trigger.classList.add(ACTIVE_CLASS);
+    trigger.setAttribute("aria-expanded", "true");
     registerPanelObserver();
   }
 

@@ -665,4 +665,87 @@ describe("reviewer-drilldown", () => {
       "1 PR reviewed",
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Comparison-mode keyboard guard (PR #302 P1.E checklist)
+  // -------------------------------------------------------------------------
+
+  it("keyboard Enter in comparison mode opens the advisory toast, NOT the panel", () => {
+    const rollups = makeDefaultRollups();
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups);
+
+    publishComparisonToggled({ enabled: true });
+    rowFor(container, "2025-W10").dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+      }),
+    );
+
+    expect(isDetailPanelOpen()).toBe(false);
+    expect(document.querySelector(".comparison-advisory-toast")).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // aria-expanded toggle (PR #302 P1.E sentinel)
+  // -------------------------------------------------------------------------
+
+  describe("aria-expanded toggle", () => {
+    it("renders aria-expanded='false' on every row when filter is active", () => {
+      const rollups = makeDefaultRollups();
+      const container = mountChart(rollups);
+      installReviewerDrilldown(container, rollups);
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBe(3);
+      for (const row of Array.from(rows)) {
+        expect(row.getAttribute("aria-expanded")).toBe("false");
+      }
+    });
+
+    it("flips aria-expanded='true' on the activated row when the panel opens", () => {
+      const rollups = makeDefaultRollups();
+      const container = mountChart(rollups);
+      installReviewerDrilldown(container, rollups);
+      const row = rowFor(container, "2025-W10");
+
+      click(row);
+
+      expect(isDetailPanelOpen()).toBe(true);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("resets aria-expanded='false' on the trigger via every dismiss path through clearActive", async () => {
+      const rollups = makeDefaultRollups();
+      const container = mountChart(rollups);
+      installReviewerDrilldown(container, rollups);
+      const row = rowFor(container, "2025-W10");
+
+      click(row);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+
+      dismissDetailPanel("explicit-close-button");
+      // MutationObserver on panel.is-open is async — let the microtask
+      // run so clearActive fires and resets aria-expanded.
+      await Promise.resolve();
+      expect(row.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("rows have NO aria-expanded attribute when reviewer filter is inactive", () => {
+      const rollups = makeDefaultRollups();
+      const container = mountChart(rollups, false, null);
+      installReviewerDrilldown(container, rollups);
+
+      const rows = container.querySelectorAll<HTMLElement>(".h-bar-row");
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        expect(row.hasAttribute("aria-expanded")).toBe(false);
+        expect(row.hasAttribute("data-drilldown-reviewer-id")).toBe(false);
+      }
+    });
+  });
 });

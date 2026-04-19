@@ -1209,6 +1209,37 @@ input[type="search"]::placeholder {
     cursor: pointer;
 }
 
+/* PR #302 P1.E — Drill-down affordance.
+ * Attribute-scoped cursor + hover + focus-visible parity for the three
+ * drill-down trigger types (throughput bar, reviewer row, cycle-time
+ * <g> dot wrapper). Hover and focus-visible apply identical brightness
+ * so keyboard users get parity with mouse hover (WCAG 1.4.13 / 2.4.7).
+ * Comparison-disabled overrides live in the comparison-advisory block
+ * later in the file and win on source-order tie. */
+.bar-container[data-drilldown-week] {
+    cursor: pointer;
+}
+.bar-container[data-drilldown-week]:hover .bar,
+.bar-container[data-drilldown-week]:focus-visible .bar {
+    filter: brightness(1.08);
+}
+
+.h-bar-row[data-drilldown-reviewer-id] {
+    cursor: pointer;
+}
+.h-bar-row[data-drilldown-reviewer-id]:hover .h-bar,
+.h-bar-row[data-drilldown-reviewer-id]:focus-visible .h-bar {
+    filter: brightness(1.08);
+}
+
+g[role="button"][data-drilldown-week] {
+    cursor: pointer;
+}
+g[role="button"][data-drilldown-week]:hover .line-chart-dot,
+g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
+    filter: brightness(1.08);
+}
+
 .line-chart-grid {
     stroke: var(--border);
     stroke-width: 1;
@@ -3193,6 +3224,19 @@ input[type="search"]::placeholder {
 [data-drilldown-disabled="comparison"] [data-drilldown-target-chart] {
     cursor: default;
     opacity: 0.75;
+}
+
+/* PR #302 P1.E — when comparison disables drill-down, suppress the
+ * affordance hover/focus brightness rules. Source-order ties with the
+ * affordance rules above; this block (later in file) wins. Covers the
+ * three trigger types and the cycle-time <g> wrapper. */
+[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:hover .bar,
+[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:focus-visible .bar,
+[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:hover .h-bar,
+[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:focus-visible .h-bar,
+[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:hover .line-chart-dot,
+[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
+    filter: none;
 }
 
 .comparison-advisory-toast {

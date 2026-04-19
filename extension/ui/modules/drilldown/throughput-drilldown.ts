@@ -107,6 +107,12 @@ export function installThroughputDrilldown(
   function clearActive(): void {
     if (activeTrigger) {
       activeTrigger.classList.remove(ACTIVE_CLASS);
+      // PR #302 P1.E — keep aria-expanded in lockstep with the active
+      // class. clearActive runs from every dismiss path (Escape, outside
+      // click, close button, filters-changed, tab-changed, comparison-
+      // toggled, retarget) via the panel observer, so this single site
+      // covers all SR-state transitions.
+      activeTrigger.setAttribute("aria-expanded", "false");
       activeTrigger = null;
     }
   }
@@ -155,6 +161,7 @@ export function installThroughputDrilldown(
     clearActive();
     activeTrigger = trigger;
     trigger.classList.add(ACTIVE_CLASS);
+    trigger.setAttribute("aria-expanded", "true");
     registerPanelObserver();
   }
 
