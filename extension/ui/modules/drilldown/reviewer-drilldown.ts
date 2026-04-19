@@ -39,12 +39,14 @@ import { dismissAllTooltips } from "../tooltip-manager";
 import { formatWeekLabel } from "../shared/format";
 import {
   makeBreakdownTable,
+  makeEmptyState,
   makePanelContent,
   makeStatRow,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
   type PanelRow,
+  type PanelSection,
 } from "../shared/detail-panel";
 import {
   isDrilldownDisabledByComparison,
@@ -99,7 +101,10 @@ function buildStatRow(rollups: readonly Rollup[], reviewerId: string) {
   };
 }
 
-function buildWeeklyTable(rollups: readonly Rollup[], reviewerId: string) {
+function buildWeeklyTable(
+  rollups: readonly Rollup[],
+  reviewerId: string,
+): PanelSection {
   const rows: PanelRow[] = [];
   for (const rollup of rollups) {
     const entry = reviewerEntry(rollup, reviewerId);
@@ -117,6 +122,18 @@ function buildWeeklyTable(rollups: readonly Rollup[], reviewerId: string) {
         rateCell,
       ],
     });
+  }
+  if (rows.length === 0) {
+    // PR #302 P1.G — FR-071: when the reviewer has no by_reviewer entry
+    // in any rollup for the active period, emit EmptyStateSection so the
+    // panel doesn't render a header-only table. Symmetric with
+    // throughput-drilldown.ts:49-65 and cycle-time-drilldown.ts:59-82.
+    // Section-level aria-labelledby intentionally omitted (a11y P3-2
+    // scope, not this slice).
+    return makeEmptyState(
+      "Weekly activity",
+      "No review activity recorded for this reviewer in this period.",
+    );
   }
   return makeBreakdownTable(
     "Weekly activity",

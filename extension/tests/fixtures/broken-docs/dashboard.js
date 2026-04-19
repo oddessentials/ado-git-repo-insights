@@ -8410,6 +8410,12 @@ var PRInsightsDashboard = (() => {
         ]
       });
     }
+    if (rows.length === 0) {
+      return makeEmptyState(
+        "Weekly activity",
+        "No review activity recorded for this reviewer in this period."
+      );
+    }
     return makeBreakdownTable(
       "Weekly activity",
       ["Week", "Reviews", "PRs reviewed", "Approval rate"],

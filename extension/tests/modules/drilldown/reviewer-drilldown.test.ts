@@ -646,6 +646,46 @@ describe("reviewer-drilldown", () => {
     );
   });
 
+  // PR #302 P1.G — reviewer empty-week table must emit an EmptyStateSection
+  // rather than rendering a header-only breakdown table (FR-071 symmetry
+  // with throughput-drilldown + cycle-time-drilldown).
+  it("weekly activity renders an EmptyStateSection (not an empty table) when the reviewer has no entries across any rollup", () => {
+    const rollups = [
+      makeRollup({
+        week: "2025-W10",
+        reviewers_count: 3,
+        reviewsCount: 5,
+        reviewedPrs: 3,
+        approvalRate: 0.5,
+      }),
+    ];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups);
+    const row = rowFor(container, "2025-W10");
+    row.setAttribute("data-drilldown-reviewer-id", "bob@example.com");
+
+    click(row);
+
+    const panel = document.querySelector<HTMLElement>("aside.detail-panel")!;
+    // Empty-state section carries the h3 title in place of the table.
+    const emptyStates = panel.querySelectorAll(
+      ".detail-panel-section--empty-state",
+    );
+    expect(emptyStates.length).toBe(1);
+    expect(emptyStates[0]!.querySelector("h3")!.textContent).toBe(
+      "Weekly activity",
+    );
+    expect(emptyStates[0]!.querySelector("p")!.textContent).toBe(
+      "No review activity recorded for this reviewer in this period.",
+    );
+    // No <table> must render for the empty branch (the bug was a
+    // header-only breakdown table).
+    expect(panel.querySelector("table")).toBeNull();
+    // Heading hierarchy stays single-h2 (the panel title) so SR
+    // landmark navigation is unchanged.
+    expect(panel.querySelectorAll("h2").length).toBe(1);
+  });
+
   it("subtitle uses singular 'PR reviewed' when totalPrs === 1", () => {
     const rollups = [
       makeRollup({
