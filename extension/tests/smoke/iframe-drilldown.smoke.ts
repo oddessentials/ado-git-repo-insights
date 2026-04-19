@@ -297,11 +297,17 @@ test.describe("Iframe drill-down smoke tests", () => {
     const panel = frame.locator(".detail-panel.is-open");
     await expect(panel).toBeVisible({ timeout: SMOKE_TIMEOUT_MS });
 
-    const repoFilter = frame.getByTestId("filter-repository");
-    await repoFilter.locator(".typeahead-input").click();
-    const options = await repoFilter.locator('[role="option"]').all();
-    expect(options.length).toBeGreaterThan(0);
-    await options[0]!.click();
+    // Trigger the filter change via the Date Range <select> rather than
+    // the Repository typeahead. Test intent is the FR-008 dismiss-path
+    // invariant (FILTERS_CHANGED_EVENT closes an open panel), not
+    // typeahead-click ergonomics. Date Range sits in the top-left of
+    // the filter bar — a stable uncovered control at every supported
+    // viewport, unlike the right-side filters whose typeahead inputs
+    // can sit under the position:fixed detail panel when it is open,
+    // and the same signal path fires via handleDateRangeChange →
+    // refreshMetrics → publishFiltersChanged.
+    const dateRange = frame.locator("#date-range");
+    await dateRange.selectOption("30");
 
     await page.screenshot({
       path: testInfo.outputPath("iframe-filter-change-dismiss.png"),
