@@ -192,4 +192,62 @@ describe("comparison-advisory — transient toast", () => {
     publishComparisonToggled({ enabled: false });
     expect(document.querySelector(".comparison-advisory-toast")).toBeNull();
   });
+
+  it("positions toast against a target in the middle of the viewport (non-boundary placement)", () => {
+    // Set predictable viewport dims so top/left clamping branches do not
+    // fire: target rect safely clear of all four viewport edges.
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1200,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 800,
+    });
+    const target = makeTrigger();
+    Object.defineProperty(target, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 400,
+        y: 200,
+        width: 100,
+        height: 30,
+        top: 200,
+        left: 400,
+        right: 500,
+        bottom: 230,
+        toJSON: () => ({}),
+      }),
+    });
+
+    showComparisonAdvisoryToast(target);
+    const toast = document.querySelector<HTMLElement>(
+      ".comparison-advisory-toast",
+    );
+    expect(toast).not.toBeNull();
+    // Toast should not be pushed to the viewport edges by the clamp
+    // branches when the target sits in the middle.
+    expect(toast!.style.top).not.toBe("4px");
+    expect(toast!.style.left).not.toBe("4px");
+  });
+
+  it("stale timer from a replaced toast is a no-op against the current active toast", () => {
+    const a = makeTrigger();
+    const b = makeTrigger();
+
+    showComparisonAdvisoryToast(a);
+    // Advance timer partway — still in-flight.
+    jest.advanceTimersByTime(1000);
+    // Replace with a new toast: the original's timer still exists until
+    // dismissActiveToast() clears it, which showComparisonAdvisoryToast
+    // does internally. Firing the remainder should leave `b` intact.
+    showComparisonAdvisoryToast(b);
+    jest.advanceTimersByTime(COMPARISON_ADVISORY_TOAST_MS - 1000 - 1);
+
+    // The new toast is still showing; the replaced timer (if it fired)
+    // must NOT have touched it because activeToast !== the replaced one.
+    expect(document.querySelectorAll(".comparison-advisory-toast").length).toBe(
+      1,
+    );
+  });
 });

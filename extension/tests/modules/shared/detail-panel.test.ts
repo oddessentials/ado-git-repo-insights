@@ -415,6 +415,81 @@ describe("detail-panel — performance and viewport (SC-001, FR-012)", () => {
     expect(elapsed).toBeLessThan(1000);
   });
 
+  it("renders a stat-row tone attribute when PanelStat.tone is provided", () => {
+    const trigger = makeTriggerButton();
+    const content = makePanelContent("With tone", null, [
+      makeStatRow([
+        { label: "Positive", value: "+12%", tone: "positive" },
+        { label: "Negative", value: "-8%", tone: "negative" },
+        { label: "Neutral", value: "0%" },
+      ]),
+    ]);
+    openDetailPanel({
+      sourceChart: "throughput",
+      focusedData: { kind: "throughput", weekIso: "2025-W12" },
+      triggerElement: trigger,
+      content,
+    });
+
+    const dds = Array.from(
+      document.querySelectorAll<HTMLElement>(".detail-panel-stats dd"),
+    );
+    expect(dds.length).toBe(3);
+    expect(dds[0]!.getAttribute("data-tone")).toBe("positive");
+    expect(dds[1]!.getAttribute("data-tone")).toBe("negative");
+    // No tone provided — attribute should NOT be set.
+    expect(dds[2]!.hasAttribute("data-tone")).toBe(false);
+  });
+
+  it("openDetailPanel re-validates content when a caller hand-rolls a PanelContent bypassing the helpers", () => {
+    const trigger = makeTriggerButton();
+    // Intentionally craft a raw shape that skirts the construction helpers.
+    const emptyTitle: PanelContent = {
+      title: "",
+      subtitle: null,
+      sections: [makeEmptyState("x", "y")],
+    };
+    expect(() =>
+      openDetailPanel({
+        sourceChart: "throughput",
+        focusedData: { kind: "throughput", weekIso: "2025-W12" },
+        triggerElement: trigger,
+        content: emptyTitle,
+      }),
+    ).toThrow(TypeError);
+
+    const emptySections: PanelContent = {
+      title: "Title",
+      subtitle: null,
+      sections: [],
+    };
+    expect(() =>
+      openDetailPanel({
+        sourceChart: "throughput",
+        focusedData: { kind: "throughput", weekIso: "2025-W12" },
+        triggerElement: trigger,
+        content: emptySections,
+      }),
+    ).toThrow(TypeError);
+  });
+
+  it("dismissDetailPanel is a no-op when called while the panel is already closed", () => {
+    // Panel starts closed — calling dismiss must not throw and must not
+    // leave any state behind.
+    expect(isDetailPanelOpen()).toBe(false);
+    dismissDetailPanel("escape-key");
+    expect(isDetailPanelOpen()).toBe(false);
+
+    // Exercise all other reasons the same way — the guard is reason-
+    // agnostic so any reason should be a no-op when closed.
+    dismissDetailPanel("outside-click");
+    dismissDetailPanel("filters-changed");
+    dismissDetailPanel("tab-changed");
+    dismissDetailPanel("comparison-toggled");
+    dismissDetailPanel("explicit-close-button");
+    expect(isDetailPanelOpen()).toBe(false);
+  });
+
   it("stays within the viewport at the 768 px minimum supported width (FR-012)", () => {
     // Resize jsdom's viewport to the minimum supported dashboard width.
     Object.defineProperty(window, "innerWidth", {

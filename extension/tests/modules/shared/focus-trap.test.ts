@@ -176,3 +176,95 @@ describe("focus-trap", () => {
     controller.abort();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Partial-branch coverage top-up (feature 059 hardening)
+//
+// Drives additional branches of `handleKeydown` to covered: non-Tab keys,
+// empty-root Tab, and mid-cycle Tab / Shift+Tab where the handler must
+// leave the default to the browser.
+// ---------------------------------------------------------------------------
+
+describe("focus-trap — branch coverage top-up", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("ignores non-Tab keys (handler returns early)", () => {
+    const { root, last } = makeRoot();
+    last.focus();
+    const controller = trapFocus(root);
+
+    // Escape, Enter, ArrowDown — none should move focus or throw.
+    for (const key of ["Escape", "Enter", "ArrowDown", "a"]) {
+      root.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }
+
+    expect(document.activeElement).toBe(last);
+    controller.abort();
+  });
+
+  it("preventDefaults Tab on a trap with no focusable descendants", () => {
+    const root = document.createElement("div");
+    // Only a non-focusable child — trap should still swallow Tab.
+    const inert = document.createElement("div");
+    root.appendChild(inert);
+    document.body.appendChild(root);
+
+    const controller = trapFocus(root);
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    controller.abort();
+  });
+
+  it("does not intercept Tab when focus is mid-cycle on a focusable element that is not the last", () => {
+    const { root, middle, last } = makeRoot();
+    middle.focus();
+    const controller = trapFocus(root);
+
+    // Not a boundary — handler falls through to native behavior, which in
+    // jsdom does not advance focus. Assert focus stays where we placed it.
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(middle);
+    expect(document.activeElement).not.toBe(last);
+    controller.abort();
+  });
+
+  it("does not intercept Shift+Tab when focus is mid-cycle on a focusable element that is not the first", () => {
+    const { root, middle, first } = makeRoot();
+    middle.focus();
+    const controller = trapFocus(root);
+
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(middle);
+    expect(document.activeElement).not.toBe(first);
+    controller.abort();
+  });
+});
