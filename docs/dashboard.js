@@ -9074,6 +9074,30 @@ var PRInsightsDashboard = (() => {
       comparisonMode
     };
   }
+  function setChartContainersInert(value) {
+    const containerIds = [
+      "throughput-chart",
+      "cycle-time-trend",
+      "reviewer-activity"
+    ];
+    for (const id of containerIds) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (value) {
+        el.setAttribute("inert", "");
+      } else {
+        el.removeAttribute("inert");
+      }
+    }
+    const summaryCards = document.querySelector(".summary-cards");
+    if (summaryCards) {
+      if (value) {
+        summaryCards.setAttribute("inert", "");
+      } else {
+        summaryCards.removeAttribute("inert");
+      }
+    }
+  }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
     const candidateState = buildEffectiveState();
@@ -9083,6 +9107,7 @@ var PRInsightsDashboard = (() => {
       if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
     publishFiltersChanged({ reason: "user-change" });
+    setChartContainersInert(true);
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
@@ -9167,6 +9192,8 @@ var PRInsightsDashboard = (() => {
         failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
       }
       throw err;
+    } finally {
+      setChartContainersInert(false);
     }
   }
   function updateAccuracyIndicator(rawRollups, filters) {

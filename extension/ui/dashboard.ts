@@ -885,6 +885,45 @@ function buildEffectiveState(): EffectiveState {
 }
 
 /**
+ * Toggle the `inert` attribute on the four drill-down host containers so
+ * stale triggers cannot be activated by click or keyboard during the
+ * refresh load window. The dispose-deferred-to-render layout in
+ * `refreshMetrics` (P1.A from PR #302 review) leaves listeners attached
+ * to the previous cycle's chart DOM during the await chain; without
+ * inert, a click or keyboard activation in that window would open a
+ * panel against pre-change data. `inert` blocks both modalities and
+ * removes the subtree from the accessibility tree for the load window.
+ *
+ * Set via `setAttribute`/`removeAttribute` rather than the
+ * `HTMLElement.inert` IDL property so the call works regardless of the
+ * lib.dom.d.ts version the project compiles against.
+ */
+function setChartContainersInert(value: boolean): void {
+  const containerIds = [
+    "throughput-chart",
+    "cycle-time-trend",
+    "reviewer-activity",
+  ] as const;
+  for (const id of containerIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (value) {
+      el.setAttribute("inert", "");
+    } else {
+      el.removeAttribute("inert");
+    }
+  }
+  const summaryCards = document.querySelector<HTMLElement>(".summary-cards");
+  if (summaryCards) {
+    if (value) {
+      summaryCards.setAttribute("inert", "");
+    } else {
+      summaryCards.removeAttribute("inert");
+    }
+  }
+}
+
+/**
  * Refresh metrics for current date range.
  *
  * Loading state lifecycle:
@@ -928,6 +967,12 @@ async function refreshMetrics(): Promise<void> {
   // the render block (after the final stale guard) so that a stale-cycle bail
   // at lines guarded by isStale below cannot leave charts visually interactive
   // but listener-dead. See PR #302 review finding P1.A.
+  //
+  // Mark chart containers inert for the refresh window so the still-attached
+  // listeners cannot be activated by click or keyboard against stale DOM. The
+  // finally below clears inert on every exit path (success / failure /
+  // stale-bail / error). See PR #302 P1.A follow-up (Codex catch).
+  setChartContainersInert(true);
 
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
@@ -1063,6 +1108,10 @@ async function refreshMetrics(): Promise<void> {
       failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
     }
     throw err;
+  } finally {
+    // Always clear inert — covers success, failure, stale-bail return,
+    // and any other early exit from the try body.
+    setChartContainersInert(false);
   }
 }
 

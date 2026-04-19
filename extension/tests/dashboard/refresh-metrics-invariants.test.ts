@@ -86,3 +86,52 @@ describe("refresh-metrics-invariants — handle array reset/push integrity", () 
     expect(between).not.toContain(HANDLE_PUSH);
   });
 });
+
+describe("refresh-metrics-invariants — chart-container inert during load window", () => {
+  it("setChartContainersInert(true) follows publishFiltersChanged synchronously", () => {
+    const publishIdx = dashboardSrc.indexOf("publishFiltersChanged({");
+    expect(publishIdx).toBeGreaterThan(-1);
+
+    const inertTrueIdx = dashboardSrc.indexOf(
+      "setChartContainersInert(true)",
+    );
+    expect(inertTrueIdx).toBeGreaterThan(publishIdx);
+
+    // Must run synchronously before the first await so stale triggers are
+    // inert by the time any user interaction can happen during the load
+    // window.
+    const firstAwaitIdx = dashboardSrc.indexOf(
+      "await loader.getWeeklyRollups(",
+    );
+    expect(inertTrueIdx).toBeLessThan(firstAwaitIdx);
+  });
+
+  it("setChartContainersInert(false) is in a finally clause covering every exit path", () => {
+    const inertFalseMatches =
+      dashboardSrc.match(/setChartContainersInert\(false\)/g) ?? [];
+    expect(inertFalseMatches).toHaveLength(1);
+
+    // The clear must live inside a finally block so success, failure,
+    // stale-bail return, and any other early exit all clear inert.
+    const finallyIdx = dashboardSrc.indexOf("} finally {");
+    expect(finallyIdx).toBeGreaterThan(-1);
+
+    const inertFalseIdx = dashboardSrc.indexOf(
+      "setChartContainersInert(false)",
+    );
+    expect(inertFalseIdx).toBeGreaterThan(finallyIdx);
+  });
+
+  it("setChartContainersInert helper toggles all four drill-down host containers", () => {
+    const helperStart = dashboardSrc.indexOf(
+      "function setChartContainersInert(",
+    );
+    expect(helperStart).toBeGreaterThan(-1);
+
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 2000);
+    expect(helperBody).toContain('"throughput-chart"');
+    expect(helperBody).toContain('"cycle-time-trend"');
+    expect(helperBody).toContain('"reviewer-activity"');
+    expect(helperBody).toContain('".summary-cards"');
+  });
+});
