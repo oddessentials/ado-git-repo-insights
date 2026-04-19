@@ -663,6 +663,129 @@ class TestFormatCheckParity:
         )
 
 
+class TestFormatWriteParity:
+    """Parity-drift coverage for the Prettier auto-format (write) gate.
+
+    Contract: the ``format`` script is the single authoritative auto-fix
+    command. The pre-commit hook in ``.pre-commit-config.yaml`` invokes
+    it via ``pnpm --dir ./extension run format`` (outside form — the
+    hook runs from the repo root). No call site may invoke
+    ``prettier --write`` directly; the only allowed direct reference is
+    the script definition in ``extension/package.json``.
+    """
+
+    def test_format_write_script_uses_repo_root_prettierignore(self) -> None:
+        """Lock the authoritative flags in the ``format`` script so no
+        call site can silently drift on config or ignore-file path.
+        Mirrors ``format:check`` form exactly with ``--write`` substituted
+        for ``--check``."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        script = ext_pkg.get("scripts", {}).get("format", "")
+        assert script.startswith("prettier --write"), (
+            f"format must invoke `prettier --write`; got: {script!r}"
+        )
+        assert "--ignore-path ../.prettierignore" in script, (
+            "format must use the repo-root .prettierignore via "
+            f"`--ignore-path ../.prettierignore`; got: {script!r}"
+        )
+        assert '"**/*.{ts,js,json,md}"' in script, (
+            "format glob must be locked to the current scope "
+            f"(ts/js/json/md); got: {script!r}"
+        )
+
+    def test_precommit_hook_invokes_format_write(self) -> None:
+        """The ``prettier-format`` hook in ``.pre-commit-config.yaml``
+        auto-fixes at pre-commit stage so drift is caught BEFORE a
+        commit lands, rather than minutes later at the pre-push
+        Extension format check gate. Must invoke the authoritative
+        script via the outside form (``pnpm --dir ./extension run
+        format``) since pre-commit hooks run from the repo root."""
+        config = yaml.safe_load(
+            (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        )
+        local_repo = next(
+            (repo for repo in config.get("repos", []) if repo.get("repo") == "local"),
+            None,
+        )
+        assert local_repo is not None, (
+            ".pre-commit-config.yaml has no local repo entry; the "
+            "prettier-format hook must live in the local-hooks block."
+        )
+        hooks = local_repo.get("hooks", [])
+        match = next(
+            (hook for hook in hooks if hook.get("id") == "prettier-format"),
+            None,
+        )
+        assert match is not None, (
+            ".pre-commit-config.yaml is missing the 'prettier-format' "
+            "hook. Pre-commit parity requires this hook so the gate "
+            "fires at commit time — catching prettier drift in <3 s "
+            "instead of the ~minute-long pre-push preflight cycle."
+        )
+        assert match.get("entry") == "pnpm --dir ./extension run format", (
+            f".pre-commit-config.yaml hook 'prettier-format' entry "
+            f"{match.get('entry')!r} does not match the authoritative "
+            "outside-form invocation `pnpm --dir ./extension run format`."
+        )
+        assert match.get("stages") == ["pre-commit"], (
+            f".pre-commit-config.yaml hook 'prettier-format' stages "
+            f"{match.get('stages')!r} should be ['pre-commit'] — this "
+            "hook is the auto-fix front-stop; `Extension format check` "
+            "in preflight remains the pre-push backstop."
+        )
+        assert match.get("pass_filenames") is False, (
+            ".pre-commit-config.yaml hook 'prettier-format' must have "
+            "pass_filenames: false — the authoritative script uses its "
+            "own internal glob, and pre-commit must not inject file "
+            "paths (which would bypass the locked-scope invariant)."
+        )
+        assert match.get("always_run") is True, (
+            ".pre-commit-config.yaml hook 'prettier-format' must have "
+            "always_run: true — the hook is scope-agnostic; we cannot "
+            "rely on pre-commit's file-change detection because the "
+            "script ignores pre-commit's filenames (see above)."
+        )
+
+    def test_no_direct_prettier_write_outside_authoritative_script(self) -> None:
+        """Only one file may contain the literal ``prettier --write``:
+        the ``format`` script definition in ``extension/package.json``.
+        All other call sites must go through ``pnpm run format``
+        (inside form) or ``pnpm --dir ./extension run format``
+        (outside form).
+        """
+        result = subprocess.run(
+            ["git", "grep", "-n", "--fixed-strings", "prettier --write"],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        hits = [line for line in result.stdout.splitlines() if line]
+
+        allowed_prefixes = (
+            "extension/package.json:",
+            "tests/unit/test_ci_parity_drift.py:",
+        )
+        disallowed = [h for h in hits if not h.startswith(allowed_prefixes)]
+        assert not disallowed, (
+            "Direct `prettier --write` invocation found outside the "
+            "authoritative script. All call sites must use `pnpm run "
+            "format` (inside form) or `pnpm --dir ./extension run "
+            "format` (outside form).\n"
+            "Disallowed hits:\n" + "\n".join(f"  {h}" for h in disallowed)
+        )
+
+        pkg_hits = [h for h in hits if h.startswith("extension/package.json:")]
+        assert len(pkg_hits) == 1, (
+            "extension/package.json must contain exactly one "
+            "`prettier --write` occurrence (the format script "
+            f"definition). Found {len(pkg_hits)}:\n"
+            + "\n".join(f"  {h}" for h in pkg_hits)
+        )
+
+
 class TestPartialBranchesParity:
     """Parity-drift coverage for the per-file partial-branch ratchet (#272).
 

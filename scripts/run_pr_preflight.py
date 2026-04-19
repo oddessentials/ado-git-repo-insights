@@ -360,6 +360,16 @@ def build_commands(
                 str(base_temp("build")),
             ),
         ),
+        # Prettier runs first in the Extension block so format drift fails
+        # fast (<3 s) rather than surfacing after the ~minute-long build +
+        # type-check chain. Pre-commit catches most drift earlier via the
+        # prettier-format hook; this entry is the pre-push / CI backstop
+        # (parity-locked by tests/unit/test_ci_parity_drift.py).
+        CommandSpec(
+            "Extension format check",
+            (PNPM_SENTINEL, "run", "format:check"),
+            cwd=EXTENSION_ROOT,
+        ),
         CommandSpec(
             "Extension build check",
             (PNPM_SENTINEL, "run", "build:check"),
@@ -383,11 +393,6 @@ def build_commands(
         CommandSpec(
             "Extension test lint",
             (PNPM_SENTINEL, "run", "lint:tests"),
-            cwd=EXTENSION_ROOT,
-        ),
-        CommandSpec(
-            "Extension format check",
-            (PNPM_SENTINEL, "run", "format:check"),
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(

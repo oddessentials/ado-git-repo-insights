@@ -99,3 +99,17 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+
+      # Mirrors the ruff-format pattern: auto-format at pre-commit so drift
+      # is caught BEFORE a commit lands, rather than surfacing minutes later
+      # at the pre-push `Extension format check` gate inside PR preflight.
+      # Invokes the authoritative `format` script (outside form, since this
+      # hook runs from repo root) per the single-command-per-gate invariant
+      # in tests/unit/test_ci_parity_drift.py TestFormatWriteParity.
+      - id: prettier-format
+        name: prettier (auto-format extension sources)
+        entry: pnpm --dir ./extension run format
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
