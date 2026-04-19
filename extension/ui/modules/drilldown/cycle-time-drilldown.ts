@@ -1,37 +1,40 @@
 /**
- * Throughput drill-down (US1).
+ * Cycle-time drill-down (US2).
  *
- * Delegated `click` + `keydown` on the throughput chart container per
- * `contracts/drilldown-integration.md`: resolves `[data-drilldown-week]`
- * targets and opens the shared DetailPanel with per-week breakdowns
- * sourced from the already-rendered rollup slice (no second data fetch —
- * FR-070). Keyboard activation (Enter/Space on a focused bar) triggers
- * the same flow; Space calls `preventDefault()` to suppress page scroll.
+ * Delegated `click` + `keydown` on the cycle-time chart container per
+ * `contracts/drilldown-integration.md`: resolves
+ * `[data-drilldown-metric]` targets on `.line-chart-dot` SVG circles
+ * (the lowercase attribute is intentional — the existing uppercase
+ * `data-metric` attribute is preserved for the tooltip layer) and
+ * opens the shared DetailPanel.
  *
- * Touch activation: relies on the browser-synthesized `click` event
- * that follows a touch tap. The companion chart-tooltip pointerup
- * handler in `modules/charts.ts` intentionally does NOT call
- * `preventDefault` so the synthesized click propagates to this
- * delegated listener; `tests/modules/charts/tooltip.test.ts` locks
- * that invariant.
+ * Retarget-in-place: the DetailPanel itself handles content swap when
+ * `openDetailPanel` is called while already open (see
+ * `contracts/detail-panel-api.md`). Clicking P50 then P90 on the same
+ * week (or switching weeks entirely) produces a single CSS transition,
+ * not a close/reopen flicker.
  *
- * `is-drilldown-active` class tracking uses a MutationObserver on the
- * shared panel root's `class` attribute: when the panel loses `is-open`
- * (via any dismiss path — Escape, outside-click, close button, filters-
- * changed, tab-changed, comparison-toggled) the observer fires once,
- * removes the class, disconnects itself, and drops out of the install's
- * observer set. `dispose()` additionally disconnects any still-live
- * observers so a stale observer from a disposed install cannot influence
- * a subsequent install.
+ * Panel content shape per FR-021 + FR-031 + data-model.md:19:
+ *   - title: "Week of {condensed range} — {METRIC}" (metric uppercase)
+ *   - subtitle: "{n} PRs"
+ *   - sections: StatRowSection (P50, P90 via formatDuration) + per-
+ *     repository BreakdownTableSection (or EmptyStateSection when
+ *     `by_repository` is empty/null).
+ *
+ * Touch / tooltip / MutationObserver contracts mirror the throughput
+ * drill-down module; see `throughput-drilldown.ts` for the invariant
+ * commentary.
  */
 
 import type { Rollup } from "../../dataset-loader";
 import type { BreakdownEntry } from "../../schemas/rollup.schema";
 import { dismissAllTooltips } from "../tooltip-manager";
+import { formatDuration } from "../shared/format";
 import {
   makeBreakdownTable,
   makeEmptyState,
   makePanelContent,
+  makeStatRow,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
@@ -46,46 +49,54 @@ import { formatWeekTitle } from "./week-range";
 
 const ACTIVE_CLASS = "is-drilldown-active";
 
-function breakdownSection(
-  title: string,
-  columns: readonly [string, string, ...string[]],
+type Metric = "p50" | "p90";
+
+function formatDurationOrDash(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return formatDuration(value);
+}
+
+function buildRepositoryBreakdown(
   entries: Record<string, BreakdownEntry> | null | undefined,
-  emptyDetail: string,
 ): PanelSection {
   if (!entries || Object.keys(entries).length === 0) {
-    return makeEmptyState(title, emptyDetail);
+    return makeEmptyState(
+      "By repository",
+      "No repository-level cycle-time data for this week.",
+    );
   }
   const rows: PanelRow[] = Object.entries(entries)
     .sort((a, b) => b[1].pr_count - a[1].pr_count)
     .map(([label, entry]) => ({
       label,
-      values: [String(entry.pr_count)],
+      values: [
+        formatDurationOrDash(entry.cycle_time_p50),
+        formatDurationOrDash(entry.cycle_time_p90),
+      ],
     }));
-  return makeBreakdownTable(title, columns, rows);
+  return makeBreakdownTable(
+    "By repository",
+    ["Repository", "P50", "P90"] as const,
+    rows,
+  );
 }
 
-function buildPanelContent(rollup: Rollup): PanelContent {
+function buildPanelContent(rollup: Rollup, metric: Metric): PanelContent {
   const count = rollup.pr_count;
+  const weekTitle = formatWeekTitle(rollup);
+  const title = `${weekTitle} — ${metric.toUpperCase()}`;
   const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
-  const byAuthor = breakdownSection(
-    "By author",
-    ["Author", "PRs"] as const,
-    rollup.by_author,
-    "No author-level activity for this week.",
-  );
-  const byRepository = breakdownSection(
-    "By repository",
-    ["Repository", "PRs"] as const,
-    rollup.by_repository,
-    "No repository-level activity for this week.",
-  );
-  return makePanelContent(formatWeekTitle(rollup), subtitle, [
-    byAuthor,
-    byRepository,
+  const stats = makeStatRow([
+    { label: "P50", value: formatDurationOrDash(rollup.cycle_time_p50) },
+    { label: "P90", value: formatDurationOrDash(rollup.cycle_time_p90) },
+  ]);
+  return makePanelContent(title, subtitle, [
+    stats,
+    buildRepositoryBreakdown(rollup.by_repository),
   ]);
 }
 
-export function installThroughputDrilldown(
+export function installCycleTimeDrilldown(
   container: HTMLElement,
   rollups: readonly Rollup[],
 ): { dispose(): void } {
@@ -97,11 +108,7 @@ export function installThroughputDrilldown(
   function resolveTrigger(evt: Event): HTMLElement | null {
     const target = evt.target;
     if (!(target instanceof Element)) return null;
-    // `closest` walks from target upward; since the listener is on
-    // `container`, any match is guaranteed to be a descendant of container
-    // (target itself is a descendant, and ancestors walked up pass through
-    // container on the way to document).
-    return target.closest<HTMLElement>("[data-drilldown-week]");
+    return target.closest<HTMLElement>("[data-drilldown-metric]");
   }
 
   function clearActive(): void {
@@ -127,12 +134,10 @@ export function installThroughputDrilldown(
 
   function activate(trigger: HTMLElement): void {
     const weekIso = trigger.getAttribute("data-drilldown-week");
+    const metricAttr = trigger.getAttribute("data-drilldown-metric");
     if (!weekIso) return;
+    if (metricAttr !== "p50" && metricAttr !== "p90") return;
 
-    // Drill-down activation supersedes any transient chart tooltip: on a
-    // tap the chart-tooltip's pointerup runs before the synthesized
-    // click, so without this dismiss the tooltip would overlap both the
-    // comparison-advisory toast and the DetailPanel.
     dismissAllTooltips();
 
     if (isDrilldownDisabledByComparison()) {
@@ -143,11 +148,12 @@ export function installThroughputDrilldown(
     const rollup = rollups.find((r) => r.week === weekIso);
     if (!rollup) return;
 
+    const metric: Metric = metricAttr;
     const context: DrillDownContext = {
-      sourceChart: "throughput",
-      focusedData: { kind: "throughput", weekIso },
+      sourceChart: "cycle-time",
+      focusedData: { kind: "cycle-time", weekIso, metric },
       triggerElement: trigger,
-      content: buildPanelContent(rollup),
+      content: buildPanelContent(rollup, metric),
     };
 
     openDetailPanel(context);

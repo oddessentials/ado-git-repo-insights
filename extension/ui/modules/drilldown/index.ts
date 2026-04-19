@@ -10,3 +10,4 @@
 export * from "./lifecycle-signals";
 export * from "./comparison-advisory";
 export * from "./throughput-drilldown";
+export * from "./cycle-time-drilldown";

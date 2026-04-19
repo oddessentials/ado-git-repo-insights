@@ -3843,6 +3843,9 @@ var PRInsightsDashboard = (() => {
     }
     return { type: "breakdown-table", title, columns, rows };
   }
+  function makeStatRow(stats) {
+    return { type: "stat-row", stats };
+  }
   function makeEmptyState(title, detail) {
     return { type: "empty-state", title, detail };
   }
@@ -7095,8 +7098,8 @@ var PRInsightsDashboard = (() => {
             <!-- Dots. data-tooltip="true" is required so addChartTooltips()
                  in charts.ts can attach hover/tap listeners \u2014 without it the
                  tooltip callback below is never invoked. -->
-            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p90" tabindex="0" role="button"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p50" tabindex="0" role="button"/>`).join("") : ""}
         </svg>
     `;
     const legendItems = [];
@@ -8008,8 +8011,7 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
-  // ../ui/modules/drilldown/throughput-drilldown.ts
-  var ACTIVE_CLASS = "is-drilldown-active";
+  // ../ui/modules/drilldown/week-range.ts
   function parseIsoLocalDate(iso) {
     const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
     if (!m2) return null;
@@ -8059,6 +8061,9 @@ var PRInsightsDashboard = (() => {
     if (!range) return `Week ${rollup.week}`;
     return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
   }
+
+  // ../ui/modules/drilldown/throughput-drilldown.ts
+  var ACTIVE_CLASS = "is-drilldown-active";
   function breakdownSection(title, columns, entries, emptyDetail) {
     if (!entries || Object.keys(entries).length === 0) {
       return makeEmptyState(title, emptyDetail);
@@ -8138,6 +8143,132 @@ var PRInsightsDashboard = (() => {
       clearActive();
       activeTrigger = trigger;
       trigger.classList.add(ACTIVE_CLASS);
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
+  // ../ui/modules/drilldown/cycle-time-drilldown.ts
+  var ACTIVE_CLASS2 = "is-drilldown-active";
+  function formatDurationOrDash(value) {
+    if (value === null || value === void 0) return "\u2014";
+    return formatDuration(value);
+  }
+  function buildRepositoryBreakdown(entries) {
+    if (!entries || Object.keys(entries).length === 0) {
+      return makeEmptyState(
+        "By repository",
+        "No repository-level cycle-time data for this week."
+      );
+    }
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
+      label,
+      values: [
+        formatDurationOrDash(entry.cycle_time_p50),
+        formatDurationOrDash(entry.cycle_time_p90)
+      ]
+    }));
+    return makeBreakdownTable(
+      "By repository",
+      ["Repository", "P50", "P90"],
+      rows
+    );
+  }
+  function buildPanelContent2(rollup, metric) {
+    const count = rollup.pr_count;
+    const weekTitle = formatWeekTitle(rollup);
+    const title = `${weekTitle} \u2014 ${metric.toUpperCase()}`;
+    const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const stats = makeStatRow([
+      { label: "P50", value: formatDurationOrDash(rollup.cycle_time_p50) },
+      { label: "P90", value: formatDurationOrDash(rollup.cycle_time_p90) }
+    ]);
+    return makePanelContent(title, subtitle, [
+      stats,
+      buildRepositoryBreakdown(rollup.by_repository)
+    ]);
+  }
+  function installCycleTimeDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-metric]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS2);
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const weekIso = trigger.getAttribute("data-drilldown-week");
+      const metricAttr = trigger.getAttribute("data-drilldown-metric");
+      if (!weekIso) return;
+      if (metricAttr !== "p50" && metricAttr !== "p90") return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const rollup = rollups.find((r2) => r2.week === weekIso);
+      if (!rollup) return;
+      const metric = metricAttr;
+      const context = {
+        sourceChart: "cycle-time",
+        focusedData: { kind: "cycle-time", weekIso, metric },
+        triggerElement: trigger,
+        content: buildPanelContent2(rollup, metric)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS2);
       registerPanelObserver();
     }
     container.addEventListener(
@@ -8727,6 +8858,12 @@ var PRInsightsDashboard = (() => {
       if (throughputContainer) {
         activeDrilldownHandles.push(
           installThroughputDrilldown(throughputContainer, rollups)
+        );
+      }
+      const cycleTimeContainer = document.getElementById("cycle-time-trend");
+      if (cycleTimeContainer) {
+        activeDrilldownHandles.push(
+          installCycleTimeDrilldown(cycleTimeContainer, rollups)
         );
       }
       if (comparisonMode) {

@@ -282,8 +282,8 @@ export function renderCycleTimeTrend(
             <!-- Dots. data-tooltip="true" is required so addChartTooltips()
                  in charts.ts can attach hover/tap listeners — without it the
                  tooltip callback below is never invoked. -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p90" tabindex="0" role="button"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p50" tabindex="0" role="button"/>`).join("") : ""}
         </svg>
     `;
 

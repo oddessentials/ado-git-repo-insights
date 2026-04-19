@@ -95,8 +95,9 @@ import {
   publishFiltersChanged,
   publishTabChanged,
   publishComparisonToggled,
-  // Drill-down consumers (US1 throughput)
+  // Drill-down consumers (US1 throughput, US2 cycle-time)
   installThroughputDrilldown,
+  installCycleTimeDrilldown,
 } from "./modules";
 
 // Dashboard state
@@ -1008,6 +1009,12 @@ async function refreshMetrics(): Promise<void> {
     if (throughputContainer) {
       activeDrilldownHandles.push(
         installThroughputDrilldown(throughputContainer, rollups),
+      );
+    }
+    const cycleTimeContainer = document.getElementById("cycle-time-trend");
+    if (cycleTimeContainer) {
+      activeDrilldownHandles.push(
+        installCycleTimeDrilldown(cycleTimeContainer, rollups),
       );
     }
 
