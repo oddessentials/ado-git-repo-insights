@@ -9083,8 +9083,6 @@ var PRInsightsDashboard = (() => {
       if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
     publishFiltersChanged({ reason: "user-change" });
-    for (const handle of activeDrilldownHandles) handle.dispose();
-    activeDrilldownHandles = [];
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
@@ -9126,6 +9124,8 @@ var PRInsightsDashboard = (() => {
       if (cycleId > 0 && isStale(cycleId)) {
         return;
       }
+      for (const handle of activeDrilldownHandles) handle.dispose();
+      activeDrilldownHandles = [];
       renderSummaryCards2(rollups, prevRollups, rawRollups);
       renderThroughputChart2(rollups, rawRollups, availability);
       renderCycleTimeTrend2(rollups, rawRollups, availability);

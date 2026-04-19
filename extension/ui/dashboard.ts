@@ -918,16 +918,16 @@ async function refreshMetrics(): Promise<void> {
   // Drill-down: announce filter-change now that we've committed to an actual
   // refresh (post no-op-guard). Subscribers that hard-dismiss on this event
   // must not do DOM work against the about-to-change state — see
-  // specs/059-chart-drill-down/contracts/lifecycle-signals.md.
+  // specs/059-chart-drill-down/contracts/lifecycle-signals.md. DetailPanel's
+  // own filters-changed subscriber hard-dismisses any open panel in the same
+  // synchronous tick, so the panel is closed before any subsequent click can
+  // re-open it against pre-change data.
   publishFiltersChanged({ reason: "user-change" });
 
-  // Drop the previous cycle's drill-down handles before the upcoming render
-  // replaces the bar/dot/row DOM the delegated listeners were attached to.
-  // DetailPanel's own filters-changed subscriber (dispatched above) hard-
-  // dismisses any open panel in the same synchronous tick, so the panel is
-  // closed before we tear down the listeners.
-  for (const handle of activeDrilldownHandles) handle.dispose();
-  activeDrilldownHandles = [];
+  // NOTE: drill-down handle dispose+reset is deferred to immediately before
+  // the render block (after the final stale guard) so that a stale-cycle bail
+  // at lines guarded by isStale below cannot leave charts visually interactive
+  // but listener-dead. See PR #302 review finding P1.A.
 
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
@@ -998,6 +998,14 @@ async function refreshMetrics(): Promise<void> {
     if (cycleId > 0 && isStale(cycleId)) {
       return;
     }
+
+    // Dispose the previous cycle's drill-down handles atomically with the
+    // upcoming render: both happen, or neither does (the stale guard above
+    // returned before reaching this line). This is the P1.A fix from PR #302
+    // review — disposing earlier risked leaving charts visually intact but
+    // listener-dead when a stale or failing cycle bailed before re-install.
+    for (const handle of activeDrilldownHandles) handle.dispose();
+    activeDrilldownHandles = [];
 
     renderSummaryCards(rollups, prevRollups, rawRollups);
     renderThroughputChart(rollups, rawRollups, availability);
