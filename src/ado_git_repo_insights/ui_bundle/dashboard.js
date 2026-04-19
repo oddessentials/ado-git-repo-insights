@@ -3988,6 +3988,37 @@ var PRInsightsDashboard = (() => {
     );
     return wrapper;
   }
+  var TOP_OFFSET_MOBILE_MEDIA_QUERY = "(max-width: 768px)";
+  var TOP_OFFSET_FILTER_BAR_SELECTOR = ".filter-bar";
+  var TOP_OFFSET_GAP_PX = 12;
+  var TOP_OFFSET_CSS_VAR = "--detail-panel-top";
+  function applyTopOffset(rootEl, signal) {
+    rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+    if (window.matchMedia?.(TOP_OFFSET_MOBILE_MEDIA_QUERY).matches === true) {
+      return;
+    }
+    const filterBar = document.querySelector(
+      TOP_OFFSET_FILTER_BAR_SELECTOR
+    );
+    if (filterBar === null) return;
+    const writeOffset = () => {
+      const bottom = filterBar.getBoundingClientRect().bottom;
+      if (bottom <= 0) {
+        rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+        return;
+      }
+      rootEl.style.setProperty(
+        TOP_OFFSET_CSS_VAR,
+        `${Math.round(bottom + TOP_OFFSET_GAP_PX)}px`
+      );
+    };
+    writeOffset();
+    const observer = new ResizeObserver(() => {
+      writeOffset();
+    });
+    observer.observe(filterBar);
+    signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+  }
   function installOpenScopedListeners(els) {
     const controller = new AbortController();
     const { signal } = controller;
@@ -4067,12 +4098,15 @@ var PRInsightsDashboard = (() => {
     const els = ensurePanelEls();
     const wasOpen = isDetailPanelOpen();
     activeContext = context;
+    if (!wasOpen) {
+      openScopedController = installOpenScopedListeners(els);
+      applyTopOffset(els.root, openScopedController.signal);
+    }
     renderContent(els, context.content);
     if (!wasOpen) {
       els.root.classList.add("is-open");
       panelState = "opening";
       panelState = "open";
-      openScopedController = installOpenScopedListeners(els);
       focusTrapController = trapFocus(els.root);
     }
   }

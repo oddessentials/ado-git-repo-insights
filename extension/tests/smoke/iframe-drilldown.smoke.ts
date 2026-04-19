@@ -320,4 +320,49 @@ test.describe("Iframe drill-down smoke tests", () => {
     // implementation dependency.
     await expect(panel).toBeHidden({ timeout: SMOKE_TIMEOUT_MS });
   });
+
+  test("panel offset lets a right-side filter stay actionable while open (#303)", async ({
+    page,
+  }, testInfo) => {
+    await page.goto(SAME_ORIGIN_HOST);
+    await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
+
+    const frame = page.frameLocator("#dashboard-frame");
+    await frame
+      .locator("#main-content:not(.hidden)")
+      .waitFor({ timeout: SMOKE_TIMEOUT_MS });
+
+    const throughputBar = frame
+      .locator(".bar-container[data-drilldown-week]")
+      .first();
+    await throughputBar.waitFor({ timeout: SMOKE_TIMEOUT_MS });
+    await throughputBar.click();
+
+    const panel = frame.locator(".detail-panel.is-open");
+    await expect(panel).toBeVisible({ timeout: SMOKE_TIMEOUT_MS });
+
+    // Actionability BEFORE click — ties the test to the #303 geometry fix.
+    // The Repository typeahead input sits in the right portion of the filter
+    // bar and was previously covered by the panel at desktop viewports.
+    // `click({ trial: true })` runs Playwright's full actionability chain
+    // (visible, enabled, stable, receives events — i.e. not occluded) WITHOUT
+    // performing the click. Trial-click succeeds only when the element is
+    // actually reachable at the hit-point; a regression in the top-offset
+    // would fail here.
+    const repoTypeahead = frame
+      .locator("#repo-filter input.typeahead-input")
+      .first();
+    await repoTypeahead.waitFor({ timeout: SMOKE_TIMEOUT_MS });
+    await repoTypeahead.click({ trial: true, timeout: SMOKE_TIMEOUT_MS });
+
+    await page.screenshot({
+      path: testInfo.outputPath("iframe-panel-offset-actionable.png"),
+    });
+
+    // Real click now that actionability has been proven. This dismisses the
+    // panel via the outside-click path (the typeahead is geometrically
+    // outside the panel after the #303 fix).
+    await repoTypeahead.click();
+    await expect(panel).toBeHidden({ timeout: SMOKE_TIMEOUT_MS });
+  });
 });

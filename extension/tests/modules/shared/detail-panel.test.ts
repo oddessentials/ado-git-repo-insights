@@ -530,3 +530,241 @@ describe("detail-panel — performance and viewport (SC-001, FR-012)", () => {
     expect(chartRegion.getBoundingClientRect().width).toBeGreaterThan(0);
   });
 });
+
+describe("detail-panel — top offset (#303)", () => {
+  type FakeRO = {
+    callback: ResizeObserverCallback;
+    observe: jest.Mock;
+    disconnect: jest.Mock;
+  };
+  let originalMatchMedia: typeof window.matchMedia | undefined;
+  let originalResizeObserver: unknown;
+  let matchMediaMock: jest.Mock;
+  let resizeObserverInstances: FakeRO[];
+
+  beforeEach(() => {
+    resetComparisonState();
+    resizeObserverInstances = [];
+
+    originalMatchMedia = window.matchMedia;
+    matchMediaMock = jest.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(() => false),
+    })) as unknown as jest.Mock;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: matchMediaMock,
+    });
+
+    originalResizeObserver = (globalThis as { ResizeObserver?: unknown })
+      .ResizeObserver;
+    const capture = resizeObserverInstances;
+    class FakeResizeObserver {
+      observe = jest.fn();
+      disconnect = jest.fn();
+      unobserve = jest.fn();
+      constructor(cb: ResizeObserverCallback) {
+        capture.push({
+          callback: cb,
+          observe: this.observe,
+          disconnect: this.disconnect,
+        });
+      }
+    }
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver =
+      FakeResizeObserver;
+  });
+
+  afterEach(() => {
+    if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+    document.body.innerHTML = "";
+    if (originalMatchMedia !== undefined) {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: originalMatchMedia,
+      });
+    }
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver =
+      originalResizeObserver;
+  });
+
+  function setupFilterBar(bottom: number): HTMLElement {
+    const bar = document.createElement("div");
+    bar.className = "filter-bar";
+    document.body.appendChild(bar);
+    Object.defineProperty(bar, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        width: 1280,
+        height: bottom,
+        top: 0,
+        left: 0,
+        right: 1280,
+        bottom,
+        toJSON: () => ({}),
+      }),
+    });
+    return bar;
+  }
+
+  function setMobileMatch(isMobile: boolean): void {
+    matchMediaMock.mockImplementation((query: string) => ({
+      matches: isMobile && query === "(max-width: 768px)",
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(() => false),
+    }));
+  }
+
+  it("sets --detail-panel-top to filter-bar bottom + gap on desktop open", () => {
+    setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    const root = getPanelRoot();
+    expect(root).not.toBeNull();
+    expect(root!.style.getPropertyValue("--detail-panel-top")).toBe("92px");
+  });
+
+  it("removes --detail-panel-top when filter-bar is absent, clearing any stale value", () => {
+    setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    const root = getPanelRoot()!;
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("92px");
+
+    dismissDetailPanel("explicit-close-button");
+    document.querySelector(".filter-bar")!.remove();
+    openDetailPanel(makeThroughputContext());
+
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("");
+  });
+
+  it("removes --detail-panel-top under the mobile media query, clearing any stale value", () => {
+    setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    const root = getPanelRoot()!;
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("92px");
+
+    dismissDetailPanel("explicit-close-button");
+    setMobileMatch(true);
+    openDetailPanel(makeThroughputContext());
+
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("");
+  });
+
+  it("sets --detail-panel-top before the is-open class is applied", () => {
+    setupFilterBar(80);
+
+    const observedOrder: string[] = [];
+    const originalSetProperty = CSSStyleDeclaration.prototype.setProperty;
+    const originalAdd = DOMTokenList.prototype.add;
+
+    CSSStyleDeclaration.prototype.setProperty = function patched(
+      name: string,
+      value: string | null,
+      priority?: string,
+    ): void {
+      if (name === "--detail-panel-top") {
+        observedOrder.push("setProperty:--detail-panel-top");
+      }
+      return originalSetProperty.call(this, name, value, priority);
+    };
+    DOMTokenList.prototype.add = function patched(...tokens: string[]): void {
+      if (tokens.includes("is-open")) {
+        observedOrder.push("classList.add:is-open");
+      }
+      return originalAdd.apply(this, tokens);
+    };
+
+    try {
+      openDetailPanel(makeThroughputContext());
+    } finally {
+      CSSStyleDeclaration.prototype.setProperty = originalSetProperty;
+      DOMTokenList.prototype.add = originalAdd;
+    }
+
+    const setPropertyIdx = observedOrder.indexOf(
+      "setProperty:--detail-panel-top",
+    );
+    const classAddIdx = observedOrder.indexOf("classList.add:is-open");
+    expect(setPropertyIdx).toBeGreaterThanOrEqual(0);
+    expect(classAddIdx).toBeGreaterThanOrEqual(0);
+    expect(setPropertyIdx).toBeLessThan(classAddIdx);
+  });
+
+  it("disconnects the filter-bar ResizeObserver on dismiss", () => {
+    setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    expect(resizeObserverInstances).toHaveLength(1);
+    const instance = resizeObserverInstances[0]!;
+    expect(instance.disconnect).not.toHaveBeenCalled();
+
+    dismissDetailPanel("explicit-close-button");
+
+    expect(instance.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates --detail-panel-top when the filter-bar ResizeObserver fires with a new height", () => {
+    const bar = setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    const root = getPanelRoot()!;
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("92px");
+
+    Object.defineProperty(bar, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        width: 1280,
+        height: 120,
+        top: 0,
+        left: 0,
+        right: 1280,
+        bottom: 120,
+        toJSON: () => ({}),
+      }),
+    });
+    const instance = resizeObserverInstances[0]!;
+    instance.callback([], instance as unknown as ResizeObserver);
+
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("132px");
+  });
+
+  it("removes --detail-panel-top when the ResizeObserver fires with a zero-bottom filter-bar", () => {
+    const bar = setupFilterBar(80);
+    openDetailPanel(makeThroughputContext());
+    const root = getPanelRoot()!;
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("92px");
+
+    Object.defineProperty(bar, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        toJSON: () => ({}),
+      }),
+    });
+    const instance = resizeObserverInstances[0]!;
+    instance.callback([], instance as unknown as ResizeObserver);
+
+    expect(root.style.getPropertyValue("--detail-panel-top")).toBe("");
+  });
+});
