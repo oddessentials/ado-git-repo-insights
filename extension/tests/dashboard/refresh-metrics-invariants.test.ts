@@ -106,13 +106,13 @@ describe("refresh-metrics-invariants — chart-container inert during load windo
     expect(inertTrueIdx).toBeLessThan(firstAwaitIdx);
   });
 
-  it("setChartContainersInert(false) is in a finally clause covering every exit path", () => {
+  it("setChartContainersInert(false) is in a finally clause", () => {
     const inertFalseMatches =
       dashboardSrc.match(/setChartContainersInert\(false\)/g) ?? [];
     expect(inertFalseMatches).toHaveLength(1);
 
-    // The clear must live inside a finally block so success, failure,
-    // stale-bail return, and any other early exit all clear inert.
+    // The clear must live inside a finally block so the winning cycle's
+    // success and failure paths both reach it.
     const finallyIdx = dashboardSrc.indexOf("} finally {");
     expect(finallyIdx).toBeGreaterThan(-1);
 
@@ -120,6 +120,27 @@ describe("refresh-metrics-invariants — chart-container inert during load windo
       "setChartContainersInert(false)",
     );
     expect(inertFalseIdx).toBeGreaterThan(finallyIdx);
+  });
+
+  it("finally clears inert ONLY for the winning cycle (stale-bail must skip)", () => {
+    // A stale-bail return enters finally too, but a newer cycle may still
+    // be mid-load with inert=true. Clearing inert in the stale-bail
+    // finally would re-enable chart interactions on stale DOM until the
+    // winning cycle finishes — exactly the race Codex flagged. Gate the
+    // clear behind `!isStale(cycleId)` (or `cycleId === 0` if loading
+    // state is inactive).
+    const finallyIdx = dashboardSrc.indexOf("} finally {");
+    expect(finallyIdx).toBeGreaterThan(-1);
+
+    const finallyBody = dashboardSrc.slice(finallyIdx, finallyIdx + 1000);
+
+    // The gate guard pattern — accept either the precise expression we
+    // wrote or any future equivalent that includes both isStale and
+    // cycleId references inside the finally block.
+    expect(finallyBody).toMatch(
+      /(cycleId\s*===\s*0\s*\|\|\s*!isStale\(cycleId\))|(!isStale\(cycleId\)\s*\|\|\s*cycleId\s*===\s*0)/,
+    );
+    expect(finallyBody).toContain("setChartContainersInert(false)");
   });
 
   it("setChartContainersInert helper toggles all four drill-down host containers", () => {

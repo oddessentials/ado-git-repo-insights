@@ -9193,7 +9193,9 @@ var PRInsightsDashboard = (() => {
       }
       throw err;
     } finally {
-      setChartContainersInert(false);
+      if (cycleId === 0 || !isStale(cycleId)) {
+        setChartContainersInert(false);
+      }
     }
   }
   function updateAccuracyIndicator(rawRollups, filters) {

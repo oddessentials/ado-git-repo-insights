@@ -1109,9 +1109,16 @@ async function refreshMetrics(): Promise<void> {
     }
     throw err;
   } finally {
-    // Always clear inert — covers success, failure, stale-bail return,
-    // and any other early exit from the try body.
-    setChartContainersInert(false);
+    // Clear inert only when THIS cycle is the winning one (or no cycle
+    // tracking is active). A stale-bail return must NOT clear inert: a
+    // newer cycle is still mid-load with inert=true, and clearing here
+    // would re-enable chart interactions on stale DOM until the winning
+    // cycle finishes. The winning cycle's own success / failure path
+    // (catch) clears inert on its exit. See PR #302 P1.A second
+    // follow-up (Codex catch).
+    if (cycleId === 0 || !isStale(cycleId)) {
+      setChartContainersInert(false);
+    }
   }
 }
 
