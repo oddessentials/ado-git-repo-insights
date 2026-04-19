@@ -8815,6 +8815,7 @@ var PRInsightsDashboard = (() => {
       comparisonMode = true;
       elements.get("compare-toggle")?.classList.add("active");
       elements.get("comparison-banner")?.classList.remove("hidden");
+      publishComparisonToggled({ enabled: true });
     }
   }
   function toggleComparisonMode() {

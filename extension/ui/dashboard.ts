@@ -1923,6 +1923,15 @@ function restoreStateFromUrl(): void {
     comparisonMode = true;
     elements.get("compare-toggle")?.classList.add("active");
     elements.get("comparison-banner")?.classList.remove("hidden");
+    // Drill-down guard sync (spec 059 / FR-060): toggleComparisonMode and
+    // exitComparisonMode emit this event, but the deep-link restore path
+    // bypasses them. Without this emit the comparison-advisory banner
+    // never mounts, chart containers never gain the disabled attribute,
+    // and both detail-panel's internal `comparisonActive` tracker AND
+    // isDrilldownDisabledByComparison() stay `false` — so a user who
+    // loads the dashboard via ?compare=1 could still open a drill-down
+    // panel. Emit here to keep the guard synchronized on init.
+    publishComparisonToggled({ enabled: true });
   }
 }
 // ============================================================================

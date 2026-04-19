@@ -184,6 +184,34 @@ describe("lifecycle-signals — subscribers", () => {
 // Publisher-exclusivity static audit
 // ---------------------------------------------------------------------------
 
+describe("lifecycle-signals — URL deep-link guard sync (FR-060 regression)", () => {
+  it("dashboard.ts restoreStateFromUrl emits publishComparisonToggled when ?compare=1 is set", () => {
+    // Regression test: the deep-link restore path at page load must emit
+    // the comparison-toggled signal so the drill-down guard stays
+    // synchronized. Without this emit a user who loads the dashboard via
+    // ?compare=1 would see the comparison banner but could still open a
+    // drill-down panel — FR-060 broken on init.
+    //
+    // Static audit: inside dashboard.ts, the function body of
+    // `restoreStateFromUrl` that handles `compareParam === "1"` must
+    // include a `publishComparisonToggled(` callsite.
+    const dashboardSrc = _fs.readFileSync(
+      resolve(__dirname, "../../../ui/dashboard.ts"),
+      "utf-8",
+    );
+
+    const fnStart = dashboardSrc.indexOf("function restoreStateFromUrl");
+    expect(fnStart).toBeGreaterThan(-1);
+    // Take the next ~4000 chars — large enough to cover the whole function
+    // body (it is under 100 lines) and small enough to keep the window
+    // focused on restoreStateFromUrl specifically.
+    const fnBody = dashboardSrc.slice(fnStart, fnStart + 4000);
+
+    expect(fnBody).toContain('compareParam === "1"');
+    expect(fnBody).toContain("publishComparisonToggled(");
+  });
+});
+
 describe("lifecycle-signals — publisher-exclusivity invariant", () => {
   it("only dashboard.ts contains publish* callsites within extension/ui/**", () => {
     const uiRoot = resolve(__dirname, "../../../ui");
