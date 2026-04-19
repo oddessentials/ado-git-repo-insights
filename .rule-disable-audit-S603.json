@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 90,
+  "total_call_sites": 89,
   "unsafe_count": 8,
   "call_sites": [
     {
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 629,
+      "line": 597,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -141,7 +141,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 918,
+      "line": 886,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 605,
+      "line": 592,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 628,
+      "line": 615,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 721,
+      "line": 708,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 803,
+      "line": 790,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -541,7 +541,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 635,
+      "line": 558,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -549,15 +549,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 758,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 876,
+      "line": 667,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
