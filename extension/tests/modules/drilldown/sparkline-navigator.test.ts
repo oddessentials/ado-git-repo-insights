@@ -168,9 +168,9 @@ describe("sparkline-navigator", () => {
       click(triggerFor(container, chart));
 
       expect(scrollSpy).toHaveBeenCalledTimes(1);
-      expect(targets.get(chart)!.classList.contains("is-sparkline-highlight")).toBe(
-        true,
-      );
+      expect(
+        targets.get(chart)!.classList.contains("is-sparkline-highlight"),
+      ).toBe(true);
     },
   );
 
@@ -357,9 +357,9 @@ describe("sparkline-navigator", () => {
     jest.advanceTimersByTime(SPARKLINE_HIGHLIGHT_MS * 2);
 
     // Caller's class is untouched.
-    expect(targets.get("throughput")!.classList.contains("caller-set-class")).toBe(
-      true,
-    );
+    expect(
+      targets.get("throughput")!.classList.contains("caller-set-class"),
+    ).toBe(true);
   });
 
   // -------------------------------------------------------------------------

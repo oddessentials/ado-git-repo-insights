@@ -181,10 +181,10 @@ description: "Task list for 059-chart-drill-down — Phase 1 cohort (shared Deta
 **Purpose**: reconcile quality floors, run full gate chain locally, and self-review.
 
 - [X] T047 Audit partial branches: run `pnpm --dir extension run test:coverage` followed by `pnpm --dir extension run test:partial-branches`; if counts shifted on any `extension/ui/**/*.ts` file, co-change `.coverage-partial-branches-baseline.json` in this commit, respecting `LOCKED_ZERO_FILES` (locked files must stay at zero — refactor if they moved)
-- [ ] T048 Run `pnpm --dir extension run test:ci` from the repo root; iterate until green; if drift surfaces in test counts or coverage, resolve within the last feature commit (do NOT create a separate "drift-fix" commit after the feature is done)
-- [ ] T049 Run `python scripts/run_repo_hook.py pre-push` from the repo root; iterate until green. This runs version-guard, baseline-integrity, pre-commit, CRLF guard, asset validation, invariant-contract guards, and preflight in order. Do NOT `git push` until the user explicitly authorizes.
-- [ ] T050 Self-review the full diff end-to-end against `spec.md` FRs and SCs; walk the render paths data → DOM for each of the four user stories; confirm no regressions in hover tooltips (`tooltip-manager.ts`), filter chips (`filters.ts`), or existing keyboard behavior; confirm DetailPanel is the sole drawer implementation (no per-chart duplicates)
-- [ ] T051 Validate `quickstart.md` exit criteria: all four user stories functional in the running dashboard, all SC-001 through SC-008 measurable outcomes satisfied, zero new suppressions, no `any` types, cross-OS tests pass, comparison-mode cue visible and clear
+- [X] T048 Run `pnpm --dir extension run test:ci` from the repo root; iterate until green; if drift surfaces in test counts or coverage, resolve within the last feature commit (do NOT create a separate "drift-fix" commit after the feature is done)
+- [X] T049 Run `python scripts/run_repo_hook.py pre-push` from the repo root; iterate until green. This runs version-guard, baseline-integrity, pre-commit, CRLF guard, asset validation, invariant-contract guards, and preflight in order. Do NOT `git push` until the user explicitly authorizes.
+- [X] T050 Self-review the full diff end-to-end against `spec.md` FRs and SCs; walk the render paths data → DOM for each of the four user stories; confirm no regressions in hover tooltips (`tooltip-manager.ts`), filter chips (`filters.ts`), or existing keyboard behavior; confirm DetailPanel is the sole drawer implementation (no per-chart duplicates)
+- [X] T051 Validate `quickstart.md` exit criteria: all four user stories functional in the running dashboard, all SC-001 through SC-008 measurable outcomes satisfied, zero new suppressions, no `any` types, cross-OS tests pass, comparison-mode cue visible and clear
 
 ---
 
