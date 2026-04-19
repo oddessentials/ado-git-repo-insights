@@ -93,7 +93,8 @@ function dotFor(
   const dot = container.querySelector<HTMLElement>(
     `g[data-drilldown-week="${week}"][data-drilldown-metric="${metric}"]`,
   );
-  if (!dot) throw new Error(`g[data-drilldown-week=${week}/${metric}] not rendered`);
+  if (!dot)
+    throw new Error(`g[data-drilldown-week=${week}/${metric}] not rendered`);
   return dot;
 }
 

@@ -92,9 +92,7 @@ describe("refresh-metrics-invariants — chart-container inert during load windo
     const publishIdx = dashboardSrc.indexOf("publishFiltersChanged({");
     expect(publishIdx).toBeGreaterThan(-1);
 
-    const inertTrueIdx = dashboardSrc.indexOf(
-      "setChartContainersInert(true)",
-    );
+    const inertTrueIdx = dashboardSrc.indexOf("setChartContainersInert(true)");
     expect(inertTrueIdx).toBeGreaterThan(publishIdx);
 
     // Must run synchronously before the first await so stale triggers are

@@ -137,9 +137,7 @@ test.describe("Iframe drill-down smoke tests", () => {
       .waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
     const sparklineTrigger = frame
-      .locator(
-        '.sparkline-trigger[data-drilldown-target-chart="throughput"]',
-      )
+      .locator('.sparkline-trigger[data-drilldown-target-chart="throughput"]')
       .first();
     await sparklineTrigger.waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
@@ -156,10 +154,7 @@ test.describe("Iframe drill-down smoke tests", () => {
     // separate concern.
     await expect
       .poll(
-        () =>
-          frameBody.evaluate(
-            () => window.__sparklineScrollCalls ?? [],
-          ),
+        () => frameBody.evaluate(() => window.__sparklineScrollCalls ?? []),
         { timeout: SMOKE_TIMEOUT_MS },
       )
       .toContainEqual(
@@ -192,9 +187,7 @@ test.describe("Iframe drill-down smoke tests", () => {
       .waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
     const sparklineTrigger = frame
-      .locator(
-        '.sparkline-trigger[data-drilldown-target-chart="throughput"]',
-      )
+      .locator('.sparkline-trigger[data-drilldown-target-chart="throughput"]')
       .first();
     await sparklineTrigger.waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
@@ -209,10 +202,7 @@ test.describe("Iframe drill-down smoke tests", () => {
     // DOM access or to a host-specific SDK call, this test fires.
     await expect
       .poll(
-        () =>
-          frameBody.evaluate(
-            () => window.__sparklineScrollCalls ?? [],
-          ),
+        () => frameBody.evaluate(() => window.__sparklineScrollCalls ?? []),
         { timeout: SMOKE_TIMEOUT_MS },
       )
       .toContainEqual(
@@ -253,9 +243,7 @@ test.describe("Iframe drill-down smoke tests", () => {
     await dot.waitFor({ timeout: SMOKE_TIMEOUT_MS });
     await dot.focus();
 
-    const isFocused = await dot.evaluate(
-      (el) => document.activeElement === el,
-    );
+    const isFocused = await dot.evaluate((el) => document.activeElement === el);
     expect(isFocused).toBe(true);
 
     await page.screenshot({
@@ -279,9 +267,7 @@ test.describe("Iframe drill-down smoke tests", () => {
       .locator(".bar-container[data-drilldown-week]")
       .first()
       .getAttribute("aria-label");
-    expect(barLabel).toMatch(
-      /^Drill into week of .+ \d+ PR(s)?$/,
-    );
+    expect(barLabel).toMatch(/^Drill into week of .+ \d+ PR(s)?$/);
 
     // Cycle-time dot trigger: "Drill into P50 for week of <range>".
     const dotLabel = await frame
