@@ -31,7 +31,7 @@ export const MAX_REVIEWER_WEEKS = 8;
  *
  * Returns null when no reviewer has a finite approval_rate or reviewed_prs > 0.
  */
-function computeApprovalRate(
+export function computeApprovalRate(
   rollups: Rollup[],
   reviewerIds: string[],
 ): { rate: number | null; weeksWithData: number } {
@@ -169,6 +169,16 @@ export function renderReviewerActivity(
     return;
   }
 
+  // When the reviewer filter is active, each row gets drill-down
+  // attributes identifying the focused reviewer; clicking any row
+  // opens the shared DetailPanel with that reviewer as the subject
+  // (FR-040). When no reviewer filter is active, the rows represent
+  // aggregate counts and have no single drill-down subject — drill-
+  // down attributes are omitted so clicks are no-ops.
+  const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
+  const drilldownAttrs = filterReviewerId
+    ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button"`
+    : "";
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;
@@ -177,7 +187,7 @@ export function renderReviewerActivity(
       const weekLabel = wParts[1] ?? r.week;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}">
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}"${drilldownAttrs}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>

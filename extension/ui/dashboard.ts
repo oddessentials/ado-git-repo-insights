@@ -95,9 +95,10 @@ import {
   publishFiltersChanged,
   publishTabChanged,
   publishComparisonToggled,
-  // Drill-down consumers (US1 throughput, US2 cycle-time)
+  // Drill-down consumers (US1 throughput, US2 cycle-time, US3 reviewer)
   installThroughputDrilldown,
   installCycleTimeDrilldown,
+  installReviewerDrilldown,
 } from "./modules";
 
 // Dashboard state
@@ -1015,6 +1016,12 @@ async function refreshMetrics(): Promise<void> {
     if (cycleTimeContainer) {
       activeDrilldownHandles.push(
         installCycleTimeDrilldown(cycleTimeContainer, rollups),
+      );
+    }
+    const reviewerContainer = document.getElementById("reviewer-activity");
+    if (reviewerContainer) {
+      activeDrilldownHandles.push(
+        installReviewerDrilldown(reviewerContainer, rollups),
       );
     }
 

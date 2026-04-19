@@ -4113,6 +4113,11 @@ var PRInsightsDashboard = (() => {
     const days = hours / 24;
     return `${days.toFixed(1)}d`;
   }
+  function formatWeekLabel(week) {
+    const match = week.match(/(\d{4})-W(\d{2})/);
+    if (!match) return week;
+    return `W${match[2]}`;
+  }
   function median(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a2, b2) => a2 - b2);
@@ -5340,7 +5345,7 @@ var PRInsightsDashboard = (() => {
     const labelStep = Math.ceil(allWeeks.length / 6);
     const xAxisLabels = allWeeks.filter((_2, i2) => i2 % labelStep === 0).map((week, i2) => {
       const x2 = getX(i2 * labelStep);
-      const formatted = formatWeekLabel(week);
+      const formatted = formatWeekLabel2(week);
       return `<text x="${x2}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
     const latestValue = values[values.length - 1];
@@ -5389,7 +5394,7 @@ var PRInsightsDashboard = (() => {
     </div>
   `;
   }
-  function formatWeekLabel(weekStr) {
+  function formatWeekLabel2(weekStr) {
     const date = new Date(weekStr);
     if (isNaN(date.getTime())) return weekStr;
     const month = date.toLocaleString("en-US", { month: "short" });
@@ -7233,13 +7238,15 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
+    const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
+    const drilldownAttrs = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button"` : "";
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
       return `
-            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}">
+            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrs}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -8303,6 +8310,154 @@ var PRInsightsDashboard = (() => {
     };
   }
 
+  // ../ui/modules/drilldown/reviewer-drilldown.ts
+  var ACTIVE_CLASS3 = "is-drilldown-active";
+  function reviewerEntry(rollup, reviewerId) {
+    const map = rollup.by_reviewer;
+    if (!map) return void 0;
+    return new Map(Object.entries(map)).get(reviewerId);
+  }
+  function buildStatRow(rollups, reviewerId) {
+    let totalReviews = 0;
+    let totalPrs = 0;
+    let peakRepos = 0;
+    let peakWeek = null;
+    for (const rollup of rollups) {
+      const entry = reviewerEntry(rollup, reviewerId);
+      if (!entry) continue;
+      totalReviews += entry.reviews_count;
+      totalPrs += entry.reviewed_prs;
+      const repos = entry.repositories_count ?? 0;
+      if (repos > peakRepos) {
+        peakRepos = repos;
+        peakWeek = rollup.week;
+      }
+    }
+    const approval = computeApprovalRate([...rollups], [reviewerId]);
+    const approvalLabel = approval.rate === null ? "Approval rate (no data)" : "Approval rate";
+    const approvalValue = approval.rate === null ? "\u2014" : `${Math.round(approval.rate * 100)}%`;
+    const peakValue = peakWeek !== null ? `${peakRepos} (${formatWeekLabel(peakWeek)})` : "0";
+    return {
+      section: makeStatRow([
+        { label: "Total reviews", value: String(totalReviews) },
+        { label: "PRs reviewed", value: String(totalPrs) },
+        { label: approvalLabel, value: approvalValue },
+        { label: "Peak repositories", value: peakValue }
+      ]),
+      totalPrs
+    };
+  }
+  function buildWeeklyTable(rollups, reviewerId) {
+    const rows = [];
+    for (const rollup of rollups) {
+      const entry = reviewerEntry(rollup, reviewerId);
+      if (!entry) continue;
+      const rate = entry.approval_rate;
+      const rateCell = typeof rate === "number" && Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : "";
+      rows.push({
+        label: formatWeekLabel(rollup.week),
+        values: [
+          String(entry.reviews_count),
+          String(entry.reviewed_prs),
+          rateCell
+        ]
+      });
+    }
+    return makeBreakdownTable(
+      "Weekly activity",
+      ["Week", "Reviews", "PRs reviewed", "Approval rate"],
+      rows
+    );
+  }
+  function buildPanelContent3(rollups, reviewerId) {
+    const stats = buildStatRow(rollups, reviewerId);
+    const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
+    return makePanelContent(reviewerId, subtitle, [
+      stats.section,
+      buildWeeklyTable(rollups, reviewerId)
+    ]);
+  }
+  function installReviewerDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-reviewer-id]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS3);
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const reviewerId = trigger.getAttribute("data-drilldown-reviewer-id");
+      if (!reviewerId) return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const context = {
+        sourceChart: "reviewer",
+        focusedData: { kind: "reviewer", reviewerId },
+        triggerElement: trigger,
+        content: buildPanelContent3(rollups, reviewerId)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS3);
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -8864,6 +9019,12 @@ var PRInsightsDashboard = (() => {
       if (cycleTimeContainer) {
         activeDrilldownHandles.push(
           installCycleTimeDrilldown(cycleTimeContainer, rollups)
+        );
+      }
+      const reviewerContainer = document.getElementById("reviewer-activity");
+      if (reviewerContainer) {
+        activeDrilldownHandles.push(
+          installReviewerDrilldown(reviewerContainer, rollups)
         );
       }
       if (comparisonMode) {
