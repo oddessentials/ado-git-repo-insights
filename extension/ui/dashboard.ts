@@ -95,10 +95,11 @@ import {
   publishFiltersChanged,
   publishTabChanged,
   publishComparisonToggled,
-  // Drill-down consumers (US1 throughput, US2 cycle-time, US3 reviewer)
+  // Drill-down consumers (US1 throughput, US2 cycle-time, US3 reviewer, US4 sparkline)
   installThroughputDrilldown,
   installCycleTimeDrilldown,
   installReviewerDrilldown,
+  installSparklineNavigator,
 } from "./modules";
 
 // Dashboard state
@@ -1022,6 +1023,13 @@ async function refreshMetrics(): Promise<void> {
     if (reviewerContainer) {
       activeDrilldownHandles.push(
         installReviewerDrilldown(reviewerContainer, rollups),
+      );
+    }
+    const summaryCardsContainer =
+      document.querySelector<HTMLElement>(".summary-cards");
+    if (summaryCardsContainer) {
+      activeDrilldownHandles.push(
+        installSparklineNavigator(summaryCardsContainer),
       );
     }
 

@@ -151,6 +151,14 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   // Render sparklines
   const sparklineData = extractSparklineData(rollups);
   renderSparklines(containers, sparklineData);
+  // Sparkline-navigator (US4): wrap the four sparklines whose target
+  // chart exists on the page in a <button class="sparkline-trigger">.
+  // Sparklines without a corresponding full chart (review time,
+  // author count) render as plain SVGs so a click does nothing.
+  wrapSparklineTrigger(containers.totalPrsSparkline, "throughput");
+  wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time");
+  wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time");
+  wrapSparklineTrigger(containers.reviewersSparkline, "reviewer");
 
   // Render sparkline time period labels (FR-010, FR-011)
   // Each label uses metric-specific non-null week count, capped by lookback window.
@@ -435,6 +443,32 @@ function renderMetricValues(
     containers.reviewersCount.textContent =
       metrics.avgReviewers.toLocaleString();
   }
+}
+
+/**
+ * Wrap a sparkline container's SVG in a `<button class="sparkline-
+ * trigger" data-drilldown-target-chart=...>` so `sparkline-navigator.ts`
+ * (US4) can delegate-listen for activation. No-op when the container
+ * is null or produced no SVG (insufficient data / cleared container).
+ *
+ * Re-renders are safe: `renderSparkline` above calls `clearElement`
+ * before writing a new SVG, so every call reaches a fresh container
+ * with no pre-existing button wrapper.
+ */
+function wrapSparklineTrigger(
+  container: HTMLElement | null,
+  targetChart: "throughput" | "cycle-time" | "reviewer",
+): void {
+  const svg = container?.querySelector("svg");
+  if (!svg) return;
+  const label = targetChart === "cycle-time" ? "cycle time" : targetChart;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sparkline-trigger";
+  button.setAttribute("data-drilldown-target-chart", targetChart);
+  button.setAttribute("aria-label", `Open full ${label} chart`);
+  svg.before(button);
+  button.appendChild(svg);
 }
 
 /**

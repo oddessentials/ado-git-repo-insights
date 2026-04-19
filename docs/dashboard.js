@@ -3691,6 +3691,7 @@ var PRInsightsDashboard = (() => {
   var MODERATE_SAMPLE_THRESHOLD = 30;
   var LOW_WEEK_THRESHOLD = 3;
   var MODERATE_WEEK_THRESHOLD = 8;
+  var SPARKLINE_HIGHLIGHT_MS = 1500;
   var COMPARISON_ADVISORY_TOAST_MS = 4e3;
 
   // ../ui/modules/shared/security.ts
@@ -6411,6 +6412,10 @@ var PRInsightsDashboard = (() => {
     attachInfoIcons(containers, options.reviewerFilterActive ?? false);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
+    wrapSparklineTrigger(containers.totalPrsSparkline, "throughput");
+    wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time");
+    wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time");
+    wrapSparklineTrigger(containers.reviewersSparkline, "reviewer");
     renderSparklineLabels(containers, current);
     if (prevRollups && prevRollups.length > 0) {
       renderDeltas(containers, current, previous);
@@ -6587,6 +6592,18 @@ var PRInsightsDashboard = (() => {
     if (containers.reviewersCount) {
       containers.reviewersCount.textContent = metrics.avgReviewers.toLocaleString();
     }
+  }
+  function wrapSparklineTrigger(container, targetChart) {
+    const svg = container?.querySelector("svg");
+    if (!svg) return;
+    const label = targetChart === "cycle-time" ? "cycle time" : targetChart;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "sparkline-trigger";
+    button.setAttribute("data-drilldown-target-chart", targetChart);
+    button.setAttribute("aria-label", `Open full ${label} chart`);
+    svg.before(button);
+    button.appendChild(svg);
   }
   function renderSparklines(containers, data) {
     renderSparkline(containers.totalPrsSparkline, data.prCounts);
@@ -8458,6 +8475,111 @@ var PRInsightsDashboard = (() => {
     };
   }
 
+  // ../ui/modules/drilldown/sparkline-navigator.ts
+  var HIGHLIGHT_CLASS = "is-sparkline-highlight";
+  var ADVISORY_CLASS = "sparkline-advisory";
+  var TARGET_ID_BY_CHART = {
+    throughput: "throughput-chart",
+    "cycle-time": "cycle-time-trend",
+    reviewer: "reviewer-activity"
+  };
+  function targetIdFor(chart) {
+    if (chart === "throughput") return TARGET_ID_BY_CHART.throughput;
+    if (chart === "cycle-time") return TARGET_ID_BY_CHART["cycle-time"];
+    return TARGET_ID_BY_CHART.reviewer;
+  }
+  function chartLabel(chart) {
+    if (chart === "cycle-time") return "cycle time";
+    return chart;
+  }
+  function installSparklineNavigator(container) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const highlightTimers = /* @__PURE__ */ new Set();
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-target-chart]");
+    }
+    function clearAdvisoryIn(parent) {
+      const existing = parent.querySelector(`.${ADVISORY_CLASS}`);
+      if (existing) existing.remove();
+    }
+    function showAdvisoryIn(parent, label) {
+      clearAdvisoryIn(parent);
+      const slot = document.createElement("div");
+      slot.className = ADVISORY_CLASS;
+      parent.appendChild(slot);
+      renderNoData(
+        slot,
+        `No full ${label} chart available on this page.`,
+        "The detailed view is gated by a data-availability check."
+      );
+    }
+    function prefersReducedMotion() {
+      const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+      return mq ? mq.matches : false;
+    }
+    function activate(trigger) {
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const chart = trigger.getAttribute("data-drilldown-target-chart");
+      if (chart !== "throughput" && chart !== "cycle-time" && chart !== "reviewer") {
+        return;
+      }
+      const parent = trigger.parentElement;
+      if (!parent) return;
+      const targetEl = document.getElementById(targetIdFor(chart));
+      if (!targetEl) {
+        showAdvisoryIn(parent, chartLabel(chart));
+        return;
+      }
+      clearAdvisoryIn(parent);
+      const behavior = prefersReducedMotion() ? "auto" : "smooth";
+      targetEl.scrollIntoView({ behavior, block: "center" });
+      targetEl.classList.remove(HIGHLIGHT_CLASS);
+      void targetEl.offsetWidth;
+      targetEl.classList.add(HIGHLIGHT_CLASS);
+      const timer = setTimeout(() => {
+        targetEl.classList.remove(HIGHLIGHT_CLASS);
+        highlightTimers.delete(timer);
+      }, SPARKLINE_HIGHLIGHT_MS);
+      highlightTimers.add(timer);
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const timer of highlightTimers) {
+          clearTimeout(timer);
+        }
+        highlightTimers.clear();
+      }
+    };
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -9025,6 +9147,12 @@ var PRInsightsDashboard = (() => {
       if (reviewerContainer) {
         activeDrilldownHandles.push(
           installReviewerDrilldown(reviewerContainer, rollups)
+        );
+      }
+      const summaryCardsContainer = document.querySelector(".summary-cards");
+      if (summaryCardsContainer) {
+        activeDrilldownHandles.push(
+          installSparklineNavigator(summaryCardsContainer)
         );
       }
       if (comparisonMode) {

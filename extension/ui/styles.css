@@ -912,6 +912,83 @@ input[type="search"]::placeholder {
     fill: var(--primary);
 }
 
+/* Sparkline-navigator trigger (US4) — transparent button wrapping the
+   sparkline SVG so the navigator can delegate-click-listen on the
+   summary-cards container. Button styling must not disturb layout or
+   visual appearance of the underlying sparkline. */
+.sparkline-trigger {
+    display: inline-flex;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    /* Inherit sparkline container sizing so the click surface covers
+       the SVG without introducing extra hit area. */
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+.sparkline-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.sparkline-trigger:hover {
+    /* Subtle hover cue — sparkline interactivity is otherwise
+       invisible. */
+    opacity: 0.85;
+}
+
+.sparkline-trigger svg {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Inline advisory rendered when the target chart is unavailable
+   (FR-052). Positioned under the sparkline so the user sees why
+   nothing scrolled. */
+.sparkline-advisory {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 4px 0 0 0;
+}
+
+/* Target-chart highlight applied after a sparkline activation — the
+   class is self-dismissing after SPARKLINE_HIGHLIGHT_MS (1500ms)
+   (FR-051). Uses a subtle ring + glow so the user immediately spots
+   the focused full chart. */
+.is-sparkline-highlight {
+    animation: sparkline-highlight 1.5s ease-out;
+}
+
+@keyframes sparkline-highlight {
+    0% {
+        box-shadow: 0 0 0 0 var(--primary);
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+    100% {
+        box-shadow: 0 0 0 8px transparent;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .is-sparkline-highlight {
+        animation: none;
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+}
+
 /* Charts */
 .chart-container {
     background: var(--bg-primary);
