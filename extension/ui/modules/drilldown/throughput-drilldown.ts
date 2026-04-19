@@ -27,7 +27,6 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { BreakdownEntry } from "../../schemas/rollup.schema";
-import { formatDateRange } from "../shared/format";
 import { dismissAllTooltips } from "../tooltip-manager";
 import {
   makeBreakdownTable,
@@ -109,6 +108,33 @@ function isoWeekRange(week: string): { start: Date; end: Date } | null {
 }
 
 /**
+ * Format a Monday/Sunday pair as a condensed week-range string matching
+ * the spec example in `specs/059-chart-drill-down/data-model.md`:
+ * `"Mar 18 – 24, 2025"` (same-month), `"Mar 31 – Apr 6, 2025"` (cross-
+ * month), `"Dec 30, 2024 – Jan 5, 2025"` (cross-year). Uses the
+ * short-month / numeric-day locale output via `toLocaleDateString`.
+ */
+function formatWeekRangeTitle(start: Date, end: Date): string {
+  const startMonth = start.toLocaleDateString("en-US", { month: "short" });
+  const endMonth = end.toLocaleDateString("en-US", { month: "short" });
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+  if (startYear !== endYear) {
+    return (
+      `${startMonth} ${start.getDate()}, ${startYear} – ` +
+      `${endMonth} ${end.getDate()}, ${endYear}`
+    );
+  }
+  if (startMonth === endMonth) {
+    return `${startMonth} ${start.getDate()} – ${end.getDate()}, ${startYear}`;
+  }
+  return (
+    `${startMonth} ${start.getDate()} – ` +
+    `${endMonth} ${end.getDate()}, ${startYear}`
+  );
+}
+
+/**
  * Format the panel title from the rollup's authoritative
  * `start_date` / `end_date` fields (written by `aggregators.py`
  * `WeeklyRollup`). Falls back to recomputing from the ISO week key
@@ -119,11 +145,11 @@ function formatWeekTitle(rollup: Rollup): string {
   const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
   const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
   if (start && end) {
-    return `Week of ${formatDateRange(start, end)}`;
+    return `Week of ${formatWeekRangeTitle(start, end)}`;
   }
   const range = isoWeekRange(rollup.week);
   if (!range) return `Week ${rollup.week}`;
-  return `Week of ${formatDateRange(range.start, range.end)}`;
+  return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
 }
 
 function breakdownSection(

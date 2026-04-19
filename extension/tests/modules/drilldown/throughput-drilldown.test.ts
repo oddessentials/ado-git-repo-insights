@@ -117,7 +117,7 @@ describe("throughput-drilldown", () => {
     // a UTC-constructed date plus a local-tz formatter would shift
     // the display one day earlier for timezones west of UTC.
     const title = panel!.querySelector("#detail-panel-title")!.textContent;
-    expect(title).toBe("Week of Mar 17 – Mar 23");
+    expect(title).toBe("Week of Mar 17 – 23, 2025");
     expect(
       panel!.querySelector(".detail-panel-subtitle")!.textContent,
     ).toContain("47 PRs");
@@ -480,7 +480,7 @@ describe("throughput-drilldown", () => {
     click(firstBar(container));
 
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      "Week of Mar 17 – Mar 23",
+      "Week of Mar 17 – 23, 2025",
     );
   });
 
@@ -501,7 +501,46 @@ describe("throughput-drilldown", () => {
     click(firstBar(container));
 
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      "Week of Mar 17 – Mar 23",
+      "Week of Mar 17 – 23, 2025",
+    );
+  });
+
+  it("formats a cross-month week range with both month names", () => {
+    // Example: ISO 2025-W14 runs Mon Mar 31 – Sun Apr 6; the formatter
+    // must keep both month abbreviations when the range spans months.
+    const rollups = [
+      makeRollup({
+        week: "2025-W14",
+        start_date: "2025-03-31",
+        end_date: "2025-04-06",
+      }),
+    ];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      "Week of Mar 31 – Apr 6, 2025",
+    );
+  });
+
+  it("formats a cross-year week range with both years", () => {
+    // Example: ISO 2025-W01 runs Mon Dec 30 2024 – Sun Jan 5 2025.
+    const rollups = [
+      makeRollup({
+        week: "2025-W01",
+        start_date: "2024-12-30",
+        end_date: "2025-01-05",
+      }),
+    ];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      "Week of Dec 30, 2024 – Jan 5, 2025",
     );
   });
 
@@ -523,7 +562,7 @@ describe("throughput-drilldown", () => {
     click(firstBar(container));
 
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      "Week of Apr 7 – Apr 13",
+      "Week of Apr 7 – 13, 2025",
     );
   });
 

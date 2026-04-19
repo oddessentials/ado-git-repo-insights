@@ -4110,15 +4110,6 @@ var PRInsightsDashboard = (() => {
     const days = hours / 24;
     return `${days.toFixed(1)}d`;
   }
-  function formatDate(date) {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric"
-    });
-  }
-  function formatDateRange(start, end) {
-    return `${formatDate(start)} \u2013 ${formatDate(end)}`;
-  }
   function median(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a2, b2) => a2 - b2);
@@ -8045,15 +8036,28 @@ var PRInsightsDashboard = (() => {
     end.setDate(start.getDate() + 6);
     return { start, end };
   }
+  function formatWeekRangeTitle(start, end) {
+    const startMonth = start.toLocaleDateString("en-US", { month: "short" });
+    const endMonth = end.toLocaleDateString("en-US", { month: "short" });
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+    if (startYear !== endYear) {
+      return `${startMonth} ${start.getDate()}, ${startYear} \u2013 ${endMonth} ${end.getDate()}, ${endYear}`;
+    }
+    if (startMonth === endMonth) {
+      return `${startMonth} ${start.getDate()} \u2013 ${end.getDate()}, ${startYear}`;
+    }
+    return `${startMonth} ${start.getDate()} \u2013 ${endMonth} ${end.getDate()}, ${startYear}`;
+  }
   function formatWeekTitle(rollup) {
     const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
     const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
     if (start && end) {
-      return `Week of ${formatDateRange(start, end)}`;
+      return `Week of ${formatWeekRangeTitle(start, end)}`;
     }
     const range = isoWeekRange(rollup.week);
     if (!range) return `Week ${rollup.week}`;
-    return `Week of ${formatDateRange(range.start, range.end)}`;
+    return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
   }
   function breakdownSection(title, columns, entries, emptyDetail) {
     if (!entries || Object.keys(entries).length === 0) {
@@ -9334,13 +9338,13 @@ var PRInsightsDashboard = (() => {
   }
   function updateComparisonBanner() {
     if (!currentDateRange.start || !currentDateRange.end) return;
-    const formatDate2 = (date) => date.toLocaleDateString("en-US", {
+    const formatDate = (date) => date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric"
     });
-    const currentStart = formatDate2(currentDateRange.start);
-    const currentEnd = formatDate2(currentDateRange.end);
+    const currentStart = formatDate(currentDateRange.start);
+    const currentEnd = formatDate(currentDateRange.end);
     const currentDatesEl = elements.get("current-period-dates");
     if (currentDatesEl) {
       currentDatesEl.textContent = `${currentStart} - ${currentEnd}`;
@@ -9349,8 +9353,8 @@ var PRInsightsDashboard = (() => {
       currentDateRange.start,
       currentDateRange.end
     );
-    const prevStart = formatDate2(prevPeriod.start);
-    const prevEnd = formatDate2(prevPeriod.end);
+    const prevStart = formatDate(prevPeriod.start);
+    const prevEnd = formatDate(prevPeriod.end);
     const prevDatesEl = elements.get("previous-period-dates");
     if (prevDatesEl) {
       prevDatesEl.textContent = `${prevStart} - ${prevEnd}`;
