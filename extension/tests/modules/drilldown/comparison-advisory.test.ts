@@ -300,9 +300,7 @@ describe("comparison-advisory — a11y roles + copy split (PR #302 P1.H)", () =>
     expect(toast).not.toBeNull();
     expect(toast!.getAttribute("role")).toBe("alert");
     expect(toast!.getAttribute("aria-live")).toBe("assertive");
-    expect(toast!.textContent).toBe(
-      "Exit comparison to open chart details.",
-    );
+    expect(toast!.textContent).toBe("Exit comparison to open chart details.");
   });
 
   it("banner copy differs from toast copy (no SR double-announce overlap)", () => {
