@@ -190,3 +190,40 @@ describe("CSS Contract: Touch device affordance", () => {
     expect(css).toMatch(/@media\s*\(hover:\s*none\)/);
   });
 });
+
+// PR #302 P1.C — drill-down panel + advisory toast must stack above the
+// pre-existing global `.toast` (bottom-right export-feedback) so a user
+// who clicks Export CSV and then a chart bar within the toast's 3 s
+// lifetime does not find the drill-down drawer occluded. Locks the
+// full stack: advisory-toast > detail-panel > toast.
+describe("CSS Contract: z-index stacking (PR #302 P1.C)", () => {
+  function zIndexOf(selector: string): number {
+    // Anchor on a leading newline + " {" so we only hit the top-level
+    // rule, never a selector mentioned inside a comment block.
+    const block = extractBlock(css, "\n" + selector + " {");
+    expect(block.length).toBeGreaterThan(0);
+    const match = block.match(/z-index:\s*(\d+)/);
+    expect(match).not.toBeNull();
+    return Number.parseInt(match![1]!, 10);
+  }
+
+  it("exposes .toast at its pre-existing z-index 1000 (guard against drift)", () => {
+    expect(zIndexOf(".toast")).toBe(1000);
+  });
+
+  it("sets .detail-panel z-index to 1050 (above .toast)", () => {
+    expect(zIndexOf(".detail-panel")).toBe(1050);
+  });
+
+  it("sets .comparison-advisory-toast z-index to 1060 (above .detail-panel)", () => {
+    expect(zIndexOf(".comparison-advisory-toast")).toBe(1060);
+  });
+
+  it("stacks advisory-toast > detail-panel > pre-existing toast", () => {
+    const toast = zIndexOf(".toast");
+    const panel = zIndexOf(".detail-panel");
+    const advisory = zIndexOf(".comparison-advisory-toast");
+    expect(advisory).toBeGreaterThan(panel);
+    expect(panel).toBeGreaterThan(toast);
+  });
+});

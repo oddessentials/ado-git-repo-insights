@@ -3052,7 +3052,10 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     flex-direction: column;
     transform: translateX(100%);
     transition: transform 180ms ease-out;
-    z-index: 100;
+    /* PR #302 P1.C — must sit above the pre-existing .toast (z-index
+     * 1000) so export-feedback toasts can't occlude the drill-down
+     * drawer. Locked in detail-panel.test.ts (z-index stacking). */
+    z-index: 1050;
     overflow: hidden;
 }
 
@@ -3248,7 +3251,11 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     box-shadow: var(--shadow-sm);
     font-size: 13px;
     max-width: 320px;
-    z-index: 110;
+    /* PR #302 P1.C — must sit above .detail-panel (1050) and
+     * .toast (1000) so the advisory cue is always visible when
+     * drill-down is blocked. Stack order asserted in
+     * detail-panel.test.ts. */
+    z-index: 1060;
     pointer-events: none;
     animation: comparison-advisory-toast-in 120ms ease-out;
 }
