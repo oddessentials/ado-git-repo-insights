@@ -41,8 +41,13 @@ const TOAST_CLASS = "comparison-advisory-toast";
 const DISABLED_ATTR = "data-drilldown-disabled";
 const DISABLED_VALUE = "comparison";
 
-const ADVISORY_MESSAGE =
-  "Drill-down is unavailable during comparison. Exit comparison to use it.";
+// PR #302 P1.H — banner and toast carry DIFFERENT copy so SRs never
+// hear the same advisory twice in quick succession (banner on comparison
+// activate + toast on the subsequent click attempt). Banner is a
+// steady-state declaration; toast is an action acknowledgement with an
+// imperative next step.
+const BANNER_MESSAGE = "Chart details are unavailable during comparison.";
+const TOAST_MESSAGE = "Exit comparison to open chart details.";
 
 let isActive = false;
 let activeToast: HTMLElement | null = null;
@@ -64,14 +69,19 @@ export function showComparisonAdvisoryToast(target: HTMLElement): void {
   // Replace any in-flight toast so messages never stack.
   dismissActiveToast();
 
+  // PR #302 P1.H — the toast fires in direct response to a blocked
+  // user click; FR-061 frames this as an interruption acknowledgement,
+  // so role="alert" + aria-live="assertive" is the WCAG 4.1.3 pairing
+  // for "interrupt current speech to report that a user action was
+  // ignored". Banner stays polite (role="status" in mountBanner below).
   const toast = createElement(
     "div",
     {
       class: TOAST_CLASS,
-      role: "status",
-      "aria-live": "polite",
+      role: "alert",
+      "aria-live": "assertive",
     },
-    ADVISORY_MESSAGE,
+    TOAST_MESSAGE,
   );
   document.body.appendChild(toast);
   positionToastNear(toast, target);
@@ -140,10 +150,17 @@ function mountBanner(): void {
   const banner = document.getElementById(COMPARISON_BANNER_ID);
   if (!banner) return;
   if (banner.querySelector(`.${BANNER_NOTE_CLASS}`)) return; // idempotent
+  // PR #302 P1.H — role="status" + aria-live="polite" so SRs announce
+  // the persistent state change at the moment comparison activates
+  // (WCAG 4.1.3 pattern). The previous role="note" was silent for SRs
+  // because role=note is not a live region. Remount on disable→enable
+  // creates a new live-region element, re-announcing — that is the
+  // desired cadence per FR-061 ("visible, persistent cue MUST appear"
+  // at every activation).
   const note = createElement(
     "div",
-    { class: BANNER_NOTE_CLASS, role: "note" },
-    ADVISORY_MESSAGE,
+    { class: BANNER_NOTE_CLASS, role: "status", "aria-live": "polite" },
+    BANNER_MESSAGE,
   );
   banner.appendChild(note);
 }

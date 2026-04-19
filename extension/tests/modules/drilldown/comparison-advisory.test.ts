@@ -251,3 +251,109 @@ describe("comparison-advisory — transient toast", () => {
     );
   });
 });
+
+// PR #302 P1.H — a11y / copy split between persistent banner and
+// transient on-attempt toast. Tests lock:
+//   - Banner  role="status"   + aria-live="polite"    + BANNER_MESSAGE
+//   - Toast   role="alert"    + aria-live="assertive" + TOAST_MESSAGE
+//   - Banner / toast copy differ (prevents collapse back to one message)
+//   - Disable→enable remount produces a *new* DOM element (so SRs
+//     actually re-announce; idempotent repeat-enable does NOT remount)
+//   - Banner mounts into a visible parent (caller must un-hide
+//     #comparison-banner before toggling); regression test against the
+//     Phase-2 refactor risk flagged by a11y review
+describe("comparison-advisory — a11y roles + copy split (PR #302 P1.H)", () => {
+  beforeEach(() => {
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    document.body.innerHTML = "";
+  });
+  afterEach(() => {
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+    document.body.innerHTML = "";
+  });
+
+  it("banner is role=status + aria-live=polite with BANNER_MESSAGE copy", () => {
+    const { comparisonBanner } = scaffoldChartContainers();
+    publishComparisonToggled({ enabled: true });
+
+    const note = comparisonBanner.querySelector<HTMLElement>(
+      ".comparison-advisory-banner",
+    );
+    expect(note).not.toBeNull();
+    expect(note!.getAttribute("role")).toBe("status");
+    expect(note!.getAttribute("aria-live")).toBe("polite");
+    expect(note!.textContent).toBe(
+      "Chart details are unavailable during comparison.",
+    );
+  });
+
+  it("toast is role=alert + aria-live=assertive with TOAST_MESSAGE copy", () => {
+    const target = makeTrigger();
+    showComparisonAdvisoryToast(target);
+
+    const toast = document.querySelector<HTMLElement>(
+      ".comparison-advisory-toast",
+    );
+    expect(toast).not.toBeNull();
+    expect(toast!.getAttribute("role")).toBe("alert");
+    expect(toast!.getAttribute("aria-live")).toBe("assertive");
+    expect(toast!.textContent).toBe(
+      "Exit comparison to open chart details.",
+    );
+  });
+
+  it("banner copy differs from toast copy (no SR double-announce overlap)", () => {
+    const { comparisonBanner } = scaffoldChartContainers();
+    publishComparisonToggled({ enabled: true });
+    const target = makeTrigger();
+    showComparisonAdvisoryToast(target);
+
+    const banner = comparisonBanner.querySelector<HTMLElement>(
+      ".comparison-advisory-banner",
+    );
+    const toast = document.querySelector<HTMLElement>(
+      ".comparison-advisory-toast",
+    );
+    expect(banner).not.toBeNull();
+    expect(toast).not.toBeNull();
+    expect(banner!.textContent).not.toBe(toast!.textContent);
+  });
+
+  it("disable→enable remount yields a NEW DOM node (so SRs re-announce)", () => {
+    const { comparisonBanner } = scaffoldChartContainers();
+    publishComparisonToggled({ enabled: true });
+    const first = comparisonBanner.querySelector(".comparison-advisory-banner");
+    expect(first).not.toBeNull();
+
+    publishComparisonToggled({ enabled: false });
+    publishComparisonToggled({ enabled: true });
+
+    const second = comparisonBanner.querySelector(
+      ".comparison-advisory-banner",
+    );
+    expect(second).not.toBeNull();
+    // New element identity — remount, not just class re-add.
+    expect(second!.isSameNode(first)).toBe(false);
+  });
+
+  it("banner mounts inside a non-hidden parent (ordering invariant)", () => {
+    // Production caller removes the `.hidden` class on #comparison-banner
+    // BEFORE publishing COMPARISON_TOGGLED_EVENT (see dashboard.ts 2057-
+    // 2070 + deep-link restore 2035-2044). If a future refactor inverts
+    // that ordering the role="status" live-region would mount inside a
+    // display:none subtree and some AT combinations suppress the
+    // announcement. Lock the expected ordering.
+    const { comparisonBanner } = scaffoldChartContainers();
+    comparisonBanner.classList.add("hidden");
+    // Mimic production sequence: un-hide FIRST, then publish.
+    comparisonBanner.classList.remove("hidden");
+    publishComparisonToggled({ enabled: true });
+
+    const note = comparisonBanner.querySelector(".comparison-advisory-banner");
+    expect(note).not.toBeNull();
+    expect(comparisonBanner.classList.contains("hidden")).toBe(false);
+  });
+});

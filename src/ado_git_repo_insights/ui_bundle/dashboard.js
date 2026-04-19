@@ -7369,9 +7369,10 @@ var PRInsightsDashboard = (() => {
         approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${weeksWithData}">Approval Rate: No data</p>`;
       }
     }
+    const gatingNoteHtml = !reviewerFilterActive ? `<p class="reviewer-gating-note">Filter to a reviewer to drill into weekly activity.</p>` : "";
     renderTrustedHtml(
       container,
-      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`
+      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p>${gatingNoteHtml}<div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`
     );
   }
 
@@ -7999,7 +8000,8 @@ var PRInsightsDashboard = (() => {
   var TOAST_CLASS = "comparison-advisory-toast";
   var DISABLED_ATTR = "data-drilldown-disabled";
   var DISABLED_VALUE = "comparison";
-  var ADVISORY_MESSAGE = "Drill-down is unavailable during comparison. Exit comparison to use it.";
+  var BANNER_MESSAGE = "Chart details are unavailable during comparison.";
+  var TOAST_MESSAGE = "Exit comparison to open chart details.";
   var isActive2 = false;
   var activeToast = null;
   var activeToastTimer = null;
@@ -8012,10 +8014,10 @@ var PRInsightsDashboard = (() => {
       "div",
       {
         class: TOAST_CLASS,
-        role: "status",
-        "aria-live": "polite"
+        role: "alert",
+        "aria-live": "assertive"
       },
-      ADVISORY_MESSAGE
+      TOAST_MESSAGE
     );
     document.body.appendChild(toast);
     positionToastNear(toast, target);
@@ -8072,8 +8074,8 @@ var PRInsightsDashboard = (() => {
     if (banner.querySelector(`.${BANNER_NOTE_CLASS}`)) return;
     const note = createElement(
       "div",
-      { class: BANNER_NOTE_CLASS, role: "note" },
-      ADVISORY_MESSAGE
+      { class: BANNER_NOTE_CLASS, role: "status", "aria-live": "polite" },
+      BANNER_MESSAGE
     );
     banner.appendChild(note);
   }

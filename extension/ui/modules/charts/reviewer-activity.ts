@@ -243,9 +243,22 @@ export function renderReviewerActivity(
     }
   }
 
+  // PR #302 P1.F — when no reviewer filter is active, per-reviewer
+  // drill-down has no single subject and row clicks are no-ops (the
+  // drill-down attrs are omitted above at line 192-194). Sighted users
+  // previously had no affordance signalling that: bars looked identical
+  // to the filtered-rows drill-down-capable variant. Render a one-line
+  // gating note below the subtitle so the rule is discoverable both
+  // visually and via SR walk-through. Plain <p> (no role / no aria-live)
+  // — this is steady-state body text, not a reactive status change; the
+  // filter UI's own aria-live surface handles the transition announcement.
+  const gatingNoteHtml = !reviewerFilterActive
+    ? `<p class="reviewer-gating-note">Filter to a reviewer to drill into weekly activity.</p>`
+    : "";
+
   // SECURITY: barsHtml uses escapeHtml for week values, count and pct are numeric
   renderTrustedHtml(
     container,
-    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
+    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p>${gatingNoteHtml}<div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
   );
 }
