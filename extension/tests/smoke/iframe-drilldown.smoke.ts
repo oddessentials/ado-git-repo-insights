@@ -303,9 +303,11 @@ test.describe("Iframe drill-down smoke tests", () => {
     // typeahead-click ergonomics. Date Range sits in the top-left of
     // the filter bar — a stable uncovered control at every supported
     // viewport, unlike the right-side filters whose typeahead inputs
-    // can sit under the position:fixed detail panel when it is open,
-    // and the same signal path fires via handleDateRangeChange →
-    // refreshMetrics → publishFiltersChanged.
+    // can sit under the position:fixed detail panel when it is open
+    // (the underlying geometric-cover concern is tracked in #303, out
+    // of scope for #205 per maintainer call). The same signal path
+    // fires via handleDateRangeChange → refreshMetrics →
+    // publishFiltersChanged.
     const dateRange = frame.locator("#date-range");
     await dateRange.selectOption("30");
 
