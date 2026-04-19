@@ -94,7 +94,7 @@ export function renderThroughputChart(
       const showLabel = index % labelStep === 0;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}" data-drilldown-week="${escapeHtml(r.week)}" tabindex="0" role="button">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>

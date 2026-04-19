@@ -254,10 +254,14 @@ export function addChartTooltips(
         pointerOrigin = null;
 
         if (distance < SCROLL_CANCEL_THRESHOLD) {
-          // Prevent the synthesized click from immediately dismissing the
-          // tooltip. This also suppresses native click handlers on the same
-          // element after a tap, so avoid relying on click for tooltip dots.
-          e.preventDefault();
+          // Do NOT preventDefault here. The document-level dismiss
+          // listener already short-circuits when `click` target is
+          // inside `[data-tooltip]` or `.chart-tooltip` (see
+          // ensureDismissListener below), so the synthesized click
+          // on tap cannot dismiss the tooltip. Calling preventDefault
+          // used to suppress downstream click handlers (e.g. the
+          // per-chart drill-down delegated click in feature 059),
+          // which broke touch-tap activation of that flow.
           showTooltip(el);
         }
       },

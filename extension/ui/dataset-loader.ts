@@ -112,6 +112,12 @@ export const DEPRECATED_LAYOUT_ERROR =
  */
 export interface Rollup {
   week: string;
+  // ISO date strings (YYYY-MM-DD) for the Monday/Sunday calendar bounds
+  // of `week`. Written by aggregators.py WeeklyRollup (required on the
+  // Python side) but declared optional here for compatibility with the
+  // tolerant rollup schema validator.
+  start_date?: string;
+  end_date?: string;
   pr_count: number;
   cycle_time_p50: number | null;
   cycle_time_p90: number | null;

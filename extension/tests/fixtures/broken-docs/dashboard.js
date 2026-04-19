@@ -3691,6 +3691,7 @@ var PRInsightsDashboard = (() => {
   var MODERATE_SAMPLE_THRESHOLD = 30;
   var LOW_WEEK_THRESHOLD = 3;
   var MODERATE_WEEK_THRESHOLD = 8;
+  var COMPARISON_ADVISORY_TOAST_MS = 4e3;
 
   // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
@@ -3716,6 +3717,11 @@ var PRInsightsDashboard = (() => {
     }
     return el;
   }
+  function appendText(parent, text) {
+    const textNode = document.createTextNode(text);
+    parent.appendChild(textNode);
+    return textNode;
+  }
   function renderNoData(container, message, hint) {
     if (!container) return;
     clearElement(container);
@@ -3740,7 +3746,49 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/focus-trap.ts
+  var FOCUSABLE_SELECTOR = '[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
   var trapStates = /* @__PURE__ */ new WeakMap();
+  function getFocusableElements(root) {
+    const nodes = root.querySelectorAll(FOCUSABLE_SELECTOR);
+    return Array.from(nodes).filter(
+      (el) => !el.hasAttribute("disabled") && el.tabIndex !== -1
+    );
+  }
+  function trapFocus(root) {
+    const controller = new AbortController();
+    const returnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    trapStates.set(controller, { root, returnTarget });
+    if (!root.contains(document.activeElement)) {
+      const first = getFocusableElements(root)[0];
+      first?.focus();
+    }
+    const handleKeydown = (event) => {
+      if (event.key !== "Tab") return;
+      const focusables = getFocusableElements(root);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+      const active2 = document.activeElement;
+      if (event.shiftKey) {
+        if (active2 === first || !root.contains(active2)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active2 === last || !root.contains(active2)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    root.addEventListener("keydown", handleKeydown, {
+      signal: controller.signal
+    });
+    return controller;
+  }
   function restoreFocus(controller) {
     const state = trapStates.get(controller);
     controller.abort();
@@ -3773,6 +3821,31 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/detail-panel.ts
+  function makePanelContent(title, subtitle, sections) {
+    if (title.length === 0) {
+      throw new TypeError("PanelContent.title MUST be non-empty");
+    }
+    if (sections.length === 0) {
+      throw new TypeError(
+        "PanelContent.sections MUST contain at least one section"
+      );
+    }
+    return { title, subtitle, sections };
+  }
+  function makeBreakdownTable(title, columns, rows) {
+    const expectedValues = columns.length - 1;
+    for (const row of rows) {
+      if (row.values.length !== expectedValues) {
+        throw new TypeError(
+          `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`
+        );
+      }
+    }
+    return { type: "breakdown-table", title, columns, rows };
+  }
+  function makeEmptyState(title, detail) {
+    return { type: "empty-state", title, detail };
+  }
   var panelEls = null;
   var panelState = "closed";
   var activeContext = null;
@@ -3786,8 +3859,218 @@ var PRInsightsDashboard = (() => {
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
   }
+  function ensurePanelEls() {
+    if (panelEls && !panelEls.root.isConnected) {
+      panelEls = null;
+      panelState = "closed";
+      activeContext = null;
+      openScopedController?.abort();
+      openScopedController = null;
+      focusTrapController?.abort();
+      focusTrapController = null;
+    }
+    if (panelEls) return panelEls;
+    const root = document.createElement("aside");
+    root.className = "detail-panel";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-labelledby", "detail-panel-title");
+    const header = createElement("div", { class: "detail-panel-header" });
+    const titleEl = createElement("h2", { id: "detail-panel-title" });
+    header.appendChild(titleEl);
+    const subtitleEl = createElement("p", { class: "detail-panel-subtitle" });
+    header.appendChild(subtitleEl);
+    const closeBtn = createElement(
+      "button",
+      {
+        type: "button",
+        class: "detail-panel-close",
+        "aria-label": "Close detail panel"
+      },
+      "\xD7"
+    );
+    closeBtn.addEventListener("click", () => {
+      dismissDetailPanel("explicit-close-button");
+    });
+    header.appendChild(closeBtn);
+    root.appendChild(header);
+    const sectionsRoot = createElement("div", {
+      class: "detail-panel-sections"
+    });
+    root.appendChild(sectionsRoot);
+    document.body.appendChild(root);
+    panelEls = { root, sectionsRoot, titleEl, subtitleEl, closeBtn };
+    return panelEls;
+  }
+  function renderContent(els, content) {
+    clearElement(els.titleEl);
+    appendText(els.titleEl, content.title);
+    clearElement(els.subtitleEl);
+    if (content.subtitle !== null) {
+      appendText(els.subtitleEl, content.subtitle);
+      els.subtitleEl.style.display = "";
+    } else {
+      els.subtitleEl.style.display = "none";
+    }
+    clearElement(els.sectionsRoot);
+    for (const section of content.sections) {
+      els.sectionsRoot.appendChild(renderSection(section));
+    }
+  }
+  function renderSection(section) {
+    switch (section.type) {
+      case "breakdown-table":
+        return renderBreakdownTable(section);
+      case "stat-row":
+        return renderStatRow(section);
+      case "empty-state":
+        return renderEmptyState(section);
+    }
+  }
+  function renderBreakdownTable(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--breakdown-table"
+    });
+    const heading = createElement("h3", {}, section.title);
+    wrapper.appendChild(heading);
+    const table = createElement("table", { class: "detail-panel-table" });
+    const thead = createElement("thead");
+    const headerRow = createElement("tr");
+    for (const col of section.columns) {
+      const th = createElement("th", { scope: "col" }, col);
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    const tbody = createElement("tbody");
+    for (const row of section.rows) {
+      const tr = createElement("tr");
+      const firstCell = createElement("th", { scope: "row" }, row.label);
+      tr.appendChild(firstCell);
+      for (const value of row.values) {
+        tr.appendChild(createElement("td", {}, value));
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    return wrapper;
+  }
+  function renderStatRow(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--stat-row"
+    });
+    const list = createElement("dl", { class: "detail-panel-stats" });
+    for (const stat of section.stats) {
+      const dt = createElement("dt", {}, stat.label);
+      const ddAttrs = {};
+      if (stat.tone !== void 0) {
+        ddAttrs["data-tone"] = stat.tone;
+      }
+      const dd = createElement("dd", ddAttrs, stat.value);
+      list.appendChild(dt);
+      list.appendChild(dd);
+    }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+  function renderEmptyState(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--empty-state"
+    });
+    wrapper.appendChild(createElement("h3", {}, section.title));
+    wrapper.appendChild(
+      createElement("p", { class: "detail-panel-empty-detail" }, section.detail)
+    );
+    return wrapper;
+  }
+  function installOpenScopedListeners(els) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape" && panelState === "open") {
+          event.preventDefault();
+          dismissDetailPanel("escape-key");
+        }
+      },
+      { signal }
+    );
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (panelState !== "open") return;
+        const target = event.target;
+        if (target instanceof Node && !els.root.contains(target)) {
+          dismissDetailPanel("outside-click");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      FILTERS_CHANGED_EVENT,
+      () => {
+        if (panelState === "open" || panelState === "opening") {
+          dismissDetailPanel("filters-changed");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      TAB_CHANGED_EVENT,
+      (evt) => {
+        const e2 = evt;
+        if (e2.detail.activeTabId !== "metrics" && panelState === "open") {
+          dismissDetailPanel("tab-changed");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      COMPARISON_TOGGLED_EVENT,
+      (evt) => {
+        const e2 = evt;
+        if (e2.detail.enabled && panelState === "open") {
+          dismissDetailPanel("comparison-toggled");
+        }
+      },
+      { signal }
+    );
+    return controller;
+  }
   function isDetailPanelOpen() {
     return panelState === "opening" || panelState === "open";
+  }
+  function openDetailPanel(context) {
+    if (context.content.title.length === 0) {
+      throw new TypeError("PanelContent.title MUST be non-empty");
+    }
+    if (context.content.sections.length === 0) {
+      throw new TypeError(
+        "PanelContent.sections MUST contain at least one section"
+      );
+    }
+    if (comparisonActive) {
+      console.warn(
+        "[detail-panel] openDetailPanel called while comparison mode is active; no-op. Callers should route to comparison-advisory.showComparisonAdvisoryToast in that case."
+      );
+      return;
+    }
+    if (panelState === "closing") {
+      finalizeClose();
+    }
+    const els = ensurePanelEls();
+    const wasOpen = isDetailPanelOpen();
+    activeContext = context;
+    renderContent(els, context.content);
+    if (!wasOpen) {
+      els.root.classList.add("is-open");
+      panelState = "opening";
+      panelState = "open";
+      openScopedController = installOpenScopedListeners(els);
+      focusTrapController = trapFocus(els.root);
+    }
   }
   function dismissDetailPanel(reason) {
     if (!isDetailPanelOpen()) return;
@@ -3826,6 +4109,15 @@ var PRInsightsDashboard = (() => {
     }
     const days = hours / 24;
     return `${days.toFixed(1)}d`;
+  }
+  function formatDate(date) {
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    });
+  }
+  function formatDateRange(start, end) {
+    return `${formatDate(start)} \u2013 ${formatDate(end)}`;
   }
   function median(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
@@ -6071,7 +6363,6 @@ var PRInsightsDashboard = (() => {
           const distance = Math.sqrt(dx * dx + dy * dy);
           pointerOrigin = null;
           if (distance < SCROLL_CANCEL_THRESHOLD) {
-            e2.preventDefault();
             showTooltip(el);
           }
         },
@@ -6580,7 +6871,7 @@ var PRInsightsDashboard = (() => {
       const weekLabel = wParts[1] ?? r2.week;
       const showLabel = index % labelStep === 0;
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${r2.pr_count || 0}">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${r2.pr_count || 0}" data-drilldown-week="${escapeHtml(r2.week)}" tabindex="0" role="button">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
@@ -7610,12 +7901,36 @@ var PRInsightsDashboard = (() => {
   var SUMMARY_CARDS_SELECTOR = ".summary-cards";
   var COMPARISON_BANNER_ID = "comparison-banner";
   var BANNER_NOTE_CLASS = "comparison-advisory-banner";
+  var TOAST_CLASS = "comparison-advisory-toast";
   var DISABLED_ATTR = "data-drilldown-disabled";
   var DISABLED_VALUE = "comparison";
   var ADVISORY_MESSAGE = "Drill-down is unavailable during comparison. Exit comparison to use it.";
   var isActive2 = false;
   var activeToast = null;
   var activeToastTimer = null;
+  function isDrilldownDisabledByComparison() {
+    return isActive2;
+  }
+  function showComparisonAdvisoryToast(target) {
+    dismissActiveToast();
+    const toast = createElement(
+      "div",
+      {
+        class: TOAST_CLASS,
+        role: "status",
+        "aria-live": "polite"
+      },
+      ADVISORY_MESSAGE
+    );
+    document.body.appendChild(toast);
+    positionToastNear(toast, target);
+    activeToast = toast;
+    activeToastTimer = setTimeout(() => {
+      if (activeToast === toast) {
+        dismissActiveToast();
+      }
+    }, COMPARISON_ADVISORY_TOAST_MS);
+  }
   function dismissActiveToast() {
     if (activeToastTimer !== null) {
       clearTimeout(activeToastTimer);
@@ -7625,6 +7940,26 @@ var PRInsightsDashboard = (() => {
       activeToast.remove();
     }
     activeToast = null;
+  }
+  function positionToastNear(toast, target) {
+    const rect = target.getBoundingClientRect();
+    toast.style.position = "fixed";
+    toast.style.visibility = "hidden";
+    const toastRect = toast.getBoundingClientRect();
+    const gap = 8;
+    let top = rect.top - toastRect.height - gap;
+    if (top < 0) top = rect.bottom + gap;
+    if (top + toastRect.height > window.innerHeight) {
+      top = Math.max(4, window.innerHeight - toastRect.height - 4);
+    }
+    let left = rect.left + rect.width / 2 - toastRect.width / 2;
+    if (left < 4) left = 4;
+    if (left + toastRect.width > window.innerWidth - 4) {
+      left = Math.max(4, window.innerWidth - toastRect.width - 4);
+    }
+    toast.style.top = `${top}px`;
+    toast.style.left = `${left}px`;
+    toast.style.visibility = "";
   }
   function getChartContainers() {
     const out = [];
@@ -7682,6 +8017,157 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/drilldown/throughput-drilldown.ts
+  var ACTIVE_CLASS = "is-drilldown-active";
+  function parseIsoLocalDate(iso) {
+    const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m2) return null;
+    const year = Number(m2[1]);
+    const month = Number(m2[2]);
+    const day = Number(m2[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return date;
+  }
+  function isoWeekRange(week) {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(week);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const weekNum = Number(match[2]);
+    if (weekNum < 1 || weekNum > 53) return null;
+    const jan4 = new Date(year, 0, 4);
+    const mondayOffset = (jan4.getDay() + 6) % 7;
+    const start = new Date(jan4);
+    start.setDate(jan4.getDate() - mondayOffset + (weekNum - 1) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start, end };
+  }
+  function formatWeekTitle(rollup) {
+    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+    if (start && end) {
+      return `Week of ${formatDateRange(start, end)}`;
+    }
+    const range = isoWeekRange(rollup.week);
+    if (!range) return `Week ${rollup.week}`;
+    return `Week of ${formatDateRange(range.start, range.end)}`;
+  }
+  function breakdownSection(title, columns, entries, emptyDetail) {
+    if (!entries || Object.keys(entries).length === 0) {
+      return makeEmptyState(title, emptyDetail);
+    }
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
+      label,
+      values: [String(entry.pr_count)]
+    }));
+    return makeBreakdownTable(title, columns, rows);
+  }
+  function buildPanelContent(rollup) {
+    const count = rollup.pr_count;
+    const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const byAuthor = breakdownSection(
+      "By author",
+      ["Author", "PRs"],
+      rollup.by_author,
+      "No author-level activity for this week."
+    );
+    const byRepository = breakdownSection(
+      "By repository",
+      ["Repository", "PRs"],
+      rollup.by_repository,
+      "No repository-level activity for this week."
+    );
+    return makePanelContent(formatWeekTitle(rollup), subtitle, [
+      byAuthor,
+      byRepository
+    ]);
+  }
+  function installThroughputDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-week]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS);
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const weekIso = trigger.getAttribute("data-drilldown-week");
+      if (!weekIso) return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const rollup = rollups.find((r2) => r2.week === weekIso);
+      if (!rollup) return;
+      const context = {
+        sourceChart: "throughput",
+        focusedData: { kind: "throughput", weekIso },
+        triggerElement: trigger,
+        content: buildPanelContent(rollup)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS);
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -7704,6 +8190,7 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var previousActiveTabId = "metrics";
   var cachedRollups = [];
+  var activeDrilldownHandles = [];
   var currentBuildId = null;
   var chipsDelegatedElement = null;
   var metricsSection = null;
@@ -8184,6 +8671,8 @@ var PRInsightsDashboard = (() => {
       if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
     publishFiltersChanged({ reason: "user-change" });
+    for (const handle of activeDrilldownHandles) handle.dispose();
+    activeDrilldownHandles = [];
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
@@ -8230,6 +8719,12 @@ var PRInsightsDashboard = (() => {
       renderCycleTimeTrend2(rollups, rawRollups, availability);
       renderReviewerActivity2(rollups, rawRollups, availability);
       renderCycleDistribution2(distributions, rawRollups, availability);
+      const throughputContainer = document.getElementById("throughput-chart");
+      if (throughputContainer) {
+        activeDrilldownHandles.push(
+          installThroughputDrilldown(throughputContainer, rollups)
+        );
+      }
       if (comparisonMode) {
         updateComparisonBanner();
       }
@@ -8839,13 +9334,13 @@ var PRInsightsDashboard = (() => {
   }
   function updateComparisonBanner() {
     if (!currentDateRange.start || !currentDateRange.end) return;
-    const formatDate = (date) => date.toLocaleDateString("en-US", {
+    const formatDate2 = (date) => date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric"
     });
-    const currentStart = formatDate(currentDateRange.start);
-    const currentEnd = formatDate(currentDateRange.end);
+    const currentStart = formatDate2(currentDateRange.start);
+    const currentEnd = formatDate2(currentDateRange.end);
     const currentDatesEl = elements.get("current-period-dates");
     if (currentDatesEl) {
       currentDatesEl.textContent = `${currentStart} - ${currentEnd}`;
@@ -8854,8 +9349,8 @@ var PRInsightsDashboard = (() => {
       currentDateRange.start,
       currentDateRange.end
     );
-    const prevStart = formatDate(prevPeriod.start);
-    const prevEnd = formatDate(prevPeriod.end);
+    const prevStart = formatDate2(prevPeriod.start);
+    const prevEnd = formatDate2(prevPeriod.end);
     const prevDatesEl = elements.get("previous-period-dates");
     if (prevDatesEl) {
       prevDatesEl.textContent = `${prevStart} - ${prevEnd}`;

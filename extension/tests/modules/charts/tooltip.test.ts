@@ -283,6 +283,35 @@ describe("addChartTooltips click/tap support", () => {
     expect(document.querySelector(".chart-tooltip")).not.toBeNull();
   });
 
+  it("does NOT preventDefault on tap pointerup — downstream click handlers must still fire", () => {
+    // Invariant: the per-bar pointerup handler must not cancel the
+    // synthesized click event. Feature 059 drill-down relies on a
+    // delegated click listener on the chart container; a call to
+    // preventDefault() on this event would suppress touch-tap
+    // activation of drill-down.
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      }),
+    );
+    const pointerUp = new PointerEvent("pointerup", {
+      clientX: 100,
+      clientY: 100,
+      bubbles: true,
+      cancelable: true,
+    });
+    dot.dispatchEvent(pointerUp);
+
+    expect(pointerUp.defaultPrevented).toBe(false);
+    // And the tap still shows the tooltip (behavior preserved).
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
   it("does not show tooltip when scroll gesture detected (>10px movement)", () => {
     addChartTooltips(container, (el) => {
       return `<div>${el.dataset.week}</div>`;

@@ -95,6 +95,8 @@ import {
   publishFiltersChanged,
   publishTabChanged,
   publishComparisonToggled,
+  // Drill-down consumers (US1 throughput)
+  installThroughputDrilldown,
 } from "./modules";
 
 // Dashboard state
@@ -129,6 +131,11 @@ let comparisonMode = false;
 // suppress the emit when a user clicks the already-active tab.
 let previousActiveTabId: string = "metrics";
 let cachedRollups: Rollup[] = []; // Cache for export
+// Active per-chart drill-down handles; disposed at the start of every
+// refreshMetrics cycle (immediately after publishFiltersChanged) and
+// re-installed after the render block. Module-level so later user-story
+// consumers (US2–US4) can push peer handles without racing US1.
+let activeDrilldownHandles: Array<{ dispose(): void }> = [];
 let currentBuildId: number | null = null; // Store build ID for raw data download
 let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
 
@@ -911,6 +918,14 @@ async function refreshMetrics(): Promise<void> {
   // specs/059-chart-drill-down/contracts/lifecycle-signals.md.
   publishFiltersChanged({ reason: "user-change" });
 
+  // Drop the previous cycle's drill-down handles before the upcoming render
+  // replaces the bar/dot/row DOM the delegated listeners were attached to.
+  // DetailPanel's own filters-changed subscriber (dispatched above) hard-
+  // dismisses any open panel in the same synchronous tick, so the panel is
+  // closed before we tear down the listeners.
+  for (const handle of activeDrilldownHandles) handle.dispose();
+  activeDrilldownHandles = [];
+
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
   if (metricsSection && loadingRegions.length > 0) {
@@ -986,6 +1001,15 @@ async function refreshMetrics(): Promise<void> {
     renderCycleTimeTrend(rollups, rawRollups, availability);
     renderReviewerActivity(rollups, rawRollups, availability);
     renderCycleDistribution(distributions, rawRollups, availability);
+
+    // Install per-chart drill-down handles AFTER the render block so the
+    // container elements exist. US2–US4 push peers onto the same array.
+    const throughputContainer = document.getElementById("throughput-chart");
+    if (throughputContainer) {
+      activeDrilldownHandles.push(
+        installThroughputDrilldown(throughputContainer, rollups),
+      );
+    }
 
     // Update comparison banner if in comparison mode
     if (comparisonMode) {
