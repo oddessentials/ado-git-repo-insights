@@ -904,5 +904,159 @@ describe("throughput-drilldown", () => {
       // No rows rendered in supported-empty.
       expect(prSection!.querySelector("ol")).toBeNull();
     });
+
+    // T034 (feature 060 Phase 5)
+    it("team filter active → PrListSection contentState='team-inline', inline message names team filter", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 301,
+            title: "blocked by team gate",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 600,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: {
+          repos: [],
+          teams: ["platform-core"],
+          reviewers: [],
+          authors: [],
+        },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      // Panel opens (Phase 1 behavior preserved under team filter).
+      expect(isDetailPanelOpen()).toBe(true);
+
+      // Phase 1 aggregate sections render unchanged.
+      expect(
+        document.querySelectorAll(".detail-panel-section--breakdown-table")
+          .length,
+      ).toBeGreaterThanOrEqual(1);
+
+      // PR-detail container flips to team-inline content state.
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe("team-inline");
+      const gated = prSection!.querySelector(".pr-detail-gated");
+      expect(gated).not.toBeNull();
+      expect(gated!.textContent ?? "").toMatch(/team/i);
+      // Inline message is a status announcement, not an alert.
+      expect(gated!.getAttribute("aria-live")).toBe("polite");
+      // No PR rows rendered under team filter.
+      expect(prSection!.querySelector("ol")).toBeNull();
+    });
+
+    // T035 (feature 060 Phase 5)
+    it("reviewer filter active → PrListSection contentState='reviewer-inline', inline message names reviewer filter", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 401,
+            title: "not rendered",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 300,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["reviewer-007"],
+          authors: [],
+        },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      expect(isDetailPanelOpen()).toBe(true);
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe(
+        "reviewer-inline",
+      );
+      const gated = prSection!.querySelector(".pr-detail-gated");
+      expect(gated).not.toBeNull();
+      expect(gated!.textContent ?? "").toMatch(/reviewer/i);
+      expect(gated!.getAttribute("aria-live")).toBe("polite");
+      expect(prSection!.querySelector("ol")).toBeNull();
+    });
+
+    // T036 (feature 060 Phase 5)
+    it("comparison-mode active → panel stays closed, PR-detail container is not constructed (Phase 1 toast-denial preserved)", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 501,
+            title: "should not appear",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 900,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      publishComparisonToggled({ enabled: true });
+      click(firstBar(container));
+
+      // FR-007a: panel DOES NOT open, comparison advisory toast fires.
+      expect(isDetailPanelOpen()).toBe(false);
+      expect(
+        document.querySelector(".comparison-advisory-toast"),
+      ).not.toBeNull();
+      // PR-detail container must not be constructed when activate() early-
+      // returns — no leaked <section id="pr-detail"> anywhere in the DOM.
+      expect(document.getElementById("pr-detail")).toBeNull();
+    });
+
+    // T043 (feature 060 Phase 6)
+    it("supported filter yielding zero matches → contentState='supported-empty' with copy DISTINCT from team/reviewer messages", () => {
+      // Simulate the post-applyFiltersToRollups state: an author filter has
+      // matched zero PRs upstream, so rollup.prs arrives empty. The PR-
+      // detail section MUST flip to supported-empty — distinct from team/
+      // reviewer inline copy — so the user reads "zero matches" rather
+      // than "dimension unsupported."
+      const rollups = [makeRollupWithPrs([], { pr_count: 0 })];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: ["ghost"] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      expect(isDetailPanelOpen()).toBe(true);
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe(
+        "supported-empty",
+      );
+      const emptyMsg = prSection!.querySelector(".detail-panel-empty-detail");
+      expect(emptyMsg).not.toBeNull();
+      const emptyText = emptyMsg!.textContent ?? "";
+      // FR-009 / FR-018: copy is distinct from unsupported-filter wording.
+      expect(emptyText).toMatch(/match/i);
+      expect(emptyText).not.toMatch(/clear the team/i);
+      expect(emptyText).not.toMatch(/clear the reviewer/i);
+    });
   });
 });
