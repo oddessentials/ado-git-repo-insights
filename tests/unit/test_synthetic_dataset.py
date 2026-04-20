@@ -51,7 +51,7 @@ def _build_generator_args(
         / "generate-synthetic-dataset.py"
     )
     args = [
-        "python",
+        sys.executable,
         str(script),
         "--pr-count",
         str(pr_count),
