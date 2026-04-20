@@ -5091,300 +5091,314 @@ var PRInsightsDashboard = (() => {
       return rollups;
     }
     return rollups.map((rollup) => {
-      const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
-      const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
-      const authorBreakdown = authorFilters.length > 0 && rollup.by_author && typeof rollup.by_author === "object" ? rollup.by_author : null;
-      const reviewerBreakdown = reviewerFilters.length > 0 && rollup.by_reviewer && typeof rollup.by_reviewer === "object" ? rollup.by_reviewer : null;
-      if (reviewerFilters.length > 0 && !reviewerBreakdown) {
-        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-      }
-      if (authorFilters.length > 0 && !authorBreakdown) {
-        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-      }
-      let repoSlice = null;
-      if (repoBreakdown) {
-        const entries = resolveBreakdownEntries(repoBreakdown, filters.repos);
-        if (entries.length === 0) {
+      const filteredRollup = (() => {
+        const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
+        const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
+        const authorBreakdown = authorFilters.length > 0 && rollup.by_author && typeof rollup.by_author === "object" ? rollup.by_author : null;
+        const reviewerBreakdown = reviewerFilters.length > 0 && rollup.by_reviewer && typeof rollup.by_reviewer === "object" ? rollup.by_reviewer : null;
+        if (reviewerFilters.length > 0 && !reviewerBreakdown) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        repoSlice = aggregateEntries(entries);
-      }
-      let teamSlice = null;
-      if (teamBreakdown) {
-        const entries = resolveBreakdownEntries(teamBreakdown, filters.teams);
-        if (entries.length === 0) {
+        if (authorFilters.length > 0 && !authorBreakdown) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        teamSlice = aggregateEntries(entries);
-      }
-      let authorSlice = null;
-      if (authorBreakdown) {
-        const entries = resolveBreakdownEntries(authorBreakdown, authorFilters);
-        if (entries.length === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        let repoSlice = null;
+        if (repoBreakdown) {
+          const entries = resolveBreakdownEntries(repoBreakdown, filters.repos);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          repoSlice = aggregateEntries(entries);
         }
-        authorSlice = aggregateEntries(entries);
-      }
-      let reviewerSlice = null;
-      if (reviewerBreakdown) {
-        const entries = resolveReviewerEntries(
-          reviewerBreakdown,
-          reviewerFilters
-        );
-        if (entries.length === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        let teamSlice = null;
+        if (teamBreakdown) {
+          const entries = resolveBreakdownEntries(teamBreakdown, filters.teams);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          teamSlice = aggregateEntries(entries);
         }
-        reviewerSlice = aggregateReviewerEntries(entries);
-      }
-      if (reviewerSlice) {
-        if (repoSlice || teamSlice) {
-          console.warn(
-            "Combined reviewer filtering with repository/team filters is not supported; using reviewer-only filtering"
+        let authorSlice = null;
+        if (authorBreakdown) {
+          const entries = resolveBreakdownEntries(authorBreakdown, authorFilters);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          authorSlice = aggregateEntries(entries);
+        }
+        let reviewerSlice = null;
+        if (reviewerBreakdown) {
+          const entries = resolveReviewerEntries(
+            reviewerBreakdown,
+            reviewerFilters
           );
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          reviewerSlice = aggregateReviewerEntries(entries);
         }
-        return buildFilteredRollup(rollup, {
-          pr_count: reviewerSlice.reviewed_prs,
-          cycle_time_p50: null,
-          cycle_time_p90: null,
-          review_time_p50: null,
-          review_time_p90: null,
-          authors_count: reviewerSlice.authors_count,
-          // Reuse reviewers_count for review-activity UI surfaces.
-          reviewers_count: reviewerSlice.reviews_count
-        });
-      }
-      if (authorSlice && repoSlice && rollup.by_author_and_repo) {
-        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
-        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
-        let cdFound = 0;
-        for (const authorId of authorFilters) {
-          const authorRepos = getOwnPropertyValue(
-            rollup.by_author_and_repo,
-            authorId
-          );
-          if (!authorRepos) continue;
-          for (const repo of filters.repos) {
-            const e2 = getOwnPropertyValue(authorRepos, repo);
-            if (!e2) continue;
-            cdFound++;
-            const pr = toFiniteNumber(e2.pr_count);
-            cdPr += pr;
-            cdAuthors += toFiniteNumber(e2.authors_count);
-            cdReviewers += toFiniteNumber(e2.reviewers_count);
-            const p50 = e2.cycle_time_p50;
-            if (typeof p50 === "number" && Number.isFinite(p50)) {
-              cdP50WSum += p50 * pr;
-              cdP50WPr += pr;
-            }
-            const p90 = e2.cycle_time_p90;
-            if (typeof p90 === "number" && Number.isFinite(p90)) {
-              cdP90WSum += p90 * pr;
-              cdP90WPr += pr;
-            }
-            const rtP50 = e2.review_time_p50;
-            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
-              cdRtP50WSum += rtP50 * pr;
-              cdRtP50WPr += pr;
-            }
-            const rtP90 = e2.review_time_p90;
-            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
-              cdRtP90WSum += rtP90 * pr;
-              cdRtP90WPr += pr;
+        if (reviewerSlice) {
+          if (repoSlice || teamSlice) {
+            console.warn(
+              "Combined reviewer filtering with repository/team filters is not supported; using reviewer-only filtering"
+            );
+          }
+          return buildFilteredRollup(rollup, {
+            pr_count: reviewerSlice.reviewed_prs,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            review_time_p50: null,
+            review_time_p90: null,
+            authors_count: reviewerSlice.authors_count,
+            // Reuse reviewers_count for review-activity UI surfaces.
+            reviewers_count: reviewerSlice.reviews_count
+          });
+        }
+        if (authorSlice && repoSlice && rollup.by_author_and_repo) {
+          let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+          let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+          let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
+          let cdFound = 0;
+          for (const authorId of authorFilters) {
+            const authorRepos = getOwnPropertyValue(
+              rollup.by_author_and_repo,
+              authorId
+            );
+            if (!authorRepos) continue;
+            for (const repo of filters.repos) {
+              const e2 = getOwnPropertyValue(authorRepos, repo);
+              if (!e2) continue;
+              cdFound++;
+              const pr = toFiniteNumber(e2.pr_count);
+              cdPr += pr;
+              cdAuthors += toFiniteNumber(e2.authors_count);
+              cdReviewers += toFiniteNumber(e2.reviewers_count);
+              const p50 = e2.cycle_time_p50;
+              if (typeof p50 === "number" && Number.isFinite(p50)) {
+                cdP50WSum += p50 * pr;
+                cdP50WPr += pr;
+              }
+              const p90 = e2.cycle_time_p90;
+              if (typeof p90 === "number" && Number.isFinite(p90)) {
+                cdP90WSum += p90 * pr;
+                cdP90WPr += pr;
+              }
+              const rtP50 = e2.review_time_p50;
+              if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+                cdRtP50WSum += rtP50 * pr;
+                cdRtP50WPr += pr;
+              }
+              const rtP90 = e2.review_time_p90;
+              if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+                cdRtP90WSum += rtP90 * pr;
+                cdRtP90WPr += pr;
+              }
             }
           }
-        }
-        if (cdFound > 0) {
-          const isTruncated = rollup.by_author_and_repo["_truncated"] === true;
-          const expectedCount = authorFilters.length * filters.repos.length;
-          if (isTruncated && cdFound < expectedCount) {
-            console.warn(
-              `Author x repo data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
-            );
-          } else {
-            if (teamSlice) {
+          if (cdFound > 0) {
+            const isTruncated = rollup.by_author_and_repo["_truncated"] === true;
+            const expectedCount = authorFilters.length * filters.repos.length;
+            if (isTruncated && cdFound < expectedCount) {
               console.warn(
-                "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+                `Author x repo data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
               );
+            } else {
+              if (teamSlice) {
+                console.warn(
+                  "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+                );
+              }
+              return buildFilteredRollup(rollup, {
+                pr_count: cdPr,
+                cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+                cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+                review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+                review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+                authors_count: cdAuthors,
+                reviewers_count: cdReviewers
+              });
             }
-            return buildFilteredRollup(rollup, {
-              pr_count: cdPr,
-              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
-              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
-              authors_count: cdAuthors,
-              reviewers_count: cdReviewers
-            });
-          }
-        } else if (rollup.by_author_and_repo["_truncated"] !== true) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-        }
-      }
-      if (authorSlice && repoSlice) {
-        const total = rollup.pr_count || 1;
-        const authorShare = Math.min(1, authorSlice.pr_count / total);
-        const repoShare = Math.min(1, repoSlice.pr_count / total);
-        const combinedRatio = authorShare * repoShare;
-        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
-        if (combinedPrCount === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-        }
-        const combinedAuthors = Math.round(
-          (rollup.authors_count || 0) * combinedRatio
-        );
-        const combinedReviewers = Math.round(
-          (rollup.reviewers_count || 0) * combinedRatio
-        );
-        const p50s = [
-          authorSlice.cycle_time_p50,
-          repoSlice.cycle_time_p50
-        ].filter((v2) => v2 !== null);
-        const p90s = [
-          authorSlice.cycle_time_p90,
-          repoSlice.cycle_time_p90
-        ].filter((v2) => v2 !== null);
-        const rtP50s = [
-          authorSlice.review_time_p50,
-          repoSlice.review_time_p50
-        ].filter((v2) => v2 !== null);
-        const rtP90s = [
-          authorSlice.review_time_p90,
-          repoSlice.review_time_p90
-        ].filter((v2) => v2 !== null);
-        if (teamSlice) {
-          console.warn(
-            "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
-          );
-        }
-        return {
-          ...rollup,
-          pr_count: combinedPrCount,
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
-          authors_count: combinedAuthors,
-          reviewers_count: combinedReviewers
-        };
-      }
-      if (authorSlice) {
-        if (teamSlice) {
-          console.warn(
-            "Combined author and team filtering is constrained; using author-only metrics while retaining team UI state"
-          );
-        }
-        return buildFilteredRollup(rollup, authorSlice);
-      }
-      if (repoSlice && teamSlice && rollup.by_team_and_repo) {
-        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
-        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
-        let cdFound = 0;
-        for (const team of filters.teams) {
-          const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
-          if (!teamRepos) continue;
-          for (const repo of filters.repos) {
-            const e2 = getOwnPropertyValue(teamRepos, repo);
-            if (!e2) continue;
-            cdFound++;
-            const pr = toFiniteNumber(e2.pr_count);
-            cdPr += pr;
-            cdAuthors += toFiniteNumber(e2.authors_count);
-            cdReviewers += toFiniteNumber(e2.reviewers_count);
-            const p50 = e2.cycle_time_p50;
-            if (typeof p50 === "number" && Number.isFinite(p50)) {
-              cdP50WSum += p50 * pr;
-              cdP50WPr += pr;
-            }
-            const p90 = e2.cycle_time_p90;
-            if (typeof p90 === "number" && Number.isFinite(p90)) {
-              cdP90WSum += p90 * pr;
-              cdP90WPr += pr;
-            }
-            const rtP50 = e2.review_time_p50;
-            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
-              cdRtP50WSum += rtP50 * pr;
-              cdRtP50WPr += pr;
-            }
-            const rtP90 = e2.review_time_p90;
-            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
-              cdRtP90WSum += rtP90 * pr;
-              cdRtP90WPr += pr;
-            }
+          } else if (rollup.by_author_and_repo["_truncated"] !== true) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
           }
         }
-        if (cdFound > 0) {
-          const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
-          const expectedCount = filters.teams.length * filters.repos.length;
-          if (isTruncated && cdFound < expectedCount) {
+        if (authorSlice && repoSlice) {
+          const total = rollup.pr_count || 1;
+          const authorShare = Math.min(1, authorSlice.pr_count / total);
+          const repoShare = Math.min(1, repoSlice.pr_count / total);
+          const combinedRatio = authorShare * repoShare;
+          const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+          if (combinedPrCount === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          const combinedAuthors = Math.round(
+            (rollup.authors_count || 0) * combinedRatio
+          );
+          const combinedReviewers = Math.round(
+            (rollup.reviewers_count || 0) * combinedRatio
+          );
+          const p50s = [
+            authorSlice.cycle_time_p50,
+            repoSlice.cycle_time_p50
+          ].filter((v2) => v2 !== null);
+          const p90s = [
+            authorSlice.cycle_time_p90,
+            repoSlice.cycle_time_p90
+          ].filter((v2) => v2 !== null);
+          const rtP50s = [
+            authorSlice.review_time_p50,
+            repoSlice.review_time_p50
+          ].filter((v2) => v2 !== null);
+          const rtP90s = [
+            authorSlice.review_time_p90,
+            repoSlice.review_time_p90
+          ].filter((v2) => v2 !== null);
+          if (teamSlice) {
             console.warn(
-              `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+              "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
             );
-          } else {
-            return buildFilteredRollup(rollup, {
-              pr_count: cdPr,
-              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
-              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
-              authors_count: cdAuthors,
-              reviewers_count: cdReviewers
-            });
           }
-        } else if (rollup.by_team_and_repo["_truncated"] !== true) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          return {
+            ...rollup,
+            pr_count: combinedPrCount,
+            cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+            review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+            review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
+            authors_count: combinedAuthors,
+            reviewers_count: combinedReviewers
+          };
         }
-      }
-      if (repoSlice && teamSlice) {
-        const total = rollup.pr_count || 1;
-        const repoShare = Math.min(1, repoSlice.pr_count / total);
-        const teamShare = Math.min(1, teamSlice.pr_count / total);
-        const combinedRatio = repoShare * teamShare;
-        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
-        if (combinedPrCount === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        if (authorSlice) {
+          if (teamSlice) {
+            console.warn(
+              "Combined author and team filtering is constrained; using author-only metrics while retaining team UI state"
+            );
+          }
+          return buildFilteredRollup(rollup, authorSlice);
         }
-        const combinedAuthors = Math.round(
-          (rollup.authors_count || 0) * combinedRatio
-        );
-        const combinedReviewers = Math.round(
-          (rollup.reviewers_count || 0) * combinedRatio
-        );
-        const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
-          (v2) => v2 !== null
-        );
-        const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
-          (v2) => v2 !== null
-        );
-        const rtP50s = [
-          repoSlice.review_time_p50,
-          teamSlice.review_time_p50
-        ].filter((v2) => v2 !== null);
-        const rtP90s = [
-          repoSlice.review_time_p90,
-          teamSlice.review_time_p90
-        ].filter((v2) => v2 !== null);
-        return {
-          ...rollup,
-          pr_count: combinedPrCount,
-          // Always override to prevent global values leaking through the
-          // ...rollup spread when proportional estimates are null/0.
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
-          authors_count: combinedAuthors,
-          reviewers_count: combinedReviewers
-        };
-      }
-      if (repoSlice && !teamSlice) {
-        return buildFilteredRollup(rollup, repoSlice);
-      }
-      if (teamSlice && !repoSlice) {
-        return buildFilteredRollup(rollup, teamSlice);
-      }
-      return rollup;
+        if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+          let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+          let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+          let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
+          let cdFound = 0;
+          for (const team of filters.teams) {
+            const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
+            if (!teamRepos) continue;
+            for (const repo of filters.repos) {
+              const e2 = getOwnPropertyValue(teamRepos, repo);
+              if (!e2) continue;
+              cdFound++;
+              const pr = toFiniteNumber(e2.pr_count);
+              cdPr += pr;
+              cdAuthors += toFiniteNumber(e2.authors_count);
+              cdReviewers += toFiniteNumber(e2.reviewers_count);
+              const p50 = e2.cycle_time_p50;
+              if (typeof p50 === "number" && Number.isFinite(p50)) {
+                cdP50WSum += p50 * pr;
+                cdP50WPr += pr;
+              }
+              const p90 = e2.cycle_time_p90;
+              if (typeof p90 === "number" && Number.isFinite(p90)) {
+                cdP90WSum += p90 * pr;
+                cdP90WPr += pr;
+              }
+              const rtP50 = e2.review_time_p50;
+              if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+                cdRtP50WSum += rtP50 * pr;
+                cdRtP50WPr += pr;
+              }
+              const rtP90 = e2.review_time_p90;
+              if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+                cdRtP90WSum += rtP90 * pr;
+                cdRtP90WPr += pr;
+              }
+            }
+          }
+          if (cdFound > 0) {
+            const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
+            const expectedCount = filters.teams.length * filters.repos.length;
+            if (isTruncated && cdFound < expectedCount) {
+              console.warn(
+                `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+              );
+            } else {
+              return buildFilteredRollup(rollup, {
+                pr_count: cdPr,
+                cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+                cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+                review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+                review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+                authors_count: cdAuthors,
+                reviewers_count: cdReviewers
+              });
+            }
+          } else if (rollup.by_team_and_repo["_truncated"] !== true) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+        }
+        if (repoSlice && teamSlice) {
+          const total = rollup.pr_count || 1;
+          const repoShare = Math.min(1, repoSlice.pr_count / total);
+          const teamShare = Math.min(1, teamSlice.pr_count / total);
+          const combinedRatio = repoShare * teamShare;
+          const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+          if (combinedPrCount === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          const combinedAuthors = Math.round(
+            (rollup.authors_count || 0) * combinedRatio
+          );
+          const combinedReviewers = Math.round(
+            (rollup.reviewers_count || 0) * combinedRatio
+          );
+          const p50s = [
+            repoSlice.cycle_time_p50,
+            teamSlice.cycle_time_p50
+          ].filter((v2) => v2 !== null);
+          const p90s = [
+            repoSlice.cycle_time_p90,
+            teamSlice.cycle_time_p90
+          ].filter((v2) => v2 !== null);
+          const rtP50s = [
+            repoSlice.review_time_p50,
+            teamSlice.review_time_p50
+          ].filter((v2) => v2 !== null);
+          const rtP90s = [
+            repoSlice.review_time_p90,
+            teamSlice.review_time_p90
+          ].filter((v2) => v2 !== null);
+          return {
+            ...rollup,
+            pr_count: combinedPrCount,
+            // Always override to prevent global values leaking through the
+            // ...rollup spread when proportional estimates are null/0.
+            cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+            review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+            review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
+            authors_count: combinedAuthors,
+            reviewers_count: combinedReviewers
+          };
+        }
+        if (repoSlice && !teamSlice) {
+          return buildFilteredRollup(rollup, repoSlice);
+        }
+        if (teamSlice && !repoSlice) {
+          return buildFilteredRollup(rollup, teamSlice);
+        }
+        return rollup;
+      })();
+      if (rollup.prs === void 0) return filteredRollup;
+      const filteredPrs = rollup.prs.filter(
+        (pr) => (authorFilters.length === 0 || authorFilters.includes(pr.author_id)) && (filters.repos.length === 0 || filters.repos.includes(pr.repository_id))
+      );
+      return {
+        ...filteredRollup,
+        prs: filteredPrs,
+        _prs_truncated: rollup._prs_truncated,
+        _prs_cap: rollup._prs_cap
+      };
     });
   }
   function extractSparklineData(rollups) {
