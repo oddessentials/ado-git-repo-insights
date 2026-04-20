@@ -900,13 +900,32 @@ def _extract_teams(
                     continue
 
                 for member in members:
-                    identity = member["identity"]
+                    user_id = member.get("id")
+                    if not user_id:
+                        logger.warning(
+                            "teams: skipping malformed member in %s/%s: "
+                            "missing 'id' field",
+                            project,
+                            team_id,
+                        )
+                        continue
+                    display_name = member.get("displayName")
+                    if not display_name:
+                        logger.warning(
+                            "teams: skipping malformed member in %s/%s: "
+                            "missing 'displayName' field (id=%s)",
+                            project,
+                            team_id,
+                            user_id,
+                        )
+                        continue
+                    # ``uniqueName`` is the AD account name from the ADO
+                    # IdentityRef shape; commonly an email address.
                     repo.upsert_team_member(
                         team_id=team_id,
-                        user_id=identity["id"],
-                        display_name=identity["displayName"],
-                        email=None,
-                        is_team_admin=bool(member.get("isTeamAdmin", False)),
+                        user_id=user_id,
+                        display_name=display_name,
+                        email=member.get("uniqueName"),
                     )
                     project_members += 1
 

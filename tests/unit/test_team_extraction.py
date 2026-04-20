@@ -113,7 +113,11 @@ class TestTeamExtraction:
                 client.get_teams("TestProject")
 
     def test_get_team_members_returns_list(self, client: ADOClient) -> None:
-        """Test that get_team_members returns member list."""
+        """Test that get_team_members returns member list.
+
+        Real ADO shape is a flat IdentityRef — no ``identity`` wrapper, no
+        ``isTeamAdmin`` field — confirmed by live probe during #296 QA.
+        """
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.status_code = 200
@@ -121,12 +125,14 @@ class TestTeamExtraction:
         mock_response.json.return_value = {
             "value": [
                 {
-                    "identity": {"id": "user1", "displayName": "User One"},
-                    "isTeamAdmin": True,
+                    "id": "user1",
+                    "displayName": "User One",
+                    "uniqueName": "user1@example.com",
                 },
                 {
-                    "identity": {"id": "user2", "displayName": "User Two"},
-                    "isTeamAdmin": False,
+                    "id": "user2",
+                    "displayName": "User Two",
+                    "uniqueName": "user2@example.com",
                 },
             ],
         }
@@ -490,12 +496,14 @@ class TestExtractTeamsPipeline:
         def members_for(proj: str, tid: str) -> list[dict[str, object]]:
             return [
                 {
-                    "identity": {"id": f"u-{tid}-1", "displayName": "Alice"},
-                    "isTeamAdmin": True,
+                    "id": f"u-{tid}-1",
+                    "displayName": "Alice",
+                    "uniqueName": "alice@example.com",
                 },
                 {
-                    "identity": {"id": f"u-{tid}-2", "displayName": "Bob"},
-                    "isTeamAdmin": False,
+                    "id": f"u-{tid}-2",
+                    "displayName": "Bob",
+                    "uniqueName": "bob@example.com",
                 },
             ]
 
@@ -606,8 +614,9 @@ class TestExtractTeamsPipeline:
                 raise ExtractionError("member fetch failed for t1")
             return [
                 {
-                    "identity": {"id": "u1", "displayName": "Alice"},
-                    "isTeamAdmin": False,
+                    "id": "u1",
+                    "displayName": "Alice",
+                    "uniqueName": "alice@example.com",
                 }
             ]
 
@@ -657,8 +666,9 @@ class TestExtractTeamsPipeline:
         ]
         client.get_team_members.return_value = [
             {
-                "identity": {"id": "fresh_user", "displayName": "Fresh"},
-                "isTeamAdmin": True,
+                "id": "fresh_user",
+                "displayName": "Fresh",
+                "uniqueName": "fresh@example.com",
             }
         ]
 
@@ -715,8 +725,9 @@ class TestExtractTeamsPipeline:
         ]
         client.get_team_members.return_value = [
             {
-                "identity": {"id": "u1", "displayName": "Alice"},
-                "isTeamAdmin": False,
+                "id": "u1",
+                "displayName": "Alice",
+                "uniqueName": "alice@example.com",
             }
         ]
 
@@ -767,3 +778,73 @@ class TestExtractTeamsPipeline:
 
         info_msgs = [r.getMessage() for r in caplog.records if r.levelname == "INFO"]
         assert any("no PR-successful projects" in m for m in info_msgs)
+
+    def test_malformed_member_missing_id_or_displayname_logged_and_skipped(
+        self,
+        ctx: tuple[MagicMock, DatabaseManager, Config],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Defensive skip: member rows missing ``id`` or ``displayName``
+        log a specific WARNING (naming project, team, and the missing
+        field) and skip that row — never fatal to the run.
+
+        Guards against future ADO shape drift (e.g., if a new identity
+        variant omits fields) and locks the operator-facing signal that
+        distinguishes malformed upstream data from ordinary permission
+        skips.  Added 2026-04-19 after the live QA probe on
+        ``oddessentials/oddessentials`` revealed the real member shape
+        is a flat IdentityRef, not the nested ``{identity: {...}}``
+        the Phase 3.3 TypedDict incorrectly assumed.
+        """
+        from ado_git_repo_insights.cli import _extract_teams
+
+        client, db, config = ctx
+
+        client.get_teams.return_value = [
+            {"id": "t1", "name": "Team 1", "description": None}
+        ]
+        client.get_team_members.return_value = [
+            # Valid member — persists.
+            {
+                "id": "u_ok",
+                "displayName": "Alice",
+                "uniqueName": "alice@example.com",
+            },
+            # Missing ``id`` — skip with WARNING.
+            {
+                "displayName": "Bob Broken",
+                "uniqueName": "bob@example.com",
+            },
+            # Missing ``displayName`` — skip with WARNING.
+            {
+                "id": "u_no_name",
+                "uniqueName": "charlie@example.com",
+            },
+        ]
+
+        summary = self._mk_summary(self._mk_result("projA"))
+
+        with caplog.at_level(logging.WARNING, logger="ado_git_repo_insights.cli"):
+            _extract_teams(client, db, config, summary)
+
+        # Only the valid member persisted.
+        users = [
+            row[0]
+            for row in db.execute(
+                "SELECT user_id FROM team_members WHERE team_id = 't1'"
+            ).fetchall()
+        ]
+        assert users == ["u_ok"]
+
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 2, warnings
+        # Each warning names the project + team context and identifies
+        # the specific missing field so operators can distinguish
+        # malformed rows from permission skips.
+        assert any("projA" in m and "t1" in m and "'id'" in m for m in warnings), (
+            warnings
+        )
+        assert any(
+            "projA" in m and "t1" in m and "'displayName'" in m and "u_no_name" in m
+            for m in warnings
+        ), warnings

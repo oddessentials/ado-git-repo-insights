@@ -114,18 +114,22 @@ class AdoTeam(TypedDict):
     description: NotRequired[str | None]
 
 
-class AdoIdentity(TypedDict):
-    """Identity sub-object within team member responses."""
+class AdoTeamMember(TypedDict):
+    """Azure DevOps team-members API response item.
+
+    The endpoint ``GET _apis/projects/{project}/teams/{team}/members``
+    returns a flat IdentityRef shape — NOT a nested ``identity`` wrapper
+    as the Phase 3.3 draft incorrectly assumed.  Probed against
+    ``oddessentials/oddessentials`` 2026-04-19 (live QA for #296):
+    ``{id, displayName, uniqueName, url, descriptor, imageUrl, _links}``.
+    There is no ``isTeamAdmin`` field at this endpoint; admin status is
+    not returned by the base members API.
+    """
 
     id: str
     displayName: str
-
-
-class AdoTeamMember(TypedDict):
-    """Azure DevOps Team Member response object."""
-
-    identity: AdoIdentity
-    isTeamAdmin: bool
+    uniqueName: NotRequired[str]  # AD account name, often email-shaped
+    url: NotRequired[str]
 
 
 class AdoComment(TypedDict):
