@@ -38,6 +38,8 @@ if (typeof PointerEvent === "undefined") {
 // ---------------------------------------------------------------------------
 
 const REVIEWER_ID = "alice@example.com";
+const REVIEWER_NAME = "Alice Anderson";
+const REVIEWERS_DIM = [{ reviewer_id: REVIEWER_ID, reviewer_name: REVIEWER_NAME }];
 
 interface ReviewerWeek {
   week: string;
@@ -161,7 +163,23 @@ describe("reviewer-drilldown", () => {
   // Activation + panel shape
   // -------------------------------------------------------------------------
 
-  it("click on a reviewer row opens the panel with the reviewer id as title", () => {
+  it("click on a reviewer row opens the panel with the resolved reviewer name as title", () => {
+    const rollups = makeDefaultRollups();
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, {
+      reviewersDimension: REVIEWERS_DIM,
+    });
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    // #308: the title is the friendly name, not the reviewer_id GUID.
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      REVIEWER_NAME,
+    );
+  });
+
+  it("panel title falls back to 'Unknown user' when reviewersDimension is missing at install time", () => {
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups);
@@ -170,7 +188,27 @@ describe("reviewer-drilldown", () => {
 
     expect(isDetailPanelOpen()).toBe(true);
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      REVIEWER_ID,
+      "Unknown user",
+    );
+  });
+
+  it("panel title falls back to 'Unknown user' when the reviewer_id is not present in the dimension", () => {
+    const rollups = makeDefaultRollups();
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, {
+      // Dimension present but for a different reviewer; REVIEWER_ID
+      // from the trigger is not in the map so the panel title
+      // fallback fires.
+      reviewersDimension: [
+        { reviewer_id: "someone-else", reviewer_name: "Other Person" },
+      ],
+    });
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      "Unknown user",
     );
   });
 

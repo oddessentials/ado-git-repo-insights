@@ -90,6 +90,13 @@ export function renderReviewerActivity(
     filters?: FilterState;
     unfilteredRollups?: Rollup[];
     availability?: DataAvailabilitySignal;
+    // #308: pre-resolved friendly name for the currently-filtered
+    // reviewer. Display-only — filter selection semantics still key off
+    // `filters.reviewers[0]`. Dashboard resolves via
+    // `currentDimensions.reviewers` upstream. When absent (dimensions not
+    // yet loaded, or id not in the dimension) the aria-label falls back
+    // to a generic phrase so screen-readers never hear a raw GUID.
+    filterReviewerName?: string;
   } = {},
 ): void {
   if (!container) return;
@@ -177,6 +184,11 @@ export function renderReviewerActivity(
   // aggregate counts and have no single drill-down subject — drill-
   // down attributes are omitted so clicks are no-ops.
   const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
+  // #308: aria-label uses the resolved display name when the dashboard
+  // supplies one; the raw reviewer_id stays in the data-* attribute so
+  // drill-down dispatch and debugging remain id-keyed.
+  const filterReviewerAriaName =
+    options.filterReviewerName ?? "the selected reviewer";
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;
@@ -190,7 +202,7 @@ export function renderReviewerActivity(
       // toggles aria-expanded on activate/dismiss; here we ship the
       // initial "false" state alongside the other drill-down attrs.
       const drilldownAttrsForRow = filterReviewerId
-        ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r)}`)}"`
+        ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerAriaName} for week of ${weekRangeForAria(r)}`)}"`
         : "";
       // SECURITY: Escape data-controlled values to prevent XSS
       return `

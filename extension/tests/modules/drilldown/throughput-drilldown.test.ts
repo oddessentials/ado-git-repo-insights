@@ -123,10 +123,15 @@ describe("throughput-drilldown", () => {
     ).toContain("47 PRs");
   });
 
-  it("panel renders By-author breakdown rows from rollup.by_author (sorted desc)", () => {
+  it("panel renders By-author breakdown rows with friendly names from authorsDimension (sorted desc)", () => {
     const rollups = [makeRollup()];
     const container = mountChart(rollups);
-    installThroughputDrilldown(container, rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [
+        { author_id: "alice", author_name: "Alice Smith" },
+        { author_id: "bob", author_name: "Bob Jones" },
+      ],
+    });
 
     click(firstBar(container));
 
@@ -137,11 +142,56 @@ describe("throughput-drilldown", () => {
     const rowLabels = Array.from(
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
-    expect(rowLabels).toEqual(["bob", "alice"]);
+    // #308: raw `user_id` keys ("alice", "bob") are resolved to friendly
+    // names; no GUID-shaped text surfaces to the user.
+    expect(rowLabels).toEqual(["Bob Jones", "Alice Smith"]);
     const rowValues = Array.from(
       authorSection.querySelectorAll("tbody tr td"),
     ).map((td) => td.textContent);
     expect(rowValues).toEqual(["35", "12"]);
+  });
+
+  it("By-author rows fall back to 'Unknown user' when authorsDimension is missing at install time", () => {
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    // Dimension not yet loaded (early-render race). Panel must not
+    // crash; every row falls through to UNKNOWN_USER_LABEL.
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    expect(rowLabels).toEqual(["Unknown user", "Unknown user"]);
+    // Row order is preserved via the pr_count sort — still 35 then 12.
+    const rowValues = Array.from(
+      authorSection.querySelectorAll("tbody tr td"),
+    ).map((td) => td.textContent);
+    expect(rowValues).toEqual(["35", "12"]);
+  });
+
+  it("By-author rows fall back to 'Unknown user' for ids missing from the supplied authorsDimension", () => {
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [{ author_id: "alice", author_name: "Alice Smith" }],
+    });
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    // bob has pr_count=35 (sort first) and is missing from the
+    // dimension; alice is present and second by sort.
+    expect(rowLabels).toEqual(["Unknown user", "Alice Smith"]);
   });
 
   it("panel renders By-repository breakdown rows from rollup.by_repository", () => {
@@ -155,6 +205,30 @@ describe("throughput-drilldown", () => {
       ".detail-panel-section--breakdown-table",
     )[1]!;
     expect(repoSection.querySelector("h3")!.textContent).toBe("By repository");
+    const rowLabels = Array.from(
+      repoSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    expect(rowLabels).toEqual(["frontend", "backend-api"]);
+  });
+
+  it("By-repository labels are UNAFFECTED by authorsDimension (name resolution is column-scoped)", () => {
+    // Regression guard: authorsDimension must only reach the By-author
+    // column; By-repository keys are repository_names, not GUIDs, and
+    // must render verbatim regardless of what authors are supplied.
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [
+        { author_id: "alice", author_name: "Alice Smith" },
+        { author_id: "frontend", author_name: "SHOULD NOT APPEAR" },
+      ],
+    });
+
+    click(firstBar(container));
+
+    const repoSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[1]!;
     const rowLabels = Array.from(
       repoSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);

@@ -1091,6 +1091,7 @@ async function refreshMetrics(): Promise<void> {
           webContext: currentCollectionUri
             ? { collectionUri: currentCollectionUri }
             : undefined,
+          authorsDimension: currentDimensions?.authors,
         }),
       );
     }
@@ -1103,7 +1104,9 @@ async function refreshMetrics(): Promise<void> {
     const reviewerContainer = document.getElementById("reviewer-activity");
     if (reviewerContainer) {
       activeDrilldownHandles.push(
-        installReviewerDrilldown(reviewerContainer, rollups),
+        installReviewerDrilldown(reviewerContainer, rollups, {
+          reviewersDimension: currentDimensions?.reviewers,
+        }),
       );
     }
     const summaryCardsContainer =
@@ -1387,6 +1390,16 @@ function renderReviewerActivity(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
+  // #308: resolve the filtered reviewer's display name upstream so the
+  // chart module stays dumb. `filters.reviewers` is effectively
+  // single-select end-to-end (see reviewer-activity.ts filter-semantics
+  // comment); we scope to [0] to match that.
+  const filterReviewerId = currentFilters.reviewers[0];
+  const filterReviewerName = filterReviewerId
+    ? currentDimensions?.reviewers?.find(
+        (r) => r.reviewer_id === filterReviewerId,
+      )?.reviewer_name
+    : undefined;
   renderReviewerActivityModule(
     elements.get("reviewer-activity") ?? null,
     rollups,
@@ -1395,6 +1408,7 @@ function renderReviewerActivity(
       filters: currentFilters,
       unfilteredRollups,
       availability,
+      filterReviewerName,
     },
   );
 }
