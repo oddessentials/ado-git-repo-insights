@@ -495,23 +495,24 @@ describe("T025: SC-002 dashboard load time overhead", () => {
   const WARMUP_RUNS = 10;
   const MEASURE_RUNS = 50;
   const MAX_OVERHEAD_PERCENT = 10;
-  /** Below this threshold (ms), percentage comparisons are noise-dominated. */
+  /** Typical per-measurement jitter budget on shared runners (ms). */
   const NOISE_FLOOR_MS = 5;
   /**
-   * Below this threshold (ms), a few ms of runner jitter on the base
-   * measurement inflates `overhead_percent` into meaningless double- or
-   * triple-digit values (#202 recurrence). When either measurement sits
-   * in this band, we fall back to an absolute-ms ceiling instead of the
-   * percentage assertion.
+   * Absolute-ms delta below which v2 − v1 cannot be reliably distinguished
+   * from GC/JIT jitter regardless of the base magnitude. Below this the
+   * percentage is dominated by noise (the #202 / #286 small-base
+   * amplification); at-or-above this the percentage is a meaningful
+   * signal even when the base is small.
    */
-  const NOISE_BAND_MS = NOISE_FLOOR_MS * 3;
+  const NOISE_DELTA_MS = NOISE_FLOOR_MS * 2;
   /**
-   * Absolute-ms ceiling used in the noise band. Generous enough to
-   * tolerate cold-runner jitter (fresh-clone-verify runs uncached), tight
-   * enough that a real regression — e.g. v2 going from 2ms to 30ms — still
-   * trips the gate.
+   * Absolute-ms sanity ceiling for the noise-band fallback. Generous
+   * enough to tolerate cold-runner jitter (fresh-clone-verify runs
+   * uncached), tight enough that a catastrophic runner-wide regression
+   * still trips the gate even when the delta between v1 and v2 stays
+   * small.
    */
-  const ABSOLUTE_CEILING_MS = NOISE_BAND_MS * 2;
+  const ABSOLUTE_CEILING_MS = 30;
 
   /**
    * Build an array of rollups for timing measurement.
@@ -650,18 +651,20 @@ describe("T025: SC-002 dashboard load time overhead", () => {
       MEASURE_RUNS,
     );
 
-    // Small-base amplification zone: if either measurement sits in the
-    // noise band, the percentage comparison is not a meaningful signal —
-    // a 5ms base with 3ms of jitter reads as 60% overhead with no real
-    // regression. Assert absolute-ms ceilings instead. The percentage
-    // path only runs when both measurements are well above the band, so
-    // its denominator is large enough that ordinary jitter cannot inflate
-    // the ratio past the 10% gate.
-    if (v1Ms < NOISE_BAND_MS || v2Ms < NOISE_BAND_MS) {
+    // Key the fallback off the absolute delta, not the per-measurement
+    // position. When v2 − v1 is within the jitter envelope, the
+    // percentage is dominated by GC/JIT noise on the base; percentage
+    // math amplifies noise into large values even when the base isn't
+    // tiny. When the delta is larger than the envelope, it's real signal
+    // regardless of the base, so the 10% gate must hold. The absolute
+    // ceiling is a sanity guard for catastrophic runner-wide regressions
+    // in the fallback branch.
+    const deltaMs = v2Ms - v1Ms;
+    if (deltaMs < NOISE_DELTA_MS) {
       expect(v1Ms).toBeLessThan(ABSOLUTE_CEILING_MS);
       expect(v2Ms).toBeLessThan(ABSOLUTE_CEILING_MS);
     } else {
-      const overheadPercent = ((v2Ms - v1Ms) / v1Ms) * 100;
+      const overheadPercent = (deltaMs / v1Ms) * 100;
 
       // SC-002: Dashboard load time increase must be < 10%
       expect(overheadPercent).toBeLessThan(MAX_OVERHEAD_PERCENT);
@@ -677,7 +680,7 @@ describe("T025: SC-002 dashboard load time overhead", () => {
         overhead_percent: Number(overheadPercent.toFixed(2)),
         budget_percent: MAX_OVERHEAD_PERCENT,
         noise_floor_ms: NOISE_FLOOR_MS,
-        noise_band_ms: NOISE_BAND_MS,
+        noise_delta_ms: NOISE_DELTA_MS,
         absolute_ceiling_ms: ABSOLUTE_CEILING_MS,
         weeks: NUM_WEEKS,
         teams: NUM_TEAMS,
