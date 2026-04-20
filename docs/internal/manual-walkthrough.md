@@ -211,6 +211,6 @@ Commit the updated file.
 ## See Also
 
 - [Testing Guide](../development/testing.md) -- Automated test organization and patterns
-- [Enable ML Features](enable-ml-features.md) -- Detailed ML pipeline setup
+- [Enable ML Features](../user-guide/enable-ml-features.md) -- Detailed ML pipeline setup
 - [CLI Command Reference](../reference/cli-reference.md) -- All commands and options
 - [Backfill Comments Live QA](backfill-live-qa.md) -- Scenario-level manual QA for the `backfill-comments` subcommand and its extension task wrapper

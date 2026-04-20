@@ -5541,11 +5541,15 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/ml/setup-guides.ts
   var yamlStore = /* @__PURE__ */ new Map();
   var delegatedContainers = /* @__PURE__ */ new WeakSet();
-  var PREDICTIONS_YAML = `build-aggregates:
-  run-predictions: true`;
-  var INSIGHTS_YAML = `build-aggregates:
-  run-insights: true
-  openai-api-key: $(OPENAI_API_KEY)`;
+  var PREDICTIONS_YAML = `- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true`;
+  var INSIGHTS_YAML = `- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enableInsights: true
+    openaiApiKey: $(OPENAI_API_KEY)`;
   async function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
@@ -5644,7 +5648,7 @@ var PRInsightsDashboard = (() => {
       </div>
       <div class="setup-note">
         <span class="note-icon">\u{1F4A1}</span>
-        <span>Uses NumPy-based linear regression. For Prophet support, install the optional dependency.</span>
+        <span>Uses NumPy-based linear regression. For Prophet (seasonality detection), install <code>pip install "ado-git-repo-insights[ml]"</code>. See <a href="https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/user-guide/enable-ml-features.md#for-predictions" target="_blank" rel="noopener">platform prerequisites</a>.</span>
       </div>
     </div>
   `;

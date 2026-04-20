@@ -16,15 +16,19 @@ const delegatedContainers = new WeakSet<HTMLElement>();
 /**
  * YAML snippet for enabling predictions in ADO pipeline.
  */
-const PREDICTIONS_YAML = `build-aggregates:
-  run-predictions: true`;
+const PREDICTIONS_YAML = `- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true`;
 
 /**
  * YAML snippet for enabling AI insights in ADO pipeline.
  */
-const INSIGHTS_YAML = `build-aggregates:
-  run-insights: true
-  openai-api-key: $(OPENAI_API_KEY)`;
+const INSIGHTS_YAML = `- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enableInsights: true
+    openaiApiKey: $(OPENAI_API_KEY)`;
 
 /**
  * Copy text to clipboard with fallback for older browsers.
@@ -169,7 +173,7 @@ export function renderPredictionsSetupGuide(): string {
       </div>
       <div class="setup-note">
         <span class="note-icon">💡</span>
-        <span>Uses NumPy-based linear regression. For Prophet support, install the optional dependency.</span>
+        <span>Uses NumPy-based linear regression. For Prophet (seasonality detection), install <code>pip install "ado-git-repo-insights[ml]"</code>. See <a href="https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/user-guide/enable-ml-features.md#for-predictions" target="_blank" rel="noopener">platform prerequisites</a>.</span>
       </div>
     </div>
   `;
