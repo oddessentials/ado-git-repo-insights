@@ -135,17 +135,13 @@ describe("UI invariant: PR numbers are hyperlinked (#308)", () => {
     const root = document.createElement("div");
     root.innerHTML = `<p>see #404 for context</p>`;
     document.body.appendChild(root);
-    expect(() => assertPrNumbersAreLinked(root)).toThrow(
-      /#404/,
-    );
+    expect(() => assertPrNumbersAreLinked(root)).toThrow(/#404/);
   });
 
   it("helper reports a violation when an anchor href is not an ADO PR URL", () => {
     const root = document.createElement("div");
     root.innerHTML = `<a href="https://example.com/something">#101</a>`;
     document.body.appendChild(root);
-    expect(() => assertPrNumbersAreLinked(root)).toThrow(
-      /#101/,
-    );
+    expect(() => assertPrNumbersAreLinked(root)).toThrow(/#101/);
   });
 });

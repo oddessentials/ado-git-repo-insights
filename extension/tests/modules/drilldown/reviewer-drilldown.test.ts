@@ -39,7 +39,9 @@ if (typeof PointerEvent === "undefined") {
 
 const REVIEWER_ID = "alice@example.com";
 const REVIEWER_NAME = "Alice Anderson";
-const REVIEWERS_DIM = [{ reviewer_id: REVIEWER_ID, reviewer_name: REVIEWER_NAME }];
+const REVIEWERS_DIM = [
+  { reviewer_id: REVIEWER_ID, reviewer_name: REVIEWER_NAME },
+];
 
 interface ReviewerWeek {
   week: string;

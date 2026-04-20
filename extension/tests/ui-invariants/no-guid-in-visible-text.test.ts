@@ -34,9 +34,7 @@ import { UNKNOWN_USER_LABEL } from "../../ui/modules/shared/identity-fallback";
 import { publishComparisonToggled } from "../../ui/modules/drilldown/lifecycle-signals";
 import { __resetComparisonAdvisoryForTests } from "../../ui/modules/drilldown/comparison-advisory";
 import type { Rollup } from "../../ui/dataset-loader";
-import {
-  assertNoGuidInVisibleText,
-} from "./_helpers";
+import { assertNoGuidInVisibleText } from "./_helpers";
 
 const AUTHOR_GUID_A = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const AUTHOR_GUID_B = "12345678-1234-1234-1234-123456789abc";
@@ -77,12 +75,17 @@ function openThroughputPanel(options: {
   });
   container
     .querySelector<HTMLElement>(".bar-container")!
-    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    .dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
   return container;
 }
 
 function openReviewerPanel(options: {
-  reviewersDimension?: readonly { reviewer_id: string; reviewer_name: string }[];
+  reviewersDimension?: readonly {
+    reviewer_id: string;
+    reviewer_name: string;
+  }[];
 }): HTMLElement {
   const rollups: Rollup[] = [
     {
@@ -121,7 +124,9 @@ function openReviewerPanel(options: {
   });
   container
     .querySelector<HTMLElement>(".h-bar-row")!
-    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    .dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
   return container;
 }
 
@@ -138,7 +143,11 @@ function openCycleTimePanel(): HTMLElement {
       authors_count: 2,
       reviewers_count: 1,
       by_repository: {
-        "backend-api": { pr_count: 15, cycle_time_p50: 90, cycle_time_p90: 280 },
+        "backend-api": {
+          pr_count: 15,
+          cycle_time_p50: 90,
+          cycle_time_p90: 280,
+        },
         frontend: { pr_count: 15, cycle_time_p50: 130, cycle_time_p90: 380 },
       },
       by_team: null,
@@ -151,7 +160,11 @@ function openCycleTimePanel(): HTMLElement {
       authors_count: 2,
       reviewers_count: 1,
       by_repository: {
-        "backend-api": { pr_count: 20, cycle_time_p50: 100, cycle_time_p90: 300 },
+        "backend-api": {
+          pr_count: 20,
+          cycle_time_p50: 100,
+          cycle_time_p90: 300,
+        },
         frontend: { pr_count: 20, cycle_time_p50: 140, cycle_time_p90: 400 },
       },
       by_team: null,
@@ -396,7 +409,9 @@ describe("UI invariant: no GUID in visible text (#308)", () => {
       });
       const row = container.querySelector<HTMLElement>(".h-bar-row");
       expect(row).not.toBeNull();
-      expect(row!.getAttribute("aria-label") ?? "").toContain(UNKNOWN_USER_LABEL);
+      expect(row!.getAttribute("aria-label") ?? "").toContain(
+        UNKNOWN_USER_LABEL,
+      );
 
       // Literal copy lock — every fallback site must use the exact same
       // string. Catches divergence like "Unknown" / "—" / "(n/a)".

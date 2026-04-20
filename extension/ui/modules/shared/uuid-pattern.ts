@@ -9,7 +9,8 @@
  * source other than this file defines its own copy.
  */
 
-const UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const UUID_PATTERN =
+  "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /** Unanchored, case-insensitive. Use for substring detection (e.g. an
  *  aria-label that embeds a UUID inside a sentence). No `g` flag, so
