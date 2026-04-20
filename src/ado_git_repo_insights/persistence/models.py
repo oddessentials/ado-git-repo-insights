@@ -181,11 +181,11 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version (v6: ensures comments_extraction_metadata is
--- present on every DB, including those whose creation predated the table's
--- addition to SCHEMA_SQL — see migrate_v5_to_v6).
+-- Insert initial schema version (v7: ensures teams and team_members are
+-- present on every DB, including those whose creation predated the
+-- tables' addition to SCHEMA_SQL in Phase 3.3 — see migrate_v6_to_v7).
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (6, datetime('now'));
+VALUES (7, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
     from .config import Config
     from .extractor.ado_client import ADOClient
+    from .extractor.pr_extractor import ExtractionSummary
     from .persistence.database import DatabaseManager
     from .persistence.repository import PRRepository
     from .types import AdoThread
@@ -805,6 +806,171 @@ def _extract_comments(
     return stats
 
 
+def _extract_teams(
+    client: ADOClient,
+    db: DatabaseManager,
+    config: Config,
+    summary: ExtractionSummary,
+) -> dict[str, int]:
+    """Extract teams and team_members for each PR-successful project (#296).
+
+    Per option (b) in the #296 plan: teams are fetched for every project
+    whose PR extraction succeeded, regardless of other projects'
+    outcomes.  ``extract_all()``'s fail-fast semantics mean
+    ``summary.projects`` only contains projects up to the first PR
+    failure, so this helper simply operates on what is present — no
+    compensation or inference for projects never tried.
+
+    Per-project team-fetch failures (typically HTTP 403 for PATs
+    without team-read scope) and per-team member-fetch failures log a
+    WARNING and skip — never fatal to the run.  These caught
+    ``ExtractionError`` paths stay inside the wrapping transaction so
+    cross-project writes remain atomic.
+
+    All writes run inside a single ``db.transaction()`` (DEFERRED
+    ``BEGIN TRANSACTION``) so any unhandled exception in the helper
+    rolls back every persisted team / member row — no half-written
+    state survives helper failure.  ``clear_team_members`` issues
+    per-team DELETEs inside the same transaction; SQLite's connection-
+    scoped RESERVED lock is held across the full helper, which is
+    safe because the extract pipeline is the only writer on this
+    connection.
+
+    Args:
+        client: ADO API client (``get_teams`` / ``get_team_members``).
+        db: Database manager (provides the transaction context).
+        config: Application config (for ``organization`` in upserts).
+        summary: PR extraction summary (filtered to ``.success == True``).
+
+    Returns:
+        Stats dict with ``teams_extracted``, ``team_members_extracted``,
+        ``projects_team_skipped``.  Log-only — not fed to ``RunCounts``
+        per the #296 scope decision.
+    """
+    from .extractor.ado_client import ExtractionError
+    from .persistence.repository import PRRepository
+
+    repo = PRRepository(db)
+    stats: dict[str, int] = {
+        "teams_extracted": 0,
+        "team_members_extracted": 0,
+        "projects_team_skipped": 0,
+    }
+
+    succeeded_projects = [r.project for r in summary.projects if r.success]
+    if not succeeded_projects:
+        logger.info("teams: no PR-successful projects; skipping team extraction")
+        return stats
+
+    logger.info(
+        "teams: extracting teams across %d PR-successful project(s)",
+        len(succeeded_projects),
+    )
+
+    with db.transaction():
+        for project in succeeded_projects:
+            try:
+                teams = client.get_teams(project)
+            except ExtractionError as e:
+                logger.warning("teams: skipping %s: %s", project, e)
+                stats["projects_team_skipped"] += 1
+                continue
+
+            # #296 review P1: PRExtractor writes projects rows only as a
+            # side effect of ``upsert_pr_with_related`` inside its PR
+            # for-loop (pr_extractor.py:152-159).  A succeeded project
+            # with zero PRs in the extract window never hits that line,
+            # so (organization_name, project_name) stays absent on a
+            # fresh DB.  The teams FK to projects would then raise
+            # IntegrityError on the first ``upsert_team``.  Upsert the
+            # parent rows exactly once per project loop iteration
+            # (INSERT OR IGNORE is zero-cost when already present).
+            repo.upsert_organization(config.organization)
+            repo.upsert_project(config.organization, project)
+
+            project_members = 0
+            for team in teams:
+                team_id = team["id"]
+                repo.upsert_team(
+                    team_id=team_id,
+                    team_name=team["name"],
+                    project_name=project,
+                    organization_name=config.organization,
+                    description=team.get("description"),
+                )
+
+                # #296 review P2: clear_team_members must NOT precede
+                # get_team_members.  Clearing first and then skipping on
+                # ExtractionError leaves the team with zero members —
+                # avoidable data loss on transient 403/network errors
+                # (exactly the class this branch is meant to tolerate).
+                # Clearing only after a successful fetch keeps the
+                # prior membership intact until fresh data is in hand.
+                try:
+                    members = client.get_team_members(project, team_id)
+                except ExtractionError as e:
+                    logger.warning(
+                        "teams: skipping members for %s/%s: %s",
+                        project,
+                        team_id,
+                        e,
+                    )
+                    continue
+
+                repo.clear_team_members(team_id)
+                for member in members:
+                    user_id = member.get("id")
+                    if not user_id:
+                        logger.warning(
+                            "teams: skipping malformed member in %s/%s: "
+                            "missing 'id' field",
+                            project,
+                            team_id,
+                        )
+                        continue
+                    display_name = member.get("displayName")
+                    if not display_name:
+                        logger.warning(
+                            "teams: skipping malformed member in %s/%s: "
+                            "missing 'displayName' field (id=%s)",
+                            project,
+                            team_id,
+                            user_id,
+                        )
+                        continue
+                    # ``uniqueName`` is the AD account name from the ADO
+                    # IdentityRef shape; commonly an email address.
+                    # Coalesce an empty string to None so the column
+                    # stores NULL rather than "" for users without a
+                    # resolvable account name.
+                    repo.upsert_team_member(
+                        team_id=team_id,
+                        user_id=user_id,
+                        display_name=display_name,
+                        email=member.get("uniqueName") or None,
+                    )
+                    project_members += 1
+
+            stats["teams_extracted"] += len(teams)
+            stats["team_members_extracted"] += project_members
+            logger.info(
+                "teams: %s fetched %d teams, %d members",
+                project,
+                len(teams),
+                project_members,
+            )
+
+    logger.info(
+        "teams: extracted %d teams / %d members across "
+        "%d PR-successful projects (%d skipped)",
+        stats["teams_extracted"],
+        stats["team_members_extracted"],
+        len(succeeded_projects),
+        stats["projects_team_skipped"],
+    )
+    return stats
+
+
 @dataclass(frozen=True)
 class FetchedThreadsPayload:
     """Network-fetched thread payload for a single PR.
@@ -1260,6 +1426,11 @@ def cmd_extract(args: Namespace) -> int:
                         if project_result.error is not None
                         else f"Extraction failed for project: {project_result.project}"
                     )
+
+            # #296: team extraction for PR-successful projects — runs
+            # before fail-fast so chronically failing projects do not
+            # permanently block teams for succeeded projects (option b).
+            _extract_teams(client, db, config, summary)
 
             # Fail-fast: any project failure = exit 1
             if not summary.success:

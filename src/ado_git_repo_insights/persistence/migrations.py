@@ -605,6 +605,94 @@ def migrate_v5_to_v6(conn: Connection) -> None:
     logger.info("Applied migration v5 → v6 (comments_extraction_metadata)")
 
 
+# v7 teams / team_members DDL — byte-equivalent to the declarations in
+# ``src/ado_git_repo_insights/persistence/models.py`` SCHEMA_SQL.  The
+# duplication mirrors the v5→v6 precedent (``_V6_COMMENTS_EXTRACTION_
+# METADATA_DDL``); drift is locked by a PRAGMA parity test in
+# ``tests/unit/test_schema_migration.py::TestMigrationV6ToV7TeamsTables``.
+_V7_TEAMS_DDL = """
+    CREATE TABLE IF NOT EXISTS teams (
+        team_id TEXT PRIMARY KEY,
+        team_name TEXT NOT NULL,
+        project_name TEXT NOT NULL,
+        organization_name TEXT NOT NULL,
+        description TEXT,
+        last_updated TEXT NOT NULL,
+        FOREIGN KEY (organization_name, project_name)
+            REFERENCES projects(organization_name, project_name)
+    )
+"""
+
+_V7_TEAM_MEMBERS_DDL = """
+    CREATE TABLE IF NOT EXISTS team_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        is_team_admin INTEGER DEFAULT 0,
+        FOREIGN KEY (team_id) REFERENCES teams(team_id),
+        FOREIGN KEY (user_id) REFERENCES users(user_id),
+        UNIQUE(team_id, user_id)
+    )
+"""
+
+
+def migrate_v6_to_v7(conn: Connection) -> None:
+    """Create ``teams`` and ``team_members`` for legacy pre-existing DBs.
+
+    Schema v6 → v7:
+    Second instance of the SCHEMA_SQL-without-migration landmine (first
+    was ``migrate_v5_to_v6``).  The ``teams`` and ``team_members`` tables
+    were added to ``SCHEMA_SQL`` in Phase 3.3 (2026-01-14) but no earlier
+    migration ever created them.  DBs whose file predates that change
+    lack both tables entirely.  Once ``_extract_teams()`` in ``cli.py``
+    starts writing team rows, every such legacy DB would crash on the
+    first ``upsert_team`` with ``sqlite3.OperationalError: no such
+    table: teams`` — identical shape to the v5→v6 crash that motivated
+    that migration.
+
+    No row backfill — teams are refetched on every extract run
+    (current-state semantics per ``repository.py::clear_team_members``);
+    an empty post-migration state is correct.  The first successful
+    extract populates both tables for every project the PAT can read.
+
+    Runs inside ``BEGIN IMMEDIATE`` so a mid-migration failure rolls
+    back table creation along with the version bump — either all seven
+    statements commit or none do.  Idempotent via ``IF NOT EXISTS`` on
+    every CREATE plus ``INSERT OR IGNORE`` on ``schema_version``.
+    """
+    # ``txn_started`` guard mirrors ``migrate_v4_to_v5`` /
+    # ``migrate_v5_to_v6``: if BEGIN IMMEDIATE itself raises (writer
+    # lock contention), no transaction is open, so an unconditional
+    # ROLLBACK would raise ``OperationalError: cannot rollback - no
+    # transaction is active`` and mask the original lock error.
+    txn_started = False
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        txn_started = True
+        conn.execute(_V7_TEAMS_DDL)
+        conn.execute(_V7_TEAM_MEMBERS_DDL)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_teams_project "
+            "ON teams(organization_name, project_name)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id)"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+            "VALUES (7, datetime('now'))"
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        if txn_started:
+            conn.execute("ROLLBACK")
+        raise
+    logger.info("Applied migration v6 → v7 (teams, team_members)")
+
+
 # Version-keyed migration registry.  Keys are the *target* version;
 # the function upgrades from (key - 1) -> key.
 MIGRATIONS: dict[int, Callable[[Connection], None]] = {
@@ -613,4 +701,5 @@ MIGRATIONS: dict[int, Callable[[Connection], None]] = {
     4: migrate_v3_to_v4,
     5: migrate_v4_to_v5,
     6: migrate_v5_to_v6,
+    7: migrate_v6_to_v7,
 }

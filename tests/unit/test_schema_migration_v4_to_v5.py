@@ -174,7 +174,12 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
         return conn
 
     def test_old_schema_upgrades_to_composite_pk(self, tmp_path: Path) -> None:
-        """After v4→v5, pr_comments PRIMARY KEY covers (pull_request_uid, thread_id, comment_id)."""
+        """After v4→v5, pr_comments PRIMARY KEY covers (pull_request_uid, thread_id, comment_id).
+
+        ``db.connect()`` runs the full pending migration chain, so
+        schema_version lands at the current latest (v7) even though the
+        behavior under test is v4→v5.
+        """
         db_path = tmp_path / "v4_to_v5.db"
         conn = self._create_v4_db(db_path)
         conn.commit()
@@ -183,7 +188,7 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 6
+            assert db.get_schema_version() == 7
             pk_cols = [
                 row["name"]
                 for row in sorted(
@@ -352,13 +357,13 @@ class TestMigrationV4ToV5PrCommentsCompositePK:
 
         db = DatabaseManager(db_path)
         db.connect()
-        assert db.get_schema_version() == 6
+        assert db.get_schema_version() == 7
         db.close()
 
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 6
+            assert db2.get_schema_version() == 7
             pk_cols = [
                 row["name"]
                 for row in sorted(
