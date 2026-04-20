@@ -67,10 +67,55 @@ export interface EmptyStateSection {
   readonly detail: string;
 }
 
+/**
+ * Pre-derived PR row shown inside the PrListSection "pr-list" content state.
+ * Feature 060 contract — the URL is pre-composed at build time (by
+ * `resolvePrUrl`) so the renderer has no I/O or resolution work.
+ */
+export interface PrListRow {
+  readonly id: number;
+  readonly title: string;
+  readonly cycleTimeMinutes: number;
+  readonly url: string;
+}
+
+/**
+ * Feature 060: stable PR-detail container on the throughput drill-down panel.
+ *
+ * The single section MUST render across four content states without being
+ * omitted or replaced by sibling sections (FR-020). The rendered `<section>`
+ * shell (tag, id, class, ARIA identity) is byte-identical across states; only
+ * the inner content below the stable heading varies.
+ *
+ * Payload fields are present only when `contentState === "pr-list"`:
+ *
+ *   - `rows` — the PR rows to render (each carries a pre-derived ADO URL);
+ *   - `renderedCount` — number of PR rows actually rendered;
+ *   - `actualFilteredCount` — the chart's filtered PR count for this week
+ *     (used to drive the truncation indicator via FR-008);
+ *   - `capValue` — aggregator-side truncation cap, mirrors `_prs_cap`.
+ *
+ * The non-pr-list content states (supported-empty, team-inline,
+ * reviewer-inline) carry only the discriminant.
+ */
+export interface PrListSection {
+  readonly type: "pr-list";
+  readonly contentState:
+    | "pr-list"
+    | "supported-empty"
+    | "team-inline"
+    | "reviewer-inline";
+  readonly rows?: readonly PrListRow[];
+  readonly renderedCount?: number;
+  readonly actualFilteredCount?: number;
+  readonly capValue?: number;
+}
+
 export type PanelSection =
   | BreakdownTableSection
   | StatRowSection
-  | EmptyStateSection;
+  | EmptyStateSection
+  | PrListSection;
 
 export interface PanelContent {
   readonly title: string;
@@ -145,6 +190,57 @@ export function makeEmptyState(
   detail: string,
 ): EmptyStateSection {
   return { type: "empty-state", title, detail };
+}
+
+/**
+ * Construct a PrListSection (feature 060). Enforces at build time that the
+ * payload shape matches the content state: the `pr-list` state requires
+ * rows + counts + cap; every other state forbids them.
+ */
+export function makePrListSection(input: {
+  readonly contentState:
+    | "pr-list"
+    | "supported-empty"
+    | "team-inline"
+    | "reviewer-inline";
+  readonly rows?: readonly PrListRow[];
+  readonly renderedCount?: number;
+  readonly actualFilteredCount?: number;
+  readonly capValue?: number;
+}): PrListSection {
+  if (input.contentState === "pr-list") {
+    if (
+      input.rows === undefined ||
+      input.renderedCount === undefined ||
+      input.actualFilteredCount === undefined ||
+      input.capValue === undefined
+    ) {
+      throw new TypeError(
+        "PrListSection with contentState='pr-list' MUST include rows, renderedCount, actualFilteredCount, and capValue",
+      );
+    }
+  } else if (
+    input.rows !== undefined ||
+    input.renderedCount !== undefined ||
+    input.actualFilteredCount !== undefined ||
+    input.capValue !== undefined
+  ) {
+    throw new TypeError(
+      `PrListSection with contentState='${input.contentState}' MUST NOT include rows, renderedCount, actualFilteredCount, or capValue`,
+    );
+  }
+  return {
+    type: "pr-list",
+    contentState: input.contentState,
+    ...(input.rows !== undefined ? { rows: input.rows } : {}),
+    ...(input.renderedCount !== undefined
+      ? { renderedCount: input.renderedCount }
+      : {}),
+    ...(input.actualFilteredCount !== undefined
+      ? { actualFilteredCount: input.actualFilteredCount }
+      : {}),
+    ...(input.capValue !== undefined ? { capValue: input.capValue } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +361,8 @@ function renderSection(section: PanelSection): HTMLElement {
       return renderStatRow(section);
     case "empty-state":
       return renderEmptyState(section);
+    case "pr-list":
+      return renderPrListSection(section);
   }
 }
 
@@ -327,6 +425,47 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
   wrapper.appendChild(createElement("h3", {}, section.title));
   wrapper.appendChild(
     createElement("p", { class: "detail-panel-empty-detail" }, section.detail),
+  );
+  return wrapper;
+}
+
+/**
+ * Feature 060: render the stable PR-detail container (FR-020).
+ *
+ * Invariants asserted by the section-identity tests and enforced here:
+ *
+ *   1. Always returns a `<section id="pr-detail">` with the stable class and
+ *      ARIA identity — never a different tag, id, or role.
+ *   2. Heading text (`Pull requests`) is constant across every content state.
+ *   3. The section is never omitted. The sealed union prevents omission at
+ *      build time; this function guarantees runtime parity.
+ *
+ * This is the Phase 2c stub: child content below the heading is a placeholder
+ * that Phase 3 T024 will swap for the real content-state renderers (PR rows,
+ * supported-empty message, team/reviewer inline messages). `section.contentState`
+ * is forwarded to a `data-content-state` attribute so tests can observe which
+ * state was requested without coupling to the placeholder copy.
+ */
+function renderPrListSection(section: PrListSection): HTMLElement {
+  const wrapper = createElement("section", {
+    id: "pr-detail",
+    class: "detail-panel-section detail-panel-section--pr-detail",
+    role: "region",
+    "aria-labelledby": "pr-detail-heading",
+    "data-content-state": section.contentState,
+  });
+  wrapper.appendChild(
+    createElement("h3", { id: "pr-detail-heading" }, "Pull requests"),
+  );
+  // Phase 2c placeholder — Phase 3 T024 replaces this with the full
+  // content-state renderers (pr-list rows + truncation indicator,
+  // supported-empty message, team-inline / reviewer-inline gated messages).
+  wrapper.appendChild(
+    createElement(
+      "p",
+      { class: "detail-panel-pr-detail-placeholder" },
+      "PR-level detail content lands in T024.",
+    ),
   );
   return wrapper;
 }

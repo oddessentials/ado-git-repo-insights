@@ -4084,6 +4084,8 @@ var PRInsightsDashboard = (() => {
         return renderStatRow(section);
       case "empty-state":
         return renderEmptyState(section);
+      case "pr-list":
+        return renderPrListSection(section);
     }
   }
   function renderBreakdownTable(section) {
@@ -4140,6 +4142,26 @@ var PRInsightsDashboard = (() => {
     wrapper.appendChild(createElement("h3", {}, section.title));
     wrapper.appendChild(
       createElement("p", { class: "detail-panel-empty-detail" }, section.detail)
+    );
+    return wrapper;
+  }
+  function renderPrListSection(section) {
+    const wrapper = createElement("section", {
+      id: "pr-detail",
+      class: "detail-panel-section detail-panel-section--pr-detail",
+      role: "region",
+      "aria-labelledby": "pr-detail-heading",
+      "data-content-state": section.contentState
+    });
+    wrapper.appendChild(
+      createElement("h3", { id: "pr-detail-heading" }, "Pull requests")
+    );
+    wrapper.appendChild(
+      createElement(
+        "p",
+        { class: "detail-panel-pr-detail-placeholder" },
+        "PR-level detail content lands in T024."
+      )
     );
     return wrapper;
   }
