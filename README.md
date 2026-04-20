@@ -234,8 +234,10 @@ Enable ML-powered forecasting for PR throughput and cycle times. **Zero-config**
 Add to your pipeline YAML:
 
 ```yaml
-build-aggregates:
-    run-predictions: true
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true
 ```
 
 Features:
@@ -257,9 +259,11 @@ Enable AI-powered analysis of your PR patterns. Requires an OpenAI API key.
 3. Add to your pipeline YAML:
 
 ```yaml
-build-aggregates:
-    run-insights: true
-    openai-api-key: $(OPENAI_API_KEY)
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enableInsights: true
+    openaiApiKey: $(OPENAI_API_KEY)
 ```
 
 Features:

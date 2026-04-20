@@ -27,8 +27,10 @@ Predictions work out-of-the-box with **no additional dependencies**. The built-i
 Simply enable predictions - no Prophet installation needed:
 
 ```yaml
-build-aggregates:
-  run-predictions: true
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true
 ```
 
 **Enhanced Option (Prophet)**
