@@ -55,6 +55,18 @@
   - Story 1 acceptance scenario 2 scoped to "no filter is active" with a trailing reference to FR-008's criterion.
   No FR removed, no new FR added, no success criterion weakened. The contradiction was in the scoping of existing assertions, not in the contract itself.
 
+- **Plan Pass 2 hardening (user-directed, 2026-04-20)**: eight hardenings applied after plan Pass 1 generation:
+  1. **FR-003 tightened** — `_prs_truncated` / `_prs_cap` are immutable after load; consumers MUST NOT mutate, re-derive, or infer from `prs.length` (prevents cross-version drift when cap changes).
+  2. **FR-001 tightened** — absence of `prs` is a valid, permanent, backward-compat-preserving state. Consumers render the supported-empty content state deterministically. No load-warning, no error, no degradation of other surfaces.
+  3. **FR-021 tightened** — explicit ONE-input-to-ONE-output transform; no parallel filter function, no cached intermediate, no second invocation, no conditional path, no post-processing pass. Filter × aggregator-truncation lossiness declared "intentional at the aggregator boundary"; consumers MUST NOT attempt recovery by any alternative data path.
+  4. **FR-023 tightened** — atomic-failure semantics added. Gate runs on a staging location before `docs/data/` is touched; on failure, `docs/data/` is byte-identical to its pre-run state. `generate-demo-data.py` flagged as requiring stage-then-promote refactor (currently writes direct-to-`docs/data/`). Synthetic leak test verifies failure + block + intact prior state.
+  5. **FR-014 tightened** — privacy-posture ordering becomes mechanized. A new single authoritative test (`tests/unit/test_privacy_posture_ordering.py`) fails CI + pre-push if producer code emits `prs` without the privacy-posture section present in `docs/reference/dataset-contract.md`.
+  6. **SC-001 made measurable** — 250 ms wall-clock ceiling between activation and panel rendered (jsdom, 500-PR fixture) PLUS zero new outbound network activity during activation. Removes the unverifiable "≥99% inside animation" language.
+  7. **SC-016 added** — mechanized test-floor Δ: existing `check_ratchet_bump.py` gate named as per-commit mechanism; plan-level protocol added for commit-time Δ calculation (junit → preview → exact bump).
+  8. **Demo-strip-gate contract extended** — explicit atomic-failure caller responsibilities documented (stage-then-promote for `generate-demo-data.py`).
+
+  No new FRs added; every gap addressed via tightening of existing FRs. One new SC (SC-016). FR count unchanged at 28 (FR-001 through FR-026 plus FR-005a and FR-007a); SC count: 15 → 16.
+
 - **Pass 3 code-validation (2026-04-20)**: every FR mapped to an existing or new code surface in `code-surface-map.md` (new artifact in this feature directory). No gaps blocking the planner — every FR has a concrete module + function anchor. Five planner-phase refinements identified (documented in the Gaps section of the map); all five resolved in Pass 4.
 - **Pass 2 hardening (user-identified gaps, 2026-04-20)**: eight determinism / parity / enforcement gaps encoded in the spec:
   1. FR-008 now locks rendered PR count to `min(filtered_pr_count, truncation_cap)` with a truncation-indicator visibility invariant; SC-002 mirrors.
