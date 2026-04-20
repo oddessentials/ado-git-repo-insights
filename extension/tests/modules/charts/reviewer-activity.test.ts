@@ -1007,7 +1007,7 @@ describe("reviewer-activity module", () => {
       }
     });
 
-    it("aria-label falls back to 'the selected reviewer' when filterReviewerName is not supplied", () => {
+    it("aria-label falls back to 'Unknown user' when filterReviewerName is not supplied (shared fallback copy)", () => {
       renderReviewerActivity(container, rollupsWithReviewer(GUID), {
         reviewerFilterActive: true,
         filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
@@ -1019,7 +1019,9 @@ describe("reviewer-activity module", () => {
       expect(rows.length).toBeGreaterThan(0);
       for (const row of Array.from(rows)) {
         const label = row.getAttribute("aria-label") ?? "";
-        expect(label).toContain("the selected reviewer");
+        // #308: fallback copy matches throughput `By author` + reviewer
+        // panel title, locked by the fallback-consistency gate.
+        expect(label).toContain("Unknown user");
         expect(label).not.toContain(GUID);
       }
     });

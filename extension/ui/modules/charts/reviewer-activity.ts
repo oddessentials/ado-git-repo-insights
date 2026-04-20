@@ -13,6 +13,7 @@ import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
+import { UNKNOWN_USER_LABEL } from "../shared/identity-fallback";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { weekRangeForAria } from "../drilldown/week-range";
 
@@ -186,9 +187,12 @@ export function renderReviewerActivity(
   const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
   // #308: aria-label uses the resolved display name when the dashboard
   // supplies one; the raw reviewer_id stays in the data-* attribute so
-  // drill-down dispatch and debugging remain id-keyed.
+  // drill-down dispatch and debugging remain id-keyed. Fallback copy
+  // matches the shared `UNKNOWN_USER_LABEL` so every #308 surface uses
+  // one consistent string (locked by the fallback-consistency gate in
+  // tests/ui-invariants/no-guid-in-visible-text.test.ts).
   const filterReviewerAriaName =
-    options.filterReviewerName ?? "the selected reviewer";
+    options.filterReviewerName ?? UNKNOWN_USER_LABEL;
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;

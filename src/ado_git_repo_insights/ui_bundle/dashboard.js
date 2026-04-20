@@ -7548,6 +7548,12 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ../ui/modules/shared/identity-fallback.ts
+  var UNKNOWN_USER_LABEL = "Unknown user";
+  function resolveDisplayName(id, map) {
+    return map.get(id) ?? UNKNOWN_USER_LABEL;
+  }
+
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
   function computeApprovalRate(rollups, reviewerIds) {
@@ -7636,7 +7642,7 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
-    const filterReviewerAriaName = options.filterReviewerName ?? "the selected reviewer";
+    const filterReviewerAriaName = options.filterReviewerName ?? UNKNOWN_USER_LABEL;
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
@@ -8420,12 +8426,6 @@ var PRInsightsDashboard = (() => {
     }
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
-
-  // ../ui/modules/shared/identity-fallback.ts
-  var UNKNOWN_USER_LABEL = "Unknown user";
-  function resolveDisplayName(id, map) {
-    return map.get(id) ?? UNKNOWN_USER_LABEL;
-  }
 
   // ../ui/modules/shared/pr-url.ts
   function ensureTrailingSlash(uri) {
