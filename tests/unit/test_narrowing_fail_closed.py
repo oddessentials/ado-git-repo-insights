@@ -39,6 +39,7 @@ def _ensure_script_module(name: str) -> ModuleType:
 # Pre-register shared modules so sibling imports from scripts work
 _ensure_script_module("demo_generation_common")
 _ensure_script_module("demo_shell")
+_ensure_script_module("strip_pr_arrays")
 
 
 def _load_script(name: str) -> ModuleType:
@@ -384,6 +385,7 @@ def _write_optimize_runner(tmp_path: Path, body: str) -> Path:
         "\n"
         "_load('demo_generation_common', 'scripts/demo_generation_common.py')\n"
         "_load('demo_shell', 'scripts/demo_shell.py')\n"
+        "_load('strip_pr_arrays', 'scripts/strip_pr_arrays.py')\n"
         "\n" + body + "\n",
         encoding="utf-8",
     )
