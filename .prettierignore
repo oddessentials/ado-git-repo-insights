@@ -13,6 +13,17 @@ node_modules/
 pnpm-lock.yaml
 package-lock.json
 
+# Local tooling caches — auto-created in whichever CWD the tool runs from.
+# Gitignored but prettier reads .prettierignore, not .gitignore, so these
+# entries prevent a local-only format-check failure on mypy/pytest/ruff
+# cache JSON when prettier scans a subtree that happens to contain one.
+.mypy_cache/
+**/.mypy_cache/
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+
 # Generated files
 *.vsix
 extension/test-artifacts/
