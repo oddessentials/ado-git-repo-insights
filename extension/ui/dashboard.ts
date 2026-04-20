@@ -95,6 +95,11 @@ import {
   publishFiltersChanged,
   publishTabChanged,
   publishComparisonToggled,
+  // Drill-down consumers (US1 throughput, US2 cycle-time, US3 reviewer, US4 sparkline)
+  installThroughputDrilldown,
+  installCycleTimeDrilldown,
+  installReviewerDrilldown,
+  installSparklineNavigator,
 } from "./modules";
 
 // Dashboard state
@@ -129,6 +134,11 @@ let comparisonMode = false;
 // suppress the emit when a user clicks the already-active tab.
 let previousActiveTabId: string = "metrics";
 let cachedRollups: Rollup[] = []; // Cache for export
+// Active per-chart drill-down handles; disposed at the start of every
+// refreshMetrics cycle (immediately after publishFiltersChanged) and
+// re-installed after the render block. Module-level so later user-story
+// consumers (US2–US4) can push peer handles without racing US1.
+let activeDrilldownHandles: Array<{ dispose(): void }> = [];
 let currentBuildId: number | null = null; // Store build ID for raw data download
 let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
 
@@ -875,6 +885,45 @@ function buildEffectiveState(): EffectiveState {
 }
 
 /**
+ * Toggle the `inert` attribute on the four drill-down host containers so
+ * stale triggers cannot be activated by click or keyboard during the
+ * refresh load window. The dispose-deferred-to-render layout in
+ * `refreshMetrics` (P1.A from PR #302 review) leaves listeners attached
+ * to the previous cycle's chart DOM during the await chain; without
+ * inert, a click or keyboard activation in that window would open a
+ * panel against pre-change data. `inert` blocks both modalities and
+ * removes the subtree from the accessibility tree for the load window.
+ *
+ * Set via `setAttribute`/`removeAttribute` rather than the
+ * `HTMLElement.inert` IDL property so the call works regardless of the
+ * lib.dom.d.ts version the project compiles against.
+ */
+function setChartContainersInert(value: boolean): void {
+  const containerIds = [
+    "throughput-chart",
+    "cycle-time-trend",
+    "reviewer-activity",
+  ] as const;
+  for (const id of containerIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (value) {
+      el.setAttribute("inert", "");
+    } else {
+      el.removeAttribute("inert");
+    }
+  }
+  const summaryCards = document.querySelector<HTMLElement>(".summary-cards");
+  if (summaryCards) {
+    if (value) {
+      summaryCards.setAttribute("inert", "");
+    } else {
+      summaryCards.removeAttribute("inert");
+    }
+  }
+}
+
+/**
  * Refresh metrics for current date range.
  *
  * Loading state lifecycle:
@@ -908,8 +957,22 @@ async function refreshMetrics(): Promise<void> {
   // Drill-down: announce filter-change now that we've committed to an actual
   // refresh (post no-op-guard). Subscribers that hard-dismiss on this event
   // must not do DOM work against the about-to-change state — see
-  // specs/059-chart-drill-down/contracts/lifecycle-signals.md.
+  // specs/059-chart-drill-down/contracts/lifecycle-signals.md. DetailPanel's
+  // own filters-changed subscriber hard-dismisses any open panel in the same
+  // synchronous tick, so the panel is closed before any subsequent click can
+  // re-open it against pre-change data.
   publishFiltersChanged({ reason: "user-change" });
+
+  // NOTE: drill-down handle dispose+reset is deferred to immediately before
+  // the render block (after the final stale guard) so that a stale-cycle bail
+  // at lines guarded by isStale below cannot leave charts visually interactive
+  // but listener-dead. See PR #302 review finding P1.A.
+  //
+  // Mark chart containers inert for the refresh window so the still-attached
+  // listeners cannot be activated by click or keyboard against stale DOM. The
+  // finally below clears inert on every exit path (success / failure /
+  // stale-bail / error). See PR #302 P1.A follow-up (Codex catch).
+  setChartContainersInert(true);
 
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
@@ -981,11 +1044,47 @@ async function refreshMetrics(): Promise<void> {
       return;
     }
 
+    // Dispose the previous cycle's drill-down handles atomically with the
+    // upcoming render: both happen, or neither does (the stale guard above
+    // returned before reaching this line). This is the P1.A fix from PR #302
+    // review — disposing earlier risked leaving charts visually intact but
+    // listener-dead when a stale or failing cycle bailed before re-install.
+    for (const handle of activeDrilldownHandles) handle.dispose();
+    activeDrilldownHandles = [];
+
     renderSummaryCards(rollups, prevRollups, rawRollups);
     renderThroughputChart(rollups, rawRollups, availability);
     renderCycleTimeTrend(rollups, rawRollups, availability);
     renderReviewerActivity(rollups, rawRollups, availability);
     renderCycleDistribution(distributions, rawRollups, availability);
+
+    // Install per-chart drill-down handles AFTER the render block so the
+    // container elements exist. US2–US4 push peers onto the same array.
+    const throughputContainer = document.getElementById("throughput-chart");
+    if (throughputContainer) {
+      activeDrilldownHandles.push(
+        installThroughputDrilldown(throughputContainer, rollups),
+      );
+    }
+    const cycleTimeContainer = document.getElementById("cycle-time-trend");
+    if (cycleTimeContainer) {
+      activeDrilldownHandles.push(
+        installCycleTimeDrilldown(cycleTimeContainer, rollups),
+      );
+    }
+    const reviewerContainer = document.getElementById("reviewer-activity");
+    if (reviewerContainer) {
+      activeDrilldownHandles.push(
+        installReviewerDrilldown(reviewerContainer, rollups),
+      );
+    }
+    const summaryCardsContainer =
+      document.querySelector<HTMLElement>(".summary-cards");
+    if (summaryCardsContainer) {
+      activeDrilldownHandles.push(
+        installSparklineNavigator(summaryCardsContainer),
+      );
+    }
 
     // Update comparison banner if in comparison mode
     if (comparisonMode) {
@@ -1009,6 +1108,17 @@ async function refreshMetrics(): Promise<void> {
       failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
     }
     throw err;
+  } finally {
+    // Clear inert only when THIS cycle is the winning one (or no cycle
+    // tracking is active). A stale-bail return must NOT clear inert: a
+    // newer cycle is still mid-load with inert=true, and clearing here
+    // would re-enable chart interactions on stale DOM until the winning
+    // cycle finishes. The winning cycle's own success / failure path
+    // (catch) clears inert on its exit. See PR #302 P1.A second
+    // follow-up (Codex catch).
+    if (cycleId === 0 || !isStale(cycleId)) {
+      setChartContainersInert(false);
+    }
   }
 }
 

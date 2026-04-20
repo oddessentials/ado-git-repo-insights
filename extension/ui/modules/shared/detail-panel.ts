@@ -332,6 +332,56 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Top-offset geometry (issue #303)
+//
+// On desktop layouts the panel is positioned below the filter-bar so it does
+// not geometrically cover the right-side filter controls. On narrow viewports
+// the panel remains a full-height overlay. The measured offset is written to
+// a CSS custom property on the panel root and refreshed while open whenever
+// the filter-bar's box changes.
+// ---------------------------------------------------------------------------
+
+const TOP_OFFSET_MOBILE_MEDIA_QUERY = "(max-width: 768px)";
+const TOP_OFFSET_FILTER_BAR_SELECTOR = ".filter-bar";
+const TOP_OFFSET_GAP_PX = 12;
+const TOP_OFFSET_CSS_VAR = "--detail-panel-top";
+
+function applyTopOffset(rootEl: HTMLElement, signal: AbortSignal): void {
+  // Always clear any stale value first so mode transitions (desktop open →
+  // rotate to mobile → reopen) cannot carry the previous offset.
+  rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+
+  if (window.matchMedia?.(TOP_OFFSET_MOBILE_MEDIA_QUERY).matches === true) {
+    return;
+  }
+
+  const filterBar = document.querySelector<HTMLElement>(
+    TOP_OFFSET_FILTER_BAR_SELECTOR,
+  );
+  if (filterBar === null) return;
+
+  const writeOffset = (): void => {
+    const bottom = filterBar.getBoundingClientRect().bottom;
+    if (bottom <= 0) {
+      rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+      return;
+    }
+    rootEl.style.setProperty(
+      TOP_OFFSET_CSS_VAR,
+      `${Math.round(bottom + TOP_OFFSET_GAP_PX)}px`,
+    );
+  };
+
+  writeOffset();
+
+  const observer = new ResizeObserver(() => {
+    writeOffset();
+  });
+  observer.observe(filterBar);
+  signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+}
+
+// ---------------------------------------------------------------------------
 // Subscriptions for open-scoped dismissal
 // ---------------------------------------------------------------------------
 
@@ -439,6 +489,17 @@ export function openDetailPanel(context: DrillDownContext): void {
 
   const wasOpen = isDetailPanelOpen();
   activeContext = context;
+
+  if (!wasOpen) {
+    // Install the open-scoped controller BEFORE render + is-open so
+    // applyTopOffset's ResizeObserver teardown can piggyback on the
+    // controller's signal, and so the drill-down MutationObservers that
+    // react to `is-open` see the correct geometry on their first fire
+    // (issue #303 / FE-arch F7).
+    openScopedController = installOpenScopedListeners(els);
+    applyTopOffset(els.root, openScopedController.signal);
+  }
+
   renderContent(els, context.content);
 
   if (!wasOpen) {
@@ -448,7 +509,6 @@ export function openDetailPanel(context: DrillDownContext): void {
     // CSS transition runs in parallel but does not gate state.
     panelState = "open";
 
-    openScopedController = installOpenScopedListeners(els);
     focusTrapController = trapFocus(els.root);
   }
 }

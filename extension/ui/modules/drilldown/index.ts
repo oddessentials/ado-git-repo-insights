@@ -9,3 +9,7 @@
 
 export * from "./lifecycle-signals";
 export * from "./comparison-advisory";
+export * from "./throughput-drilldown";
+export * from "./cycle-time-drilldown";
+export * from "./reviewer-drilldown";
+export * from "./sparkline-navigator";

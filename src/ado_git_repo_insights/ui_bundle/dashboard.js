@@ -3691,6 +3691,8 @@ var PRInsightsDashboard = (() => {
   var MODERATE_SAMPLE_THRESHOLD = 30;
   var LOW_WEEK_THRESHOLD = 3;
   var MODERATE_WEEK_THRESHOLD = 8;
+  var SPARKLINE_HIGHLIGHT_MS = 1500;
+  var COMPARISON_ADVISORY_TOAST_MS = 4e3;
 
   // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
@@ -3716,6 +3718,11 @@ var PRInsightsDashboard = (() => {
     }
     return el;
   }
+  function appendText(parent, text) {
+    const textNode = document.createTextNode(text);
+    parent.appendChild(textNode);
+    return textNode;
+  }
   function renderNoData(container, message, hint) {
     if (!container) return;
     clearElement(container);
@@ -3740,7 +3747,49 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/focus-trap.ts
+  var FOCUSABLE_SELECTOR = '[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
   var trapStates = /* @__PURE__ */ new WeakMap();
+  function getFocusableElements(root) {
+    const nodes = root.querySelectorAll(FOCUSABLE_SELECTOR);
+    return Array.from(nodes).filter(
+      (el) => !el.hasAttribute("disabled") && el.tabIndex !== -1
+    );
+  }
+  function trapFocus(root) {
+    const controller = new AbortController();
+    const returnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    trapStates.set(controller, { root, returnTarget });
+    if (!root.contains(document.activeElement)) {
+      const first = getFocusableElements(root)[0];
+      first?.focus();
+    }
+    const handleKeydown = (event) => {
+      if (event.key !== "Tab") return;
+      const focusables = getFocusableElements(root);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+      const active2 = document.activeElement;
+      if (event.shiftKey) {
+        if (active2 === first || !root.contains(active2)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active2 === last || !root.contains(active2)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    root.addEventListener("keydown", handleKeydown, {
+      signal: controller.signal
+    });
+    return controller;
+  }
   function restoreFocus(controller) {
     const state = trapStates.get(controller);
     controller.abort();
@@ -3773,6 +3822,34 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/detail-panel.ts
+  function makePanelContent(title, subtitle, sections) {
+    if (title.length === 0) {
+      throw new TypeError("PanelContent.title MUST be non-empty");
+    }
+    if (sections.length === 0) {
+      throw new TypeError(
+        "PanelContent.sections MUST contain at least one section"
+      );
+    }
+    return { title, subtitle, sections };
+  }
+  function makeBreakdownTable(title, columns, rows) {
+    const expectedValues = columns.length - 1;
+    for (const row of rows) {
+      if (row.values.length !== expectedValues) {
+        throw new TypeError(
+          `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`
+        );
+      }
+    }
+    return { type: "breakdown-table", title, columns, rows };
+  }
+  function makeStatRow(stats) {
+    return { type: "stat-row", stats };
+  }
+  function makeEmptyState(title, detail) {
+    return { type: "empty-state", title, detail };
+  }
   var panelEls = null;
   var panelState = "closed";
   var activeContext = null;
@@ -3786,8 +3863,252 @@ var PRInsightsDashboard = (() => {
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
   }
+  function ensurePanelEls() {
+    if (panelEls && !panelEls.root.isConnected) {
+      panelEls = null;
+      panelState = "closed";
+      activeContext = null;
+      openScopedController?.abort();
+      openScopedController = null;
+      focusTrapController?.abort();
+      focusTrapController = null;
+    }
+    if (panelEls) return panelEls;
+    const root = document.createElement("aside");
+    root.className = "detail-panel";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-labelledby", "detail-panel-title");
+    const header = createElement("div", { class: "detail-panel-header" });
+    const titleEl = createElement("h2", { id: "detail-panel-title" });
+    header.appendChild(titleEl);
+    const subtitleEl = createElement("p", { class: "detail-panel-subtitle" });
+    header.appendChild(subtitleEl);
+    const closeBtn = createElement(
+      "button",
+      {
+        type: "button",
+        class: "detail-panel-close",
+        "aria-label": "Close detail panel"
+      },
+      "\xD7"
+    );
+    closeBtn.addEventListener("click", () => {
+      dismissDetailPanel("explicit-close-button");
+    });
+    header.appendChild(closeBtn);
+    root.appendChild(header);
+    const sectionsRoot = createElement("div", {
+      class: "detail-panel-sections"
+    });
+    root.appendChild(sectionsRoot);
+    document.body.appendChild(root);
+    panelEls = { root, sectionsRoot, titleEl, subtitleEl, closeBtn };
+    return panelEls;
+  }
+  function renderContent(els, content) {
+    clearElement(els.titleEl);
+    appendText(els.titleEl, content.title);
+    clearElement(els.subtitleEl);
+    if (content.subtitle !== null) {
+      appendText(els.subtitleEl, content.subtitle);
+      els.subtitleEl.style.display = "";
+    } else {
+      els.subtitleEl.style.display = "none";
+    }
+    clearElement(els.sectionsRoot);
+    for (const section of content.sections) {
+      els.sectionsRoot.appendChild(renderSection(section));
+    }
+  }
+  function renderSection(section) {
+    switch (section.type) {
+      case "breakdown-table":
+        return renderBreakdownTable(section);
+      case "stat-row":
+        return renderStatRow(section);
+      case "empty-state":
+        return renderEmptyState(section);
+    }
+  }
+  function renderBreakdownTable(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--breakdown-table"
+    });
+    const heading = createElement("h3", {}, section.title);
+    wrapper.appendChild(heading);
+    const table = createElement("table", { class: "detail-panel-table" });
+    const thead = createElement("thead");
+    const headerRow = createElement("tr");
+    for (const col of section.columns) {
+      const th = createElement("th", { scope: "col" }, col);
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    const tbody = createElement("tbody");
+    for (const row of section.rows) {
+      const tr = createElement("tr");
+      const firstCell = createElement("th", { scope: "row" }, row.label);
+      tr.appendChild(firstCell);
+      for (const value of row.values) {
+        tr.appendChild(createElement("td", {}, value));
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    return wrapper;
+  }
+  function renderStatRow(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--stat-row"
+    });
+    const list = createElement("dl", { class: "detail-panel-stats" });
+    for (const stat of section.stats) {
+      const dt = createElement("dt", {}, stat.label);
+      const ddAttrs = {};
+      if (stat.tone !== void 0) {
+        ddAttrs["data-tone"] = stat.tone;
+      }
+      const dd = createElement("dd", ddAttrs, stat.value);
+      list.appendChild(dt);
+      list.appendChild(dd);
+    }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+  function renderEmptyState(section) {
+    const wrapper = createElement("section", {
+      class: "detail-panel-section detail-panel-section--empty-state"
+    });
+    wrapper.appendChild(createElement("h3", {}, section.title));
+    wrapper.appendChild(
+      createElement("p", { class: "detail-panel-empty-detail" }, section.detail)
+    );
+    return wrapper;
+  }
+  var TOP_OFFSET_MOBILE_MEDIA_QUERY = "(max-width: 768px)";
+  var TOP_OFFSET_FILTER_BAR_SELECTOR = ".filter-bar";
+  var TOP_OFFSET_GAP_PX = 12;
+  var TOP_OFFSET_CSS_VAR = "--detail-panel-top";
+  function applyTopOffset(rootEl, signal) {
+    rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+    if (window.matchMedia?.(TOP_OFFSET_MOBILE_MEDIA_QUERY).matches === true) {
+      return;
+    }
+    const filterBar = document.querySelector(
+      TOP_OFFSET_FILTER_BAR_SELECTOR
+    );
+    if (filterBar === null) return;
+    const writeOffset = () => {
+      const bottom = filterBar.getBoundingClientRect().bottom;
+      if (bottom <= 0) {
+        rootEl.style.removeProperty(TOP_OFFSET_CSS_VAR);
+        return;
+      }
+      rootEl.style.setProperty(
+        TOP_OFFSET_CSS_VAR,
+        `${Math.round(bottom + TOP_OFFSET_GAP_PX)}px`
+      );
+    };
+    writeOffset();
+    const observer = new ResizeObserver(() => {
+      writeOffset();
+    });
+    observer.observe(filterBar);
+    signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+  }
+  function installOpenScopedListeners(els) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape" && panelState === "open") {
+          event.preventDefault();
+          dismissDetailPanel("escape-key");
+        }
+      },
+      { signal }
+    );
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (panelState !== "open") return;
+        const target = event.target;
+        if (target instanceof Node && !els.root.contains(target)) {
+          dismissDetailPanel("outside-click");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      FILTERS_CHANGED_EVENT,
+      () => {
+        if (panelState === "open" || panelState === "opening") {
+          dismissDetailPanel("filters-changed");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      TAB_CHANGED_EVENT,
+      (evt) => {
+        const e2 = evt;
+        if (e2.detail.activeTabId !== "metrics" && panelState === "open") {
+          dismissDetailPanel("tab-changed");
+        }
+      },
+      { signal }
+    );
+    window.addEventListener(
+      COMPARISON_TOGGLED_EVENT,
+      (evt) => {
+        const e2 = evt;
+        if (e2.detail.enabled && panelState === "open") {
+          dismissDetailPanel("comparison-toggled");
+        }
+      },
+      { signal }
+    );
+    return controller;
+  }
   function isDetailPanelOpen() {
     return panelState === "opening" || panelState === "open";
+  }
+  function openDetailPanel(context) {
+    if (context.content.title.length === 0) {
+      throw new TypeError("PanelContent.title MUST be non-empty");
+    }
+    if (context.content.sections.length === 0) {
+      throw new TypeError(
+        "PanelContent.sections MUST contain at least one section"
+      );
+    }
+    if (comparisonActive) {
+      console.warn(
+        "[detail-panel] openDetailPanel called while comparison mode is active; no-op. Callers should route to comparison-advisory.showComparisonAdvisoryToast in that case."
+      );
+      return;
+    }
+    if (panelState === "closing") {
+      finalizeClose();
+    }
+    const els = ensurePanelEls();
+    const wasOpen = isDetailPanelOpen();
+    activeContext = context;
+    if (!wasOpen) {
+      openScopedController = installOpenScopedListeners(els);
+      applyTopOffset(els.root, openScopedController.signal);
+    }
+    renderContent(els, context.content);
+    if (!wasOpen) {
+      els.root.classList.add("is-open");
+      panelState = "opening";
+      panelState = "open";
+      focusTrapController = trapFocus(els.root);
+    }
   }
   function dismissDetailPanel(reason) {
     if (!isDetailPanelOpen()) return;
@@ -3826,6 +4147,11 @@ var PRInsightsDashboard = (() => {
     }
     const days = hours / 24;
     return `${days.toFixed(1)}d`;
+  }
+  function formatWeekLabel(week) {
+    const match = week.match(/(\d{4})-W(\d{2})/);
+    if (!match) return week;
+    return `W${match[2]}`;
   }
   function median(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
@@ -5054,7 +5380,7 @@ var PRInsightsDashboard = (() => {
     const labelStep = Math.ceil(allWeeks.length / 6);
     const xAxisLabels = allWeeks.filter((_2, i2) => i2 % labelStep === 0).map((week, i2) => {
       const x2 = getX(i2 * labelStep);
-      const formatted = formatWeekLabel(week);
+      const formatted = formatWeekLabel2(week);
       return `<text x="${x2}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
     const latestValue = values[values.length - 1];
@@ -5103,7 +5429,7 @@ var PRInsightsDashboard = (() => {
     </div>
   `;
   }
-  function formatWeekLabel(weekStr) {
+  function formatWeekLabel2(weekStr) {
     const date = new Date(weekStr);
     if (isNaN(date.getTime())) return weekStr;
     const month = date.toLocaleString("en-US", { month: "short" });
@@ -6071,7 +6397,6 @@ var PRInsightsDashboard = (() => {
           const distance = Math.sqrt(dx * dx + dy * dy);
           pointerOrigin = null;
           if (distance < SCROLL_CANCEL_THRESHOLD) {
-            e2.preventDefault();
             showTooltip(el);
           }
         },
@@ -6121,6 +6446,10 @@ var PRInsightsDashboard = (() => {
     attachInfoIcons(containers, options.reviewerFilterActive ?? false);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
+    wrapSparklineTrigger(containers.totalPrsSparkline, "throughput");
+    wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time");
+    wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time");
+    wrapSparklineTrigger(containers.reviewersSparkline, "reviewer");
     renderSparklineLabels(containers, current);
     if (prevRollups && prevRollups.length > 0) {
       renderDeltas(containers, current, previous);
@@ -6297,6 +6626,18 @@ var PRInsightsDashboard = (() => {
     if (containers.reviewersCount) {
       containers.reviewersCount.textContent = metrics.avgReviewers.toLocaleString();
     }
+  }
+  function wrapSparklineTrigger(container, targetChart) {
+    const svg = container?.querySelector("svg");
+    if (!svg) return;
+    const label = targetChart === "cycle-time" ? "cycle time" : targetChart;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "sparkline-trigger";
+    button.setAttribute("data-drilldown-target-chart", targetChart);
+    button.setAttribute("aria-label", `Open full ${label} chart`);
+    svg.before(button);
+    button.appendChild(svg);
   }
   function renderSparklines(containers, data) {
     renderSparkline(containers.totalPrsSparkline, data.prCounts);
@@ -6535,6 +6876,67 @@ var PRInsightsDashboard = (() => {
     return checkNotExtracted(ctx) ?? checkFilterCaused(ctx) ?? checkMinimumData(ctx) ?? checkDateRangeEmpty(ctx);
   }
 
+  // ../ui/modules/drilldown/week-range.ts
+  function parseIsoLocalDate(iso) {
+    const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m2) return null;
+    const year = Number(m2[1]);
+    const month = Number(m2[2]);
+    const day = Number(m2[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return date;
+  }
+  function isoWeekRange(week) {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(week);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const weekNum = Number(match[2]);
+    if (weekNum < 1 || weekNum > 53) return null;
+    const jan4 = new Date(year, 0, 4);
+    const mondayOffset = (jan4.getDay() + 6) % 7;
+    const start = new Date(jan4);
+    start.setDate(jan4.getDate() - mondayOffset + (weekNum - 1) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start, end };
+  }
+  function formatWeekRangeTitle(start, end) {
+    const startMonth = start.toLocaleDateString("en-US", { month: "short" });
+    const endMonth = end.toLocaleDateString("en-US", { month: "short" });
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+    if (startYear !== endYear) {
+      return `${startMonth} ${start.getDate()}, ${startYear} \u2013 ${endMonth} ${end.getDate()}, ${endYear}`;
+    }
+    if (startMonth === endMonth) {
+      return `${startMonth} ${start.getDate()} \u2013 ${end.getDate()}, ${startYear}`;
+    }
+    return `${startMonth} ${start.getDate()} \u2013 ${endMonth} ${end.getDate()}, ${startYear}`;
+  }
+  function formatWeekTitle(rollup) {
+    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+    if (start && end) {
+      return `Week of ${formatWeekRangeTitle(start, end)}`;
+    }
+    const range = isoWeekRange(rollup.week);
+    if (!range) return `Week ${rollup.week}`;
+    return `Week of ${formatWeekRangeTitle(range.start, range.end)}`;
+  }
+  function weekRangeForAria(rollup) {
+    const start = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+    const end = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+    if (start && end) {
+      return formatWeekRangeTitle(start, end);
+    }
+    const range = isoWeekRange(rollup.week);
+    if (!range) return rollup.week;
+    return formatWeekRangeTitle(range.start, range.end);
+  }
+
   // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   var MAX_VISIBLE_LABELS = 16;
@@ -6575,12 +6977,14 @@ var PRInsightsDashboard = (() => {
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
     const barsHtml = displayRollups.map((r2, index) => {
-      const height = maxCount > 0 ? (r2.pr_count || 0) / maxCount * 100 : 0;
+      const count = r2.pr_count || 0;
+      const height = maxCount > 0 ? count / maxCount * 100 : 0;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
       const showLabel = index % labelStep === 0;
+      const ariaLabel = `Drill into week of ${weekRangeForAria(r2)}, ${count} PR${count === 1 ? "" : "s"}`;
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${r2.pr_count || 0}">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${count}" data-drilldown-week="${escapeHtml(r2.week)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
@@ -6753,8 +7157,16 @@ var PRInsightsDashboard = (() => {
     }
     const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
     const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
-    const p50Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p50 })).filter((d2) => d2.value !== null);
-    const p90Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p90 })).filter((d2) => d2.value !== null);
+    const p50Data = displayRollups.map((r2) => ({
+      week: r2.week,
+      value: r2.cycle_time_p50,
+      ariaRange: weekRangeForAria(r2)
+    })).filter((d2) => d2.value !== null);
+    const p90Data = displayRollups.map((r2) => ({
+      week: r2.week,
+      value: r2.cycle_time_p90,
+      ariaRange: weekRangeForAria(r2)
+    })).filter((d2) => d2.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(
         container,
@@ -6784,13 +7196,14 @@ var PRInsightsDashboard = (() => {
         const dataIndex = displayRollups.findIndex((r2) => r2.week === d2.week);
         const x2 = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y2 = padding.top + chartHeight - (d2.value - minVal) / range * chartHeight;
-        return { x: x2, y: y2, week: d2.week, value: d2.value };
+        return { x: x2, y: y2, week: d2.week, value: d2.value, ariaRange: d2.ariaRange };
       });
       const pathD = buildLinePath(points);
       return { pathD, points };
     };
     const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
     const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+    const HIT_HALF = 12;
     const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
     const svgContent = `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
@@ -6810,11 +7223,16 @@ var PRInsightsDashboard = (() => {
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
-            <!-- Dots. data-tooltip="true" is required so addChartTooltips()
-                 in charts.ts can attach hover/tap listeners \u2014 without it the
-                 tooltip callback below is never invoked. -->
-            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/>`).join("") : ""}
+            <!-- Dot triggers. Keyboard + click activation lives on the
+                 <g> wrapper (drill-down attrs + role/tabindex/aria-* +
+                 invisible 24x24 hit <rect>). The visible <circle> keeps
+                 the data-tooltip surface so addChartTooltips's pointer
+                 listeners stay anchored to the small visible dot \u2014 moving
+                 data-tooltip onto the <g> would shift the tooltip anchor
+                 onto the larger hit-rect bounding box.
+                 See specs/059-chart-drill-down + PR #302 review P1.D. -->
+            ${p90Path ? p90Path.points.map((p2) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p90" aria-expanded="false" aria-label="${escapeHtml(`Drill into P90 for week of ${p2.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p2.x - HIT_HALF}" y="${p2.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/></g>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p2) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p2.week)}" data-drilldown-metric="p50" aria-expanded="false" aria-label="${escapeHtml(`Drill into P50 for week of ${p2.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p2.x - HIT_HALF}" y="${p2.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/></g>`).join("") : ""}
         </svg>
     `;
     const legendItems = [];
@@ -6948,13 +7366,15 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
+    const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
+      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r2)}`)}"` : "";
       return `
-            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}">
+            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -6983,9 +7403,10 @@ var PRInsightsDashboard = (() => {
         approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${weeksWithData}">Approval Rate: No data</p>`;
       }
     }
+    const gatingNoteHtml = !reviewerFilterActive ? `<p class="reviewer-gating-note">Filter to a reviewer to drill into weekly activity.</p>` : "";
     renderTrustedHtml(
       container,
-      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`
+      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p>${gatingNoteHtml}<div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`
     );
   }
 
@@ -7610,12 +8031,37 @@ var PRInsightsDashboard = (() => {
   var SUMMARY_CARDS_SELECTOR = ".summary-cards";
   var COMPARISON_BANNER_ID = "comparison-banner";
   var BANNER_NOTE_CLASS = "comparison-advisory-banner";
+  var TOAST_CLASS = "comparison-advisory-toast";
   var DISABLED_ATTR = "data-drilldown-disabled";
   var DISABLED_VALUE = "comparison";
-  var ADVISORY_MESSAGE = "Drill-down is unavailable during comparison. Exit comparison to use it.";
+  var BANNER_MESSAGE = "Chart details are unavailable during comparison.";
+  var TOAST_MESSAGE = "Exit comparison to open chart details.";
   var isActive2 = false;
   var activeToast = null;
   var activeToastTimer = null;
+  function isDrilldownDisabledByComparison() {
+    return isActive2;
+  }
+  function showComparisonAdvisoryToast(target) {
+    dismissActiveToast();
+    const toast = createElement(
+      "div",
+      {
+        class: TOAST_CLASS,
+        role: "alert",
+        "aria-live": "assertive"
+      },
+      TOAST_MESSAGE
+    );
+    document.body.appendChild(toast);
+    positionToastNear(toast, target);
+    activeToast = toast;
+    activeToastTimer = setTimeout(() => {
+      if (activeToast === toast) {
+        dismissActiveToast();
+      }
+    }, COMPARISON_ADVISORY_TOAST_MS);
+  }
   function dismissActiveToast() {
     if (activeToastTimer !== null) {
       clearTimeout(activeToastTimer);
@@ -7625,6 +8071,26 @@ var PRInsightsDashboard = (() => {
       activeToast.remove();
     }
     activeToast = null;
+  }
+  function positionToastNear(toast, target) {
+    const rect = target.getBoundingClientRect();
+    toast.style.position = "fixed";
+    toast.style.visibility = "hidden";
+    const toastRect = toast.getBoundingClientRect();
+    const gap = 8;
+    let top = rect.top - toastRect.height - gap;
+    if (top < 0) top = rect.bottom + gap;
+    if (top + toastRect.height > window.innerHeight) {
+      top = Math.max(4, window.innerHeight - toastRect.height - 4);
+    }
+    let left = rect.left + rect.width / 2 - toastRect.width / 2;
+    if (left < 4) left = 4;
+    if (left + toastRect.width > window.innerWidth - 4) {
+      left = Math.max(4, window.innerWidth - toastRect.width - 4);
+    }
+    toast.style.top = `${top}px`;
+    toast.style.left = `${left}px`;
+    toast.style.visibility = "";
   }
   function getChartContainers() {
     const out = [];
@@ -7642,8 +8108,8 @@ var PRInsightsDashboard = (() => {
     if (banner.querySelector(`.${BANNER_NOTE_CLASS}`)) return;
     const note = createElement(
       "div",
-      { class: BANNER_NOTE_CLASS, role: "note" },
-      ADVISORY_MESSAGE
+      { class: BANNER_NOTE_CLASS, role: "status", "aria-live": "polite" },
+      BANNER_MESSAGE
     );
     banner.appendChild(note);
   }
@@ -7682,6 +8148,512 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/drilldown/throughput-drilldown.ts
+  var ACTIVE_CLASS = "is-drilldown-active";
+  function breakdownSection(title, columns, entries, emptyDetail) {
+    if (!entries || Object.keys(entries).length === 0) {
+      return makeEmptyState(title, emptyDetail);
+    }
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
+      label,
+      values: [String(entry.pr_count)]
+    }));
+    return makeBreakdownTable(title, columns, rows);
+  }
+  function buildPanelContent(rollup) {
+    const count = rollup.pr_count;
+    const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const byAuthor = breakdownSection(
+      "By author",
+      ["Author", "PRs"],
+      rollup.by_author,
+      "No author-level activity for this week."
+    );
+    const byRepository = breakdownSection(
+      "By repository",
+      ["Repository", "PRs"],
+      rollup.by_repository,
+      "No repository-level activity for this week."
+    );
+    return makePanelContent(formatWeekTitle(rollup), subtitle, [
+      byAuthor,
+      byRepository
+    ]);
+  }
+  function installThroughputDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-week]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS);
+        activeTrigger.setAttribute("aria-expanded", "false");
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const weekIso = trigger.getAttribute("data-drilldown-week");
+      if (!weekIso) return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const rollup = rollups.find((r2) => r2.week === weekIso);
+      if (!rollup) return;
+      const context = {
+        sourceChart: "throughput",
+        focusedData: { kind: "throughput", weekIso },
+        triggerElement: trigger,
+        content: buildPanelContent(rollup)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS);
+      trigger.setAttribute("aria-expanded", "true");
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
+  // ../ui/modules/drilldown/cycle-time-drilldown.ts
+  var ACTIVE_CLASS2 = "is-drilldown-active";
+  function formatDurationOrDash(value) {
+    if (value === null || value === void 0) return "\u2014";
+    return formatDuration(value);
+  }
+  function buildRepositoryBreakdown(entries) {
+    if (!entries || Object.keys(entries).length === 0) {
+      return makeEmptyState(
+        "By repository",
+        "No repository-level cycle-time data for this week."
+      );
+    }
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
+      label,
+      values: [
+        formatDurationOrDash(entry.cycle_time_p50),
+        formatDurationOrDash(entry.cycle_time_p90)
+      ]
+    }));
+    return makeBreakdownTable(
+      "By repository",
+      ["Repository", "P50", "P90"],
+      rows
+    );
+  }
+  function buildPanelContent2(rollup, metric) {
+    const count = rollup.pr_count;
+    const weekTitle = formatWeekTitle(rollup);
+    const title = `${weekTitle} \u2014 ${metric.toUpperCase()}`;
+    const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const stats = makeStatRow([
+      { label: "P50", value: formatDurationOrDash(rollup.cycle_time_p50) },
+      { label: "P90", value: formatDurationOrDash(rollup.cycle_time_p90) }
+    ]);
+    return makePanelContent(title, subtitle, [
+      stats,
+      buildRepositoryBreakdown(rollup.by_repository)
+    ]);
+  }
+  function installCycleTimeDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-metric]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS2);
+        activeTrigger.setAttribute("aria-expanded", "false");
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const weekIso = trigger.getAttribute("data-drilldown-week");
+      const metricAttr = trigger.getAttribute("data-drilldown-metric");
+      if (!weekIso) return;
+      if (metricAttr !== "p50" && metricAttr !== "p90") return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const rollup = rollups.find((r2) => r2.week === weekIso);
+      if (!rollup) return;
+      const metric = metricAttr;
+      const context = {
+        sourceChart: "cycle-time",
+        focusedData: { kind: "cycle-time", weekIso, metric },
+        triggerElement: trigger,
+        content: buildPanelContent2(rollup, metric)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS2);
+      trigger.setAttribute("aria-expanded", "true");
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
+  // ../ui/modules/drilldown/reviewer-drilldown.ts
+  var ACTIVE_CLASS3 = "is-drilldown-active";
+  function reviewerEntry(rollup, reviewerId) {
+    const map = rollup.by_reviewer;
+    if (!map) return void 0;
+    return new Map(Object.entries(map)).get(reviewerId);
+  }
+  function buildStatRow(rollups, reviewerId) {
+    let totalReviews = 0;
+    let totalPrs = 0;
+    let peakRepos = 0;
+    let peakWeek = null;
+    for (const rollup of rollups) {
+      const entry = reviewerEntry(rollup, reviewerId);
+      if (!entry) continue;
+      totalReviews += entry.reviews_count;
+      totalPrs += entry.reviewed_prs;
+      const repos = entry.repositories_count ?? 0;
+      if (repos > peakRepos) {
+        peakRepos = repos;
+        peakWeek = rollup.week;
+      }
+    }
+    const approval = computeApprovalRate([...rollups], [reviewerId]);
+    const approvalLabel = approval.rate === null ? "Approval rate (no data)" : "Approval rate";
+    const approvalValue = approval.rate === null ? "\u2014" : `${Math.round(approval.rate * 100)}%`;
+    const peakValue = peakWeek !== null ? `${peakRepos} (${formatWeekLabel(peakWeek)})` : "0";
+    return {
+      section: makeStatRow([
+        { label: "Total reviews", value: String(totalReviews) },
+        { label: "PRs reviewed", value: String(totalPrs) },
+        { label: approvalLabel, value: approvalValue },
+        { label: "Peak repositories", value: peakValue }
+      ]),
+      totalPrs
+    };
+  }
+  function buildWeeklyTable(rollups, reviewerId) {
+    const rows = [];
+    for (const rollup of rollups) {
+      const entry = reviewerEntry(rollup, reviewerId);
+      if (!entry) continue;
+      const rate = entry.approval_rate;
+      const rateCell = typeof rate === "number" && Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : "";
+      rows.push({
+        label: formatWeekLabel(rollup.week),
+        values: [
+          String(entry.reviews_count),
+          String(entry.reviewed_prs),
+          rateCell
+        ]
+      });
+    }
+    if (rows.length === 0) {
+      return makeEmptyState(
+        "Weekly activity",
+        "No review activity recorded for this reviewer in this period."
+      );
+    }
+    return makeBreakdownTable(
+      "Weekly activity",
+      ["Week", "Reviews", "PRs reviewed", "Approval rate"],
+      rows
+    );
+  }
+  function buildPanelContent3(rollups, reviewerId) {
+    const stats = buildStatRow(rollups, reviewerId);
+    const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
+    return makePanelContent(reviewerId, subtitle, [
+      stats.section,
+      buildWeeklyTable(rollups, reviewerId)
+    ]);
+  }
+  function installReviewerDrilldown(container, rollups) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-reviewer-id]");
+    }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS3);
+        activeTrigger.setAttribute("aria-expanded", "false");
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
+    function activate(trigger) {
+      const reviewerId = trigger.getAttribute("data-drilldown-reviewer-id");
+      if (!reviewerId) return;
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const context = {
+        sourceChart: "reviewer",
+        focusedData: { kind: "reviewer", reviewerId },
+        triggerElement: trigger,
+        content: buildPanelContent3(rollups, reviewerId)
+      };
+      openDetailPanel(context);
+      clearActive();
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS3);
+      trigger.setAttribute("aria-expanded", "true");
+      registerPanelObserver();
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
+      }
+    };
+  }
+
+  // ../ui/modules/drilldown/sparkline-navigator.ts
+  var HIGHLIGHT_CLASS = "is-sparkline-highlight";
+  var ADVISORY_CLASS = "sparkline-advisory";
+  var TARGET_ID_BY_CHART = {
+    throughput: "throughput-chart",
+    "cycle-time": "cycle-time-trend",
+    reviewer: "reviewer-activity"
+  };
+  function targetIdFor(chart) {
+    if (chart === "throughput") return TARGET_ID_BY_CHART.throughput;
+    if (chart === "cycle-time") return TARGET_ID_BY_CHART["cycle-time"];
+    return TARGET_ID_BY_CHART.reviewer;
+  }
+  function chartLabel(chart) {
+    if (chart === "cycle-time") return "cycle time";
+    return chart;
+  }
+  function installSparklineNavigator(container) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const highlightTimers = /* @__PURE__ */ new Set();
+    function resolveTrigger(evt) {
+      const target = evt.target;
+      if (!(target instanceof Element)) return null;
+      return target.closest("[data-drilldown-target-chart]");
+    }
+    function clearAdvisoryIn(parent) {
+      const existing = parent.querySelector(`.${ADVISORY_CLASS}`);
+      if (existing) existing.remove();
+    }
+    function showAdvisoryIn(parent, label) {
+      clearAdvisoryIn(parent);
+      const slot = document.createElement("div");
+      slot.className = ADVISORY_CLASS;
+      parent.appendChild(slot);
+      renderNoData(
+        slot,
+        `No full ${label} chart available on this page.`,
+        "The detailed view is gated by a data-availability check."
+      );
+    }
+    function prefersReducedMotion() {
+      const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+      return mq ? mq.matches : false;
+    }
+    function activate(trigger) {
+      dismissAllTooltips();
+      if (isDrilldownDisabledByComparison()) {
+        showComparisonAdvisoryToast(trigger);
+        return;
+      }
+      const chart = trigger.getAttribute("data-drilldown-target-chart");
+      if (chart !== "throughput" && chart !== "cycle-time" && chart !== "reviewer") {
+        return;
+      }
+      const parent = trigger.parentElement;
+      if (!parent) return;
+      const targetEl = document.getElementById(targetIdFor(chart));
+      if (!targetEl) {
+        showAdvisoryIn(parent, chartLabel(chart));
+        return;
+      }
+      clearAdvisoryIn(parent);
+      const behavior = prefersReducedMotion() ? "auto" : "smooth";
+      targetEl.scrollIntoView({ behavior, block: "center" });
+      targetEl.classList.remove(HIGHLIGHT_CLASS);
+      void targetEl.offsetWidth;
+      targetEl.classList.add(HIGHLIGHT_CLASS);
+      const timer = setTimeout(() => {
+        targetEl.classList.remove(HIGHLIGHT_CLASS);
+        highlightTimers.delete(timer);
+      }, SPARKLINE_HIGHLIGHT_MS);
+      highlightTimers.add(timer);
+    }
+    container.addEventListener(
+      "click",
+      (event) => {
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        activate(trigger);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const trigger = resolveTrigger(event);
+        if (!trigger) return;
+        if (event.key === " ") event.preventDefault();
+        activate(trigger);
+      },
+      { signal }
+    );
+    return {
+      dispose() {
+        controller.abort();
+        for (const timer of highlightTimers) {
+          clearTimeout(timer);
+        }
+        highlightTimers.clear();
+      }
+    };
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -7704,6 +8676,7 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var previousActiveTabId = "metrics";
   var cachedRollups = [];
+  var activeDrilldownHandles = [];
   var currentBuildId = null;
   var chipsDelegatedElement = null;
   var metricsSection = null;
@@ -8175,6 +9148,30 @@ var PRInsightsDashboard = (() => {
       comparisonMode
     };
   }
+  function setChartContainersInert(value) {
+    const containerIds = [
+      "throughput-chart",
+      "cycle-time-trend",
+      "reviewer-activity"
+    ];
+    for (const id of containerIds) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (value) {
+        el.setAttribute("inert", "");
+      } else {
+        el.removeAttribute("inert");
+      }
+    }
+    const summaryCards = document.querySelector(".summary-cards");
+    if (summaryCards) {
+      if (value) {
+        summaryCards.setAttribute("inert", "");
+      } else {
+        summaryCards.removeAttribute("inert");
+      }
+    }
+  }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
     const candidateState = buildEffectiveState();
@@ -8184,6 +9181,7 @@ var PRInsightsDashboard = (() => {
       if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
     publishFiltersChanged({ reason: "user-change" });
+    setChartContainersInert(true);
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
@@ -8225,11 +9223,37 @@ var PRInsightsDashboard = (() => {
       if (cycleId > 0 && isStale(cycleId)) {
         return;
       }
+      for (const handle of activeDrilldownHandles) handle.dispose();
+      activeDrilldownHandles = [];
       renderSummaryCards2(rollups, prevRollups, rawRollups);
       renderThroughputChart2(rollups, rawRollups, availability);
       renderCycleTimeTrend2(rollups, rawRollups, availability);
       renderReviewerActivity2(rollups, rawRollups, availability);
       renderCycleDistribution2(distributions, rawRollups, availability);
+      const throughputContainer = document.getElementById("throughput-chart");
+      if (throughputContainer) {
+        activeDrilldownHandles.push(
+          installThroughputDrilldown(throughputContainer, rollups)
+        );
+      }
+      const cycleTimeContainer = document.getElementById("cycle-time-trend");
+      if (cycleTimeContainer) {
+        activeDrilldownHandles.push(
+          installCycleTimeDrilldown(cycleTimeContainer, rollups)
+        );
+      }
+      const reviewerContainer = document.getElementById("reviewer-activity");
+      if (reviewerContainer) {
+        activeDrilldownHandles.push(
+          installReviewerDrilldown(reviewerContainer, rollups)
+        );
+      }
+      const summaryCardsContainer = document.querySelector(".summary-cards");
+      if (summaryCardsContainer) {
+        activeDrilldownHandles.push(
+          installSparklineNavigator(summaryCardsContainer)
+        );
+      }
       if (comparisonMode) {
         updateComparisonBanner();
       }
@@ -8242,6 +9266,10 @@ var PRInsightsDashboard = (() => {
         failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
       }
       throw err;
+    } finally {
+      if (cycleId === 0 || !isStale(cycleId)) {
+        setChartContainersInert(false);
+      }
     }
   }
   function updateAccuracyIndicator(rawRollups, filters) {

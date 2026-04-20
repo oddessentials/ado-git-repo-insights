@@ -139,6 +139,7 @@ export function makeEmptyState(title: string, detail: string): EmptyStateSection
 - **Close control**: `<button type="button" class="detail-panel-close" aria-label="Close detail panel">...</button>`. First focusable element inside the panel.
 - **Sections root**: `<div class="detail-panel-sections">…</div>`. Each `PanelSection` renders as a `<section>` with a class matching its discriminant (`detail-panel-section detail-panel-section--breakdown-table` etc.).
 - **CSS-only animation** via `transform: translateX(...)` on the `is-open` class toggle; respects `prefers-reduced-motion`. No JS animation frames.
+- **Top-offset geometry**: on desktop layouts, the panel's top edge sits below the filter bar so that right-side filter controls remain geometrically uncovered. The offset is established on open from the filter bar's current position and is refreshed while the panel is open whenever the filter bar's box changes. Scrolling the page while the panel is open does not re-compute the offset — it is snapshotted on each open. Under the narrow-viewport breakpoint, the panel remains a full-height overlay (no offset applied). When the filter bar is not present in the host DOM, the panel falls back to a full-height overlay.
 
 ## Parity guarantee
 

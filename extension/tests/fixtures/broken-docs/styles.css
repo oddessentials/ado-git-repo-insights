@@ -912,6 +912,83 @@ input[type="search"]::placeholder {
     fill: var(--primary);
 }
 
+/* Sparkline-navigator trigger (US4) — transparent button wrapping the
+   sparkline SVG so the navigator can delegate-click-listen on the
+   summary-cards container. Button styling must not disturb layout or
+   visual appearance of the underlying sparkline. */
+.sparkline-trigger {
+    display: inline-flex;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    /* Inherit sparkline container sizing so the click surface covers
+       the SVG without introducing extra hit area. */
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+.sparkline-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.sparkline-trigger:hover {
+    /* Subtle hover cue — sparkline interactivity is otherwise
+       invisible. */
+    opacity: 0.85;
+}
+
+.sparkline-trigger svg {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Inline advisory rendered when the target chart is unavailable
+   (FR-052). Positioned under the sparkline so the user sees why
+   nothing scrolled. */
+.sparkline-advisory {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 4px 0 0 0;
+}
+
+/* Target-chart highlight applied after a sparkline activation — the
+   class is self-dismissing after SPARKLINE_HIGHLIGHT_MS (1500ms)
+   (FR-051). Uses a subtle ring + glow so the user immediately spots
+   the focused full chart. */
+.is-sparkline-highlight {
+    animation: sparkline-highlight 1.5s ease-out;
+}
+
+@keyframes sparkline-highlight {
+    0% {
+        box-shadow: 0 0 0 0 var(--primary);
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+    100% {
+        box-shadow: 0 0 0 8px transparent;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .is-sparkline-highlight {
+        animation: none;
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+    }
+}
+
 /* Charts */
 .chart-container {
     background: var(--bg-primary);
@@ -1030,6 +1107,16 @@ input[type="search"]::placeholder {
     font-weight: 400;
 }
 
+/* PR #302 P1.F — gating note under the reviewer-activity subtitle when
+ * no reviewer filter is active. Plain static prose; no role/aria-live. */
+.reviewer-gating-note {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 8px 0;
+    font-style: italic;
+    font-weight: 400;
+}
+
 .truncation-indicator {
     font-size: 12px;
     font-weight: 500;
@@ -1130,6 +1217,37 @@ input[type="search"]::placeholder {
 
 .line-chart-dot {
     cursor: pointer;
+}
+
+/* PR #302 P1.E — Drill-down affordance.
+ * Attribute-scoped cursor + hover + focus-visible parity for the three
+ * drill-down trigger types (throughput bar, reviewer row, cycle-time
+ * <g> dot wrapper). Hover and focus-visible apply identical brightness
+ * so keyboard users get parity with mouse hover (WCAG 1.4.13 / 2.4.7).
+ * Comparison-disabled overrides live in the comparison-advisory block
+ * later in the file and win on source-order tie. */
+.bar-container[data-drilldown-week] {
+    cursor: pointer;
+}
+.bar-container[data-drilldown-week]:hover .bar,
+.bar-container[data-drilldown-week]:focus-visible .bar {
+    filter: brightness(1.08);
+}
+
+.h-bar-row[data-drilldown-reviewer-id] {
+    cursor: pointer;
+}
+.h-bar-row[data-drilldown-reviewer-id]:hover .h-bar,
+.h-bar-row[data-drilldown-reviewer-id]:focus-visible .h-bar {
+    filter: brightness(1.08);
+}
+
+g[role="button"][data-drilldown-week] {
+    cursor: pointer;
+}
+g[role="button"][data-drilldown-week]:hover .line-chart-dot,
+g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
+    filter: brightness(1.08);
 }
 
 .line-chart-grid {
@@ -2932,19 +3050,23 @@ input[type="search"]::placeholder {
 
 .detail-panel {
     position: fixed;
-    top: 0;
+    top: var(--detail-panel-top, 0);
     right: 0;
     bottom: 0;
     width: min(420px, 90vw);
     max-width: 100vw;
     background: var(--bg-primary);
+    border-top: 1px solid var(--border);
     border-left: 1px solid var(--border);
     box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
     transition: transform 180ms ease-out;
-    z-index: 100;
+    /* PR #302 P1.C — must sit above the pre-existing .toast (z-index
+     * 1000) so export-feedback toasts can't occlude the drill-down
+     * drawer. Locked in detail-panel.test.ts (z-index stacking). */
+    z-index: 1050;
     overflow: hidden;
 }
 
@@ -3088,6 +3210,12 @@ input[type="search"]::placeholder {
     }
 }
 
+@media print {
+    .detail-panel {
+        display: none;
+    }
+}
+
 /* ============================================================================
  * Comparison-mode drill-down advisory (feature 059 / FR-060..062)
  *
@@ -3118,6 +3246,19 @@ input[type="search"]::placeholder {
     opacity: 0.75;
 }
 
+/* PR #302 P1.E — when comparison disables drill-down, suppress the
+ * affordance hover/focus brightness rules. Source-order ties with the
+ * affordance rules above; this block (later in file) wins. Covers the
+ * three trigger types and the cycle-time <g> wrapper. */
+[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:hover .bar,
+[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:focus-visible .bar,
+[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:hover .h-bar,
+[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:focus-visible .h-bar,
+[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:hover .line-chart-dot,
+[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
+    filter: none;
+}
+
 .comparison-advisory-toast {
     position: fixed;
     background: var(--text-primary);
@@ -3127,7 +3268,11 @@ input[type="search"]::placeholder {
     box-shadow: var(--shadow-sm);
     font-size: 13px;
     max-width: 320px;
-    z-index: 110;
+    /* PR #302 P1.C — must sit above .detail-panel (1050) and
+     * .toast (1000) so the advisory cue is always visible when
+     * drill-down is blocked. Stack order asserted in
+     * detail-panel.test.ts. */
+    z-index: 1060;
     pointer-events: none;
     animation: comparison-advisory-toast-in 120ms ease-out;
 }

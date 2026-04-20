@@ -18,6 +18,18 @@ import {
 } from "../../ui/modules/charts/reviewer-activity";
 import { normalizeRollup } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
+import { installThroughputDrilldown } from "../../ui/modules/drilldown/throughput-drilldown";
+import {
+  dismissDetailPanel,
+  isDetailPanelOpen,
+  makeEmptyState,
+  makePanelContent,
+  makeStatRow,
+  openDetailPanel,
+  type DrillDownContext,
+} from "../../ui/modules/shared/detail-panel";
+import { publishComparisonToggled } from "../../ui/modules/drilldown/lifecycle-signals";
+import { __resetComparisonAdvisoryForTests } from "../../ui/modules/drilldown/comparison-advisory";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -313,5 +325,99 @@ describe("Synthetic vs degraded-prod mismatch detection", () => {
     expect(
       degradedContainer.querySelectorAll(".bar-container").length,
     ).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Drill-down prod-shape edges (059 — US1 throughput + DetailPanel API)
+// ---------------------------------------------------------------------------
+
+describe("Drill-down prod-shape edge cases", () => {
+  beforeEach(() => {
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    document.body.innerHTML = "";
+  });
+
+  it("empty-breakdown throughput week renders EmptyStateSection (not empty table)", () => {
+    const rollup: Rollup = {
+      week: "2025-W02",
+      pr_count: 15,
+      cycle_time_p50: 45,
+      cycle_time_p90: 90,
+      authors_count: 0,
+      reviewers_count: 0,
+      by_repository: {},
+      by_author: {},
+      by_team: null,
+    };
+    const container = document.createElement("div");
+    container.id = "throughput-chart";
+    document.body.appendChild(container);
+    renderThroughputChart(container, [rollup]);
+    installThroughputDrilldown(container, [rollup]);
+
+    const bar = container.querySelector<HTMLElement>(".bar-container")!;
+    bar.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+
+    const panel = document.querySelector("aside.detail-panel")!;
+    expect(
+      panel.querySelectorAll(".detail-panel-section--empty-state").length,
+    ).toBe(2);
+    expect(
+      panel.querySelectorAll(".detail-panel-section--breakdown-table").length,
+    ).toBe(0);
+    expect(panel.querySelectorAll("table.detail-panel-table").length).toBe(0);
+  });
+
+  it("all-null cycle-time week still produces a valid cycle-time panel (opened via openDetailPanel)", () => {
+    // Cycle-time-drilldown ships in US2; this exercise builds the
+    // DrillDownContext directly so the DetailPanel shape for the prod
+    // edge is covered today.
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    document.body.appendChild(trigger);
+
+    const content = makePanelContent(
+      "Week of Mar 18 – Mar 24, 2025 — P50",
+      "Based on 0 PRs",
+      [
+        makeStatRow([
+          { label: "P50", value: "—" },
+          { label: "P90", value: "—" },
+        ]),
+        makeEmptyState(
+          "By repository",
+          "No repository-level cycle-time data for this week.",
+        ),
+      ],
+    );
+    const context: DrillDownContext = {
+      sourceChart: "cycle-time",
+      focusedData: { kind: "cycle-time", weekIso: "2025-W12", metric: "p50" },
+      triggerElement: trigger,
+      content,
+    };
+
+    openDetailPanel(context);
+
+    const panel = document.querySelector("aside.detail-panel.is-open");
+    expect(panel).not.toBeNull();
+    const stats = Array.from(panel!.querySelectorAll("dd")).map(
+      (dd) => dd.textContent,
+    );
+    expect(stats).toEqual(["—", "—"]);
+    expect(
+      panel!.querySelectorAll(".detail-panel-section--empty-state").length,
+    ).toBe(1);
   });
 });

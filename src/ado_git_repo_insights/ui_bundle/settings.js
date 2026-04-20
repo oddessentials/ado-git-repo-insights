@@ -658,7 +658,7 @@ var PRInsightsSettings = (() => {
   var BANNER_NOTE_CLASS = "comparison-advisory-banner";
   var DISABLED_ATTR = "data-drilldown-disabled";
   var DISABLED_VALUE = "comparison";
-  var ADVISORY_MESSAGE = "Drill-down is unavailable during comparison. Exit comparison to use it.";
+  var BANNER_MESSAGE = "Chart details are unavailable during comparison.";
   var isActive = false;
   var activeToast = null;
   var activeToastTimer = null;
@@ -688,8 +688,8 @@ var PRInsightsSettings = (() => {
     if (banner.querySelector(`.${BANNER_NOTE_CLASS}`)) return;
     const note = createElement(
       "div",
-      { class: BANNER_NOTE_CLASS, role: "note" },
-      ADVISORY_MESSAGE
+      { class: BANNER_NOTE_CLASS, role: "status", "aria-live": "polite" },
+      BANNER_MESSAGE
     );
     banner.appendChild(note);
   }

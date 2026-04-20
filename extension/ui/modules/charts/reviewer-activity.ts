@@ -14,6 +14,7 @@ import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { weekRangeForAria } from "../drilldown/week-range";
 
 import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
 
@@ -31,7 +32,7 @@ export const MAX_REVIEWER_WEEKS = 8;
  *
  * Returns null when no reviewer has a finite approval_rate or reviewed_prs > 0.
  */
-function computeApprovalRate(
+export function computeApprovalRate(
   rollups: Rollup[],
   reviewerIds: string[],
 ): { rate: number | null; weeksWithData: number } {
@@ -169,15 +170,31 @@ export function renderReviewerActivity(
     return;
   }
 
+  // When the reviewer filter is active, each row gets drill-down
+  // attributes identifying the focused reviewer; clicking any row
+  // opens the shared DetailPanel with that reviewer as the subject
+  // (FR-040). When no reviewer filter is active, the rows represent
+  // aggregate counts and have no single drill-down subject — drill-
+  // down attributes are omitted so clicks are no-ops.
+  const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;
       const pct = (count / maxReviewers) * 100;
       const wParts = r.week.split("-W");
       const weekLabel = wParts[1] ?? r.week;
+      // PR #302 P1.E — when filtered, each row carries an accessible
+      // name parameterized via weekRangeForAria (single source of truth
+      // shared with the panel title) plus aria-expanded reflecting the
+      // drill-down panel open state. The reviewer-drilldown module
+      // toggles aria-expanded on activate/dismiss; here we ship the
+      // initial "false" state alongside the other drill-down attrs.
+      const drilldownAttrsForRow = filterReviewerId
+        ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r)}`)}"`
+        : "";
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}">
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -226,9 +243,22 @@ export function renderReviewerActivity(
     }
   }
 
+  // PR #302 P1.F — when no reviewer filter is active, per-reviewer
+  // drill-down has no single subject and row clicks are no-ops (the
+  // drill-down attrs are omitted above at line 192-194). Sighted users
+  // previously had no affordance signalling that: bars looked identical
+  // to the filtered-rows drill-down-capable variant. Render a one-line
+  // gating note below the subtitle so the rule is discoverable both
+  // visually and via SR walk-through. Plain <p> (no role / no aria-live)
+  // — this is steady-state body text, not a reactive status change; the
+  // filter UI's own aria-live surface handles the transition announcement.
+  const gatingNoteHtml = !reviewerFilterActive
+    ? `<p class="reviewer-gating-note">Filter to a reviewer to drill into weekly activity.</p>`
+    : "";
+
   // SECURITY: barsHtml uses escapeHtml for week values, count and pct are numeric
   renderTrustedHtml(
     container,
-    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
+    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p>${gatingNoteHtml}<div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
   );
 }

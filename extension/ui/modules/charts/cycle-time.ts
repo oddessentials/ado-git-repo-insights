@@ -16,6 +16,7 @@ import { formatDuration } from "../shared/format";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { buildLinePath } from "../shared/svg-path";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { weekRangeForAria } from "../drilldown/week-range";
 
 /** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
 export const MAX_CYCLE_TIME_POINTS = 104;
@@ -188,12 +189,24 @@ export function renderCycleTimeTrend(
     ? rollups.slice(-MAX_CYCLE_TIME_POINTS)
     : rollups;
 
-  const p50Data = displayRollups
-    .map((r) => ({ week: r.week, value: r.cycle_time_p50 }))
-    .filter((d): d is { week: string; value: number } => d.value !== null);
-  const p90Data = displayRollups
-    .map((r) => ({ week: r.week, value: r.cycle_time_p90 }))
-    .filter((d): d is { week: string; value: number } => d.value !== null);
+  // ariaRange is folded into each data point at construction so the dot
+  // template can stay branch-free (no Map lookup, no `?? fallback` —
+  // weekRangeForAria runs once per displayRollup, never per dot).
+  type DataPoint = { week: string; value: number; ariaRange: string };
+  const p50Data: DataPoint[] = displayRollups
+    .map((r) => ({
+      week: r.week,
+      value: r.cycle_time_p50,
+      ariaRange: weekRangeForAria(r),
+    }))
+    .filter((d): d is DataPoint => d.value !== null);
+  const p90Data: DataPoint[] = displayRollups
+    .map((r) => ({
+      week: r.week,
+      value: r.cycle_time_p90,
+      ariaRange: weekRangeForAria(r),
+    }))
+    .filter((d): d is DataPoint => d.value !== null);
 
   if (p50Data.length < 2 && p90Data.length < 2) {
     renderNoData(
@@ -232,14 +245,14 @@ export function renderCycleTimeTrend(
   // and p50/p90 have >= 2 non-null entries, so displayRollups.length >= 2 and
   // every d.week in `data` was just derived from displayRollups — findIndex
   // cannot return -1 here.
-  const generatePath = (data: { week: string; value: number }[]) => {
+  const generatePath = (data: DataPoint[]) => {
     const points = data.map((d) => {
       const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
       const x =
         padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
       const y =
         padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
-      return { x, y, week: d.week, value: d.value };
+      return { x, y, week: d.week, value: d.value, ariaRange: d.ariaRange };
     });
     const pathD = buildLinePath(points);
     return { pathD, points };
@@ -247,6 +260,13 @@ export function renderCycleTimeTrend(
 
   const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
   const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+
+  // Click/keyboard hit-target half-extent. The visible <circle> stays
+  // r=dotRadius (small for visual density); the invisible <rect> inside
+  // the <g> wrapper extends the activation surface to a 24x24 region
+  // centered on the dot — matches the WCAG 2.5.5 minimum target size
+  // and keeps touch + keyboard activation reliable.
+  const HIT_HALF = 12;
 
   // Y-axis labels
   const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
@@ -279,11 +299,16 @@ export function renderCycleTimeTrend(
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
-            <!-- Dots. data-tooltip="true" is required so addChartTooltips()
-                 in charts.ts can attach hover/tap listeners — without it the
-                 tooltip callback below is never invoked. -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
+            <!-- Dot triggers. Keyboard + click activation lives on the
+                 <g> wrapper (drill-down attrs + role/tabindex/aria-* +
+                 invisible 24x24 hit <rect>). The visible <circle> keeps
+                 the data-tooltip surface so addChartTooltips's pointer
+                 listeners stay anchored to the small visible dot — moving
+                 data-tooltip onto the <g> would shift the tooltip anchor
+                 onto the larger hit-rect bounding box.
+                 See specs/059-chart-drill-down + PR #302 review P1.D. -->
+            ${p90Path ? p90Path.points.map((p) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p90" aria-expanded="false" aria-label="${escapeHtml(`Drill into P90 for week of ${p.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p.x - HIT_HALF}" y="${p.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/></g>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p50" aria-expanded="false" aria-label="${escapeHtml(`Drill into P50 for week of ${p.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p.x - HIT_HALF}" y="${p.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/></g>`).join("") : ""}
         </svg>
     `;
 

@@ -907,4 +907,64 @@ describe("reviewer-activity module", () => {
       expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
     });
   });
+
+  // PR #302 P1.F — gating note disclosing that drill-down requires a
+  // reviewer filter. Without this note, reviewer rows without a filter
+  // look interactive but clicks are no-ops (narrowed-scope decision #4).
+  // Plain <p> (no role / no aria-live) — see
+  // `extension/ui/modules/charts/reviewer-activity.ts` comment at the
+  // gating-note branch for the a11y rationale.
+  describe("reviewer-gating-note (PR #302 P1.F)", () => {
+    it("renders the gating note when no reviewer filter is active", () => {
+      renderReviewerActivity(container, createRollups(4), {
+        reviewerFilterActive: false,
+      });
+
+      const note = container.querySelector<HTMLElement>(
+        ".reviewer-gating-note",
+      );
+      expect(note).not.toBeNull();
+      expect(note!.textContent).toBe(
+        "Filter to a reviewer to drill into weekly activity.",
+      );
+    });
+
+    it("omits the gating note when the reviewer filter is active", () => {
+      renderReviewerActivity(container, createRollups(4), {
+        reviewerFilterActive: true,
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["alice-id"],
+          authors: [],
+        },
+      });
+
+      expect(container.querySelector(".reviewer-gating-note")).toBeNull();
+    });
+
+    it("gating note carries NO ARIA role (steady-state body text, not a live region)", () => {
+      renderReviewerActivity(container, createRollups(4), {
+        reviewerFilterActive: false,
+      });
+
+      const note = container.querySelector<HTMLElement>(
+        ".reviewer-gating-note",
+      );
+      expect(note).not.toBeNull();
+      expect(note!.hasAttribute("role")).toBe(false);
+    });
+
+    it("gating note carries NO aria-live attribute (filter-UI owns the transition announcement)", () => {
+      renderReviewerActivity(container, createRollups(4), {
+        reviewerFilterActive: false,
+      });
+
+      const note = container.querySelector<HTMLElement>(
+        ".reviewer-gating-note",
+      );
+      expect(note).not.toBeNull();
+      expect(note!.hasAttribute("aria-live")).toBe(false);
+    });
+  });
 });
