@@ -1,6 +1,6 @@
 # Contract: Demo-Publish Strip Gate
 
-**Scope**: new helper module `scripts/strip_pr_arrays.py` plus integration points in `scripts/build-demo-dataset.py` and `scripts/generate-demo-data.py`. This is the sole authoritative enforcement for FR-023.
+**Scope**: new helper module `scripts/strip_pr_arrays.py`, with ONE gate-integration site (inside `promote_data` at `scripts/build-demo-dataset.py:1044`) and ONE separate bypass-closure site (`scripts/generate-demo-data.py` — NOT a second gate; default-dir change + early-exit guard). This contract plus the invariant test in tasks T050 are the sole authoritative enforcement for FR-023.
 
 **Authoritative spec refs**: FR-013, FR-014, FR-023. Data-model: `data-model.md` §2 publish transitions.
 
@@ -20,9 +20,12 @@ def strip_pr_arrays_from_rollups(rollup_dir: Path) -> StripReport:
     rollup JSON is re-scanned and the helper RAISES if any residue remains.
 
     Args:
-        rollup_dir: Path to the directory containing weekly_rollups/*.json files
-                    (typically docs/data/aggregates/weekly_rollups or the canonical
-                    artifact root that is about to be promoted into docs/data/).
+        rollup_dir: Path to the SOURCE directory containing weekly_rollups/*.json
+                    files that are about to be promoted. In production this is
+                    `ARTIFACT_DATA_DIR/aggregates` passed by `promote_data` as its
+                    first step. The helper is NEVER invoked against `docs/data/`
+                    directly — the gate ALWAYS runs on source before the copy
+                    into `docs/data/` happens.
 
     Returns:
         StripReport with per-file field-removal counts. Informational only;
@@ -59,14 +62,14 @@ For every file matching `rollup_dir/weekly_rollups/*.json` (recursive glob):
 3. If the file was modified, write back preserving the existing JSON formatting (sorted keys / indent level / trailing newline) to maintain byte-stability invariant with pre-feature outputs.
 4. After the whole directory has been processed, re-scan every file and assert no residue. Raise `PrArrayResidueError` on any match.
 
-### Atomic failure semantics (FR-023 enforcement)
+### Gate placement (inside `promote_data`)
 
-The helper runs against a STAGING location — NEVER directly against `docs/data/`. Callers are responsible for ensuring the staging-then-promote sequence:
+The strip gate is invoked as the first step of `promote_data` (before the existing `shutil.copytree` call), so every code path that publishes to `docs/data/` via `promote_data` is automatically gated. `promote_data` becomes the single authoritative write boundary for this invariant.
 
-- `scripts/build-demo-dataset.py` already promotes from a canonical artifact root via `atomic_replace_docs_data`; the gate runs on the canonical root BEFORE promotion. On gate failure, `atomic_replace_docs_data` is NOT called → `docs/data/` remains byte-identical to its pre-run state.
-- `scripts/generate-demo-data.py` currently writes directly into `docs/data/`. To satisfy FR-023 atomic-failure semantics, this script MUST be refactored to write to a scratch directory first, run the strip gate against the scratch, and only rsync/copy into `docs/data/` on success. Writing directly into `docs/data/` and then running the gate is FORBIDDEN — a mid-run failure leaves `docs/data/` in an inconsistent state and violates persistence invariant VII ("No Publish on Failure").
+- `scripts/build-demo-dataset.py` orchestrates the production flow: `GENERATOR_STEPS` (line 54) → `run_generator(script, ARTIFACT_DATA_DIR)` (line 1095) → `promote_data(ARTIFACT_DATA_DIR, DOCS_DATA_DIR)` (line 1120). The gate fires inside `promote_data` before copy; on gate failure, the copy does not run, and `docs/data/` is byte-identical to its pre-run state.
+- `scripts/generate-demo-data.py` when orchestrated receives `ARTIFACT_DATA_DIR` and never writes to `docs/data/` directly. Its standalone `DEFAULT_OUTPUT_DIR = docs/data/` is a developer-convenience bypass; that path is closed by a separate change (moving the default to a scratch location and adding an early-exit guard that rejects `--output-root == DOCS_DATA_DIR`). See tasks T050.
 
-The helper itself does NOT manage the staging-vs-production distinction — that's the caller's responsibility. The helper's contract is: given a directory, either leave it clean or raise. Callers that pass the production directory directly bear the atomicity risk themselves (and such callers MUST be flagged in code review / invariant tests as FR-023 violations).
+The helper (`strip_pr_arrays_from_rollups`) itself is flow-neutral — given a directory, it either leaves it clean or raises. The flow-safety comes from WHERE it is called (inside `promote_data`), not from anything the helper does.
 
 ### Cross-OS invariants (QG-39)
 
@@ -88,50 +91,72 @@ None introduced.
 
 ## Integration contract — caller sites
 
-### `scripts/build-demo-dataset.py` (extend)
+### `promote_data` (extend — this is where the gate lives)
 
-Current: `DOCS_DATA_DIR` defined at line 45; `atomic_replace_docs_data` function at line ~1045+ promotes canonical artifact root to `docs/data/`.
+Current: `DOCS_DATA_DIR` defined at `build-demo-dataset.py:45`; `promote_data(source_dir, destination_dir)` at line 1044 does `destination_dir.mkdir(...)` → `shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)` → stale-file cleanup → content-match validation.
 
-Required change: immediately before `atomic_replace_docs_data` runs, invoke the strip gate on the canonical artifact root:
+Required change: add the strip gate as the FIRST step of `promote_data`, before `destination_dir.mkdir`:
 
 ```python
 from strip_pr_arrays import strip_pr_arrays_from_rollups, PrArrayResidueError
 
-# ... existing build logic ...
+def promote_data(source_dir: Path, destination_dir: Path) -> None:
+    """Replace docs/data atomically from the canonical artifact root."""
+    # FR-023 gate: strip PR-level fields from source before copying to destination.
+    # Only fires when destination is a public-surface root (currently DOCS_DATA_DIR).
+    # On residue or gate error, raise — do NOT proceed to copy. docs/data untouched.
+    if destination_dir.resolve() == DOCS_DATA_DIR.resolve():
+        strip_pr_arrays_from_rollups(source_dir / "aggregates")
 
-# FR-023 gate: strip PR arrays from canonical output before promotion to docs/data/.
-try:
-    report = strip_pr_arrays_from_rollups(canonical_artifact_root / "aggregates")
-    print(f"[demo-build] strip-gate: {report.files_modified} files modified, residue check passed")
-except PrArrayResidueError as e:
-    print(f"[demo-build] strip-gate FAILED: {e}", file=sys.stderr)
-    sys.exit(1)
-
-atomic_replace_docs_data(canonical_artifact_root, DOCS_DATA_DIR)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
+    # ... existing stale-file cleanup + content-match validation unchanged ...
 ```
 
-### `scripts/generate-demo-data.py` (extend)
+This is the single authoritative gate site (QG-49). No separate gate at the `build-demo-dataset.py:1120` call site is needed — the gate is intrinsic to `promote_data` for public-surface destinations.
 
-Current: `DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"` at line 105; writes weekly rollups directly into it.
+### `scripts/generate-demo-data.py` (bypass closure — NOT a gate add)
 
-Required change: after the write phase completes, invoke the strip gate before the script exits:
+Current: `DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"` at line 105. Production-orchestrated flow passes `ARTIFACT_DATA_DIR` explicitly and never uses the default. Developer-standalone invocation DOES use the default, writing directly to `docs/data/` and bypassing `promote_data` entirely.
+
+Required change (bypass closure, NOT a duplicate gate):
 
 ```python
-# FR-023 gate: strip PR arrays from the written docs/data output.
-report = strip_pr_arrays_from_rollups(output_dir / "aggregates")
-print(f"[generate-demo-data] strip-gate: {report.files_modified} files modified, residue check passed")
-# (PrArrayResidueError propagates and fails the script.)
+# In scripts/generate-demo-data.py
+
+# Change default away from docs/data/ to a scratch location. Orchestrated flow
+# is unaffected because build-demo-dataset.py passes the output root explicitly.
+DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / ".tmp" / "generate-demo-data-output"
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+
+    # Early-exit guard: refuse direct writes to docs/data/, even if requested
+    # explicitly via --output-root. docs/data/ is managed exclusively by
+    # scripts/build-demo-dataset.py via promote_data (which carries the
+    # FR-023 gate).
+    from build_demo_dataset import DOCS_DATA_DIR  # or wherever DOCS_DATA_DIR lives
+    if args.output_root.resolve() == DOCS_DATA_DIR.resolve():
+        raise SystemExit(
+            "docs/data/ is managed by scripts/build-demo-dataset.py; "
+            "use that script to publish. generate-demo-data.py writes its "
+            "artifacts to a scratch directory for developer inspection."
+        )
+
+    # ... existing logic unchanged ...
 ```
+
+No strip gate is added to `generate-demo-data.py` itself — the gate at `promote_data` is sufficient because the bypass path is now closed.
 
 ### CI workflows
 
-`.github/workflows/ci.yml`, `.github/workflows/demo.yml`, `.github/workflows/release.yml` all invoke `build-demo-dataset.py` / `generate-demo-data.py` / `publish-demo-surface.py` via existing steps. Those workflows inherit the gate automatically through the two script entry points above — no workflow YAML changes required if the gate is wired inside the Python entry points.
+`.github/workflows/ci.yml`, `.github/workflows/demo.yml`, `.github/workflows/release.yml` invoke `build-demo-dataset.py` via existing steps. Those workflows inherit the gate automatically because the gate is wired inside `promote_data` — every orchestrated publish from any CI workflow flows through that single helper. `generate-demo-data.py` standalone does not and cannot reach `docs/data/` once the bypass closure (T050) lands: its default output is a scratch dir and its early-exit guard refuses `--output-root == DOCS_DATA_DIR`. No workflow YAML changes required.
 
-This satisfies QG-47 / QG-49 (entry-point alignment): the gate is defined exactly ONCE as an authoritative command (`strip_pr_arrays_from_rollups`) and invoked by name from every publish-write entry point. No copy-pasted inline checks.
+This satisfies QG-47 / QG-49 (entry-point alignment): the gate is defined exactly ONCE as an authoritative command (`strip_pr_arrays_from_rollups`) and invoked at exactly ONE site (inside `promote_data` — the single production write boundary). No copy-pasted inline checks, no duplicated invocations across scripts.
 
 ### Future new write paths
 
-If any new script or workflow introduces a NEW path that writes weekly rollups into `docs/data/`, that path MUST import and invoke `strip_pr_arrays_from_rollups` at the same position in its flow (last step before files land in `docs/data/`). A repo-level invariant test (in `tests/unit/` or `tests/meta/`) SHOULD grep `scripts/*.py` for patterns that indicate rollup writes to `docs/data/` and fail if any such script does not also import the helper — this follows the existing invariant-test precedent (`tests/unit/test_hook_triggers.py`).
+If any new script or workflow needs to land rollups in `docs/data/`, that path MUST go through `promote_data` — which already carries the gate. Direct writes to `docs/data/` that bypass `promote_data` are FORBIDDEN by the single-authoritative-boundary rule in FR-023. A repo-level invariant test (in `tests/unit/` or `tests/meta/`) MUST grep `scripts/*.py` and `.github/workflows/*.yml` for patterns that write to `docs/data/` outside a `promote_data` call, and fail the build on any match. This follows the existing invariant-test precedent (`tests/unit/test_hook_triggers.py`). Duplicating the strip gate at a second call site is also FORBIDDEN — the gate lives exactly once, inside `promote_data`.
 
 ## Test contract
 

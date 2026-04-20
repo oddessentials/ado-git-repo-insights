@@ -11,7 +11,7 @@ Primary deliverables:
 1. Aggregator emits an inline per-week `prs` array (top-500 by `cycle_time desc`, id-asc tiebreak) with two new marker fields (`_prs_truncated`, `_prs_cap`).
 2. Extension renders the array inside a new single-variant `PrListSection` in the existing detail panel, with a content-state discriminant covering the four states locked by FR-020.
 3. A single authoritative filter-support predicate classifies filter state under fixed precedence (FR-024 / FR-026).
-4. A single authoritative strip-gate helper is invoked from every code path that writes to `docs/data/` (FR-023), failing the write if any PR-level residue remains.
+4. A single authoritative strip-gate helper is invoked INSIDE `promote_data` (the single production write boundary to `docs/data/`) as its first step when the destination is `DOCS_DATA_DIR` (FR-023), failing the write if any PR-level residue remains. Standalone-bypass in `generate-demo-data.py` is closed separately via `DEFAULT_OUTPUT_DIR` change + early-exit guard; a static invariant test forbids any direct write to `docs/data/` outside `promote_data`.
 5. Dataset-contract doc gains a first privacy-posture section (FR-014) that must land in or before the commit that first produces a `prs` field.
 
 ## Technical Context
@@ -52,7 +52,7 @@ All 56 constitutional gates evaluated against this feature's scope. No violation
 | QG-41 (zero suppressions) | YES | No new `# noqa` / `# type: ignore` / `// eslint-disable` / `// @ts-ignore`. Existing object-injection patterns (Map re-wrap, if/else chains) reused where needed. |
 | QG-42 (enterprise test coverage) | YES | 9+ new tests across Python + TypeScript. Every new code path covered. |
 | QG-43 — QG-46 (test discipline) | YES | `.test-floor-contract.json` bumped by exactly the number of new tests in the same commit that adds them. No `pytest.mark.skip`; no import-time gating. |
-| QG-47 — QG-49 (entry-point alignment) | YES | FR-023 strip gate defined ONCE as an authoritative helper, invoked by name from every write-path (plus clean-worktree trigger scope matches the read-paths). |
+| QG-47 — QG-49 (entry-point alignment) | YES | FR-023 strip gate defined ONCE as an authoritative helper (`strip_pr_arrays_from_rollups`) invoked from the single production write boundary (`promote_data` at `build-demo-dataset.py:1044`) as its first step when destination equals `DOCS_DATA_DIR`. Satisfies QG-49's "each gate defined once and invoked by name" invariant. Standalone-bypass in `generate-demo-data.py` closed by `DEFAULT_OUTPUT_DIR` change + early-exit guard + invariant test forbidding direct writes to `docs/data/` outside `promote_data`. |
 | QG-50 — QG-52 (change acknowledgement) | YES (N/A in practice) | No extension/task version bump needed (feature doesn't bump SUPPORTED_*_VERSION). No threshold adjustments. Coverage within 2% of baseline. |
 | QG-53 — QG-55 (build architecture) | YES | No tsconfig changes. New TypeScript modules follow split tsconfig conventions (ES2022 for type check; esbuild owns `dist/ui/`). Prettier invoked only via `format:check`. |
 | QG-56 (security scan) | YES | Gitleaks parity unchanged; strip-gate output is code + markdown only, no secrets. |
@@ -107,8 +107,8 @@ extension/ui/
 
 scripts/
 ├── strip_pr_arrays.py                  # NEW: single authoritative strip-gate helper for FR-023
-├── build-demo-dataset.py               # EXTEND: invoke strip_pr_arrays as last step before atomic_replace_docs_data
-└── generate-demo-data.py               # EXTEND: invoke strip_pr_arrays after writing under docs/data/
+├── build-demo-dataset.py               # EXTEND: call strip_pr_arrays_from_rollups INSIDE promote_data as its first step when destination == DOCS_DATA_DIR
+└── generate-demo-data.py               # EXTEND: bypass-closure ONLY (no gate). Change DEFAULT_OUTPUT_DIR to a scratch path + add early-exit guard rejecting --output-root == DOCS_DATA_DIR. Do NOT add a duplicate strip gate.
 
 tests/
 ├── integration/

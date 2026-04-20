@@ -156,17 +156,23 @@ Weekly rollup JSON
 
 ### Publish-boundary transitions
 
+The single authoritative write boundary to `docs/data/` is `promote_data` at `build-demo-dataset.py:1044`. The strip gate is invoked as the FIRST step inside `promote_data` when the destination is `DOCS_DATA_DIR`:
+
 ```text
 Rollup with `prs` + `_prs_truncated` + `_prs_cap`
-  ↓  Invoke strip_pr_arrays helper (FR-023)
-Strip step: remove prs, _prs_truncated, _prs_cap
-  ↓  Re-verify (strip-and-re-verify semantics)
-Fail-on-residue check
-  ↓  (if any residue → fail the build)
-Clean rollup (Phase 1 shape exactly)
-  ↓  atomic_replace_docs_data
+  ↓  build-demo-dataset.py calls promote_data(ARTIFACT_DATA_DIR, DOCS_DATA_DIR) (line 1120)
+Enter promote_data
+  ↓  Step 1: strip_pr_arrays_from_rollups(source_dir/"aggregates") — gate
+Strip-and-re-verify: remove prs, _prs_truncated, _prs_cap; re-scan; raise if residue
+  ↓  (if any residue → gate raises → promote_data exits, no copy, docs/data/ untouched)
+Clean source (Phase 1 shape exactly)
+  ↓  Step 2: existing shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
+  ↓  Step 3: stale-file cleanup
+  ↓  Step 4: content-match validation
 docs/data/aggregates/weekly_rollups/YYYY-Www.json
 ```
+
+Developer-standalone bypass is closed separately (not a second gate): `scripts/generate-demo-data.py`'s `DEFAULT_OUTPUT_DIR` is changed to a scratch location, and an early-exit guard rejects `--output-root == DOCS_DATA_DIR`. Only `promote_data` writes to `docs/data/`.
 
 ### Runtime transitions (Extension UI)
 

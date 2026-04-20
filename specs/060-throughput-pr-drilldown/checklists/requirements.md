@@ -55,6 +55,35 @@
   - Story 1 acceptance scenario 2 scoped to "no filter is active" with a trailing reference to FR-008's criterion.
   No FR removed, no new FR added, no success criterion weakened. The contradiction was in the scoping of existing assertions, not in the contract itself.
 
+- **Tasks Pass 1 Codex catch #1 (2026-04-20, cross-OS)**: Codex stop-review flagged that the Pass 1 `tasks.md` draft contained two non-cross-OS shell idioms: (a) T003 used `mkdir -p .tmp/060-verify` which fails on Windows `cmd.exe` and PowerShell; (b) T050 proposed `rsync` for the stage-then-promote copy which is not present on Windows by default. Both fixed in-place by substituting OS-neutral alternatives (`pathlib.Path.mkdir(parents=True, exist_ok=True)` and, initially, `shutil.copytree(dirs_exist_ok=True)` as an option alongside the existing `atomic_replace_docs_data` helper). Added a new "Cross-OS discipline (QG-39)" section near the top of `tasks.md` enumerating banned shell idioms.
+
+- **Tasks Pass 1 Codex catch #2 (2026-04-20, FR-023 atomicity)**: immediately after catch #1, Codex re-reviewed and flagged that the cross-OS fix to T050 introduced a new violation — `shutil.copytree(dirs_exist_ok=True)` is **not atomic**; a mid-copy crash leaves `docs/data/` partially written, violating FR-023's atomic-failure invariant ("on ANY failure, `docs/data/` byte-identical to pre-run state") and Constitution Principle VII ("No Publish on Failure"). Rewrote T050 to:
+  1. Mandate stage → strip → atomic-promote as the only accepted flow.
+  2. Require the promotion step use a rename-based atomic helper (`atomic_replace_docs_data` or a documented equivalent with the same contract), which MAY require extracting the existing helper from `scripts/build-demo-dataset.py` into a shared module for reuse.
+  3. Explicitly enumerate forbidden alternatives by name: `shutil.copytree(..., dirs_exist_ok=True)`, any per-file copy loop, `rsync`, `cp -r`, `robocopy`, direct-to-`docs/data/` writes with post-hoc verify. Each is named as a silent FR-023 violator.
+  4. Reference Constitution Principle VII explicitly as the governing invariant.
+
+- **Tasks Pass 1 Codex catch #3 (2026-04-20, source-verified correction)**: after catch #2 Codex re-reviewed and flagged that the newly-named `atomic_replace_docs_data` helper does not exist in the repo. Source read confirmed: the actual helper is `promote_data` at `scripts/build-demo-dataset.py:1044`, and its implementation is `shutil.copytree(dirs_exist_ok=True)` + stale-file cleanup + content-match validation — NOT rename-based atomic. My catch-#2 fix invented a helper and misstated repo design. Reframed in source-verified form:
+  1. Corrected all 11 `atomic_replace_docs_data` references across 6 spec files (`tasks.md`, `contracts/demo-strip-gate.md`, `code-surface-map.md`, `data-model.md`, `plan.md`, `quickstart.md`) to the real helper name `promote_data`. Historical log entries for catches #1 and #2 retain the original phrasing as a record of what was written at that time.
+  2. Narrowed FR-023's atomicity claim: the spec now says on *gate* failure (not any failure) `docs/data/` is byte-identical, enforced by gate-before-promote ordering. A new "Known non-atomic promotion step (acknowledged pre-existing behavior)" clause explicitly acknowledges `promote_data`'s `shutil.copytree` implementation, explains why the privacy invariant still holds (gate has already stripped staging source — partial promotion contains no PR residue), and scopes rename-based-atomic upgrade OUT of feature 060.
+  3. Rewrote T050 to describe the real flow honestly: stage → strip → call `promote_data` on success; forbid reimplementing a parallel helper; acknowledge `promote_data`'s non-atomicity with the privacy argument.
+  4. The synthetic leak-test contract in FR-023 re-stated as 4 assertions: residue injected → gate fails → `promote_data` not invoked → `docs/data/` byte-identical. This is verifiable against real infrastructure.
+
+- **Tasks Pass 1 Codex catch #4 (2026-04-20, flow-contradiction in catch #3 fix)**: after catch #3, Codex re-reviewed and flagged that the fix still pointed implementers at the wrong publish flow. Source-verified the actual orchestration:
+  - `scripts/build-demo-dataset.py:54-55` declares `GENERATOR_STEPS = ["generate-demo-data.py", ...]`.
+  - `scripts/build-demo-dataset.py:1095` calls `run_generator(script_name, ARTIFACT_DATA_DIR)` — passing ARTIFACT_DATA_DIR explicitly as the output root.
+  - So in the **production-orchestrated flow**, `generate-demo-data.py` writes into `ARTIFACT_DATA_DIR`, NOT into `docs/data/`. Its `DEFAULT_OUTPUT_DIR = docs/data/` (line 105) is only exercised by standalone developer invocation.
+  - My catch #3 had required refactoring `generate-demo-data.py` to "stage-then-promote" — but that would **break the orchestrated contract** (`run_generator` expects the script to write into the explicit ARTIFACT_DATA_DIR, not stage elsewhere and promote independently).
+
+  Reframed to the correct architecture:
+  1. **FR-023 rewritten** to name `promote_data` as the single authoritative write boundary to `docs/data/`. Gate placement: inside `promote_data` as its FIRST step when destination is `DOCS_DATA_DIR`. Single authoritative gate site (QG-49).
+  2. **T049 rewritten** to wire the gate inside `promote_data`, not at the call site in `build-demo-dataset.py`.
+  3. **T050 rewritten** to close the `generate-demo-data.py` standalone-bypass via (a) changing `DEFAULT_OUTPUT_DIR` away from `docs/data/` and (b) adding an early-exit guard that rejects `--output-root == DOCS_DATA_DIR`. Explicitly does NOT refactor the script for stage-then-promote (that would break the orchestrator).
+  4. **FR-023 + demo-strip-gate.md contract** acquired a new "Bypass-prevention for the standalone developer path" clause documenting (a)+(b) + a static invariant test requiring any write to `docs/data/` go through `promote_data`.
+  5. **Integration-contract examples in `contracts/demo-strip-gate.md` rewritten** to show the gate inside `promote_data` (not at the call site) and the generate-demo-data.py bypass-closure (not a duplicate gate).
+
+  No new FRs; FR-023 rewritten (flow corrected, contradictory "refactor generate-demo-data.py" language removed); T049 + T050 rewritten; contract's integration section rewritten. Key lesson compounds catch #3's: source-verifying the helper's NAME is not enough — you also have to trace its CALLERS to understand the real flow before prescribing implementer actions.
+
 - **Plan Pass 2 hardening (user-directed, 2026-04-20)**: eight hardenings applied after plan Pass 1 generation:
   1. **FR-003 tightened** — `_prs_truncated` / `_prs_cap` are immutable after load; consumers MUST NOT mutate, re-derive, or infer from `prs.length` (prevents cross-version drift when cap changes).
   2. **FR-001 tightened** — absence of `prs` is a valid, permanent, backward-compat-preserving state. Consumers render the supported-empty content state deterministically. No load-warning, no error, no degradation of other surfaces.
