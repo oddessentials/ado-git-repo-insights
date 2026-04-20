@@ -259,4 +259,79 @@ describe("pr-list count parity (FR-008 / FR-021 / SC-002 / SC-011)", () => {
       expect(out!.prs).toEqual([]);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Codex-bot P1: malformed prs payloads must degrade gracefully (issue #317
+  // PR review). The rollup schema validator is permissive (warns, does not
+  // reject), so applyFiltersToRollups MUST also tolerate malformed shapes
+  // without crashing the dashboard refresh path.
+  // -------------------------------------------------------------------------
+  describe("malformed prs degrades gracefully (validator-parity)", () => {
+    it("non-array prs is treated as absent under an active filter (no .filter() crash)", () => {
+      const broken = makeBaseRollup();
+      (broken as { prs: unknown }).prs = "not-an-array";
+      // No throw. With a supported filter active, the map callback runs and
+      // takes the !Array.isArray early-return; the aggregate-only filtered
+      // rollup is returned with the original (malformed) prs preserved.
+      const [out] = applyFiltersToRollups([broken], {
+        repos: [REPO_A],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
+      expect(out).toBeDefined();
+      // The pass-through preserves the original (validator-warned) value;
+      // the contract is "do not crash", not "rewrite to a canonical shape".
+      expect((out as { prs?: unknown }).prs).toBe("not-an-array");
+    });
+
+    it("array containing entries with wrong-typed author_id / repository_id skips them", () => {
+      const partial = makeBaseRollup({
+        prs: [
+          {
+            id: 50,
+            title: "x",
+            author_id: 42,
+            repository_id: REPO_A,
+            cycle_time: 10,
+          } as unknown as PrRecord,
+          {
+            id: 51,
+            title: "y",
+            author_id: ALICE,
+            repository_id: false,
+            cycle_time: 10,
+          } as unknown as PrRecord,
+          makePr(99, ALICE, REPO_A, 50),
+        ],
+      });
+      // Apply a supported filter so the map callback's defensive shape
+      // checks run; the no-filter path early-returns rollups unchanged
+      // upstream and intentionally never invokes the per-element predicate.
+      const [out] = applyFiltersToRollups([partial], {
+        repos: [REPO_A],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
+      expect(out!.prs!.map((p) => p.id)).toEqual([99]);
+    });
+
+    it("array containing null entries is also tolerated when a supported filter is active", () => {
+      const partial = makeBaseRollup({
+        prs: [
+          null as unknown as PrRecord,
+          makePr(99, ALICE, REPO_A, 50),
+          undefined as unknown as PrRecord,
+        ],
+      });
+      const [out] = applyFiltersToRollups([partial], {
+        repos: [REPO_A],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
+      expect(out!.prs!.map((p) => p.id)).toEqual([99]);
+    });
+  });
 });

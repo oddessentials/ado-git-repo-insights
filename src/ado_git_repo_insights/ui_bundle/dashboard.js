@@ -5364,10 +5364,23 @@ var PRInsightsDashboard = (() => {
         }
         return rollup;
       })();
-      if (rollup.prs === void 0) return filteredRollup;
-      const filteredPrs = rollup.prs.filter(
-        (pr) => (authorFilters.length === 0 || authorFilters.includes(pr.author_id)) && (filters.repos.length === 0 || filters.repos.includes(pr.repository_id))
-      );
+      if (!Array.isArray(rollup.prs)) return filteredRollup;
+      const rawPrs = rollup.prs;
+      const filteredPrs = [];
+      for (const candidate of rawPrs) {
+        if (typeof candidate !== "object" || candidate === null) continue;
+        const pr = candidate;
+        const authorId = pr.author_id;
+        const repoId = pr.repository_id;
+        if (typeof authorId !== "string" || typeof repoId !== "string") continue;
+        if (authorFilters.length > 0 && !authorFilters.includes(authorId)) {
+          continue;
+        }
+        if (filters.repos.length > 0 && !filters.repos.includes(repoId)) {
+          continue;
+        }
+        filteredPrs.push(candidate);
+      }
       return {
         ...filteredRollup,
         prs: filteredPrs,

@@ -8,6 +8,7 @@
 import type { Rollup } from "../dataset-loader";
 import type {
   BreakdownEntry,
+  PrRecord,
   ReviewerBreakdownEntry,
 } from "../schemas/rollup.schema";
 import { median } from "./shared/format";
@@ -890,16 +891,38 @@ export function applyFiltersToRollups(
 
     // Feature 060 T031: attach filtered prs to every aggregate path. The
     // predicate uses the SAME author_id / repository_id scope as the
-    // aggregate slice rebuilds above. When rollup.prs is absent (old
-    // dataset or demo-stripped path), pass through the aggregate-only
-    // result unchanged.
-    if (rollup.prs === undefined) return filteredRollup;
-    const filteredPrs = rollup.prs.filter(
-      (pr) =>
-        (authorFilters.length === 0 || authorFilters.includes(pr.author_id)) &&
-        (filters.repos.length === 0 ||
-          filters.repos.includes(pr.repository_id)),
-    );
+    // aggregate slice rebuilds above.
+    //
+    // The rollup schema validator is permissive (pr-record.md): it WARNS on
+    // a non-array prs, on non-object elements, and on elements with the
+    // wrong field types — but does not reject the rollup. To honor that
+    // contract we must also degrade gracefully here:
+    //
+    //   - rollup.prs missing OR not an array -> pass through aggregate-only
+    //     result; no prs attached.
+    //   - per-element shape check rejects nulls / non-objects / wrong-typed
+    //     author_id or repository_id; those elements are treated as absent
+    //     (matches the validator's "no partial render" rule).
+    if (!Array.isArray(rollup.prs)) return filteredRollup;
+    const rawPrs = rollup.prs as readonly unknown[];
+    const filteredPrs: PrRecord[] = [];
+    for (const candidate of rawPrs) {
+      if (typeof candidate !== "object" || candidate === null) continue;
+      const pr = candidate as {
+        readonly author_id?: unknown;
+        readonly repository_id?: unknown;
+      };
+      const authorId = pr.author_id;
+      const repoId = pr.repository_id;
+      if (typeof authorId !== "string" || typeof repoId !== "string") continue;
+      if (authorFilters.length > 0 && !authorFilters.includes(authorId)) {
+        continue;
+      }
+      if (filters.repos.length > 0 && !filters.repos.includes(repoId)) {
+        continue;
+      }
+      filteredPrs.push(candidate as PrRecord);
+    }
     return {
       ...filteredRollup,
       prs: filteredPrs,
