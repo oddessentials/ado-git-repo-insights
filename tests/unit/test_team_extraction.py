@@ -593,16 +593,46 @@ class TestExtractTeamsPipeline:
         warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
         assert any("projA" in m and "skipping" in m for m in warnings)
 
-    def test_member_fetch_failure_team_persisted_members_skipped(
+    def test_member_fetch_failure_preserves_existing_members(
         self,
         ctx: tuple[MagicMock, DatabaseManager, Config],
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """``get_team_members`` failing for one team: team row still
-        persisted, its members skipped with WARN, sibling teams unaffected."""
+        """P2 review-fix (#296): ``get_team_members`` failing for one team
+        must leave that team's pre-existing members *unchanged* — clearing
+        only runs after a successful fetch, so transient 403 / network
+        errors never cause data loss.  Sibling teams still refresh
+        normally.
+
+        Locks the no-data-loss invariant explicitly by pre-seeding a
+        member row and asserting it survives the failed fetch.  The
+        earlier version of this test only asserted "team persisted",
+        which would have passed the broken ``clear-before-fetch`` code
+        path for the wrong reason.
+        """
         from ado_git_repo_insights.cli import _extract_teams
 
         client, db, config = ctx
+
+        # Pre-seed t1 with a prior member so the preservation assertion
+        # below is load-bearing (not trivially satisfied by an already-
+        # empty team).  The parent team row is also pre-seeded because
+        # FK from team_members → teams requires it.
+        db.execute(
+            "INSERT INTO users (user_id, display_name) VALUES "
+            "('u_existing', 'Existing User')"
+        )
+        now = datetime.now(UTC).isoformat()
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("t1", "Team 1 (prior)", "projA", "org1", now),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id, is_team_admin) "
+            "VALUES ('t1', 'u_existing', 0)"
+        )
+        db.connection.commit()
 
         client.get_teams.return_value = [
             {"id": "t1", "name": "Team 1", "description": None},
@@ -614,9 +644,9 @@ class TestExtractTeamsPipeline:
                 raise ExtractionError("member fetch failed for t1")
             return [
                 {
-                    "id": "u1",
-                    "displayName": "Alice",
-                    "uniqueName": "alice@example.com",
+                    "id": "u_new",
+                    "displayName": "New",
+                    "uniqueName": "new@example.com",
                 }
             ]
 
@@ -627,14 +657,33 @@ class TestExtractTeamsPipeline:
         with caplog.at_level(logging.WARNING, logger="ado_git_repo_insights.cli"):
             _extract_teams(client, db, config, summary)
 
-        assert db.execute("SELECT COUNT(*) FROM teams").fetchone()[0] == 2
-        member_team_ids = [
-            row[0] for row in db.execute("SELECT team_id FROM team_members").fetchall()
+        # P2 INVARIANT: t1's pre-existing member row is unchanged.
+        t1_members = [
+            row[0]
+            for row in db.execute(
+                "SELECT user_id FROM team_members WHERE team_id = 't1' ORDER BY user_id"
+            ).fetchall()
         ]
-        assert member_team_ids == ["t2"]
+        assert t1_members == ["u_existing"], (
+            "P2 no-data-loss invariant: t1's pre-existing member must "
+            "survive a failed get_team_members call"
+        )
+
+        # Sibling t2 populates normally (fetch succeeded there).
+        t2_members = [
+            row[0]
+            for row in db.execute(
+                "SELECT user_id FROM team_members WHERE team_id = 't2'"
+            ).fetchall()
+        ]
+        assert t2_members == ["u_new"]
+
+        # Both team rows present (t1 refreshed with new name/last_updated,
+        # t2 freshly inserted).
+        assert db.execute("SELECT COUNT(*) FROM teams").fetchone()[0] == 2
 
         warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
-        assert any("t1" in m for m in warnings)
+        assert any("t1" in m and "skipping members" in m for m in warnings)
 
     def test_clear_team_members_called_before_refresh(
         self,
@@ -848,3 +897,90 @@ class TestExtractTeamsPipeline:
             "projA" in m and "t1" in m and "'displayName'" in m and "u_no_name" in m
             for m in warnings
         ), warnings
+
+    def test_zero_pr_project_still_extracts_teams_on_fresh_db(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """P1 review-fix (#296): a succeeded project with zero PRs in the
+        extract window has NO projects-table row on a fresh DB, because
+        ``PRExtractor._extract_project`` only writes the projects row
+        through ``upsert_pr_with_related`` inside its per-PR loop — a
+        loop that never executes when the window yields zero PRs.
+
+        Without the defensive ``upsert_organization`` /
+        ``upsert_project`` inside ``_extract_teams`` (added in this
+        fix), the first ``upsert_team`` would crash with
+        ``sqlite3.IntegrityError`` on the teams → projects FK.
+
+        Uses a fresh DB directly (not the ``ctx`` fixture) because
+        ``ctx`` pre-seeds org + both projects, which would hide the
+        bug this test exists to lock.
+        """
+        from ado_git_repo_insights.cli import _extract_teams
+
+        db_path = tmp_path / "fresh.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            # Pre-condition: empty DB, no (org, project) rows so the
+            # FK target is genuinely absent.  Without this guard, a
+            # silent schema seed could trivially satisfy the post-
+            # assertion for the wrong reason.
+            assert db.execute("SELECT COUNT(*) FROM organizations").fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
+
+            client = MagicMock(spec=ADOClient)
+            client.get_teams.return_value = [
+                {"id": "t1", "name": "Zero-PR Team", "description": None}
+            ]
+            client.get_team_members.return_value = [
+                {
+                    "id": "u1",
+                    "displayName": "Alice",
+                    "uniqueName": "alice@example.com",
+                }
+            ]
+            config = cast(Config, SimpleNamespace(organization="org1"))
+
+            # Succeeded project + zero PRs extracted is the failure
+            # shape this test locks.
+            summary = ExtractionSummary()
+            summary.add_result(
+                ProjectExtractionResult(
+                    project="projA",
+                    start_date=date(2026, 4, 1),
+                    end_date=date(2026, 4, 19),
+                    prs_extracted=0,
+                    success=True,
+                )
+            )
+
+            # Must complete without IntegrityError.
+            _extract_teams(client, db, config, summary)
+
+            # Defensive upserts created the parent rows exactly once.
+            assert (
+                db.execute(
+                    "SELECT COUNT(*) FROM organizations "
+                    "WHERE organization_name = 'org1'"
+                ).fetchone()[0]
+                == 1
+            )
+            assert (
+                db.execute(
+                    "SELECT COUNT(*) FROM projects "
+                    "WHERE organization_name = 'org1' AND project_name = 'projA'"
+                ).fetchone()[0]
+                == 1
+            )
+            # Team + member landed normally.
+            assert (
+                db.execute(
+                    "SELECT COUNT(*) FROM teams WHERE project_name = 'projA'"
+                ).fetchone()[0]
+                == 1
+            )
+            assert db.execute("SELECT COUNT(*) FROM team_members").fetchone()[0] == 1
+        finally:
+            db.close()
