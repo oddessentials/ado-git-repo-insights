@@ -1,3 +1,26 @@
+# [101.12.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.11.0...v101.12.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#205:** align throughput drill-down title with data-model.md format ([82b92a8](https://github.com/oddessentials/ado-git-repo-insights/commit/82b92a893bb9bd0be50b3f45ff5b6c691575a4c6)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** defer drill-down dispose to atomic with render block ([5007ce7](https://github.com/oddessentials/ado-git-repo-insights/commit/5007ce79d8a7e0790b064a3df26adcc27eb7d48a)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **#205:** gate inert clear by !isStale to avoid stale-bail race ([88cc255](https://github.com/oddessentials/ado-git-repo-insights/commit/88cc2556330863c04455cbf4921efb28e941f544)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **#205:** inert chart containers during refresh load window ([3e57186](https://github.com/oddessentials/ado-git-repo-insights/commit/3e571862bdf71fd9788b418923f348ac7763db17)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **#205:** slice 2a — cycle-time <g> keyboard reach + affordance + a11y state ([ceeda5f](https://github.com/oddessentials/ado-git-repo-insights/commit/ceeda5fc5a1ada5696499a4b69761ab592246f60)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **#205:** slice 2b — P1.F reviewer gating note + P1.H advisory a11y split ([37687bd](https://github.com/oddessentials/ado-git-repo-insights/commit/37687bda378c7ca314770e08d379b940d5b44b2b)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4)
+* **#205:** slice 3a — reviewer empty-week EmptyStateSection (P1.G) ([185cdc9](https://github.com/oddessentials/ado-git-repo-insights/commit/185cdc9b400e461849300ff37e0cc7c28cec7daa)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** slice 3b — z-index stack advisory>panel>toast (P1.C) ([f3551cf](https://github.com/oddessentials/ado-git-repo-insights/commit/f3551cf32cc7fffb3e93c646a7885d09c17a9c5a)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **#303:** detail panel respects filter-bar geometry ([30ff281](https://github.com/oddessentials/ado-git-repo-insights/commit/30ff281d72557113cf8d15894c3866db1ade8717)), closes [#303](https://github.com/oddessentials/ado-git-repo-insights/issues/303) [#303](https://github.com/oddessentials/ado-git-repo-insights/issues/303)
+
+
+### Features
+
+* **#205:** cycle-time drill-down (US2) ([5c2eaf4](https://github.com/oddessentials/ado-git-repo-insights/commit/5c2eaf4f892bf9fa56f61e6b75b60865d1323a00)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#301](https://github.com/oddessentials/ado-git-repo-insights/issues/301)
+* **#205:** reviewer drill-down (US3) ([007ac77](https://github.com/oddessentials/ado-git-repo-insights/commit/007ac77f1bc514737f4a1802a0bc9ad5b341deb0)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#300](https://github.com/oddessentials/ado-git-repo-insights/issues/300) [#301](https://github.com/oddessentials/ado-git-repo-insights/issues/301)
+* **#205:** sparkline navigator (US4) ([33c44b2](https://github.com/oddessentials/ado-git-repo-insights/commit/33c44b23857b24f05b32e3b9fcb87967ff9140d4)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205)
+* **#205:** throughput drill-down (US1) ([b432255](https://github.com/oddessentials/ado-git-repo-insights/commit/b432255cfc057974485d53e9ac604e98b41ec049)), closes [#205](https://github.com/oddessentials/ado-git-repo-insights/issues/205) [#301](https://github.com/oddessentials/ado-git-repo-insights/issues/301)
+
 # [101.11.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.10.1...v101.11.0) (2026-04-19)
 
 
