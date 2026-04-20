@@ -1,3 +1,25 @@
+# [101.13.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.4...v101.13.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#205-060,#317-review:** degrade gracefully on malformed rollup.prs ([97f99fc](https://github.com/oddessentials/ado-git-repo-insights/commit/97f99fc62d0f80803e99cad5ef56882e344b0c17)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060) [#317](https://github.com/oddessentials/ado-git-repo-insights/issues/317) [#317](https://github.com/oddessentials/ado-git-repo-insights/issues/317)
+* **#205-060:** annotate test_strip_pr_arrays rollup_dir fixture as Path ([ddd46c1](https://github.com/oddessentials/ado-git-repo-insights/commit/ddd46c18ab0d63236a192b6c3d99190f3d7aea55)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** eliminate partial-branch coverage debt on feature 060 code ([c764226](https://github.com/oddessentials/ado-git-repo-insights/commit/c76422635f2f9e46de3c53cfb781f8e4fc6165fe)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** register strip_pr_arrays with mypy + narrowing test harness ([6dca555](https://github.com/oddessentials/ado-git-repo-insights/commit/6dca555042d5f6294c6750fa2b007b82d1363bc7)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+
+
+### Features
+
+* **#205-060:** add PrRecord types + schema validator extension ([1c9df53](https://github.com/oddessentials/ado-git-repo-insights/commit/1c9df538492e9105808757751812947b914f8a66)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** aggregator emits PR-level detail for weekly rollups ([51ee3fe](https://github.com/oddessentials/ado-git-repo-insights/commit/51ee3fe8d330c650300e63b19f3c0e4cab3adc22)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** arm FR-014 privacy-posture ordering gate ([70a136a](https://github.com/oddessentials/ado-git-repo-insights/commit/70a136a4ef23bcad1cee70716900a84c1994aa48)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** classifyFilterState predicate + authority invariant ([2ad2588](https://github.com/oddessentials/ado-git-repo-insights/commit/2ad2588ef512a28494a6b47c2612a8faa646aaa6)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** filter rollup.prs in the single-authority map callback ([e11cdde](https://github.com/oddessentials/ado-git-repo-insights/commit/e11cddee4429318caf966359e04679c7f6e9b144)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** render PR-level detail on throughput drilldown panel ([8031a37](https://github.com/oddessentials/ado-git-repo-insights/commit/8031a373daba1fa5b1e240aa51605f35b76b7c45)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** scaffold PrListSection stable container (FR-020) ([0b6720b](https://github.com/oddessentials/ado-git-repo-insights/commit/0b6720b25c0037aa0f200dcdc7d37ec194315611)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+* **#205-060:** strip gate inside promote_data + generate-demo-data bypass closure ([76e1d52](https://github.com/oddessentials/ado-git-repo-insights/commit/76e1d5270e403daaa7eeda22235ef8201842e0b3)), closes [#205-060](https://github.com/oddessentials/ado-git-repo-insights/issues/205-060)
+
 ## [101.12.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.3...v101.12.4) (2026-04-20)
 
 
