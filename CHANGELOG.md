@@ -1,3 +1,10 @@
+## [101.12.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.1...v101.12.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#294:** correct ML setup guides to real ADO task YAML ([baf7148](https://github.com/oddessentials/ado-git-repo-insights/commit/baf7148d5b39b85f049fb27f07ace9799446d614)), closes [#294](https://github.com/oddessentials/ado-git-repo-insights/issues/294)
+
 ## [101.12.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.0...v101.12.1) (2026-04-20)
 
 
