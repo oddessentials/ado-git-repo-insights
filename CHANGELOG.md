@@ -1,3 +1,14 @@
+## [101.12.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.0...v101.12.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#296:** add migrate_v6_to_v7 for teams and team_members tables ([6ad5887](https://github.com/oddessentials/ado-git-repo-insights/commit/6ad588799b5e73b539c49867d6d85ffa01d36eb7)), closes [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295)
+* **#296:** complete schema_version == 6 -> 7 sweep in v4->v5 tests ([f765a22](https://github.com/oddessentials/ado-git-repo-insights/commit/f765a227dcd7e195ed874e01bd77d69deb75a4a7)), closes [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296)
+* **#296:** correct AdoTeamMember shape to real IdentityRef; defensive skip ([7557521](https://github.com/oddessentials/ado-git-repo-insights/commit/7557521e683f0da015038fc724a4352162f3d1fb)), closes [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#295](https://github.com/oddessentials/ado-git-repo-insights/issues/295)
+* **#296:** review P1+P2 — ensure project row, clear-after-fetch ([9a24fb3](https://github.com/oddessentials/ado-git-repo-insights/commit/9a24fb36c76036a44b07156a894b7c06f51207fe)), closes [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#305](https://github.com/oddessentials/ado-git-repo-insights/issues/305) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#305](https://github.com/oddessentials/ado-git-repo-insights/issues/305)
+* **#296:** wire _extract_teams for PR-successful projects ([cdc7942](https://github.com/oddessentials/ado-git-repo-insights/commit/cdc7942d6aa5569cfd9cdb414963bab7ffaaf85e)), closes [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3) [#296](https://github.com/oddessentials/ado-git-repo-insights/issues/296) [#252](https://github.com/oddessentials/ado-git-repo-insights/issues/252)
+
 # [101.12.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.11.0...v101.12.0) (2026-04-20)
 
 
