@@ -120,6 +120,21 @@ def load_build_module():
     sys.modules["demo_shell"] = demo_shell
     demo_shell_spec.loader.exec_module(demo_shell)
 
+    # Feature 060 FR-023: build-demo-dataset.py imports strip_pr_arrays for the
+    # promote_data strip gate. Register it in sys.modules so the importlib
+    # load path below resolves. Module-name (underscore) must match the
+    # import statement in build-demo-dataset.py.
+    strip_spec = importlib.util.spec_from_file_location(
+        "strip_pr_arrays", REPO_ROOT / "scripts" / "strip_pr_arrays.py"
+    )
+    if strip_spec is None or strip_spec.loader is None:
+        raise RuntimeError(
+            f"Unable to load helper module: {REPO_ROOT / 'scripts' / 'strip_pr_arrays.py'}"
+        )
+    strip_module = importlib.util.module_from_spec(strip_spec)
+    sys.modules["strip_pr_arrays"] = strip_module
+    strip_spec.loader.exec_module(strip_module)
+
     spec = importlib.util.spec_from_file_location("build_demo_dataset", BUILD_SCRIPT)
     if spec is None or spec.loader is None:
         raise AssertionError(f"Unable to load build script module: {BUILD_SCRIPT}")
@@ -637,3 +652,144 @@ class TestCapabilityAndParityReports:
 
         with pytest.raises(RuntimeError, match="by_reviewer"):
             build_module.validate_reviewer_fixture_contract(mutated_dir)
+
+
+# =============================================================================
+# Feature 060 FR-023 — promote_data atomic-failure proof at the real write
+# boundary. T047 per tasks.md. Separate from the helper-level unit tests in
+# tests/unit/test_strip_pr_arrays.py; these assertions lock the integration
+# between the strip gate and the shutil.copytree publishing step.
+# =============================================================================
+
+
+def _write_rollup_json(rollup_dir: Path, name: str, payload: dict[str, object]) -> Path:
+    (rollup_dir / "weekly_rollups").mkdir(parents=True, exist_ok=True)
+    path = rollup_dir / "weekly_rollups" / name
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    return path
+
+
+def _hash_tree(root: Path) -> dict[str, str]:
+    """Deterministic digest of every file under ``root`` for byte-identity proofs."""
+    import hashlib
+
+    tree: dict[str, str] = {}
+    if not root.exists():
+        return tree
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            rel = path.relative_to(root).as_posix()
+            tree[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return tree
+
+
+class TestPromoteDataStripGateAtomicity:
+    """Feature 060 FR-023: the strip gate fires INSIDE ``promote_data``.
+
+    On residue, ``promote_data`` raises ``PrArrayResidueError`` BEFORE the
+    ``mkdir`` / ``copytree`` steps, so the destination directory is
+    byte-identical to its pre-call state.
+    """
+
+    def test_promote_data_strips_pr_level_fields_when_destination_is_docs_data_dir(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        build_module = load_build_module()
+
+        # Source: a canonical artifact root with one rollup carrying PR-level
+        # fields. `aggregates/weekly_rollups/*.json` is what promote_data
+        # passes to the strip helper as `source_dir / "aggregates"`.
+        source_root = make_scratch_dir("promote-source-clean")
+        aggregates = source_root / "aggregates"
+        _write_rollup_json(
+            aggregates,
+            "2025-W10.json",
+            {
+                "week": "2025-W10",
+                "pr_count": 1,
+                "prs": [
+                    {
+                        "id": 1,
+                        "title": "a",
+                        "author_id": "u",
+                        "repository_id": "r",
+                        "cycle_time": 30.0,
+                    }
+                ],
+                "_prs_truncated": False,
+                "_prs_cap": 500,
+            },
+        )
+
+        # Retarget DOCS_DATA_DIR to a scratch location so the gate's
+        # `destination == DOCS_DATA_DIR` check fires without touching the
+        # real docs/data/ tree.
+        fake_docs = make_scratch_dir("fake-docs-data")
+        monkeypatch.setattr(build_module, "DOCS_DATA_DIR", fake_docs)
+
+        build_module.promote_data(source_root, fake_docs)
+
+        promoted_rollup = fake_docs / "aggregates" / "weekly_rollups" / "2025-W10.json"
+        assert promoted_rollup.exists()
+        payload = json.loads(promoted_rollup.read_text(encoding="utf-8"))
+        assert "prs" not in payload
+        assert "_prs_truncated" not in payload
+        assert "_prs_cap" not in payload
+
+    def test_promote_data_raises_and_leaves_destination_byte_identical_on_residue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        build_module = load_build_module()
+        strip_pr_arrays_module = sys.modules["strip_pr_arrays"]
+        residue_error_type = strip_pr_arrays_module.PrArrayResidueError
+
+        # Source with residue that the strip helper's re-verify sweep MUST
+        # catch. We sabotage the helper so the mutation step is a no-op —
+        # proving the atomic-failure chain runs from re-verify all the way
+        # back up to docs/data/ being untouched.
+        source_root = make_scratch_dir("promote-source-residue")
+        aggregates = source_root / "aggregates"
+        _write_rollup_json(
+            aggregates,
+            "2025-W11.json",
+            {
+                "week": "2025-W11",
+                "pr_count": 1,
+                "prs": [
+                    {
+                        "id": 2,
+                        "title": "leak",
+                        "author_id": "u",
+                        "repository_id": "r",
+                        "cycle_time": 45.0,
+                    }
+                ],
+                "_prs_truncated": False,
+                "_prs_cap": 500,
+            },
+        )
+
+        fake_docs = make_scratch_dir("fake-docs-data-residue")
+        # Seed the destination with a pre-existing sentinel file. If
+        # promote_data proceeds past the strip gate, shutil.copytree would
+        # overwrite OR add files — in either case the hash tree diverges.
+        sentinel = fake_docs / "__pre-existing__.marker"
+        sentinel.write_bytes(b"baseline\n")
+        pre_tree = _hash_tree(fake_docs)
+
+        monkeypatch.setattr(build_module, "DOCS_DATA_DIR", fake_docs)
+
+        # Sabotage the strip step so the re-verify sweep catches residue.
+        def _sabotaged_strip(path: Path, fields_removed: dict[str, int]) -> bool:
+            return False
+
+        monkeypatch.setattr(strip_pr_arrays_module, "_strip_one", _sabotaged_strip)
+
+        with pytest.raises(residue_error_type):
+            build_module.promote_data(source_root, fake_docs)
+
+        # Atomic-failure proof: fake_docs is byte-identical to its pre-call
+        # state. No mkdir, no copytree, no partial writes.
+        assert _hash_tree(fake_docs) == pre_tree

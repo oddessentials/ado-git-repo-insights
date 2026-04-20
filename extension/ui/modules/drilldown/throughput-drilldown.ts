@@ -27,24 +27,49 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { BreakdownEntry } from "../../schemas/rollup.schema";
+import { createEmptyFilterState, type FilterState } from "../filters";
 import { dismissAllTooltips } from "../tooltip-manager";
 import {
   makeBreakdownTable,
   makeEmptyState,
   makePanelContent,
+  makePrListSection,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
   type PanelRow,
   type PanelSection,
+  type PrListRow,
+  type PrListSection,
 } from "../shared/detail-panel";
+import {
+  resolvePrUrl,
+  type PrUrlRepositoryEntry,
+  type PrUrlWebContext,
+} from "../shared/pr-url";
 import {
   isDrilldownDisabledByComparison,
   showComparisonAdvisoryToast,
 } from "./comparison-advisory";
+import { classifyFilterState } from "./filter-support";
 import { formatWeekTitle } from "./week-range";
 
 const ACTIVE_CLASS = "is-drilldown-active";
+
+/**
+ * Options passed at `installThroughputDrilldown` time. Feature 060 adds the
+ * three fields the PR-detail section needs; all are optional so existing
+ * tests that call the two-argument form keep working (the PR section
+ * defaults to `supported-empty` in that case).
+ */
+export interface ThroughputDrilldownOptions {
+  readonly filters?: FilterState;
+  readonly repositoriesDimension?:
+    | readonly PrUrlRepositoryEntry[]
+    | null
+    | undefined;
+  readonly webContext?: PrUrlWebContext;
+}
 
 function breakdownSection(
   title: string,
@@ -64,7 +89,60 @@ function breakdownSection(
   return makeBreakdownTable(title, columns, rows);
 }
 
-function buildPanelContent(rollup: Rollup): PanelContent {
+/**
+ * Feature 060: build the PR-detail section for a throughput drill-down.
+ *
+ * Called after the comparison short-circuit in `activate()`, so the
+ * `comparison` classification is unreachable here — only team / reviewer /
+ * supported are possible.
+ */
+function buildPrListSection(
+  rollup: Rollup,
+  options: ThroughputDrilldownOptions,
+): PrListSection {
+  // `false` for comparisonActive uses the narrowed-return overload so the
+  // switch below covers every reachable classification (no unreachable
+  // "comparison" arm). Callers that need to handle comparison state do so
+  // upstream in activate() before this function is invoked.
+  const filters = options.filters ?? createEmptyFilterState();
+  const { classification } = classifyFilterState(filters, false);
+  switch (classification) {
+    case "team":
+      return makePrListSection({ contentState: "team-inline" });
+    case "reviewer":
+      return makePrListSection({ contentState: "reviewer-inline" });
+    case "supported": {
+      const rawPrs = rollup.prs ?? [];
+      const webContext = options.webContext;
+      const capValue = rollup._prs_cap;
+      // Supported-empty covers: no PRs to show, no web context for URL
+      // composition, or a rollup that violates the aggregator contract by
+      // omitting `_prs_cap`. Every other supported-state rollup renders the
+      // full PR list.
+      if (rawPrs.length === 0 || !webContext || capValue === undefined) {
+        return makePrListSection({ contentState: "supported-empty" });
+      }
+      const rows: PrListRow[] = rawPrs.map((pr) => ({
+        id: pr.id,
+        title: pr.title,
+        cycleTimeMinutes: pr.cycle_time,
+        url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+      }));
+      return makePrListSection({
+        contentState: "pr-list",
+        rows,
+        renderedCount: rows.length,
+        actualFilteredCount: rollup.pr_count,
+        capValue,
+      });
+    }
+  }
+}
+
+function buildPanelContent(
+  rollup: Rollup,
+  options: ThroughputDrilldownOptions,
+): PanelContent {
   const count = rollup.pr_count;
   const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
   const byAuthor = breakdownSection(
@@ -79,15 +157,18 @@ function buildPanelContent(rollup: Rollup): PanelContent {
     rollup.by_repository,
     "No repository-level activity for this week.",
   );
+  const prList = buildPrListSection(rollup, options);
   return makePanelContent(formatWeekTitle(rollup), subtitle, [
     byAuthor,
     byRepository,
+    prList,
   ]);
 }
 
 export function installThroughputDrilldown(
   container: HTMLElement,
   rollups: readonly Rollup[],
+  options: ThroughputDrilldownOptions = {},
 ): { dispose(): void } {
   const controller = new AbortController();
   const { signal } = controller;
@@ -153,7 +234,7 @@ export function installThroughputDrilldown(
       sourceChart: "throughput",
       focusedData: { kind: "throughput", weekIso },
       triggerElement: trigger,
-      content: buildPanelContent(rollup),
+      content: buildPanelContent(rollup, options),
     };
 
     openDetailPanel(context);

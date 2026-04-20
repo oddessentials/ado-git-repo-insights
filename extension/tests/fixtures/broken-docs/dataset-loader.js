@@ -1327,8 +1327,20 @@ var PRInsightsDatasetLoader = (() => {
     "by_author_and_repo",
     "by_team",
     "by_reviewer",
-    "by_team_and_repo"
+    "by_team_and_repo",
+    // Feature 060 PR-level detail fields (optional on tenant rollups,
+    // absent from demo-surface rollups).
+    "prs",
+    "_prs_truncated",
+    "_prs_cap"
   ]);
+  var PR_RECORD_REQUIRED_FIELDS = [
+    "id",
+    "title",
+    "author_id",
+    "repository_id",
+    "cycle_time"
+  ];
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
     "cycle_time_p50",
@@ -1503,6 +1515,81 @@ var PRInsightsDatasetLoader = (() => {
     }
     return { errors, warnings };
   }
+  function validatePrRecordArray(data, path) {
+    const warnings = [];
+    if (!isArray(data)) {
+      warnings.push(
+        createWarning(
+          path,
+          `'prs' present but not an array (got ${getTypeName(data)}); ignored`
+        )
+      );
+      return { warnings };
+    }
+    for (const [i, pr] of data.entries()) {
+      const prPath = buildPath(path, i);
+      if (!isObject(pr)) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `'prs[${i}]' is not an object (got ${getTypeName(pr)}); element ignored`
+          )
+        );
+        continue;
+      }
+      for (const field of PR_RECORD_REQUIRED_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(pr, field)) {
+          warnings.push(
+            createWarning(
+              buildPath(prPath, field),
+              `missing required PR field '${field}'; element will be treated as absent`
+            )
+          );
+        }
+      }
+      if (pr.id !== void 0 && !isNumber(pr.id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "id"),
+            `expected number, got ${getTypeName(pr.id)}`
+          )
+        );
+      }
+      if (pr.title !== void 0 && !isString(pr.title)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "title"),
+            `expected string, got ${getTypeName(pr.title)}`
+          )
+        );
+      }
+      if (pr.author_id !== void 0 && !isString(pr.author_id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "author_id"),
+            `expected string, got ${getTypeName(pr.author_id)}`
+          )
+        );
+      }
+      if (pr.repository_id !== void 0 && !isString(pr.repository_id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "repository_id"),
+            `expected string, got ${getTypeName(pr.repository_id)}`
+          )
+        );
+      }
+      if (pr.cycle_time !== void 0 && !isNumber(pr.cycle_time)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "cycle_time"),
+            `expected number, got ${getTypeName(pr.cycle_time)}`
+          )
+        );
+      }
+    }
+    return { warnings };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1595,6 +1682,60 @@ var PRInsightsDatasetLoader = (() => {
       );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    const prsValue = data.prs;
+    const truncatedValue = data._prs_truncated;
+    const capValue = data._prs_cap;
+    const hasPrs = prsValue !== void 0;
+    const hasTruncated = truncatedValue !== void 0;
+    const hasCap = capValue !== void 0;
+    if (hasPrs) {
+      const prsResult = validatePrRecordArray(prsValue, "prs");
+      warnings.push(...prsResult.warnings);
+      if (!hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'prs' present but '_prs_truncated' absent; treated as false"
+          )
+        );
+      } else if (!isBoolean(truncatedValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            `expected boolean, got ${getTypeName(truncatedValue)}`
+          )
+        );
+      }
+      if (!hasCap) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            "'prs' present but '_prs_cap' absent; truncation-indicator math will be skipped"
+          )
+        );
+      } else if (!isNumber(capValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            `expected number, got ${getTypeName(capValue)}`
+          )
+        );
+      }
+    } else {
+      if (hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'_prs_truncated' present without 'prs'; ignored"
+          )
+        );
+      }
+      if (hasCap) {
+        warnings.push(
+          createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored")
+        );
+      }
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);

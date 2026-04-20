@@ -738,4 +738,495 @@ describe("throughput-drilldown", () => {
       expect(bar.getAttribute("aria-expanded")).toBe("false");
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Feature 060: PR-detail section rendering (T020)
+  // -------------------------------------------------------------------------
+  describe("PR-detail section (feature 060)", () => {
+    const BASE_WEB_CTX = {
+      collectionUri: "https://dev.azure.com/acme/",
+    };
+    const BASE_REPOS = [
+      {
+        repository_id: "repo-1",
+        repository_name: "web-app",
+        project_name: "Frontend",
+        organization_name: "acme",
+      },
+    ];
+
+    function makeRollupWithPrs(
+      prs: ReadonlyArray<{
+        id: number;
+        title: string;
+        author_id: string;
+        repository_id: string;
+        cycle_time: number;
+      }>,
+      overrides: Partial<Rollup> = {},
+    ): Rollup {
+      return makeRollup({
+        pr_count: prs.length,
+        prs,
+        _prs_truncated: false,
+        _prs_cap: 500,
+        ...overrides,
+      });
+    }
+
+    it("unfiltered week with PRs renders PrListSection contentState='pr-list' with row title, cycle time, and URL", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 101,
+            title: "feat: oauth",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 125.0,
+          },
+          {
+            id: 102,
+            title: "fix: null guard",
+            author_id: "bob",
+            repository_id: "repo-1",
+            cycle_time: 45.0,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      const bar = firstBar(container);
+      // T026 affordance check — bar MUST remain keyboard-/screen-reader-
+      // activatable even after the new PR section is appended.
+      expect(bar.getAttribute("tabindex")).not.toBeNull();
+      expect(bar.getAttribute("role")).not.toBeNull();
+      expect(bar.getAttribute("aria-label")).not.toBeNull();
+
+      click(bar);
+
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe("pr-list");
+      expect(prSection!.querySelector("h3")!.textContent).toBe("Pull requests");
+
+      const rowLinks = prSection!.querySelectorAll<HTMLAnchorElement>(
+        "ol li .detail-panel-pr-link",
+      );
+      expect(rowLinks.length).toBe(2);
+      expect(rowLinks[0]!.getAttribute("href")).toBe(
+        "https://dev.azure.com/acme/Frontend/_git/web-app/pullrequest/101",
+      );
+      expect(rowLinks[0]!.textContent).toContain("#101");
+      expect(rowLinks[0]!.textContent).toContain("feat: oauth");
+      expect(rowLinks[0]!.getAttribute("target")).toBe("_blank");
+      expect(rowLinks[0]!.getAttribute("rel")).toContain("noopener");
+
+      const cycleTexts = Array.from(
+        prSection!.querySelectorAll("ol li .cycle-time"),
+      ).map((el) => el.textContent);
+      // 125 min = 2.1h ; 45 min = 45m (formatDuration output shape).
+      expect(cycleTexts[0]).toBe("2.1h");
+      expect(cycleTexts[1]).toBe("45m");
+
+      // No truncation indicator when rendered === actualFiltered.
+      expect(prSection!.querySelector(".truncation-indicator")).toBeNull();
+    });
+
+    it("truncated week (rendered < actualFiltered) shows truncation indicator with both counts", () => {
+      // Aggregator-side the prs array is already capped at 500; we simulate
+      // that by providing 2 rendered rows against a chart pr_count of 47
+      // with _prs_truncated=true.
+      const rollups = [
+        makeRollupWithPrs(
+          [
+            {
+              id: 201,
+              title: "big refactor",
+              author_id: "carol",
+              repository_id: "repo-1",
+              cycle_time: 1200.0,
+            },
+            {
+              id: 202,
+              title: "tiny tweak",
+              author_id: "dave",
+              repository_id: "repo-1",
+              cycle_time: 800.0,
+            },
+          ],
+          { pr_count: 47, _prs_truncated: true, _prs_cap: 500 },
+        ),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      const indicator = prSection!.querySelector(".truncation-indicator");
+      expect(indicator).not.toBeNull();
+      const indicatorText = indicator!.textContent ?? "";
+      // FR-008: both counts surfaced.
+      expect(indicatorText).toContain("2");
+      expect(indicatorText).toContain("47");
+      expect(indicatorText).toContain("500");
+    });
+
+    it("supported filter with no PRs in rollup renders contentState='supported-empty' (never omits the section)", () => {
+      // Feature 060 FR-020: the section is never omitted — even on an old
+      // rollup that predates `prs`, the section renders a supported-empty
+      // placeholder so users see a consistent surface.
+      const rollups = [makeRollup()]; // no prs field
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe(
+        "supported-empty",
+      );
+      // No rows rendered in supported-empty.
+      expect(prSection!.querySelector("ol")).toBeNull();
+    });
+
+    // T034 (feature 060 Phase 5)
+    it("team filter active → PrListSection contentState='team-inline', inline message names team filter", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 301,
+            title: "blocked by team gate",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 600,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: {
+          repos: [],
+          teams: ["platform-core"],
+          reviewers: [],
+          authors: [],
+        },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      // Panel opens (Phase 1 behavior preserved under team filter).
+      expect(isDetailPanelOpen()).toBe(true);
+
+      // Phase 1 aggregate sections render unchanged.
+      expect(
+        document.querySelectorAll(".detail-panel-section--breakdown-table")
+          .length,
+      ).toBeGreaterThanOrEqual(1);
+
+      // PR-detail container flips to team-inline content state.
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe("team-inline");
+      const gated = prSection!.querySelector(".pr-detail-gated");
+      expect(gated).not.toBeNull();
+      expect(gated!.textContent ?? "").toMatch(/team/i);
+      // Inline message is a status announcement, not an alert.
+      expect(gated!.getAttribute("aria-live")).toBe("polite");
+      // No PR rows rendered under team filter.
+      expect(prSection!.querySelector("ol")).toBeNull();
+    });
+
+    // T035 (feature 060 Phase 5)
+    it("reviewer filter active → PrListSection contentState='reviewer-inline', inline message names reviewer filter", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 401,
+            title: "not rendered",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 300,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["reviewer-007"],
+          authors: [],
+        },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      expect(isDetailPanelOpen()).toBe(true);
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe(
+        "reviewer-inline",
+      );
+      const gated = prSection!.querySelector(".pr-detail-gated");
+      expect(gated).not.toBeNull();
+      expect(gated!.textContent ?? "").toMatch(/reviewer/i);
+      expect(gated!.getAttribute("aria-live")).toBe("polite");
+      expect(prSection!.querySelector("ol")).toBeNull();
+    });
+
+    // T036 (feature 060 Phase 5)
+    it("comparison-mode active → panel stays closed, PR-detail container is not constructed (Phase 1 toast-denial preserved)", () => {
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 501,
+            title: "should not appear",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 900,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      publishComparisonToggled({ enabled: true });
+      click(firstBar(container));
+
+      // FR-007a: panel DOES NOT open, comparison advisory toast fires.
+      expect(isDetailPanelOpen()).toBe(false);
+      expect(
+        document.querySelector(".comparison-advisory-toast"),
+      ).not.toBeNull();
+      // PR-detail container must not be constructed when activate() early-
+      // returns — no leaked <section id="pr-detail"> anywhere in the DOM.
+      expect(document.getElementById("pr-detail")).toBeNull();
+    });
+
+    // T056 (feature 060 Phase 8, SC-008 / FR-016)
+    it("keyboard activation (Enter / Space) produces the same PR-detail outcomes as mouse click across every gated state", () => {
+      // Single test covers the four-state matrix from FR-016 / SC-008. Each
+      // sub-case reinstalls the drill-down so options + filter state are
+      // distinct across sub-cases — matches the production re-install-
+      // per-refresh pattern.
+      type Sub = {
+        readonly label: string;
+        readonly key: "Enter" | " ";
+        readonly options: Parameters<typeof installThroughputDrilldown>[2];
+        readonly rollup: () => Rollup;
+        readonly comparisonActive?: boolean;
+        readonly expectPanelOpen: boolean;
+        readonly expectContentState?:
+          | "pr-list"
+          | "supported-empty"
+          | "team-inline"
+          | "reviewer-inline";
+      };
+
+      const subs: readonly Sub[] = [
+        {
+          label: "supported + Enter",
+          key: "Enter",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9001,
+                title: "kbd-open",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 60,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "pr-list",
+        },
+        {
+          label: "team-inline + Space",
+          key: " ",
+          options: {
+            filters: {
+              repos: [],
+              teams: ["platform"],
+              reviewers: [],
+              authors: [],
+            },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9002,
+                title: "kbd-team",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 120,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "team-inline",
+        },
+        {
+          label: "reviewer-inline + Enter",
+          key: "Enter",
+          options: {
+            filters: {
+              repos: [],
+              teams: [],
+              reviewers: ["bob"],
+              authors: [],
+            },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9003,
+                title: "kbd-reviewer",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 180,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "reviewer-inline",
+        },
+        {
+          label: "comparison + Space",
+          key: " ",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9004,
+                title: "kbd-cmp",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 240,
+              },
+            ]),
+          comparisonActive: true,
+          expectPanelOpen: false,
+        },
+        {
+          label: "supported-empty + Enter",
+          key: "Enter",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () => makeRollupWithPrs([], { pr_count: 0 }),
+          expectPanelOpen: true,
+          expectContentState: "supported-empty",
+        },
+      ];
+
+      for (const sub of subs) {
+        // Reset per sub-case.
+        if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+        publishComparisonToggled({ enabled: false });
+        __resetComparisonAdvisoryForTests();
+        document.body.innerHTML = "";
+
+        const rollups = [sub.rollup()];
+        const container = mountChart(rollups);
+        const handle = installThroughputDrilldown(
+          container,
+          rollups,
+          sub.options,
+        );
+        if (sub.comparisonActive) {
+          publishComparisonToggled({ enabled: true });
+        }
+
+        const bar = firstBar(container);
+        const event = new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: sub.key,
+        });
+        bar.dispatchEvent(event);
+
+        expect(isDetailPanelOpen()).toBe(sub.expectPanelOpen);
+        if (sub.expectPanelOpen && sub.expectContentState) {
+          const prSection = document.getElementById("pr-detail");
+          expect(prSection).not.toBeNull();
+          expect(prSection!.getAttribute("data-content-state")).toBe(
+            sub.expectContentState,
+          );
+        } else {
+          expect(document.getElementById("pr-detail")).toBeNull();
+        }
+
+        handle.dispose();
+      }
+    });
+
+    // T043 (feature 060 Phase 6)
+    it("supported filter yielding zero matches → contentState='supported-empty' with copy DISTINCT from team/reviewer messages", () => {
+      // Simulate the post-applyFiltersToRollups state: an author filter has
+      // matched zero PRs upstream, so rollup.prs arrives empty. The PR-
+      // detail section MUST flip to supported-empty — distinct from team/
+      // reviewer inline copy — so the user reads "zero matches" rather
+      // than "dimension unsupported."
+      const rollups = [makeRollupWithPrs([], { pr_count: 0 })];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: ["ghost"] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      expect(isDetailPanelOpen()).toBe(true);
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe(
+        "supported-empty",
+      );
+      const emptyMsg = prSection!.querySelector(".detail-panel-empty-detail");
+      expect(emptyMsg).not.toBeNull();
+      const emptyText = emptyMsg!.textContent ?? "";
+      // FR-009 / FR-018: copy is distinct from unsupported-filter wording.
+      expect(emptyText).toMatch(/match/i);
+      expect(emptyText).not.toMatch(/clear the team/i);
+      expect(emptyText).not.toMatch(/clear the reviewer/i);
+    });
+  });
 });

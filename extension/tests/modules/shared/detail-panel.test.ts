@@ -18,8 +18,10 @@ import {
   makeBreakdownTable,
   makeStatRow,
   makeEmptyState,
+  makePrListSection,
   type DrillDownContext,
   type PanelContent,
+  type PrListSection,
 } from "../../../ui/modules/shared/detail-panel";
 import {
   publishComparisonToggled,
@@ -766,5 +768,102 @@ describe("detail-panel — top offset (#303)", () => {
     instance.callback([], instance as unknown as ResizeObserver);
 
     expect(root.style.getPropertyValue("--detail-panel-top")).toBe("");
+  });
+
+  // -------------------------------------------------------------------------
+  // Feature 060: PrListSection stable-container identity (FR-020, T021)
+  // -------------------------------------------------------------------------
+  describe("PrListSection stable container (FR-020)", () => {
+    function snapshotShell(section: Element): {
+      tag: string;
+      id: string | null;
+      classList: string[];
+      role: string | null;
+      ariaLabelledby: string | null;
+      headingId: string | null;
+      headingText: string | null;
+    } {
+      const heading = section.querySelector("h3");
+      return {
+        tag: section.tagName,
+        id: section.getAttribute("id"),
+        classList: Array.from(section.classList).sort(),
+        role: section.getAttribute("role"),
+        ariaLabelledby: section.getAttribute("aria-labelledby"),
+        headingId: heading?.getAttribute("id") ?? null,
+        headingText: heading?.textContent ?? null,
+      };
+    }
+
+    function openWithPrListSection(prList: PrListSection): HTMLElement {
+      const trigger = makeTriggerButton();
+      const content = makePanelContent("Week of Mar 18 – 24, 2025", "47 PRs", [
+        prList,
+      ]);
+      const context: DrillDownContext = {
+        sourceChart: "throughput",
+        focusedData: { kind: "throughput", weekIso: "2025-W12" },
+        triggerElement: trigger,
+        content,
+      };
+      openDetailPanel(context);
+      const section = document.getElementById("pr-detail");
+      if (!section) throw new Error("pr-detail section missing after open");
+      return section;
+    }
+
+    it("renders the always-same <section id='pr-detail'> shell across every content state", () => {
+      const prListState = makePrListSection({
+        contentState: "pr-list",
+        rows: [
+          {
+            id: 1,
+            title: "test",
+            cycleTimeMinutes: 30,
+            url: "https://dev.azure.com/acme/Frontend/_git/web/pullrequest/1",
+          },
+        ],
+        renderedCount: 1,
+        actualFilteredCount: 1,
+        capValue: 500,
+      });
+      const shellPrList = snapshotShell(openWithPrListSection(prListState));
+      dismissDetailPanel("explicit-close-button");
+
+      const supportedEmptyState = makePrListSection({
+        contentState: "supported-empty",
+      });
+      const shellEmpty = snapshotShell(
+        openWithPrListSection(supportedEmptyState),
+      );
+      dismissDetailPanel("explicit-close-button");
+
+      const teamInlineState = makePrListSection({
+        contentState: "team-inline",
+      });
+      const shellTeam = snapshotShell(openWithPrListSection(teamInlineState));
+      dismissDetailPanel("explicit-close-button");
+
+      const reviewerInlineState = makePrListSection({
+        contentState: "reviewer-inline",
+      });
+      const shellReviewer = snapshotShell(
+        openWithPrListSection(reviewerInlineState),
+      );
+      dismissDetailPanel("explicit-close-button");
+
+      // The shell (tag/id/class/role/aria-labelledby/heading) MUST be
+      // byte-identical across every content state. Only the content below
+      // the heading varies.
+      expect(shellPrList.tag).toBe("SECTION");
+      expect(shellPrList.id).toBe("pr-detail");
+      expect(shellPrList.role).toBe("region");
+      expect(shellPrList.ariaLabelledby).toBe("pr-detail-heading");
+      expect(shellPrList.headingId).toBe("pr-detail-heading");
+      expect(shellPrList.headingText).toBe("Pull requests");
+      expect(shellEmpty).toEqual(shellPrList);
+      expect(shellTeam).toEqual(shellPrList);
+      expect(shellReviewer).toEqual(shellPrList);
+    });
   });
 });

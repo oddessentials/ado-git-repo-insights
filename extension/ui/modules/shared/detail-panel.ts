@@ -25,6 +25,7 @@
  */
 
 import { createElement, appendText, clearElement } from "./render";
+import { formatDuration } from "./format";
 import { trapFocus, restoreFocus } from "./focus-trap";
 import {
   COMPARISON_TOGGLED_EVENT,
@@ -67,10 +68,54 @@ export interface EmptyStateSection {
   readonly detail: string;
 }
 
+/**
+ * Pre-derived PR row shown inside the PrListSection "pr-list" content state.
+ * Feature 060 contract — the URL is pre-composed at build time (by
+ * `resolvePrUrl`) so the renderer has no I/O or resolution work.
+ */
+export interface PrListRow {
+  readonly id: number;
+  readonly title: string;
+  readonly cycleTimeMinutes: number;
+  readonly url: string;
+}
+
+/**
+ * Feature 060: stable PR-detail container on the throughput drill-down panel.
+ *
+ * The single section MUST render across four content states without being
+ * omitted or replaced by sibling sections (FR-020). The rendered `<section>`
+ * shell (tag, id, class, ARIA identity) is byte-identical across states; only
+ * the inner content below the stable heading varies.
+ *
+ * The type is a discriminated union on `contentState`: the `"pr-list"` variant
+ * carries the PR rows + count + cap fields; the message variants
+ * (`"supported-empty"` / `"team-inline"` / `"reviewer-inline"`) carry only the
+ * discriminant. This keeps TypeScript from seeing the payload fields as
+ * optional on the render path, which previously drove over-defensive `??`
+ * fallbacks that the partial-branch ratchet flagged as unreachable.
+ */
+export interface PrListSectionWithRows {
+  readonly type: "pr-list";
+  readonly contentState: "pr-list";
+  readonly rows: readonly PrListRow[];
+  readonly renderedCount: number;
+  readonly actualFilteredCount: number;
+  readonly capValue: number;
+}
+
+export interface PrListSectionMessage {
+  readonly type: "pr-list";
+  readonly contentState: "supported-empty" | "team-inline" | "reviewer-inline";
+}
+
+export type PrListSection = PrListSectionWithRows | PrListSectionMessage;
+
 export type PanelSection =
   | BreakdownTableSection
   | StatRowSection
-  | EmptyStateSection;
+  | EmptyStateSection
+  | PrListSection;
 
 export interface PanelContent {
   readonly title: string;
@@ -145,6 +190,40 @@ export function makeEmptyState(
   detail: string,
 ): EmptyStateSection {
   return { type: "empty-state", title, detail };
+}
+
+/**
+ * Construct a PrListSection (feature 060). The input is a discriminated
+ * union on `contentState`, so the payload shape is validated at compile
+ * time — the runtime throws from the previous API are not needed.
+ */
+export type PrListSectionInput =
+  | {
+      readonly contentState: "pr-list";
+      readonly rows: readonly PrListRow[];
+      readonly renderedCount: number;
+      readonly actualFilteredCount: number;
+      readonly capValue: number;
+    }
+  | {
+      readonly contentState:
+        | "supported-empty"
+        | "team-inline"
+        | "reviewer-inline";
+    };
+
+export function makePrListSection(input: PrListSectionInput): PrListSection {
+  if (input.contentState === "pr-list") {
+    return {
+      type: "pr-list",
+      contentState: "pr-list",
+      rows: input.rows,
+      renderedCount: input.renderedCount,
+      actualFilteredCount: input.actualFilteredCount,
+      capValue: input.capValue,
+    };
+  }
+  return { type: "pr-list", contentState: input.contentState };
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +344,8 @@ function renderSection(section: PanelSection): HTMLElement {
       return renderStatRow(section);
     case "empty-state":
       return renderEmptyState(section);
+    case "pr-list":
+      return renderPrListSection(section);
   }
 }
 
@@ -328,6 +409,117 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
   wrapper.appendChild(
     createElement("p", { class: "detail-panel-empty-detail" }, section.detail),
   );
+  return wrapper;
+}
+
+/**
+ * Feature 060: render the stable PR-detail container (FR-020).
+ *
+ * Invariants asserted by the section-identity tests and enforced here:
+ *
+ *   1. Always returns a `<section id="pr-detail">` with the stable class and
+ *      ARIA identity — never a different tag, id, or role.
+ *   2. Heading text (`Pull requests`) is constant across every content state.
+ *   3. The section is never omitted. The sealed union prevents omission at
+ *      build time; this function guarantees runtime parity.
+ *   4. The `data-content-state` attribute mirrors `section.contentState` so
+ *      tests can observe the rendered state without coupling to copy.
+ *
+ * Content below the heading varies by `contentState`:
+ *
+ *   - `pr-list`: truncation indicator (when `renderedCount < actualFilteredCount`)
+ *     plus an `<ol>` of PR rows — each a clickable `<a>` to ADO (target=_blank,
+ *     rel=noopener noreferrer) and a formatted cycle time.
+ *   - `supported-empty`: empty-state message ("No PRs match the active filter
+ *     in this week.").
+ *   - `team-inline` / `reviewer-inline`: a single gated message (aria-live=polite)
+ *     naming the filter the user must clear.
+ */
+function renderPrListSection(section: PrListSection): HTMLElement {
+  const wrapper = createElement("section", {
+    id: "pr-detail",
+    class: "detail-panel-section detail-panel-section--pr-detail",
+    role: "region",
+    "aria-labelledby": "pr-detail-heading",
+    "data-content-state": section.contentState,
+  });
+  wrapper.appendChild(
+    createElement("h3", { id: "pr-detail-heading" }, "Pull requests"),
+  );
+
+  switch (section.contentState) {
+    case "pr-list": {
+      // Discriminated union: rows + counts + capValue are type-guaranteed
+      // non-null when contentState === "pr-list" — no ?? fallbacks needed.
+      const { rows, renderedCount, actualFilteredCount, capValue } = section;
+
+      if (renderedCount < actualFilteredCount) {
+        const indicator = createElement("div", {
+          class: "truncation-indicator truncation-badge",
+        });
+        appendText(
+          indicator,
+          `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`,
+        );
+        wrapper.appendChild(indicator);
+      }
+
+      const list = createElement("ol", { class: "detail-panel-pr-list" });
+      for (const row of rows) {
+        const li = createElement("li", { class: "detail-panel-pr-row" });
+        const link = createElement("a", {
+          href: row.url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "detail-panel-pr-link",
+        });
+        appendText(link, `#${row.id} — ${row.title}`);
+        li.appendChild(link);
+        const cycle = createElement("span", { class: "cycle-time" });
+        appendText(cycle, formatDuration(row.cycleTimeMinutes));
+        li.appendChild(cycle);
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
+      break;
+    }
+    case "supported-empty": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          { class: "detail-panel-empty-detail" },
+          "No PRs match the active filter in this week.",
+        ),
+      );
+      break;
+    }
+    case "team-inline": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          {
+            class: "pr-detail-gated",
+            "aria-live": "polite",
+          },
+          "Clear the team filter to view PR-level detail.",
+        ),
+      );
+      break;
+    }
+    case "reviewer-inline": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          {
+            class: "pr-detail-gated",
+            "aria-live": "polite",
+          },
+          "Clear the reviewer filter to view PR-level detail.",
+        ),
+      );
+      break;
+    }
+  }
   return wrapper;
 }
 

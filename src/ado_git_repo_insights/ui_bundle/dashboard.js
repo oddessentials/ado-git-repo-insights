@@ -1304,8 +1304,20 @@ var PRInsightsDashboard = (() => {
     "by_author_and_repo",
     "by_team",
     "by_reviewer",
-    "by_team_and_repo"
+    "by_team_and_repo",
+    // Feature 060 PR-level detail fields (optional on tenant rollups,
+    // absent from demo-surface rollups).
+    "prs",
+    "_prs_truncated",
+    "_prs_cap"
   ]);
+  var PR_RECORD_REQUIRED_FIELDS = [
+    "id",
+    "title",
+    "author_id",
+    "repository_id",
+    "cycle_time"
+  ];
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
     "cycle_time_p50",
@@ -1480,6 +1492,81 @@ var PRInsightsDashboard = (() => {
     }
     return { errors, warnings };
   }
+  function validatePrRecordArray(data, path) {
+    const warnings = [];
+    if (!isArray(data)) {
+      warnings.push(
+        createWarning(
+          path,
+          `'prs' present but not an array (got ${getTypeName(data)}); ignored`
+        )
+      );
+      return { warnings };
+    }
+    for (const [i2, pr] of data.entries()) {
+      const prPath = buildPath(path, i2);
+      if (!isObject(pr)) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `'prs[${i2}]' is not an object (got ${getTypeName(pr)}); element ignored`
+          )
+        );
+        continue;
+      }
+      for (const field of PR_RECORD_REQUIRED_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(pr, field)) {
+          warnings.push(
+            createWarning(
+              buildPath(prPath, field),
+              `missing required PR field '${field}'; element will be treated as absent`
+            )
+          );
+        }
+      }
+      if (pr.id !== void 0 && !isNumber(pr.id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "id"),
+            `expected number, got ${getTypeName(pr.id)}`
+          )
+        );
+      }
+      if (pr.title !== void 0 && !isString(pr.title)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "title"),
+            `expected string, got ${getTypeName(pr.title)}`
+          )
+        );
+      }
+      if (pr.author_id !== void 0 && !isString(pr.author_id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "author_id"),
+            `expected string, got ${getTypeName(pr.author_id)}`
+          )
+        );
+      }
+      if (pr.repository_id !== void 0 && !isString(pr.repository_id)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "repository_id"),
+            `expected string, got ${getTypeName(pr.repository_id)}`
+          )
+        );
+      }
+      if (pr.cycle_time !== void 0 && !isNumber(pr.cycle_time)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "cycle_time"),
+            `expected number, got ${getTypeName(pr.cycle_time)}`
+          )
+        );
+      }
+    }
+    return { warnings };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1572,6 +1659,60 @@ var PRInsightsDashboard = (() => {
       );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    const prsValue = data.prs;
+    const truncatedValue = data._prs_truncated;
+    const capValue = data._prs_cap;
+    const hasPrs = prsValue !== void 0;
+    const hasTruncated = truncatedValue !== void 0;
+    const hasCap = capValue !== void 0;
+    if (hasPrs) {
+      const prsResult = validatePrRecordArray(prsValue, "prs");
+      warnings.push(...prsResult.warnings);
+      if (!hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'prs' present but '_prs_truncated' absent; treated as false"
+          )
+        );
+      } else if (!isBoolean(truncatedValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            `expected boolean, got ${getTypeName(truncatedValue)}`
+          )
+        );
+      }
+      if (!hasCap) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            "'prs' present but '_prs_cap' absent; truncation-indicator math will be skipped"
+          )
+        );
+      } else if (!isNumber(capValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            `expected number, got ${getTypeName(capValue)}`
+          )
+        );
+      }
+    } else {
+      if (hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'_prs_truncated' present without 'prs'; ignored"
+          )
+        );
+      }
+      if (hasCap) {
+        warnings.push(
+          createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored")
+        );
+      }
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);
@@ -3746,6 +3887,30 @@ var PRInsightsDashboard = (() => {
     }
   }
 
+  // ../ui/modules/shared/format.ts
+  function formatDuration(minutes) {
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    }
+    const hours = minutes / 60;
+    if (hours < 24) {
+      return `${hours.toFixed(1)}h`;
+    }
+    const days = hours / 24;
+    return `${days.toFixed(1)}d`;
+  }
+  function formatWeekLabel(week) {
+    const match = week.match(/(\d{4})-W(\d{2})/);
+    if (!match) return week;
+    return `W${match[2]}`;
+  }
+  function median(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a2, b2) => a2 - b2);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
+  }
+
   // ../ui/modules/shared/focus-trap.ts
   var FOCUSABLE_SELECTOR = '[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
   var trapStates = /* @__PURE__ */ new WeakMap();
@@ -3850,6 +4015,19 @@ var PRInsightsDashboard = (() => {
   function makeEmptyState(title, detail) {
     return { type: "empty-state", title, detail };
   }
+  function makePrListSection(input) {
+    if (input.contentState === "pr-list") {
+      return {
+        type: "pr-list",
+        contentState: "pr-list",
+        rows: input.rows,
+        renderedCount: input.renderedCount,
+        actualFilteredCount: input.actualFilteredCount,
+        capValue: input.capValue
+      };
+    }
+    return { type: "pr-list", contentState: input.contentState };
+  }
   var panelEls = null;
   var panelState = "closed";
   var activeContext = null;
@@ -3929,6 +4107,8 @@ var PRInsightsDashboard = (() => {
         return renderStatRow(section);
       case "empty-state":
         return renderEmptyState(section);
+      case "pr-list":
+        return renderPrListSection(section);
     }
   }
   function renderBreakdownTable(section) {
@@ -3986,6 +4166,88 @@ var PRInsightsDashboard = (() => {
     wrapper.appendChild(
       createElement("p", { class: "detail-panel-empty-detail" }, section.detail)
     );
+    return wrapper;
+  }
+  function renderPrListSection(section) {
+    const wrapper = createElement("section", {
+      id: "pr-detail",
+      class: "detail-panel-section detail-panel-section--pr-detail",
+      role: "region",
+      "aria-labelledby": "pr-detail-heading",
+      "data-content-state": section.contentState
+    });
+    wrapper.appendChild(
+      createElement("h3", { id: "pr-detail-heading" }, "Pull requests")
+    );
+    switch (section.contentState) {
+      case "pr-list": {
+        const { rows, renderedCount, actualFilteredCount, capValue } = section;
+        if (renderedCount < actualFilteredCount) {
+          const indicator = createElement("div", {
+            class: "truncation-indicator truncation-badge"
+          });
+          appendText(
+            indicator,
+            `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`
+          );
+          wrapper.appendChild(indicator);
+        }
+        const list = createElement("ol", { class: "detail-panel-pr-list" });
+        for (const row of rows) {
+          const li = createElement("li", { class: "detail-panel-pr-row" });
+          const link = createElement("a", {
+            href: row.url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            class: "detail-panel-pr-link"
+          });
+          appendText(link, `#${row.id} \u2014 ${row.title}`);
+          li.appendChild(link);
+          const cycle = createElement("span", { class: "cycle-time" });
+          appendText(cycle, formatDuration(row.cycleTimeMinutes));
+          li.appendChild(cycle);
+          list.appendChild(li);
+        }
+        wrapper.appendChild(list);
+        break;
+      }
+      case "supported-empty": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            { class: "detail-panel-empty-detail" },
+            "No PRs match the active filter in this week."
+          )
+        );
+        break;
+      }
+      case "team-inline": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            {
+              class: "pr-detail-gated",
+              "aria-live": "polite"
+            },
+            "Clear the team filter to view PR-level detail."
+          )
+        );
+        break;
+      }
+      case "reviewer-inline": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            {
+              class: "pr-detail-gated",
+              "aria-live": "polite"
+            },
+            "Clear the reviewer filter to view PR-level detail."
+          )
+        );
+        break;
+      }
+    }
     return wrapper;
   }
   var TOP_OFFSET_MOBILE_MEDIA_QUERY = "(max-width: 768px)";
@@ -4134,30 +4396,6 @@ var PRInsightsDashboard = (() => {
     }
     activeContext = null;
     panelState = "closed";
-  }
-
-  // ../ui/modules/shared/format.ts
-  function formatDuration(minutes) {
-    if (minutes < 60) {
-      return `${Math.round(minutes)}m`;
-    }
-    const hours = minutes / 60;
-    if (hours < 24) {
-      return `${hours.toFixed(1)}h`;
-    }
-    const days = hours / 24;
-    return `${days.toFixed(1)}d`;
-  }
-  function formatWeekLabel(week) {
-    const match = week.match(/(\d{4})-W(\d{2})/);
-    if (!match) return week;
-    return `W${match[2]}`;
-  }
-  function median(arr) {
-    if (!Array.isArray(arr) || arr.length === 0) return 0;
-    const sorted = [...arr].sort((a2, b2) => a2 - b2);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
   }
 
   // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
@@ -4828,300 +5066,327 @@ var PRInsightsDashboard = (() => {
       return rollups;
     }
     return rollups.map((rollup) => {
-      const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
-      const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
-      const authorBreakdown = authorFilters.length > 0 && rollup.by_author && typeof rollup.by_author === "object" ? rollup.by_author : null;
-      const reviewerBreakdown = reviewerFilters.length > 0 && rollup.by_reviewer && typeof rollup.by_reviewer === "object" ? rollup.by_reviewer : null;
-      if (reviewerFilters.length > 0 && !reviewerBreakdown) {
-        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-      }
-      if (authorFilters.length > 0 && !authorBreakdown) {
-        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-      }
-      let repoSlice = null;
-      if (repoBreakdown) {
-        const entries = resolveBreakdownEntries(repoBreakdown, filters.repos);
-        if (entries.length === 0) {
+      const filteredRollup = (() => {
+        const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
+        const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
+        const authorBreakdown = authorFilters.length > 0 && rollup.by_author && typeof rollup.by_author === "object" ? rollup.by_author : null;
+        const reviewerBreakdown = reviewerFilters.length > 0 && rollup.by_reviewer && typeof rollup.by_reviewer === "object" ? rollup.by_reviewer : null;
+        if (reviewerFilters.length > 0 && !reviewerBreakdown) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        repoSlice = aggregateEntries(entries);
-      }
-      let teamSlice = null;
-      if (teamBreakdown) {
-        const entries = resolveBreakdownEntries(teamBreakdown, filters.teams);
-        if (entries.length === 0) {
+        if (authorFilters.length > 0 && !authorBreakdown) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        teamSlice = aggregateEntries(entries);
-      }
-      let authorSlice = null;
-      if (authorBreakdown) {
-        const entries = resolveBreakdownEntries(authorBreakdown, authorFilters);
-        if (entries.length === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        let repoSlice = null;
+        if (repoBreakdown) {
+          const entries = resolveBreakdownEntries(repoBreakdown, filters.repos);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          repoSlice = aggregateEntries(entries);
         }
-        authorSlice = aggregateEntries(entries);
-      }
-      let reviewerSlice = null;
-      if (reviewerBreakdown) {
-        const entries = resolveReviewerEntries(
-          reviewerBreakdown,
-          reviewerFilters
-        );
-        if (entries.length === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        let teamSlice = null;
+        if (teamBreakdown) {
+          const entries = resolveBreakdownEntries(teamBreakdown, filters.teams);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          teamSlice = aggregateEntries(entries);
         }
-        reviewerSlice = aggregateReviewerEntries(entries);
-      }
-      if (reviewerSlice) {
-        if (repoSlice || teamSlice) {
-          console.warn(
-            "Combined reviewer filtering with repository/team filters is not supported; using reviewer-only filtering"
+        let authorSlice = null;
+        if (authorBreakdown) {
+          const entries = resolveBreakdownEntries(authorBreakdown, authorFilters);
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          authorSlice = aggregateEntries(entries);
+        }
+        let reviewerSlice = null;
+        if (reviewerBreakdown) {
+          const entries = resolveReviewerEntries(
+            reviewerBreakdown,
+            reviewerFilters
           );
+          if (entries.length === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          reviewerSlice = aggregateReviewerEntries(entries);
         }
-        return buildFilteredRollup(rollup, {
-          pr_count: reviewerSlice.reviewed_prs,
-          cycle_time_p50: null,
-          cycle_time_p90: null,
-          review_time_p50: null,
-          review_time_p90: null,
-          authors_count: reviewerSlice.authors_count,
-          // Reuse reviewers_count for review-activity UI surfaces.
-          reviewers_count: reviewerSlice.reviews_count
-        });
-      }
-      if (authorSlice && repoSlice && rollup.by_author_and_repo) {
-        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
-        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
-        let cdFound = 0;
-        for (const authorId of authorFilters) {
-          const authorRepos = getOwnPropertyValue(
-            rollup.by_author_and_repo,
-            authorId
-          );
-          if (!authorRepos) continue;
-          for (const repo of filters.repos) {
-            const e2 = getOwnPropertyValue(authorRepos, repo);
-            if (!e2) continue;
-            cdFound++;
-            const pr = toFiniteNumber(e2.pr_count);
-            cdPr += pr;
-            cdAuthors += toFiniteNumber(e2.authors_count);
-            cdReviewers += toFiniteNumber(e2.reviewers_count);
-            const p50 = e2.cycle_time_p50;
-            if (typeof p50 === "number" && Number.isFinite(p50)) {
-              cdP50WSum += p50 * pr;
-              cdP50WPr += pr;
-            }
-            const p90 = e2.cycle_time_p90;
-            if (typeof p90 === "number" && Number.isFinite(p90)) {
-              cdP90WSum += p90 * pr;
-              cdP90WPr += pr;
-            }
-            const rtP50 = e2.review_time_p50;
-            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
-              cdRtP50WSum += rtP50 * pr;
-              cdRtP50WPr += pr;
-            }
-            const rtP90 = e2.review_time_p90;
-            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
-              cdRtP90WSum += rtP90 * pr;
-              cdRtP90WPr += pr;
+        if (reviewerSlice) {
+          if (repoSlice || teamSlice) {
+            console.warn(
+              "Combined reviewer filtering with repository/team filters is not supported; using reviewer-only filtering"
+            );
+          }
+          return buildFilteredRollup(rollup, {
+            pr_count: reviewerSlice.reviewed_prs,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            review_time_p50: null,
+            review_time_p90: null,
+            authors_count: reviewerSlice.authors_count,
+            // Reuse reviewers_count for review-activity UI surfaces.
+            reviewers_count: reviewerSlice.reviews_count
+          });
+        }
+        if (authorSlice && repoSlice && rollup.by_author_and_repo) {
+          let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+          let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+          let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
+          let cdFound = 0;
+          for (const authorId of authorFilters) {
+            const authorRepos = getOwnPropertyValue(
+              rollup.by_author_and_repo,
+              authorId
+            );
+            if (!authorRepos) continue;
+            for (const repo of filters.repos) {
+              const e2 = getOwnPropertyValue(authorRepos, repo);
+              if (!e2) continue;
+              cdFound++;
+              const pr = toFiniteNumber(e2.pr_count);
+              cdPr += pr;
+              cdAuthors += toFiniteNumber(e2.authors_count);
+              cdReviewers += toFiniteNumber(e2.reviewers_count);
+              const p50 = e2.cycle_time_p50;
+              if (typeof p50 === "number" && Number.isFinite(p50)) {
+                cdP50WSum += p50 * pr;
+                cdP50WPr += pr;
+              }
+              const p90 = e2.cycle_time_p90;
+              if (typeof p90 === "number" && Number.isFinite(p90)) {
+                cdP90WSum += p90 * pr;
+                cdP90WPr += pr;
+              }
+              const rtP50 = e2.review_time_p50;
+              if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+                cdRtP50WSum += rtP50 * pr;
+                cdRtP50WPr += pr;
+              }
+              const rtP90 = e2.review_time_p90;
+              if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+                cdRtP90WSum += rtP90 * pr;
+                cdRtP90WPr += pr;
+              }
             }
           }
-        }
-        if (cdFound > 0) {
-          const isTruncated = rollup.by_author_and_repo["_truncated"] === true;
-          const expectedCount = authorFilters.length * filters.repos.length;
-          if (isTruncated && cdFound < expectedCount) {
-            console.warn(
-              `Author x repo data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
-            );
-          } else {
-            if (teamSlice) {
+          if (cdFound > 0) {
+            const isTruncated = rollup.by_author_and_repo["_truncated"] === true;
+            const expectedCount = authorFilters.length * filters.repos.length;
+            if (isTruncated && cdFound < expectedCount) {
               console.warn(
-                "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+                `Author x repo data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
               );
+            } else {
+              if (teamSlice) {
+                console.warn(
+                  "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+                );
+              }
+              return buildFilteredRollup(rollup, {
+                pr_count: cdPr,
+                cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+                cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+                review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+                review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+                authors_count: cdAuthors,
+                reviewers_count: cdReviewers
+              });
             }
-            return buildFilteredRollup(rollup, {
-              pr_count: cdPr,
-              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
-              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
-              authors_count: cdAuthors,
-              reviewers_count: cdReviewers
-            });
-          }
-        } else if (rollup.by_author_and_repo["_truncated"] !== true) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-        }
-      }
-      if (authorSlice && repoSlice) {
-        const total = rollup.pr_count || 1;
-        const authorShare = Math.min(1, authorSlice.pr_count / total);
-        const repoShare = Math.min(1, repoSlice.pr_count / total);
-        const combinedRatio = authorShare * repoShare;
-        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
-        if (combinedPrCount === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
-        }
-        const combinedAuthors = Math.round(
-          (rollup.authors_count || 0) * combinedRatio
-        );
-        const combinedReviewers = Math.round(
-          (rollup.reviewers_count || 0) * combinedRatio
-        );
-        const p50s = [
-          authorSlice.cycle_time_p50,
-          repoSlice.cycle_time_p50
-        ].filter((v2) => v2 !== null);
-        const p90s = [
-          authorSlice.cycle_time_p90,
-          repoSlice.cycle_time_p90
-        ].filter((v2) => v2 !== null);
-        const rtP50s = [
-          authorSlice.review_time_p50,
-          repoSlice.review_time_p50
-        ].filter((v2) => v2 !== null);
-        const rtP90s = [
-          authorSlice.review_time_p90,
-          repoSlice.review_time_p90
-        ].filter((v2) => v2 !== null);
-        if (teamSlice) {
-          console.warn(
-            "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
-          );
-        }
-        return {
-          ...rollup,
-          pr_count: combinedPrCount,
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
-          authors_count: combinedAuthors,
-          reviewers_count: combinedReviewers
-        };
-      }
-      if (authorSlice) {
-        if (teamSlice) {
-          console.warn(
-            "Combined author and team filtering is constrained; using author-only metrics while retaining team UI state"
-          );
-        }
-        return buildFilteredRollup(rollup, authorSlice);
-      }
-      if (repoSlice && teamSlice && rollup.by_team_and_repo) {
-        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
-        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
-        let cdFound = 0;
-        for (const team of filters.teams) {
-          const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
-          if (!teamRepos) continue;
-          for (const repo of filters.repos) {
-            const e2 = getOwnPropertyValue(teamRepos, repo);
-            if (!e2) continue;
-            cdFound++;
-            const pr = toFiniteNumber(e2.pr_count);
-            cdPr += pr;
-            cdAuthors += toFiniteNumber(e2.authors_count);
-            cdReviewers += toFiniteNumber(e2.reviewers_count);
-            const p50 = e2.cycle_time_p50;
-            if (typeof p50 === "number" && Number.isFinite(p50)) {
-              cdP50WSum += p50 * pr;
-              cdP50WPr += pr;
-            }
-            const p90 = e2.cycle_time_p90;
-            if (typeof p90 === "number" && Number.isFinite(p90)) {
-              cdP90WSum += p90 * pr;
-              cdP90WPr += pr;
-            }
-            const rtP50 = e2.review_time_p50;
-            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
-              cdRtP50WSum += rtP50 * pr;
-              cdRtP50WPr += pr;
-            }
-            const rtP90 = e2.review_time_p90;
-            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
-              cdRtP90WSum += rtP90 * pr;
-              cdRtP90WPr += pr;
-            }
+          } else if (rollup.by_author_and_repo["_truncated"] !== true) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
           }
         }
-        if (cdFound > 0) {
-          const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
-          const expectedCount = filters.teams.length * filters.repos.length;
-          if (isTruncated && cdFound < expectedCount) {
+        if (authorSlice && repoSlice) {
+          const total = rollup.pr_count || 1;
+          const authorShare = Math.min(1, authorSlice.pr_count / total);
+          const repoShare = Math.min(1, repoSlice.pr_count / total);
+          const combinedRatio = authorShare * repoShare;
+          const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+          if (combinedPrCount === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          const combinedAuthors = Math.round(
+            (rollup.authors_count || 0) * combinedRatio
+          );
+          const combinedReviewers = Math.round(
+            (rollup.reviewers_count || 0) * combinedRatio
+          );
+          const p50s = [
+            authorSlice.cycle_time_p50,
+            repoSlice.cycle_time_p50
+          ].filter((v2) => v2 !== null);
+          const p90s = [
+            authorSlice.cycle_time_p90,
+            repoSlice.cycle_time_p90
+          ].filter((v2) => v2 !== null);
+          const rtP50s = [
+            authorSlice.review_time_p50,
+            repoSlice.review_time_p50
+          ].filter((v2) => v2 !== null);
+          const rtP90s = [
+            authorSlice.review_time_p90,
+            repoSlice.review_time_p90
+          ].filter((v2) => v2 !== null);
+          if (teamSlice) {
             console.warn(
-              `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+              "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
             );
-          } else {
-            return buildFilteredRollup(rollup, {
-              pr_count: cdPr,
-              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
-              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
-              authors_count: cdAuthors,
-              reviewers_count: cdReviewers
-            });
           }
-        } else if (rollup.by_team_and_repo["_truncated"] !== true) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          return {
+            ...rollup,
+            pr_count: combinedPrCount,
+            cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+            review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+            review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
+            authors_count: combinedAuthors,
+            reviewers_count: combinedReviewers
+          };
         }
-      }
-      if (repoSlice && teamSlice) {
-        const total = rollup.pr_count || 1;
-        const repoShare = Math.min(1, repoSlice.pr_count / total);
-        const teamShare = Math.min(1, teamSlice.pr_count / total);
-        const combinedRatio = repoShare * teamShare;
-        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
-        if (combinedPrCount === 0) {
-          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        if (authorSlice) {
+          if (teamSlice) {
+            console.warn(
+              "Combined author and team filtering is constrained; using author-only metrics while retaining team UI state"
+            );
+          }
+          return buildFilteredRollup(rollup, authorSlice);
         }
-        const combinedAuthors = Math.round(
-          (rollup.authors_count || 0) * combinedRatio
-        );
-        const combinedReviewers = Math.round(
-          (rollup.reviewers_count || 0) * combinedRatio
-        );
-        const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
-          (v2) => v2 !== null
-        );
-        const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
-          (v2) => v2 !== null
-        );
-        const rtP50s = [
-          repoSlice.review_time_p50,
-          teamSlice.review_time_p50
-        ].filter((v2) => v2 !== null);
-        const rtP90s = [
-          repoSlice.review_time_p90,
-          teamSlice.review_time_p90
-        ].filter((v2) => v2 !== null);
-        return {
-          ...rollup,
-          pr_count: combinedPrCount,
-          // Always override to prevent global values leaking through the
-          // ...rollup spread when proportional estimates are null/0.
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
-          authors_count: combinedAuthors,
-          reviewers_count: combinedReviewers
-        };
+        if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+          let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+          let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+          let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
+          let cdFound = 0;
+          for (const team of filters.teams) {
+            const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
+            if (!teamRepos) continue;
+            for (const repo of filters.repos) {
+              const e2 = getOwnPropertyValue(teamRepos, repo);
+              if (!e2) continue;
+              cdFound++;
+              const pr = toFiniteNumber(e2.pr_count);
+              cdPr += pr;
+              cdAuthors += toFiniteNumber(e2.authors_count);
+              cdReviewers += toFiniteNumber(e2.reviewers_count);
+              const p50 = e2.cycle_time_p50;
+              if (typeof p50 === "number" && Number.isFinite(p50)) {
+                cdP50WSum += p50 * pr;
+                cdP50WPr += pr;
+              }
+              const p90 = e2.cycle_time_p90;
+              if (typeof p90 === "number" && Number.isFinite(p90)) {
+                cdP90WSum += p90 * pr;
+                cdP90WPr += pr;
+              }
+              const rtP50 = e2.review_time_p50;
+              if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+                cdRtP50WSum += rtP50 * pr;
+                cdRtP50WPr += pr;
+              }
+              const rtP90 = e2.review_time_p90;
+              if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+                cdRtP90WSum += rtP90 * pr;
+                cdRtP90WPr += pr;
+              }
+            }
+          }
+          if (cdFound > 0) {
+            const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
+            const expectedCount = filters.teams.length * filters.repos.length;
+            if (isTruncated && cdFound < expectedCount) {
+              console.warn(
+                `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+              );
+            } else {
+              return buildFilteredRollup(rollup, {
+                pr_count: cdPr,
+                cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+                cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+                review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+                review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+                authors_count: cdAuthors,
+                reviewers_count: cdReviewers
+              });
+            }
+          } else if (rollup.by_team_and_repo["_truncated"] !== true) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+        }
+        if (repoSlice && teamSlice) {
+          const total = rollup.pr_count || 1;
+          const repoShare = Math.min(1, repoSlice.pr_count / total);
+          const teamShare = Math.min(1, teamSlice.pr_count / total);
+          const combinedRatio = repoShare * teamShare;
+          const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+          if (combinedPrCount === 0) {
+            return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+          }
+          const combinedAuthors = Math.round(
+            (rollup.authors_count || 0) * combinedRatio
+          );
+          const combinedReviewers = Math.round(
+            (rollup.reviewers_count || 0) * combinedRatio
+          );
+          const p50s = [
+            repoSlice.cycle_time_p50,
+            teamSlice.cycle_time_p50
+          ].filter((v2) => v2 !== null);
+          const p90s = [
+            repoSlice.cycle_time_p90,
+            teamSlice.cycle_time_p90
+          ].filter((v2) => v2 !== null);
+          const rtP50s = [
+            repoSlice.review_time_p50,
+            teamSlice.review_time_p50
+          ].filter((v2) => v2 !== null);
+          const rtP90s = [
+            repoSlice.review_time_p90,
+            teamSlice.review_time_p90
+          ].filter((v2) => v2 !== null);
+          return {
+            ...rollup,
+            pr_count: combinedPrCount,
+            // Always override to prevent global values leaking through the
+            // ...rollup spread when proportional estimates are null/0.
+            cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+            review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+            review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
+            authors_count: combinedAuthors,
+            reviewers_count: combinedReviewers
+          };
+        }
+        if (repoSlice && !teamSlice) {
+          return buildFilteredRollup(rollup, repoSlice);
+        }
+        if (teamSlice && !repoSlice) {
+          return buildFilteredRollup(rollup, teamSlice);
+        }
+        return rollup;
+      })();
+      if (!Array.isArray(rollup.prs)) return filteredRollup;
+      const rawPrs = rollup.prs;
+      const filteredPrs = [];
+      for (const candidate of rawPrs) {
+        if (typeof candidate !== "object" || candidate === null) continue;
+        const pr = candidate;
+        const authorId = pr.author_id;
+        const repoId = pr.repository_id;
+        if (typeof authorId !== "string" || typeof repoId !== "string") continue;
+        if (authorFilters.length > 0 && !authorFilters.includes(authorId)) {
+          continue;
+        }
+        if (filters.repos.length > 0 && !filters.repos.includes(repoId)) {
+          continue;
+        }
+        filteredPrs.push(candidate);
       }
-      if (repoSlice && !teamSlice) {
-        return buildFilteredRollup(rollup, repoSlice);
-      }
-      if (teamSlice && !repoSlice) {
-        return buildFilteredRollup(rollup, teamSlice);
-      }
-      return rollup;
+      return {
+        ...filteredRollup,
+        prs: filteredPrs,
+        _prs_truncated: rollup._prs_truncated,
+        _prs_cap: rollup._prs_cap
+      };
     });
   }
   function extractSparklineData(rollups) {
@@ -7415,6 +7680,9 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/filters.ts
+  function createEmptyFilterState() {
+    return { repos: [], teams: [], reviewers: [], authors: [] };
+  }
   function parseCommaSeparated(raw) {
     if (!raw) return [];
     return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
@@ -8152,6 +8420,33 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/shared/pr-url.ts
+  function ensureTrailingSlash(uri) {
+    return uri.endsWith("/") ? uri : `${uri}/`;
+  }
+  function resolvePrUrl(pr, repositories, webContext) {
+    const base = ensureTrailingSlash(webContext.collectionUri);
+    const repo = repositories?.find((r2) => r2.repository_id === pr.repository_id);
+    if (repo && repo.repository_name.length > 0 && repo.project_name.length > 0) {
+      return `${base}${encodeURIComponent(repo.project_name)}/_git/${encodeURIComponent(repo.repository_name)}/pullrequest/${pr.id}`;
+    }
+    return `${base}_git/${encodeURIComponent(pr.repository_id)}/pullrequest/${pr.id}`;
+  }
+
+  // ../ui/modules/drilldown/filter-support.ts
+  function classifyFilterState(filters, comparisonActive2) {
+    if (comparisonActive2) {
+      return { classification: "comparison" };
+    }
+    if (filters.teams.length > 0) {
+      return { classification: "team" };
+    }
+    if (filters.reviewers.length > 0) {
+      return { classification: "reviewer" };
+    }
+    return { classification: "supported" };
+  }
+
   // ../ui/modules/drilldown/throughput-drilldown.ts
   var ACTIVE_CLASS = "is-drilldown-active";
   function breakdownSection(title, columns, entries, emptyDetail) {
@@ -8164,7 +8459,38 @@ var PRInsightsDashboard = (() => {
     }));
     return makeBreakdownTable(title, columns, rows);
   }
-  function buildPanelContent(rollup) {
+  function buildPrListSection(rollup, options) {
+    const filters = options.filters ?? createEmptyFilterState();
+    const { classification } = classifyFilterState(filters, false);
+    switch (classification) {
+      case "team":
+        return makePrListSection({ contentState: "team-inline" });
+      case "reviewer":
+        return makePrListSection({ contentState: "reviewer-inline" });
+      case "supported": {
+        const rawPrs = rollup.prs ?? [];
+        const webContext = options.webContext;
+        const capValue = rollup._prs_cap;
+        if (rawPrs.length === 0 || !webContext || capValue === void 0) {
+          return makePrListSection({ contentState: "supported-empty" });
+        }
+        const rows = rawPrs.map((pr) => ({
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
+        }));
+        return makePrListSection({
+          contentState: "pr-list",
+          rows,
+          renderedCount: rows.length,
+          actualFilteredCount: rollup.pr_count,
+          capValue
+        });
+      }
+    }
+  }
+  function buildPanelContent(rollup, options) {
     const count = rollup.pr_count;
     const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
     const byAuthor = breakdownSection(
@@ -8179,12 +8505,14 @@ var PRInsightsDashboard = (() => {
       rollup.by_repository,
       "No repository-level activity for this week."
     );
+    const prList = buildPrListSection(rollup, options);
     return makePanelContent(formatWeekTitle(rollup), subtitle, [
       byAuthor,
-      byRepository
+      byRepository,
+      prList
     ]);
   }
-  function installThroughputDrilldown(container, rollups) {
+  function installThroughputDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const observers = /* @__PURE__ */ new Set();
@@ -8228,7 +8556,7 @@ var PRInsightsDashboard = (() => {
         sourceChart: "throughput",
         focusedData: { kind: "throughput", weekIso },
         triggerElement: trigger,
-        content: buildPanelContent(rollup)
+        content: buildPanelContent(rollup, options)
       };
       openDetailPanel(context);
       clearActive();
@@ -8666,6 +8994,7 @@ var PRInsightsDashboard = (() => {
     end: null
   };
   var currentDimensions = null;
+  var currentCollectionUri = null;
   var currentFilters = {
     repos: [],
     teams: [],
@@ -8862,6 +9191,7 @@ var PRInsightsDashboard = (() => {
       sourceConfig.projectId ? " (from settings)" : " (current context)"
     );
     const collectionUri = await getCollectionUri();
+    currentCollectionUri = collectionUri;
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize(collectionUri, getAccessToken);
     if (queryResult.mode === "explicit") {
@@ -9237,7 +9567,21 @@ var PRInsightsDashboard = (() => {
       const throughputContainer = document.getElementById("throughput-chart");
       if (throughputContainer) {
         activeDrilldownHandles.push(
-          installThroughputDrilldown(throughputContainer, rollups)
+          installThroughputDrilldown(throughputContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0
+          })
         );
       }
       const cycleTimeContainer = document.getElementById("cycle-time-trend");

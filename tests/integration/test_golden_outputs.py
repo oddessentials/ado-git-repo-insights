@@ -18,6 +18,7 @@ import pytest
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.models import CSV_SCHEMAS
 from ado_git_repo_insights.persistence.repository import PRRepository
+from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
 
 
@@ -175,6 +176,143 @@ class TestGoldenOutputs:
             hash1 = hash_file(output1 / f"{table_name}.csv")
             hash2 = hash_file(output2 / f"{table_name}.csv")
             assert hash1 == hash2, f"{table_name}.csv differs between runs"
+
+    def test_golden_weekly_rollups_deterministic_with_pr_records(
+        self, golden_db: tuple[DatabaseManager, Path, Path]
+    ) -> None:
+        """Feature 060: weekly rollup JSON is byte-identical across runs and
+        includes the PR-level detail fields (`prs`, `_prs_truncated`,
+        `_prs_cap`). Producer-side determinism guard for FR-012 / SC-005.
+        """
+        db, _, tmp_path = golden_db
+
+        output1 = tmp_path / "rollup_run1"
+        output2 = tmp_path / "rollup_run2"
+
+        AggregateGenerator(db, output1, run_id="golden-det-1").generate_all()
+        AggregateGenerator(db, output2, run_id="golden-det-1").generate_all()
+
+        rollup_dir1 = output1 / "aggregates" / "weekly_rollups"
+        rollup_dir2 = output2 / "aggregates" / "weekly_rollups"
+        rollup_files1 = sorted(rollup_dir1.glob("*.json"))
+        rollup_files2 = sorted(rollup_dir2.glob("*.json"))
+
+        assert rollup_files1, "no rollup files produced"
+        assert [p.name for p in rollup_files1] == [p.name for p in rollup_files2]
+
+        saw_pr_detail = False
+        for f1, f2 in zip(rollup_files1, rollup_files2, strict=True):
+            h1 = hash_file(f1)
+            h2 = hash_file(f2)
+            assert h1 == h2, f"{f1.name} differs between rollup runs"
+
+            import json as _json
+
+            payload = _json.loads(f1.read_text(encoding="utf-8"))
+            if "prs" in payload:
+                saw_pr_detail = True
+                assert isinstance(payload["prs"], list)
+                assert payload["_prs_cap"] == 500
+                assert isinstance(payload["_prs_truncated"], bool)
+
+        assert saw_pr_detail, (
+            "Golden fixture must produce at least one rollup with PR-level "
+            "detail — otherwise the determinism guard has no coverage of the "
+            "feature 060 fields."
+        )
+
+    def test_cycle_time_tied_prs_sort_stably_across_runs(
+        self, golden_db: tuple[DatabaseManager, Path, Path]
+    ) -> None:
+        """Feature 060 FR-025 / SC-014: tie-break determinism under cycle-time
+        ties. When two PRs in the same week share cycle_time_minutes, the
+        secondary sort key ``pull_request_id asc`` MUST produce byte-identical
+        rollup output across repeated aggregator runs against the same DB.
+
+        Uses the golden fixture plus two additional same-week PRs with
+        identical cycle_time so the tie-break path is exercised in practice,
+        not just in unit tests.
+        """
+        import json
+
+        db, _, tmp_path = golden_db
+        repo = PRRepository(db)
+
+        # Two PRs in ISO week 2024-W03 with IDENTICAL cycle_time_minutes
+        # but different pull_request_id — forces the id-asc tiebreak.
+        repo.upsert_pull_request(
+            pull_request_uid="repo-001-500",
+            pull_request_id=500,
+            organization_name="Acme Corp",
+            project_name="Frontend",
+            repository_id="repo-001",
+            user_id="user-alice",
+            title="Tie-break PR B",
+            status="completed",
+            description=None,
+            creation_date="2024-01-15T10:00:00Z",
+            closed_date="2024-01-15T14:00:00Z",
+            cycle_time_minutes=240.0,
+        )
+        repo.upsert_pull_request(
+            pull_request_uid="repo-001-400",
+            pull_request_id=400,
+            organization_name="Acme Corp",
+            project_name="Frontend",
+            repository_id="repo-001",
+            user_id="user-alice",
+            title="Tie-break PR A",
+            status="completed",
+            description=None,
+            creation_date="2024-01-15T09:00:00Z",
+            closed_date="2024-01-15T13:00:00Z",
+            cycle_time_minutes=240.0,
+        )
+
+        output1 = tmp_path / "tied_run1"
+        output2 = tmp_path / "tied_run2"
+        AggregateGenerator(db, output1, run_id="tied-det-1").generate_all()
+        AggregateGenerator(db, output2, run_id="tied-det-1").generate_all()
+
+        rollup_files1 = sorted(
+            (output1 / "aggregates" / "weekly_rollups").glob("*.json"),
+        )
+        rollup_files2 = sorted(
+            (output2 / "aggregates" / "weekly_rollups").glob("*.json"),
+        )
+        assert [p.name for p in rollup_files1] == [p.name for p in rollup_files2]
+
+        saw_tied_week = False
+        for f1, f2 in zip(rollup_files1, rollup_files2, strict=True):
+            assert hash_file(f1) == hash_file(f2), (
+                f"Tie-break determinism violation: {f1.name} differs "
+                "between runs. Sort comparator must be stable under ties."
+            )
+            payload = json.loads(f1.read_text(encoding="utf-8"))
+            prs = payload.get("prs")
+            if not isinstance(prs, list):
+                continue
+            # Under the fixture the two tied PRs (id 400, 500) share week
+            # 2024-W03; their order inside `prs` MUST be id-asc (400 then 500).
+            tied_ids = [
+                row["id"]
+                for row in prs
+                if isinstance(row, dict)
+                and row.get("cycle_time") == 240.0
+                and row.get("id") in {400, 500}
+            ]
+            if tied_ids:
+                assert tied_ids == [400, 500], (
+                    "Tie-break order violation: expected id-asc (400, 500), "
+                    f"got {tied_ids}. Sort key '(-cycle_time, id)' must be "
+                    "honored in practice."
+                )
+                saw_tied_week = True
+
+        assert saw_tied_week, (
+            "Test setup bug: tied-cycle-time fixture did not surface in "
+            "the rollup PR arrays; adjust the fixture dates/week assignment."
+        )
 
     def test_golden_pull_requests_sorted_correctly(
         self, golden_db: tuple[DatabaseManager, Path, Path]

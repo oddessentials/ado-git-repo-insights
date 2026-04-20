@@ -1,0 +1,139 @@
+"""Strip PR-level detail fields from weekly-rollup JSON before public publish.
+
+Feature 060 (FR-023) public-surface strip gate. This helper is flow-neutral:
+given a directory, it either leaves every rollup JSON free of the three
+tenant-sensitive PR-level fields — ``prs``, ``_prs_truncated``, ``_prs_cap``
+— or it raises :class:`PrArrayResidueError`. Flow safety comes from WHERE
+the helper is invoked (as the first step inside ``promote_data`` in
+``scripts/build-demo-dataset.py``), NOT from anything this helper does.
+
+Contract: ``specs/060-throughput-pr-drilldown/contracts/demo-strip-gate.md``.
+
+Cross-OS (QG-39): ``pathlib`` only, no shell tools. UTF-8 explicit.
+Typing (QG-40): full annotations, no ``typing.Any``.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Final
+
+logger = logging.getLogger(__name__)
+
+PR_LEVEL_FIELDS: Final[tuple[str, str, str]] = ("prs", "_prs_truncated", "_prs_cap")
+"""Top-level rollup keys covered by the FR-023 privacy posture."""
+
+ROLLUPS_GLOB: Final[str] = "weekly_rollups/*.json"
+"""Glob relative to ``rollup_dir``; matches every weekly rollup artifact."""
+
+
+class PrArrayResidueError(RuntimeError):
+    """Raised if any rollup retains a PR-level field after strip-and-re-verify."""
+
+
+@dataclass(frozen=True)
+class StripReport:
+    """Informational summary of a strip pass. Callers MUST NOT branch on this.
+
+    The raise-on-residue behavior in :func:`strip_pr_arrays_from_rollups` is
+    the authoritative gate; this report is telemetry for the build log only.
+    """
+
+    files_scanned: int = 0
+    files_modified: int = 0
+    fields_removed: dict[str, int] = field(
+        default_factory=lambda: dict.fromkeys(PR_LEVEL_FIELDS, 0)
+    )
+
+
+def _load_rollup(path: Path) -> dict[str, object]:
+    """Read a weekly-rollup JSON file. Assumes the artifact is a JSON object."""
+    with path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    if not isinstance(payload, dict):
+        raise PrArrayResidueError(
+            f"Rollup JSON is not an object: {path}. Strip gate expects the "
+            "producer to emit a top-level object per the rollup schema."
+        )
+    return payload
+
+
+def _write_rollup(path: Path, payload: dict[str, object]) -> None:
+    """Rewrite the rollup JSON with the stripped payload.
+
+    Matches the aggregator's byte-shape convention (``json.dump(..., indent=2,
+    ensure_ascii=False)``) so demo artifacts remain byte-stable across strip
+    and non-strip paths.
+    """
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, ensure_ascii=False, sort_keys=False)
+        fh.write("\n")
+
+
+def _strip_one(path: Path, fields_removed: dict[str, int]) -> bool:
+    """Remove PR-level fields from a single rollup. Returns True if modified."""
+    payload = _load_rollup(path)
+    modified = False
+    for key in PR_LEVEL_FIELDS:
+        if key in payload:
+            payload.pop(key, None)
+            fields_removed[key] += 1
+            modified = True
+    if modified:
+        _write_rollup(path, payload)
+    return modified
+
+
+def _verify_clean(path: Path) -> list[str]:
+    """Return the PR-level field names that are still present in ``path``."""
+    payload = _load_rollup(path)
+    return [key for key in PR_LEVEL_FIELDS if key in payload]
+
+
+def strip_pr_arrays_from_rollups(rollup_dir: Path) -> StripReport:
+    """Strip PR-level fields from every weekly rollup under ``rollup_dir``.
+
+    The gate is strip-AND-re-verify: after the mutation pass, every file is
+    re-scanned and the helper raises :class:`PrArrayResidueError` if any
+    residue remains. A missing ``rollup_dir`` raises ``FileNotFoundError``.
+    """
+    if not rollup_dir.exists():
+        raise FileNotFoundError(
+            f"Rollup directory does not exist: {rollup_dir}. Strip gate was "
+            "invoked before the producer wrote any rollups."
+        )
+    if not rollup_dir.is_dir():
+        raise FileNotFoundError(f"Rollup path is not a directory: {rollup_dir}.")
+
+    fields_removed: dict[str, int] = dict.fromkeys(PR_LEVEL_FIELDS, 0)
+    files = sorted(rollup_dir.glob(ROLLUPS_GLOB))
+    files_modified = 0
+    for path in files:
+        if _strip_one(path, fields_removed):
+            files_modified += 1
+
+    residue_report: list[str] = []
+    for path in files:
+        remaining = _verify_clean(path)
+        if remaining:
+            residue_report.append(f"{path}: {', '.join(remaining)}")
+    if residue_report:
+        raise PrArrayResidueError(
+            "FR-023 violation: PR-level fields still present after strip pass. "
+            "Offending files:\n  " + "\n  ".join(residue_report)
+        )
+
+    logger.info(
+        "strip_pr_arrays_from_rollups: scanned=%d modified=%d fields=%r",
+        len(files),
+        files_modified,
+        fields_removed,
+    )
+    return StripReport(
+        files_scanned=len(files),
+        files_modified=files_modified,
+        fields_removed=dict(fields_removed),
+    )

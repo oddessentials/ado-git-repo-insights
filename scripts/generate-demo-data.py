@@ -102,7 +102,17 @@ REPO_WEIGHT_EXPONENT = 1.35
 CYCLE_TIME_MU = 6.0  # log-minutes
 CYCLE_TIME_SIGMA = 1.5
 
-DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
+# Feature 060 FR-023 bypass closure: the default output root is a scratch
+# directory, NOT `docs/data/`. The orchestrated flow in
+# `scripts/build-demo-dataset.py` passes `ARTIFACT_DATA_DIR` explicitly and
+# is unaffected by this default change. Developer-standalone invocations
+# now write to `.tmp/generate-demo-data-output/` so direct writes to
+# `docs/data/` cannot bypass the strip gate inside `promote_data`.
+DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / ".tmp" / "generate-demo-data-output"
+# The managed public surface path. Kept here as a resolvable literal so the
+# early-exit guard below can reject `--output-root docs/data` without
+# importing the full build-demo-dataset module.
+_DOCS_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 DEMO_PROFILE_NAME = "enterprise-demo"
 DEMO_PROFILE_VERSION = "2.0.0"
 GENERATOR_SCRIPT = "scripts/generate-demo-data.py"
@@ -1651,6 +1661,18 @@ def main(argv: list[str] | None = None) -> int:
     """Generate all demo data files."""
     args = parse_args(argv)
     output_dir = args.output_root.resolve()
+    # FR-023 bypass closure: reject direct writes to `docs/data/`. The
+    # public demo surface is managed exclusively by
+    # `scripts/build-demo-dataset.py`, whose `promote_data` helper runs
+    # the strip gate. Standalone invocations here MUST target a scratch
+    # directory so they cannot sidestep the gate.
+    if output_dir == _DOCS_DATA_DIR.resolve():
+        raise SystemExit(
+            "docs/data/ is managed by scripts/build-demo-dataset.py; use "
+            "that script to publish. generate-demo-data.py writes its "
+            "artifacts to a scratch directory for developer inspection; "
+            "pass --output-root <other-path> to direct output elsewhere."
+        )
     require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, output_dir)
     print("Generating demo data with seed=42...")
     print(f"Output directory: {output_dir}")

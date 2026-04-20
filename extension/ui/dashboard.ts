@@ -110,6 +110,12 @@ let currentDateRange: { start: Date | null; end: Date | null } = {
   end: null,
 };
 let currentDimensions: DimensionsData | null = null;
+// Feature 060: cache the collection URI at dashboard init so per-refresh
+// drilldown installs (which are synchronous) can pass a PrUrlWebContext
+// to throughput drill-down without re-awaiting the SDK each cycle. The
+// underlying `getCollectionUri()` is already memoized inside the SDK
+// wrapper — this mirror exists only because install is sync.
+let currentCollectionUri: string | null = null;
 let currentFilters: {
   repos: string[];
   teams: string[];
@@ -437,6 +443,7 @@ async function resolveConfiguration(): Promise<{
   // Initialize artifact client with target project and SDK credentials.
   // Pass getAccessToken as a provider — resolved per-request for token refresh.
   const collectionUri = await getCollectionUri();
+  currentCollectionUri = collectionUri;
   artifactClient = new ArtifactClient(targetProjectId);
   await artifactClient.initialize(collectionUri, getAccessToken);
 
@@ -1062,8 +1069,29 @@ async function refreshMetrics(): Promise<void> {
     // container elements exist. US2–US4 push peers onto the same array.
     const throughputContainer = document.getElementById("throughput-chart");
     if (throughputContainer) {
+      // Feature 060: pass a snapshot of filter state, repositories
+      // dimension, and the cached collectionUri so the PR-detail section
+      // can classify the filter, derive PR URLs, and render the correct
+      // content state. The install is re-run on every refresh cycle, so
+      // this snapshot always matches the currently rendered rollups.
       activeDrilldownHandles.push(
-        installThroughputDrilldown(throughputContainer, rollups),
+        installThroughputDrilldown(throughputContainer, rollups, {
+          filters: {
+            repos: [...currentFilters.repos],
+            teams: [...currentFilters.teams],
+            reviewers: [...currentFilters.reviewers],
+            authors: [...currentFilters.authors],
+          },
+          repositoriesDimension: currentDimensions?.repositories?.map((r) => ({
+            repository_id: r.repository_id,
+            repository_name: r.repository_name,
+            project_name: r.project_name ?? "",
+            organization_name: r.organization_name,
+          })),
+          webContext: currentCollectionUri
+            ? { collectionUri: currentCollectionUri }
+            : undefined,
+        }),
       );
     }
     const cycleTimeContainer = document.getElementById("cycle-time-trend");

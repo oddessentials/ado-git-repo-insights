@@ -851,4 +851,264 @@ describe("Rollup Schema Validator", () => {
       expect(result.errors.some((e) => e.field.includes("TeamA"))).toBe(true);
     });
   });
+
+  // =========================================================================
+  // Feature 060 PR-level detail: prs / _prs_truncated / _prs_cap validation.
+  // Covers the validatePrRecordArray helper + validateRollup tail branches.
+  // All warnings, no errors — permissive per FR-001 load-path clause.
+  // =========================================================================
+  describe("PR-level detail validation (feature 060)", () => {
+    const BASE = {
+      week: "2025-W20",
+      start_date: "2025-05-12",
+      end_date: "2025-05-18",
+      pr_count: 3,
+    };
+    const VALID_PR = {
+      id: 1,
+      title: "feat: landed",
+      author_id: "alice",
+      repository_id: "web-app",
+      cycle_time: 120.0,
+    };
+
+    it("accepts a complete prs array with matching markers and emits no warnings about PR fields", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [VALID_PR],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const prWarnings = result.warnings.filter(
+        (w) =>
+          w.field.startsWith("prs") ||
+          w.field === "_prs_truncated" ||
+          w.field === "_prs_cap",
+      );
+      expect(prWarnings).toEqual([]);
+    });
+
+    it("warns when prs is present but _prs_truncated is absent", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [VALID_PR],
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.field === "_prs_truncated")).toBe(
+        true,
+      );
+    });
+
+    it("warns when prs is present but _prs_cap is absent", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [VALID_PR],
+          _prs_truncated: false,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.field === "_prs_cap")).toBe(true);
+    });
+
+    it("warns when _prs_truncated has the wrong type", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [VALID_PR],
+          _prs_truncated: "not-a-boolean",
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "_prs_truncated");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("boolean");
+    });
+
+    it("warns when _prs_cap has the wrong type", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [VALID_PR],
+          _prs_truncated: false,
+          _prs_cap: "lots",
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "_prs_cap");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("number");
+    });
+
+    it("warns and ignores _prs_truncated when prs is absent (orphan marker)", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          _prs_truncated: true,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "_prs_truncated");
+      expect(w).toBeDefined();
+      expect(w!.message).toContain("ignored");
+    });
+
+    it("warns and ignores _prs_cap when prs is absent (orphan marker)", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "_prs_cap");
+      expect(w).toBeDefined();
+      expect(w!.message).toContain("ignored");
+    });
+
+    it("warns when prs is present but not an array", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: "not-an-array",
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.field === "prs")).toBe(true);
+    });
+
+    it("warns when a prs element is not an object", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: ["not-a-record"],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.field.startsWith("prs[0]"))).toBe(
+        true,
+      );
+    });
+
+    it("warns for each missing required field on a PR record", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          // Empty object — all five required fields missing. Exercises the
+          // `hasOwnProperty.call(...) ? ... : undefined` false branch for
+          // every per-field type check, which the partial-branch ratchet
+          // would otherwise flag as unreachable on the `id` check.
+          prs: [{}],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const missingFieldWarnings = result.warnings.filter((w) =>
+        w.message.includes("missing required PR field"),
+      );
+      expect(missingFieldWarnings.length).toBe(5);
+    });
+
+    it("warns when id is not a number", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [{ ...VALID_PR, id: "not-numeric" }],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "prs[0].id");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("number");
+    });
+
+    it("warns when title is not a string", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [{ ...VALID_PR, title: 42 }],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "prs[0].title");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("string");
+    });
+
+    it("warns when author_id is not a string", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [{ ...VALID_PR, author_id: 0 }],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "prs[0].author_id");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("string");
+    });
+
+    it("warns when repository_id is not a string", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [{ ...VALID_PR, repository_id: false }],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "prs[0].repository_id");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("string");
+    });
+
+    it("warns when cycle_time is not a number", () => {
+      const result = validateRollup(
+        {
+          ...BASE,
+          prs: [{ ...VALID_PR, cycle_time: "fast" }],
+          _prs_truncated: false,
+          _prs_cap: 500,
+        },
+        false,
+      );
+      expect(result.valid).toBe(true);
+      const w = result.warnings.find((x) => x.field === "prs[0].cycle_time");
+      expect(w).toBeDefined();
+      expect(w!.message.toLowerCase()).toContain("number");
+    });
+  });
 });

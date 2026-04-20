@@ -95,6 +95,44 @@ PowerBI CSV file shape, ordering, or root-level filenames.
 
 
 
+## Tenant-Sensitive Fields and Public-Surface Stripping
+
+<!-- anchor: privacy-posture-tenant-sensitive-fields -->
+
+Certain rollup fields surface PR-level or user-level identifying content and
+MUST be stripped before any artifact is published to a public surface.
+
+**Covered fields** (extend this list before adding new tenant-sensitive fields):
+
+- `prs` — per-week array of individual PR records
+- `_prs_truncated` — truncation flag associated with `prs`
+- `_prs_cap` — truncation cap associated with `prs`
+
+**Surface rules**:
+
+1. **Private tenant artifacts** (e.g., `artifacts/demo-enterprise/data/`, any
+   non-published consumer path) MAY contain the covered fields.
+2. **Public/demo artifacts** (anything promoted to `docs/data/` or published to
+   GitHub Pages) MUST NOT contain the covered fields.
+3. The rule extends to **future** tenant-sensitive fields that surface PR-level
+   or user-level identifying content. New fields of this kind MUST be added to
+   the covered-fields list above, and the strip gate MUST be updated to remove
+   them, before the producer code lands.
+
+**Enforcement location**:
+
+- The strip gate lives inside `promote_data` in
+  `scripts/build-demo-dataset.py` and executes as the first step whenever the
+  destination path is `docs/data/` (the public promotion target).
+- `scripts/generate-demo-data.py` has an early-exit guard that refuses
+  `--output-root == docs/data/` to close the alternate-producer bypass path.
+
+**Ordering invariant (FR-014)**: This section MUST be present in the worktree
+before any producer code emits the covered fields into rollup outputs. A
+mechanized gate at `tests/unit/test_privacy_posture_ordering.py` verifies the
+ordering by failing when producer code is present without the section's stable
+anchor (`<!-- anchor: privacy-posture-tenant-sensitive-fields -->`).
+
 ## Schema Versions
 
 All consumers MUST validate schema versions before rendering:

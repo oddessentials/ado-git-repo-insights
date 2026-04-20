@@ -175,6 +175,7 @@ module = [
     "run_pr_preflight",
     "run_pytest",
     "run_repo_hook",
+    "strip_pr_arrays",
     "sync_ui_bundle",
     "test_floor_contract",
     "validate_demo_generation_contract",

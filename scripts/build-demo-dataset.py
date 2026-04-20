@@ -31,6 +31,7 @@ from demo_generation_common import (
     write_json_file,
 )
 from demo_shell import render_demo_html_from_path
+from strip_pr_arrays import strip_pr_arrays_from_rollups
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_ROOT = Path(
@@ -1042,7 +1043,19 @@ def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, object]:
 
 
 def promote_data(source_dir: Path, destination_dir: Path) -> None:
-    """Replace docs/data atomically from the canonical artifact root."""
+    """Replace docs/data atomically from the canonical artifact root.
+
+    Feature 060 FR-023 strip gate: when the destination is
+    ``DOCS_DATA_DIR`` (the public demo surface), run
+    :func:`strip_pr_arrays_from_rollups` against the source ``aggregates``
+    tree FIRST. The helper raises :class:`PrArrayResidueError` if any
+    residue remains after the strip pass; in that case this function
+    propagates the error and never reaches the copy step, leaving
+    ``docs/data/`` byte-identical to its pre-call state.
+    """
+    if destination_dir.resolve() == DOCS_DATA_DIR.resolve():
+        strip_pr_arrays_from_rollups(source_dir / "aggregates")
+
     destination_dir.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
 
