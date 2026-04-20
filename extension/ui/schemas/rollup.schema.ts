@@ -436,64 +436,48 @@ function validatePrRecordArray(
         );
       }
     }
-    const idValue = Object.prototype.hasOwnProperty.call(pr, "id")
-      ? Object.getOwnPropertyDescriptor(pr, "id")?.value
-      : undefined;
-    if (idValue !== undefined && !isNumber(idValue)) {
+    // Per-field type checks. Literal-key direct access is safe here because
+    // `pr` has already been narrowed to Record<string, unknown> via isObject,
+    // and the keys are compile-time constants. Missing fields surface as
+    // `undefined` and skip the type warning cleanly (the missing-required
+    // warning fires separately in the loop above).
+    if (pr.id !== undefined && !isNumber(pr.id)) {
       warnings.push(
         createWarning(
           buildPath(prPath, "id"),
-          `expected number, got ${getTypeName(idValue)}`,
+          `expected number, got ${getTypeName(pr.id)}`,
         ),
       );
     }
-    const titleValue = Object.prototype.hasOwnProperty.call(pr, "title")
-      ? Object.getOwnPropertyDescriptor(pr, "title")?.value
-      : undefined;
-    if (titleValue !== undefined && !isString(titleValue)) {
+    if (pr.title !== undefined && !isString(pr.title)) {
       warnings.push(
         createWarning(
           buildPath(prPath, "title"),
-          `expected string, got ${getTypeName(titleValue)}`,
+          `expected string, got ${getTypeName(pr.title)}`,
         ),
       );
     }
-    const authorIdValue = Object.prototype.hasOwnProperty.call(pr, "author_id")
-      ? Object.getOwnPropertyDescriptor(pr, "author_id")?.value
-      : undefined;
-    if (authorIdValue !== undefined && !isString(authorIdValue)) {
+    if (pr.author_id !== undefined && !isString(pr.author_id)) {
       warnings.push(
         createWarning(
           buildPath(prPath, "author_id"),
-          `expected string, got ${getTypeName(authorIdValue)}`,
+          `expected string, got ${getTypeName(pr.author_id)}`,
         ),
       );
     }
-    const repoIdValue = Object.prototype.hasOwnProperty.call(
-      pr,
-      "repository_id",
-    )
-      ? Object.getOwnPropertyDescriptor(pr, "repository_id")?.value
-      : undefined;
-    if (repoIdValue !== undefined && !isString(repoIdValue)) {
+    if (pr.repository_id !== undefined && !isString(pr.repository_id)) {
       warnings.push(
         createWarning(
           buildPath(prPath, "repository_id"),
-          `expected string, got ${getTypeName(repoIdValue)}`,
+          `expected string, got ${getTypeName(pr.repository_id)}`,
         ),
       );
     }
-    const cycleTimeValue = Object.prototype.hasOwnProperty.call(
-      pr,
-      "cycle_time",
-    )
-      ? Object.getOwnPropertyDescriptor(pr, "cycle_time")?.value
-      : undefined;
-    if (cycleTimeValue !== undefined && !isNumber(cycleTimeValue)) {
+    if (pr.cycle_time !== undefined && !isNumber(pr.cycle_time)) {
       warnings.push(
         createWarning(
           buildPath(prPath, "cycle_time"),
-          `expected number, got ${getTypeName(cycleTimeValue)}`,
+          `expected number, got ${getTypeName(pr.cycle_time)}`,
         ),
       );
     }
@@ -648,18 +632,12 @@ export function validateRollup(
   // All three are optional. When `prs` is present, markers are expected; when
   // markers appear without `prs`, they are ignored. Permissive throughout —
   // warnings only, never errors. Matches pr-record.md validator contract.
-  const prsValue = Object.prototype.hasOwnProperty.call(data, "prs")
-    ? Object.getOwnPropertyDescriptor(data, "prs")?.value
-    : undefined;
-  const truncatedValue = Object.prototype.hasOwnProperty.call(
-    data,
-    "_prs_truncated",
-  )
-    ? Object.getOwnPropertyDescriptor(data, "_prs_truncated")?.value
-    : undefined;
-  const capValue = Object.prototype.hasOwnProperty.call(data, "_prs_cap")
-    ? Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value
-    : undefined;
+  // Literal-key direct access on the already-narrowed data object. Missing
+  // or explicitly-undefined keys both surface as `undefined`, matching the
+  // "absent" semantics the permissive validator needs.
+  const prsValue = data.prs;
+  const truncatedValue = data._prs_truncated;
+  const capValue = data._prs_cap;
   const hasPrs = prsValue !== undefined;
   const hasTruncated = truncatedValue !== undefined;
   const hasCap = capValue !== undefined;

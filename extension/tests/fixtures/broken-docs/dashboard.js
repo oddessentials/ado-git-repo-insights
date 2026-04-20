@@ -1524,54 +1524,43 @@ var PRInsightsDashboard = (() => {
           );
         }
       }
-      const idValue = Object.prototype.hasOwnProperty.call(pr, "id") ? Object.getOwnPropertyDescriptor(pr, "id")?.value : void 0;
-      if (idValue !== void 0 && !isNumber(idValue)) {
+      if (pr.id !== void 0 && !isNumber(pr.id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "id"),
-            `expected number, got ${getTypeName(idValue)}`
+            `expected number, got ${getTypeName(pr.id)}`
           )
         );
       }
-      const titleValue = Object.prototype.hasOwnProperty.call(pr, "title") ? Object.getOwnPropertyDescriptor(pr, "title")?.value : void 0;
-      if (titleValue !== void 0 && !isString(titleValue)) {
+      if (pr.title !== void 0 && !isString(pr.title)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "title"),
-            `expected string, got ${getTypeName(titleValue)}`
+            `expected string, got ${getTypeName(pr.title)}`
           )
         );
       }
-      const authorIdValue = Object.prototype.hasOwnProperty.call(pr, "author_id") ? Object.getOwnPropertyDescriptor(pr, "author_id")?.value : void 0;
-      if (authorIdValue !== void 0 && !isString(authorIdValue)) {
+      if (pr.author_id !== void 0 && !isString(pr.author_id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "author_id"),
-            `expected string, got ${getTypeName(authorIdValue)}`
+            `expected string, got ${getTypeName(pr.author_id)}`
           )
         );
       }
-      const repoIdValue = Object.prototype.hasOwnProperty.call(
-        pr,
-        "repository_id"
-      ) ? Object.getOwnPropertyDescriptor(pr, "repository_id")?.value : void 0;
-      if (repoIdValue !== void 0 && !isString(repoIdValue)) {
+      if (pr.repository_id !== void 0 && !isString(pr.repository_id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "repository_id"),
-            `expected string, got ${getTypeName(repoIdValue)}`
+            `expected string, got ${getTypeName(pr.repository_id)}`
           )
         );
       }
-      const cycleTimeValue = Object.prototype.hasOwnProperty.call(
-        pr,
-        "cycle_time"
-      ) ? Object.getOwnPropertyDescriptor(pr, "cycle_time")?.value : void 0;
-      if (cycleTimeValue !== void 0 && !isNumber(cycleTimeValue)) {
+      if (pr.cycle_time !== void 0 && !isNumber(pr.cycle_time)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "cycle_time"),
-            `expected number, got ${getTypeName(cycleTimeValue)}`
+            `expected number, got ${getTypeName(pr.cycle_time)}`
           )
         );
       }
@@ -1671,12 +1660,9 @@ var PRInsightsDashboard = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
-    const prsValue = Object.prototype.hasOwnProperty.call(data, "prs") ? Object.getOwnPropertyDescriptor(data, "prs")?.value : void 0;
-    const truncatedValue = Object.prototype.hasOwnProperty.call(
-      data,
-      "_prs_truncated"
-    ) ? Object.getOwnPropertyDescriptor(data, "_prs_truncated")?.value : void 0;
-    const capValue = Object.prototype.hasOwnProperty.call(data, "_prs_cap") ? Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value : void 0;
+    const prsValue = data.prs;
+    const truncatedValue = data._prs_truncated;
+    const capValue = data._prs_cap;
     const hasPrs = prsValue !== void 0;
     const hasTruncated = truncatedValue !== void 0;
     const hasCap = capValue !== void 0;
@@ -4031,24 +4017,16 @@ var PRInsightsDashboard = (() => {
   }
   function makePrListSection(input) {
     if (input.contentState === "pr-list") {
-      if (input.rows === void 0 || input.renderedCount === void 0 || input.actualFilteredCount === void 0 || input.capValue === void 0) {
-        throw new TypeError(
-          "PrListSection with contentState='pr-list' MUST include rows, renderedCount, actualFilteredCount, and capValue"
-        );
-      }
-    } else if (input.rows !== void 0 || input.renderedCount !== void 0 || input.actualFilteredCount !== void 0 || input.capValue !== void 0) {
-      throw new TypeError(
-        `PrListSection with contentState='${input.contentState}' MUST NOT include rows, renderedCount, actualFilteredCount, or capValue`
-      );
+      return {
+        type: "pr-list",
+        contentState: "pr-list",
+        rows: input.rows,
+        renderedCount: input.renderedCount,
+        actualFilteredCount: input.actualFilteredCount,
+        capValue: input.capValue
+      };
     }
-    return {
-      type: "pr-list",
-      contentState: input.contentState,
-      ...input.rows !== void 0 ? { rows: input.rows } : {},
-      ...input.renderedCount !== void 0 ? { renderedCount: input.renderedCount } : {},
-      ...input.actualFilteredCount !== void 0 ? { actualFilteredCount: input.actualFilteredCount } : {},
-      ...input.capValue !== void 0 ? { capValue: input.capValue } : {}
-    };
+    return { type: "pr-list", contentState: input.contentState };
   }
   var panelEls = null;
   var panelState = "closed";
@@ -4203,10 +4181,7 @@ var PRInsightsDashboard = (() => {
     );
     switch (section.contentState) {
       case "pr-list": {
-        const rows = section.rows ?? [];
-        const renderedCount = section.renderedCount ?? rows.length;
-        const actualFilteredCount = section.actualFilteredCount ?? renderedCount;
-        const capValue = section.capValue ?? 500;
+        const { rows, renderedCount, actualFilteredCount, capValue } = section;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
@@ -8472,39 +8447,32 @@ var PRInsightsDashboard = (() => {
     return makeBreakdownTable(title, columns, rows);
   }
   function buildPrListSection(rollup, options) {
-    const classification = classifyFilterState(
-      options.filters ?? createEmptyFilterState(),
-      false
-    );
-    switch (classification.classification) {
+    const filters = options.filters ?? createEmptyFilterState();
+    const { classification } = classifyFilterState(filters, false);
+    switch (classification) {
       case "team":
         return makePrListSection({ contentState: "team-inline" });
       case "reviewer":
         return makePrListSection({ contentState: "reviewer-inline" });
-      case "comparison":
-        return makePrListSection({ contentState: "supported-empty" });
       case "supported": {
         const rawPrs = rollup.prs ?? [];
         const webContext = options.webContext;
-        if (rawPrs.length === 0 || !webContext) {
+        const capValue = rollup._prs_cap;
+        if (rawPrs.length === 0 || !webContext || capValue === void 0) {
           return makePrListSection({ contentState: "supported-empty" });
         }
         const rows = rawPrs.map((pr) => ({
           id: pr.id,
           title: pr.title,
           cycleTimeMinutes: pr.cycle_time,
-          url: resolvePrUrl(
-            pr,
-            options.repositoriesDimension ?? null,
-            webContext
-          )
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
         }));
         return makePrListSection({
           contentState: "pr-list",
           rows,
           renderedCount: rows.length,
           actualFilteredCount: rollup.pr_count,
-          capValue: rollup._prs_cap ?? 500
+          capValue
         });
       }
     }

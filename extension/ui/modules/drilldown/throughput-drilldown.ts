@@ -100,42 +100,40 @@ function buildPrListSection(
   rollup: Rollup,
   options: ThroughputDrilldownOptions,
 ): PrListSection {
-  const classification = classifyFilterState(
-    options.filters ?? createEmptyFilterState(),
-    false,
-  );
-  switch (classification.classification) {
+  // `false` for comparisonActive uses the narrowed-return overload so the
+  // switch below covers every reachable classification (no unreachable
+  // "comparison" arm). Callers that need to handle comparison state do so
+  // upstream in activate() before this function is invoked.
+  const filters = options.filters ?? createEmptyFilterState();
+  const { classification } = classifyFilterState(filters, false);
+  switch (classification) {
     case "team":
       return makePrListSection({ contentState: "team-inline" });
     case "reviewer":
       return makePrListSection({ contentState: "reviewer-inline" });
-    case "comparison":
-      // Unreachable: activate() short-circuits comparison with a toast
-      // and early return. Defensive fallback keeps the sealed-union
-      // exhaustiveness check satisfied at build time.
-      return makePrListSection({ contentState: "supported-empty" });
     case "supported": {
       const rawPrs = rollup.prs ?? [];
       const webContext = options.webContext;
-      if (rawPrs.length === 0 || !webContext) {
+      const capValue = rollup._prs_cap;
+      // Supported-empty covers: no PRs to show, no web context for URL
+      // composition, or a rollup that violates the aggregator contract by
+      // omitting `_prs_cap`. Every other supported-state rollup renders the
+      // full PR list.
+      if (rawPrs.length === 0 || !webContext || capValue === undefined) {
         return makePrListSection({ contentState: "supported-empty" });
       }
       const rows: PrListRow[] = rawPrs.map((pr) => ({
         id: pr.id,
         title: pr.title,
         cycleTimeMinutes: pr.cycle_time,
-        url: resolvePrUrl(
-          pr,
-          options.repositoriesDimension ?? null,
-          webContext,
-        ),
+        url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
       }));
       return makePrListSection({
         contentState: "pr-list",
         rows,
         renderedCount: rows.length,
         actualFilteredCount: rollup.pr_count,
-        capValue: rollup._prs_cap ?? 500,
+        capValue,
       });
     }
   }

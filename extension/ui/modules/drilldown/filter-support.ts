@@ -25,15 +25,37 @@ export type FilterClassification =
   | { readonly classification: "supported" };
 
 /**
+ * Non-comparison subset of `FilterClassification`. Call sites that have
+ * already short-circuited comparison upstream use this narrowed type to
+ * avoid handling the unreachable "comparison" branch.
+ */
+export type NonComparisonFilterClassification = {
+  readonly classification: "team" | "reviewer" | "supported";
+};
+
+/**
  * Classify the current drill-down filter state under FR-026 precedence.
  *
  * Pure function: no side effects, no DOM reads, no module-level state.
+ *
+ * Overload: passing `false` for `comparisonActive` narrows the return type
+ * so the caller does not need to handle the unreachable "comparison"
+ * branch (which would otherwise register as a partial-branch on the
+ * coverage ratchet).
  *
  * @param filters Current filter state snapshot (repos / teams / reviewers / authors).
  * @param comparisonActive Whether comparison mode is active — callers source
  *   this from `isDrilldownDisabledByComparison()`.
  * @returns A sealed-union `FilterClassification` value.
  */
+export function classifyFilterState(
+  filters: FilterState,
+  comparisonActive: false,
+): NonComparisonFilterClassification;
+export function classifyFilterState(
+  filters: FilterState,
+  comparisonActive: boolean,
+): FilterClassification;
 export function classifyFilterState(
   filters: FilterState,
   comparisonActive: boolean,

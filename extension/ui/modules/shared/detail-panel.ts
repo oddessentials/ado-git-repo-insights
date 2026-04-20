@@ -88,29 +88,28 @@ export interface PrListRow {
  * shell (tag, id, class, ARIA identity) is byte-identical across states; only
  * the inner content below the stable heading varies.
  *
- * Payload fields are present only when `contentState === "pr-list"`:
- *
- *   - `rows` — the PR rows to render (each carries a pre-derived ADO URL);
- *   - `renderedCount` — number of PR rows actually rendered;
- *   - `actualFilteredCount` — the chart's filtered PR count for this week
- *     (used to drive the truncation indicator via FR-008);
- *   - `capValue` — aggregator-side truncation cap, mirrors `_prs_cap`.
- *
- * The non-pr-list content states (supported-empty, team-inline,
- * reviewer-inline) carry only the discriminant.
+ * The type is a discriminated union on `contentState`: the `"pr-list"` variant
+ * carries the PR rows + count + cap fields; the message variants
+ * (`"supported-empty"` / `"team-inline"` / `"reviewer-inline"`) carry only the
+ * discriminant. This keeps TypeScript from seeing the payload fields as
+ * optional on the render path, which previously drove over-defensive `??`
+ * fallbacks that the partial-branch ratchet flagged as unreachable.
  */
-export interface PrListSection {
+export interface PrListSectionWithRows {
   readonly type: "pr-list";
-  readonly contentState:
-    | "pr-list"
-    | "supported-empty"
-    | "team-inline"
-    | "reviewer-inline";
-  readonly rows?: readonly PrListRow[];
-  readonly renderedCount?: number;
-  readonly actualFilteredCount?: number;
-  readonly capValue?: number;
+  readonly contentState: "pr-list";
+  readonly rows: readonly PrListRow[];
+  readonly renderedCount: number;
+  readonly actualFilteredCount: number;
+  readonly capValue: number;
 }
+
+export interface PrListSectionMessage {
+  readonly type: "pr-list";
+  readonly contentState: "supported-empty" | "team-inline" | "reviewer-inline";
+}
+
+export type PrListSection = PrListSectionWithRows | PrListSectionMessage;
 
 export type PanelSection =
   | BreakdownTableSection
@@ -194,54 +193,37 @@ export function makeEmptyState(
 }
 
 /**
- * Construct a PrListSection (feature 060). Enforces at build time that the
- * payload shape matches the content state: the `pr-list` state requires
- * rows + counts + cap; every other state forbids them.
+ * Construct a PrListSection (feature 060). The input is a discriminated
+ * union on `contentState`, so the payload shape is validated at compile
+ * time — the runtime throws from the previous API are not needed.
  */
-export function makePrListSection(input: {
-  readonly contentState:
-    | "pr-list"
-    | "supported-empty"
-    | "team-inline"
-    | "reviewer-inline";
-  readonly rows?: readonly PrListRow[];
-  readonly renderedCount?: number;
-  readonly actualFilteredCount?: number;
-  readonly capValue?: number;
-}): PrListSection {
-  if (input.contentState === "pr-list") {
-    if (
-      input.rows === undefined ||
-      input.renderedCount === undefined ||
-      input.actualFilteredCount === undefined ||
-      input.capValue === undefined
-    ) {
-      throw new TypeError(
-        "PrListSection with contentState='pr-list' MUST include rows, renderedCount, actualFilteredCount, and capValue",
-      );
+export type PrListSectionInput =
+  | {
+      readonly contentState: "pr-list";
+      readonly rows: readonly PrListRow[];
+      readonly renderedCount: number;
+      readonly actualFilteredCount: number;
+      readonly capValue: number;
     }
-  } else if (
-    input.rows !== undefined ||
-    input.renderedCount !== undefined ||
-    input.actualFilteredCount !== undefined ||
-    input.capValue !== undefined
-  ) {
-    throw new TypeError(
-      `PrListSection with contentState='${input.contentState}' MUST NOT include rows, renderedCount, actualFilteredCount, or capValue`,
-    );
+  | {
+      readonly contentState:
+        | "supported-empty"
+        | "team-inline"
+        | "reviewer-inline";
+    };
+
+export function makePrListSection(input: PrListSectionInput): PrListSection {
+  if (input.contentState === "pr-list") {
+    return {
+      type: "pr-list",
+      contentState: "pr-list",
+      rows: input.rows,
+      renderedCount: input.renderedCount,
+      actualFilteredCount: input.actualFilteredCount,
+      capValue: input.capValue,
+    };
   }
-  return {
-    type: "pr-list",
-    contentState: input.contentState,
-    ...(input.rows !== undefined ? { rows: input.rows } : {}),
-    ...(input.renderedCount !== undefined
-      ? { renderedCount: input.renderedCount }
-      : {}),
-    ...(input.actualFilteredCount !== undefined
-      ? { actualFilteredCount: input.actualFilteredCount }
-      : {}),
-    ...(input.capValue !== undefined ? { capValue: input.capValue } : {}),
-  };
+  return { type: "pr-list", contentState: input.contentState };
 }
 
 // ---------------------------------------------------------------------------
@@ -467,12 +449,9 @@ function renderPrListSection(section: PrListSection): HTMLElement {
 
   switch (section.contentState) {
     case "pr-list": {
-      // Invariants on pr-list payload are enforced by makePrListSection —
-      // these fields are always present here. Fallbacks are defensive.
-      const rows = section.rows ?? [];
-      const renderedCount = section.renderedCount ?? rows.length;
-      const actualFilteredCount = section.actualFilteredCount ?? renderedCount;
-      const capValue = section.capValue ?? 500;
+      // Discriminated union: rows + counts + capValue are type-guaranteed
+      // non-null when contentState === "pr-list" — no ?? fallbacks needed.
+      const { rows, renderedCount, actualFilteredCount, capValue } = section;
 
       if (renderedCount < actualFilteredCount) {
         const indicator = createElement("div", {

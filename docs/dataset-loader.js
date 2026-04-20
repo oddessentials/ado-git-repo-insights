@@ -1547,54 +1547,43 @@ var PRInsightsDatasetLoader = (() => {
           );
         }
       }
-      const idValue = Object.prototype.hasOwnProperty.call(pr, "id") ? Object.getOwnPropertyDescriptor(pr, "id")?.value : void 0;
-      if (idValue !== void 0 && !isNumber(idValue)) {
+      if (pr.id !== void 0 && !isNumber(pr.id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "id"),
-            `expected number, got ${getTypeName(idValue)}`
+            `expected number, got ${getTypeName(pr.id)}`
           )
         );
       }
-      const titleValue = Object.prototype.hasOwnProperty.call(pr, "title") ? Object.getOwnPropertyDescriptor(pr, "title")?.value : void 0;
-      if (titleValue !== void 0 && !isString(titleValue)) {
+      if (pr.title !== void 0 && !isString(pr.title)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "title"),
-            `expected string, got ${getTypeName(titleValue)}`
+            `expected string, got ${getTypeName(pr.title)}`
           )
         );
       }
-      const authorIdValue = Object.prototype.hasOwnProperty.call(pr, "author_id") ? Object.getOwnPropertyDescriptor(pr, "author_id")?.value : void 0;
-      if (authorIdValue !== void 0 && !isString(authorIdValue)) {
+      if (pr.author_id !== void 0 && !isString(pr.author_id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "author_id"),
-            `expected string, got ${getTypeName(authorIdValue)}`
+            `expected string, got ${getTypeName(pr.author_id)}`
           )
         );
       }
-      const repoIdValue = Object.prototype.hasOwnProperty.call(
-        pr,
-        "repository_id"
-      ) ? Object.getOwnPropertyDescriptor(pr, "repository_id")?.value : void 0;
-      if (repoIdValue !== void 0 && !isString(repoIdValue)) {
+      if (pr.repository_id !== void 0 && !isString(pr.repository_id)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "repository_id"),
-            `expected string, got ${getTypeName(repoIdValue)}`
+            `expected string, got ${getTypeName(pr.repository_id)}`
           )
         );
       }
-      const cycleTimeValue = Object.prototype.hasOwnProperty.call(
-        pr,
-        "cycle_time"
-      ) ? Object.getOwnPropertyDescriptor(pr, "cycle_time")?.value : void 0;
-      if (cycleTimeValue !== void 0 && !isNumber(cycleTimeValue)) {
+      if (pr.cycle_time !== void 0 && !isNumber(pr.cycle_time)) {
         warnings.push(
           createWarning(
             buildPath(prPath, "cycle_time"),
-            `expected number, got ${getTypeName(cycleTimeValue)}`
+            `expected number, got ${getTypeName(pr.cycle_time)}`
           )
         );
       }
@@ -1694,12 +1683,9 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
-    const prsValue = Object.prototype.hasOwnProperty.call(data, "prs") ? Object.getOwnPropertyDescriptor(data, "prs")?.value : void 0;
-    const truncatedValue = Object.prototype.hasOwnProperty.call(
-      data,
-      "_prs_truncated"
-    ) ? Object.getOwnPropertyDescriptor(data, "_prs_truncated")?.value : void 0;
-    const capValue = Object.prototype.hasOwnProperty.call(data, "_prs_cap") ? Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value : void 0;
+    const prsValue = data.prs;
+    const truncatedValue = data._prs_truncated;
+    const capValue = data._prs_cap;
     const hasPrs = prsValue !== void 0;
     const hasTruncated = truncatedValue !== void 0;
     const hasCap = capValue !== void 0;

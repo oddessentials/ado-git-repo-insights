@@ -1014,8 +1014,11 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(
         {
           ...BASE,
-          // Missing: title, author_id, repository_id, cycle_time
-          prs: [{ id: 1 }],
+          // Empty object — all five required fields missing. Exercises the
+          // `hasOwnProperty.call(...) ? ... : undefined` false branch for
+          // every per-field type check, which the partial-branch ratchet
+          // would otherwise flag as unreachable on the `id` check.
+          prs: [{}],
           _prs_truncated: false,
           _prs_cap: 500,
         },
@@ -1025,7 +1028,7 @@ describe("Rollup Schema Validator", () => {
       const missingFieldWarnings = result.warnings.filter((w) =>
         w.message.includes("missing required PR field"),
       );
-      expect(missingFieldWarnings.length).toBe(4);
+      expect(missingFieldWarnings.length).toBe(5);
     });
 
     it("warns when id is not a number", () => {
