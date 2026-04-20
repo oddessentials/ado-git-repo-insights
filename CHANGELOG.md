@@ -1,3 +1,11 @@
+## [101.12.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.2...v101.12.3) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#309:** hermetic test_reports_path_issue_for_pip — patch sys.prefix/base_prefix ([bc4d04d](https://github.com/oddessentials/ado-git-repo-insights/commit/bc4d04d2008854ac0e24c6c7bbc7183f58d6c15b)), closes [#309](https://github.com/oddessentials/ado-git-repo-insights/issues/309)
+* **#310:** hermetic test_read_only_config_returns_error — mock write_text instead of chmod ([d67b241](https://github.com/oddessentials/ado-git-repo-insights/commit/d67b241d4e2851b5760e3743140a8cdb942150a0)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310)
+
 ## [101.12.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.1...v101.12.2) (2026-04-20)
 
 
