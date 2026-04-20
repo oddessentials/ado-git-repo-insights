@@ -3901,6 +3901,30 @@ var PRInsightsDashboard = (() => {
     }
   }
 
+  // ../ui/modules/shared/format.ts
+  function formatDuration(minutes) {
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    }
+    const hours = minutes / 60;
+    if (hours < 24) {
+      return `${hours.toFixed(1)}h`;
+    }
+    const days = hours / 24;
+    return `${days.toFixed(1)}d`;
+  }
+  function formatWeekLabel(week) {
+    const match = week.match(/(\d{4})-W(\d{2})/);
+    if (!match) return week;
+    return `W${match[2]}`;
+  }
+  function median(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a2, b2) => a2 - b2);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
+  }
+
   // ../ui/modules/shared/focus-trap.ts
   var FOCUSABLE_SELECTOR = '[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
   var trapStates = /* @__PURE__ */ new WeakMap();
@@ -4004,6 +4028,27 @@ var PRInsightsDashboard = (() => {
   }
   function makeEmptyState(title, detail) {
     return { type: "empty-state", title, detail };
+  }
+  function makePrListSection(input) {
+    if (input.contentState === "pr-list") {
+      if (input.rows === void 0 || input.renderedCount === void 0 || input.actualFilteredCount === void 0 || input.capValue === void 0) {
+        throw new TypeError(
+          "PrListSection with contentState='pr-list' MUST include rows, renderedCount, actualFilteredCount, and capValue"
+        );
+      }
+    } else if (input.rows !== void 0 || input.renderedCount !== void 0 || input.actualFilteredCount !== void 0 || input.capValue !== void 0) {
+      throw new TypeError(
+        `PrListSection with contentState='${input.contentState}' MUST NOT include rows, renderedCount, actualFilteredCount, or capValue`
+      );
+    }
+    return {
+      type: "pr-list",
+      contentState: input.contentState,
+      ...input.rows !== void 0 ? { rows: input.rows } : {},
+      ...input.renderedCount !== void 0 ? { renderedCount: input.renderedCount } : {},
+      ...input.actualFilteredCount !== void 0 ? { actualFilteredCount: input.actualFilteredCount } : {},
+      ...input.capValue !== void 0 ? { capValue: input.capValue } : {}
+    };
   }
   var panelEls = null;
   var panelState = "closed";
@@ -4156,13 +4201,78 @@ var PRInsightsDashboard = (() => {
     wrapper.appendChild(
       createElement("h3", { id: "pr-detail-heading" }, "Pull requests")
     );
-    wrapper.appendChild(
-      createElement(
-        "p",
-        { class: "detail-panel-pr-detail-placeholder" },
-        "PR-level detail content lands in T024."
-      )
-    );
+    switch (section.contentState) {
+      case "pr-list": {
+        const rows = section.rows ?? [];
+        const renderedCount = section.renderedCount ?? rows.length;
+        const actualFilteredCount = section.actualFilteredCount ?? renderedCount;
+        const capValue = section.capValue ?? 500;
+        if (renderedCount < actualFilteredCount) {
+          const indicator = createElement("div", {
+            class: "truncation-indicator truncation-badge"
+          });
+          appendText(
+            indicator,
+            `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`
+          );
+          wrapper.appendChild(indicator);
+        }
+        const list = createElement("ol", { class: "detail-panel-pr-list" });
+        for (const row of rows) {
+          const li = createElement("li", { class: "detail-panel-pr-row" });
+          const link = createElement("a", {
+            href: row.url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            class: "detail-panel-pr-link"
+          });
+          appendText(link, `#${row.id} \u2014 ${row.title}`);
+          li.appendChild(link);
+          const cycle = createElement("span", { class: "cycle-time" });
+          appendText(cycle, formatDuration(row.cycleTimeMinutes));
+          li.appendChild(cycle);
+          list.appendChild(li);
+        }
+        wrapper.appendChild(list);
+        break;
+      }
+      case "supported-empty": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            { class: "detail-panel-empty-detail" },
+            "No PRs match the active filter in this week."
+          )
+        );
+        break;
+      }
+      case "team-inline": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            {
+              class: "pr-detail-gated",
+              "aria-live": "polite"
+            },
+            "Clear the team filter to view PR-level detail."
+          )
+        );
+        break;
+      }
+      case "reviewer-inline": {
+        wrapper.appendChild(
+          createElement(
+            "p",
+            {
+              class: "pr-detail-gated",
+              "aria-live": "polite"
+            },
+            "Clear the reviewer filter to view PR-level detail."
+          )
+        );
+        break;
+      }
+    }
     return wrapper;
   }
   var TOP_OFFSET_MOBILE_MEDIA_QUERY = "(max-width: 768px)";
@@ -4311,30 +4421,6 @@ var PRInsightsDashboard = (() => {
     }
     activeContext = null;
     panelState = "closed";
-  }
-
-  // ../ui/modules/shared/format.ts
-  function formatDuration(minutes) {
-    if (minutes < 60) {
-      return `${Math.round(minutes)}m`;
-    }
-    const hours = minutes / 60;
-    if (hours < 24) {
-      return `${hours.toFixed(1)}h`;
-    }
-    const days = hours / 24;
-    return `${days.toFixed(1)}d`;
-  }
-  function formatWeekLabel(week) {
-    const match = week.match(/(\d{4})-W(\d{2})/);
-    if (!match) return week;
-    return `W${match[2]}`;
-  }
-  function median(arr) {
-    if (!Array.isArray(arr) || arr.length === 0) return 0;
-    const sorted = [...arr].sort((a2, b2) => a2 - b2);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
   }
 
   // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
@@ -7592,6 +7678,9 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/filters.ts
+  function createEmptyFilterState() {
+    return { repos: [], teams: [], reviewers: [], authors: [] };
+  }
   function parseCommaSeparated(raw) {
     if (!raw) return [];
     return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
@@ -8329,6 +8418,33 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/shared/pr-url.ts
+  function ensureTrailingSlash(uri) {
+    return uri.endsWith("/") ? uri : `${uri}/`;
+  }
+  function resolvePrUrl(pr, repositories, webContext) {
+    const base = ensureTrailingSlash(webContext.collectionUri);
+    const repo = repositories?.find((r2) => r2.repository_id === pr.repository_id);
+    if (repo && repo.repository_name.length > 0 && repo.project_name.length > 0) {
+      return `${base}${encodeURIComponent(repo.project_name)}/_git/${encodeURIComponent(repo.repository_name)}/pullrequest/${pr.id}`;
+    }
+    return `${base}_git/${encodeURIComponent(pr.repository_id)}/pullrequest/${pr.id}`;
+  }
+
+  // ../ui/modules/drilldown/filter-support.ts
+  function classifyFilterState(filters, comparisonActive2) {
+    if (comparisonActive2) {
+      return { classification: "comparison" };
+    }
+    if (filters.teams.length > 0) {
+      return { classification: "team" };
+    }
+    if (filters.reviewers.length > 0) {
+      return { classification: "reviewer" };
+    }
+    return { classification: "supported" };
+  }
+
   // ../ui/modules/drilldown/throughput-drilldown.ts
   var ACTIVE_CLASS = "is-drilldown-active";
   function breakdownSection(title, columns, entries, emptyDetail) {
@@ -8341,7 +8457,45 @@ var PRInsightsDashboard = (() => {
     }));
     return makeBreakdownTable(title, columns, rows);
   }
-  function buildPanelContent(rollup) {
+  function buildPrListSection(rollup, options) {
+    const classification = classifyFilterState(
+      options.filters ?? createEmptyFilterState(),
+      false
+    );
+    switch (classification.classification) {
+      case "team":
+        return makePrListSection({ contentState: "team-inline" });
+      case "reviewer":
+        return makePrListSection({ contentState: "reviewer-inline" });
+      case "comparison":
+        return makePrListSection({ contentState: "supported-empty" });
+      case "supported": {
+        const rawPrs = rollup.prs ?? [];
+        const webContext = options.webContext;
+        if (rawPrs.length === 0 || !webContext) {
+          return makePrListSection({ contentState: "supported-empty" });
+        }
+        const rows = rawPrs.map((pr) => ({
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(
+            pr,
+            options.repositoriesDimension ?? null,
+            webContext
+          )
+        }));
+        return makePrListSection({
+          contentState: "pr-list",
+          rows,
+          renderedCount: rows.length,
+          actualFilteredCount: rollup.pr_count,
+          capValue: rollup._prs_cap ?? 500
+        });
+      }
+    }
+  }
+  function buildPanelContent(rollup, options) {
     const count = rollup.pr_count;
     const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
     const byAuthor = breakdownSection(
@@ -8356,12 +8510,14 @@ var PRInsightsDashboard = (() => {
       rollup.by_repository,
       "No repository-level activity for this week."
     );
+    const prList = buildPrListSection(rollup, options);
     return makePanelContent(formatWeekTitle(rollup), subtitle, [
       byAuthor,
-      byRepository
+      byRepository,
+      prList
     ]);
   }
-  function installThroughputDrilldown(container, rollups) {
+  function installThroughputDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const observers = /* @__PURE__ */ new Set();
@@ -8405,7 +8561,7 @@ var PRInsightsDashboard = (() => {
         sourceChart: "throughput",
         focusedData: { kind: "throughput", weekIso },
         triggerElement: trigger,
-        content: buildPanelContent(rollup)
+        content: buildPanelContent(rollup, options)
       };
       openDetailPanel(context);
       clearActive();
@@ -8843,6 +8999,7 @@ var PRInsightsDashboard = (() => {
     end: null
   };
   var currentDimensions = null;
+  var currentCollectionUri = null;
   var currentFilters = {
     repos: [],
     teams: [],
@@ -9039,6 +9196,7 @@ var PRInsightsDashboard = (() => {
       sourceConfig.projectId ? " (from settings)" : " (current context)"
     );
     const collectionUri = await getCollectionUri();
+    currentCollectionUri = collectionUri;
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize(collectionUri, getAccessToken);
     if (queryResult.mode === "explicit") {
@@ -9414,7 +9572,21 @@ var PRInsightsDashboard = (() => {
       const throughputContainer = document.getElementById("throughput-chart");
       if (throughputContainer) {
         activeDrilldownHandles.push(
-          installThroughputDrilldown(throughputContainer, rollups)
+          installThroughputDrilldown(throughputContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0
+          })
         );
       }
       const cycleTimeContainer = document.getElementById("cycle-time-trend");

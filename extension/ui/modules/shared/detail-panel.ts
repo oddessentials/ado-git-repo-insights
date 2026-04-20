@@ -25,6 +25,7 @@
  */
 
 import { createElement, appendText, clearElement } from "./render";
+import { formatDuration } from "./format";
 import { trapFocus, restoreFocus } from "./focus-trap";
 import {
   COMPARISON_TOGGLED_EVENT,
@@ -439,12 +440,18 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
  *   2. Heading text (`Pull requests`) is constant across every content state.
  *   3. The section is never omitted. The sealed union prevents omission at
  *      build time; this function guarantees runtime parity.
+ *   4. The `data-content-state` attribute mirrors `section.contentState` so
+ *      tests can observe the rendered state without coupling to copy.
  *
- * This is the Phase 2c stub: child content below the heading is a placeholder
- * that Phase 3 T024 will swap for the real content-state renderers (PR rows,
- * supported-empty message, team/reviewer inline messages). `section.contentState`
- * is forwarded to a `data-content-state` attribute so tests can observe which
- * state was requested without coupling to the placeholder copy.
+ * Content below the heading varies by `contentState`:
+ *
+ *   - `pr-list`: truncation indicator (when `renderedCount < actualFilteredCount`)
+ *     plus an `<ol>` of PR rows — each a clickable `<a>` to ADO (target=_blank,
+ *     rel=noopener noreferrer) and a formatted cycle time.
+ *   - `supported-empty`: empty-state message ("No PRs match the active filter
+ *     in this week.").
+ *   - `team-inline` / `reviewer-inline`: a single gated message (aria-live=polite)
+ *     naming the filter the user must clear.
  */
 function renderPrListSection(section: PrListSection): HTMLElement {
   const wrapper = createElement("section", {
@@ -457,16 +464,83 @@ function renderPrListSection(section: PrListSection): HTMLElement {
   wrapper.appendChild(
     createElement("h3", { id: "pr-detail-heading" }, "Pull requests"),
   );
-  // Phase 2c placeholder — Phase 3 T024 replaces this with the full
-  // content-state renderers (pr-list rows + truncation indicator,
-  // supported-empty message, team-inline / reviewer-inline gated messages).
-  wrapper.appendChild(
-    createElement(
-      "p",
-      { class: "detail-panel-pr-detail-placeholder" },
-      "PR-level detail content lands in T024.",
-    ),
-  );
+
+  switch (section.contentState) {
+    case "pr-list": {
+      // Invariants on pr-list payload are enforced by makePrListSection —
+      // these fields are always present here. Fallbacks are defensive.
+      const rows = section.rows ?? [];
+      const renderedCount = section.renderedCount ?? rows.length;
+      const actualFilteredCount = section.actualFilteredCount ?? renderedCount;
+      const capValue = section.capValue ?? 500;
+
+      if (renderedCount < actualFilteredCount) {
+        const indicator = createElement("div", {
+          class: "truncation-indicator truncation-badge",
+        });
+        appendText(
+          indicator,
+          `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`,
+        );
+        wrapper.appendChild(indicator);
+      }
+
+      const list = createElement("ol", { class: "detail-panel-pr-list" });
+      for (const row of rows) {
+        const li = createElement("li", { class: "detail-panel-pr-row" });
+        const link = createElement("a", {
+          href: row.url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "detail-panel-pr-link",
+        });
+        appendText(link, `#${row.id} — ${row.title}`);
+        li.appendChild(link);
+        const cycle = createElement("span", { class: "cycle-time" });
+        appendText(cycle, formatDuration(row.cycleTimeMinutes));
+        li.appendChild(cycle);
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
+      break;
+    }
+    case "supported-empty": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          { class: "detail-panel-empty-detail" },
+          "No PRs match the active filter in this week.",
+        ),
+      );
+      break;
+    }
+    case "team-inline": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          {
+            class: "pr-detail-gated",
+            "aria-live": "polite",
+          },
+          "Clear the team filter to view PR-level detail.",
+        ),
+      );
+      break;
+    }
+    case "reviewer-inline": {
+      wrapper.appendChild(
+        createElement(
+          "p",
+          {
+            class: "pr-detail-gated",
+            "aria-live": "polite",
+          },
+          "Clear the reviewer filter to view PR-level detail.",
+        ),
+      );
+      break;
+    }
+  }
   return wrapper;
 }
 
