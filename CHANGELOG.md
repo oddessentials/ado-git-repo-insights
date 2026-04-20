@@ -1,3 +1,12 @@
+## [101.12.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.3...v101.12.4) (2026-04-20)
+
+
+### Bug Fixes
+
+* **#286,#314-review:** parity-drift violation + T025 delta-keyed fallback ([f99ddf7](https://github.com/oddessentials/ado-git-repo-insights/commit/f99ddf70b0ffe506fbcb74c94532c2eb3a59e484)), closes [#286](https://github.com/oddessentials/ado-git-repo-insights/issues/286) [#314](https://github.com/oddessentials/ado-git-repo-insights/issues/314) [#314](https://github.com/oddessentials/ado-git-repo-insights/issues/314) [#286](https://github.com/oddessentials/ado-git-repo-insights/issues/286)
+* **#286:** ruff format new test file + quote shell loop var ([7c7ceb7](https://github.com/oddessentials/ado-git-repo-insights/commit/7c7ceb7d54053549ec1a36731b095737f79d288d)), closes [#286](https://github.com/oddessentials/ado-git-repo-insights/issues/286)
+* **ci:** deterministic T025 noise-band fallback + parity-gate pip retry ([464a124](https://github.com/oddessentials/ado-git-repo-insights/commit/464a124f8ff376abb4a48426a87bd0c98d58f21e)), closes [#286](https://github.com/oddessentials/ado-git-repo-insights/issues/286)
+
 ## [101.12.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.2...v101.12.3) (2026-04-20)
 
 

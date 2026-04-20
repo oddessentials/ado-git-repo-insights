@@ -821,8 +821,26 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -e .[dev]
+          # Retry pip install to absorb transient PyPI TLS stream errors
+          # (e.g. SSL DECRYPTION_FAILED_OR_BAD_RECORD_MAC mid-wheel download).
+          # pip's own --retries flag only governs connection establishment,
+          # not mid-stream decryption failures — wrap the whole invocation.
+          MAX_ATTEMPTS=4
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if pip install -e .[dev]; then
+              echo "[OK] pip install succeeded on attempt $attempt"
+              break
+            fi
+            if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+              echo "::error::pip install failed after $MAX_ATTEMPTS attempts"
+              exit 1
+            fi
+            DELAY=$((2 ** attempt))
+            echo "::warning::pip install attempt $attempt failed; retrying in ${DELAY}s"
+            sleep "$DELAY"
+          done
 
       - name: Run CI/preflight parity tests
         run: |
