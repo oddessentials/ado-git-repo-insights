@@ -19,7 +19,6 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -56,7 +55,7 @@ PR_LEVEL_FIELDS = _strip.PR_LEVEL_FIELDS
 
 
 @pytest.fixture
-def rollup_dir(tmp_path: Path) -> Iterator[Path]:
+def rollup_dir(tmp_path: Path) -> Path:
     """A fresh rollup source dir with `weekly_rollups/` subfolder."""
     root = tmp_path / "aggregates"
     (root / "weekly_rollups").mkdir(parents=True, exist_ok=True)
