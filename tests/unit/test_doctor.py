@@ -138,9 +138,21 @@ class TestCmdDoctor:
         assert "Multiple installations found" in captured.out
         assert "Conflicts" in captured.out
 
-    def test_reports_path_issue_for_pip(self, capsys: pytest.CaptureFixture) -> None:
-        """Reports PATH issue when pip install and scripts not on PATH."""
+    def test_reports_path_issue_for_pip(
+        self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Reports PATH issue when pip install and scripts not on PATH (non-venv).
+
+        Forces ``sys.prefix == sys.base_prefix`` via the module under test's
+        namespace so the outcome does not depend on whether pytest itself is
+        running inside a venv. See #309.
+        """
         args = Namespace()
+        # Non-venv invariant: doctor.py:84 gates the PATH warning on `not in_venv`.
+        monkeypatch.setattr("ado_git_repo_insights.commands.doctor.sys.prefix", "/usr")
+        monkeypatch.setattr(
+            "ado_git_repo_insights.commands.doctor.sys.base_prefix", "/usr"
+        )
 
         with patch(
             "ado_git_repo_insights.commands.doctor.detect_installation_method",

@@ -275,21 +275,22 @@ class TestEdgeCases:
     """Edge case tests for setup-path command."""
 
     def test_read_only_config_returns_error(self, tmp_path: Path) -> None:
-        """Read-only config file returns error with manual instructions."""
-        import stat
+        """Write-denied config returns error (exercises PermissionError handler).
 
+        Mocks ``Path.write_text`` rather than using ``chmod`` because chmod is
+        bypassed under root (common in containers / WSL) and has differing
+        semantics on Windows — both produce false negatives that mask the
+        error-handling path at setup_path.py:208-217. See #310.
+        """
         from ado_git_repo_insights.commands.setup_path import _add_path_config
 
         scripts_dir = tmp_path / "bin"
         config_path = tmp_path / ".bashrc"
-
-        # Create config and make it read-only
         config_path.write_text("# existing config\n")
-        config_path.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
-        try:
+        with patch.object(
+            Path, "write_text", side_effect=PermissionError("simulated read-only")
+        ):
             result = _add_path_config(config_path, scripts_dir, "bash")
-            assert result == 1  # Error exit code
-        finally:
-            # Restore write permissions for cleanup
-            config_path.chmod(stat.S_IWUSR | stat.S_IRUSR)
+
+        assert result == 1
