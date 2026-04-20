@@ -4,13 +4,13 @@
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 215,
+      "line": 225,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1110,
+      "line": 1120,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },

@@ -13,7 +13,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 111,
+      "line": 112,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -21,7 +21,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 127,
+      "line": 128,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -29,7 +29,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 245,
+      "line": 246,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -37,7 +37,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 283,
+      "line": 284,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 291,
+      "line": 292,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 597,
+      "line": 629,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -141,7 +141,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 886,
+      "line": 918,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 592,
+      "line": 600,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 615,
+      "line": 623,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 708,
+      "line": 716,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 790,
+      "line": 798,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -541,7 +541,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 558,
+      "line": 635,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -549,7 +549,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 667,
+      "line": 753,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
