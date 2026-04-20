@@ -3964,6 +3964,15 @@ var PRInsightsDashboard = (() => {
     state?.returnTarget?.focus();
   }
 
+  // ../ui/modules/shared/uuid-pattern.ts
+  var UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  var UUID_REGEX = new RegExp(UUID_PATTERN, "i");
+  var UUID_WHOLE_STRING_REGEX = new RegExp(`^${UUID_PATTERN}$`, "i");
+  function findFirstUuid(value) {
+    const match = UUID_REGEX.exec(value);
+    return match === null ? null : match[0];
+  }
+
   // ../ui/modules/drilldown/lifecycle-signals.ts
   var FILTERS_CHANGED_EVENT = "drilldown:filters-changed";
   var TAB_CHANGED_EVENT = "drilldown:tab-changed";
@@ -3991,6 +4000,11 @@ var PRInsightsDashboard = (() => {
     if (title.length === 0) {
       throw new TypeError("PanelContent.title MUST be non-empty");
     }
+    if (UUID_REGEX.test(title)) {
+      throw new TypeError(
+        `PanelContent.title MUST NOT contain a UUID (#308). Got: "${title}" (matched: ${findFirstUuid(title) ?? "?"})`
+      );
+    }
     if (sections.length === 0) {
       throw new TypeError(
         "PanelContent.sections MUST contain at least one section"
@@ -4004,6 +4018,11 @@ var PRInsightsDashboard = (() => {
       if (row.values.length !== expectedValues) {
         throw new TypeError(
           `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`
+        );
+      }
+      if (UUID_REGEX.test(row.label)) {
+        throw new TypeError(
+          `BreakdownTableSection row.label MUST NOT contain a UUID (#308). Got: "${row.label}" (matched: ${findFirstUuid(row.label) ?? "?"})`
         );
       }
     }

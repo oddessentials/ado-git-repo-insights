@@ -27,6 +27,7 @@
 import { createElement, appendText, clearElement } from "./render";
 import { formatDuration } from "./format";
 import { trapFocus, restoreFocus } from "./focus-trap";
+import { UUID_REGEX, findFirstUuid } from "./uuid-pattern";
 import {
   COMPARISON_TOGGLED_EVENT,
   FILTERS_CHANGED_EVENT,
@@ -157,6 +158,15 @@ export function makePanelContent(
   if (title.length === 0) {
     throw new TypeError("PanelContent.title MUST be non-empty");
   }
+  // #308 UI invariant: no GUID-shaped substring may appear in a
+  // user-visible title. Caller sweep verified every production and
+  // test site passes human-readable strings (formatted weeks, resolved
+  // names, or UNKNOWN_USER_LABEL).
+  if (UUID_REGEX.test(title)) {
+    throw new TypeError(
+      `PanelContent.title MUST NOT contain a UUID (#308). Got: "${title}" (matched: ${findFirstUuid(title) ?? "?"})`,
+    );
+  }
   if (sections.length === 0) {
     throw new TypeError(
       "PanelContent.sections MUST contain at least one section",
@@ -175,6 +185,16 @@ export function makeBreakdownTable(
     if (row.values.length !== expectedValues) {
       throw new TypeError(
         `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`,
+      );
+    }
+    // #308 UI invariant: no GUID-shaped substring in a visible row
+    // label. By-author rows resolve via `resolveDisplayName`;
+    // By-repository and time-axis rows already carry names/week
+    // labels. A bare GUID here is an unresolved id — fail loudly at
+    // construction rather than let it reach the DOM.
+    if (UUID_REGEX.test(row.label)) {
+      throw new TypeError(
+        `BreakdownTableSection row.label MUST NOT contain a UUID (#308). Got: "${row.label}" (matched: ${findFirstUuid(row.label) ?? "?"})`,
       );
     }
   }
