@@ -123,10 +123,7 @@ class TestParityDocCoverageAdversarial:
         doc cannot possibly contain. The check must flag it.
         """
         preflight_source, doc_text = self._real_sources()
-        fabricated = (
-            '__SENTINEL_NOT_IN_DOC_'
-            'xyzzy_unique_marker_286__'
-        )
+        fabricated = "__SENTINEL_NOT_IN_DOC_xyzzy_unique_marker_286__"
         tampered_source = preflight_source + textwrap.dedent(
             f'''
 
@@ -151,7 +148,7 @@ class TestParityDocCoverageAdversarial:
         # Pick a canonical, stable name that we know is cited today.
         target = "Python type check"
         assert f'"{target}"' in doc_text, (
-            f"Precondition broken: expected doc to cite \"{target}\"."
+            f'Precondition broken: expected doc to cite "{target}".'
         )
         tampered_doc = doc_text.replace(f'"{target}"', '"<removed-for-test>"')
         missing = self._subset_fails(preflight_source, tampered_doc)
@@ -170,11 +167,11 @@ class TestParityDocCoverageHelpers:
         self,
     ) -> None:
         source = textwrap.dedent(
-            '''
+            """
             CommandSpec("Alpha", ("python", "x"))
             CommandSpec("Beta", ("python", "y"))
             CommandSpec(name_var, ("python", "z"))  # dynamic — ignored
-            '''
+            """
         )
         names = _extract_command_spec_names(source)
         assert names == {"Alpha", "Beta"}
