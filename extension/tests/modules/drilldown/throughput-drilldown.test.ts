@@ -1027,6 +1027,176 @@ describe("throughput-drilldown", () => {
       expect(document.getElementById("pr-detail")).toBeNull();
     });
 
+    // T056 (feature 060 Phase 8, SC-008 / FR-016)
+    it("keyboard activation (Enter / Space) produces the same PR-detail outcomes as mouse click across every gated state", () => {
+      // Single test covers the four-state matrix from FR-016 / SC-008. Each
+      // sub-case reinstalls the drill-down so options + filter state are
+      // distinct across sub-cases — matches the production re-install-
+      // per-refresh pattern.
+      type Sub = {
+        readonly label: string;
+        readonly key: "Enter" | " ";
+        readonly options: Parameters<typeof installThroughputDrilldown>[2];
+        readonly rollup: () => Rollup;
+        readonly comparisonActive?: boolean;
+        readonly expectPanelOpen: boolean;
+        readonly expectContentState?:
+          | "pr-list"
+          | "supported-empty"
+          | "team-inline"
+          | "reviewer-inline";
+      };
+
+      const subs: readonly Sub[] = [
+        {
+          label: "supported + Enter",
+          key: "Enter",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9001,
+                title: "kbd-open",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 60,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "pr-list",
+        },
+        {
+          label: "team-inline + Space",
+          key: " ",
+          options: {
+            filters: {
+              repos: [],
+              teams: ["platform"],
+              reviewers: [],
+              authors: [],
+            },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9002,
+                title: "kbd-team",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 120,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "team-inline",
+        },
+        {
+          label: "reviewer-inline + Enter",
+          key: "Enter",
+          options: {
+            filters: {
+              repos: [],
+              teams: [],
+              reviewers: ["bob"],
+              authors: [],
+            },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9003,
+                title: "kbd-reviewer",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 180,
+              },
+            ]),
+          expectPanelOpen: true,
+          expectContentState: "reviewer-inline",
+        },
+        {
+          label: "comparison + Space",
+          key: " ",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () =>
+            makeRollupWithPrs([
+              {
+                id: 9004,
+                title: "kbd-cmp",
+                author_id: "alice",
+                repository_id: "repo-1",
+                cycle_time: 240,
+              },
+            ]),
+          comparisonActive: true,
+          expectPanelOpen: false,
+        },
+        {
+          label: "supported-empty + Enter",
+          key: "Enter",
+          options: {
+            filters: { repos: [], teams: [], reviewers: [], authors: [] },
+            repositoriesDimension: BASE_REPOS,
+            webContext: BASE_WEB_CTX,
+          },
+          rollup: () => makeRollupWithPrs([], { pr_count: 0 }),
+          expectPanelOpen: true,
+          expectContentState: "supported-empty",
+        },
+      ];
+
+      for (const sub of subs) {
+        // Reset per sub-case.
+        if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+        publishComparisonToggled({ enabled: false });
+        __resetComparisonAdvisoryForTests();
+        document.body.innerHTML = "";
+
+        const rollups = [sub.rollup()];
+        const container = mountChart(rollups);
+        const handle = installThroughputDrilldown(
+          container,
+          rollups,
+          sub.options,
+        );
+        if (sub.comparisonActive) {
+          publishComparisonToggled({ enabled: true });
+        }
+
+        const bar = firstBar(container);
+        const event = new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: sub.key,
+        });
+        bar.dispatchEvent(event);
+
+        expect(isDetailPanelOpen()).toBe(sub.expectPanelOpen);
+        if (sub.expectPanelOpen && sub.expectContentState) {
+          const prSection = document.getElementById("pr-detail");
+          expect(prSection).not.toBeNull();
+          expect(prSection!.getAttribute("data-content-state")).toBe(
+            sub.expectContentState,
+          );
+        } else {
+          expect(document.getElementById("pr-detail")).toBeNull();
+        }
+
+        handle.dispose();
+      }
+    });
+
     // T043 (feature 060 Phase 6)
     it("supported filter yielding zero matches → contentState='supported-empty' with copy DISTINCT from team/reviewer messages", () => {
       // Simulate the post-applyFiltersToRollups state: an author filter has
