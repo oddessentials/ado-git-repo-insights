@@ -495,8 +495,24 @@ describe("T025: SC-002 dashboard load time overhead", () => {
   const WARMUP_RUNS = 10;
   const MEASURE_RUNS = 50;
   const MAX_OVERHEAD_PERCENT = 10;
-  /** Below this threshold (ms), percentage comparisons are noise-dominated. */
+  /** Typical per-measurement jitter budget on shared runners (ms). */
   const NOISE_FLOOR_MS = 5;
+  /**
+   * Absolute-ms delta below which v2 − v1 cannot be reliably distinguished
+   * from GC/JIT jitter regardless of the base magnitude. Below this the
+   * percentage is dominated by noise (the #202 / #286 small-base
+   * amplification); at-or-above this the percentage is a meaningful
+   * signal even when the base is small.
+   */
+  const NOISE_DELTA_MS = NOISE_FLOOR_MS * 2;
+  /**
+   * Absolute-ms sanity ceiling for the noise-band fallback. Generous
+   * enough to tolerate cold-runner jitter (fresh-clone-verify runs
+   * uncached), tight enough that a catastrophic runner-wide regression
+   * still trips the gate even when the delta between v1 and v2 stays
+   * small.
+   */
+  const ABSOLUTE_CEILING_MS = 30;
 
   /**
    * Build an array of rollups for timing measurement.
@@ -635,13 +651,20 @@ describe("T025: SC-002 dashboard load time overhead", () => {
       MEASURE_RUNS,
     );
 
-    // When both paths are below the noise floor, percentage comparisons
-    // are dominated by timer granularity and GC jitter — verify absolute
-    // performance instead.
-    if (v1Ms < NOISE_FLOOR_MS && v2Ms < NOISE_FLOOR_MS) {
-      expect(v2Ms).toBeLessThan(NOISE_FLOOR_MS);
+    // Key the fallback off the absolute delta, not the per-measurement
+    // position. When v2 − v1 is within the jitter envelope, the
+    // percentage is dominated by GC/JIT noise on the base; percentage
+    // math amplifies noise into large values even when the base isn't
+    // tiny. When the delta is larger than the envelope, it's real signal
+    // regardless of the base, so the 10% gate must hold. The absolute
+    // ceiling is a sanity guard for catastrophic runner-wide regressions
+    // in the fallback branch.
+    const deltaMs = v2Ms - v1Ms;
+    if (deltaMs < NOISE_DELTA_MS) {
+      expect(v1Ms).toBeLessThan(ABSOLUTE_CEILING_MS);
+      expect(v2Ms).toBeLessThan(ABSOLUTE_CEILING_MS);
     } else {
-      const overheadPercent = ((v2Ms - v1Ms) / v1Ms) * 100;
+      const overheadPercent = (deltaMs / v1Ms) * 100;
 
       // SC-002: Dashboard load time increase must be < 10%
       expect(overheadPercent).toBeLessThan(MAX_OVERHEAD_PERCENT);
@@ -657,6 +680,8 @@ describe("T025: SC-002 dashboard load time overhead", () => {
         overhead_percent: Number(overheadPercent.toFixed(2)),
         budget_percent: MAX_OVERHEAD_PERCENT,
         noise_floor_ms: NOISE_FLOOR_MS,
+        noise_delta_ms: NOISE_DELTA_MS,
+        absolute_ceiling_ms: ABSOLUTE_CEILING_MS,
         weeks: NUM_WEEKS,
         teams: NUM_TEAMS,
         repos: NUM_REPOS,
