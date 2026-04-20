@@ -114,7 +114,7 @@ Every shell command, subprocess invocation, file operation, and path manipulatio
 
 ## Phase 4: User Story 2 — Filtered drill-down agrees with the filtered count (Priority: P1)
 
-**Goal**: With author-only, repository-only, or author+repository filters active, the rendered count of PR records equals `filtered_prs.length` produced by the single authoritative filter operation (FR-021). When `_prs_truncated=false` this also equals the filtered `pr_count`; when `_prs_truncated=true` it may be a documented strict subset of `filtered_pr_count` and the truncation indicator displays both values.
+**Goal**: With author-only, repository-only, or author+repository filters active, the rendered count of PR records equals `filtered_prs.length` produced by the single authoritative filter operation (FR-021). When `_prs_truncated=false`, this also equals the filtered `pr_count`. When `_prs_truncated=true`, it equals `filtered_pr_count` if all filter matches fell within the top-cap (no indicator shown), or is strictly less otherwise (truncation indicator visible, displaying both counts). FR-008's indicator visibility criterion is `rendered_count < actual_filtered_count` — NOT `_prs_truncated=true` alone.
 
 **Independent Test**: Apply a repo filter → click a bar → assert panel's rendered count equals `filtered_prs.length` from `applyFiltersToRollups` (which equals the chart's filtered `pr_count` when `_prs_truncated=false`; is a documented subset when `_prs_truncated=true`, with the truncation indicator visible and both counts displayed per FR-021). Repeat with author filter. Repeat combined. Fixture MUST include at least one non-truncated and one truncated fixture week for each filter shape.
 
