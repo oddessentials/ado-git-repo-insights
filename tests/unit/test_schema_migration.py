@@ -179,8 +179,8 @@ class TestMigrationV1ToV2:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            # All pending migrations applied: v1→v2→v3→v4→v5→v6
-            assert db.get_schema_version() == 6
+            # All pending migrations applied: v1→v2→v3→v4→v5→v6→v7
+            assert db.get_schema_version() == 7
         finally:
             db.close()
 
@@ -217,18 +217,18 @@ class TestMigrationIdempotency:
         db_path = tmp_path / "test.db"
         _create_v1_database(db_path)
 
-        # First connect: migrates v1 → v6
+        # First connect: migrates v1 → v7
         db = DatabaseManager(db_path)
         db.connect()
         db.close()
 
-        assert _get_schema_version(db_path) == 6
+        assert _get_schema_version(db_path) == 7
 
         # Second connect: should be a no-op
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 6
+            assert db2.get_schema_version() == 7
             assert "reviewed_at" in _get_column_names(db_path, "reviewers")
         finally:
             db2.close()
@@ -271,7 +271,7 @@ class TestFreshInstall:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 6
+            assert db.get_schema_version() == 7
         finally:
             db.close()
 
@@ -380,6 +380,24 @@ class TestMigrationV2ToV3CoverageBackfill:
             threads_fetched INTEGER NOT NULL DEFAULT 0,
             comments_fetched INTEGER NOT NULL DEFAULT 0,
             capped INTEGER NOT NULL DEFAULT 0
+        );
+        -- Pre-seeded to satisfy _REQUIRED_TABLES post-migration sweep under
+        -- the _freeze_migrations_at_v4 fixture above; mirrors the #295
+        -- precedent that pre-seeded comments_extraction_metadata here.
+        CREATE TABLE teams (
+            team_id TEXT PRIMARY KEY,
+            team_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            organization_name TEXT NOT NULL,
+            description TEXT,
+            last_updated TEXT NOT NULL
+        );
+        CREATE TABLE team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            is_team_admin INTEGER DEFAULT 0,
+            UNIQUE(team_id, user_id)
         );
         CREATE TABLE schema_version (
             version INTEGER PRIMARY KEY,
@@ -881,6 +899,24 @@ class TestMigrationV3ToV4DedupAndRecovery:
             threads_fetched INTEGER NOT NULL DEFAULT 0,
             comments_fetched INTEGER NOT NULL DEFAULT 0,
             capped INTEGER NOT NULL DEFAULT 0
+        );
+        -- Pre-seeded to satisfy _REQUIRED_TABLES post-migration sweep under
+        -- the _freeze_migrations_at_v4 fixture above; mirrors the #295
+        -- precedent that pre-seeded comments_extraction_metadata here.
+        CREATE TABLE teams (
+            team_id TEXT PRIMARY KEY,
+            team_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            organization_name TEXT NOT NULL,
+            description TEXT,
+            last_updated TEXT NOT NULL
+        );
+        CREATE TABLE team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            is_team_admin INTEGER DEFAULT 0,
+            UNIQUE(team_id, user_id)
         );
         CREATE TABLE schema_version (
             version INTEGER PRIMARY KEY,
@@ -1972,14 +2008,16 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
         )
 
     def test_connect_creates_table_and_advances_to_v6(self, tmp_path: Path) -> None:
-        """Legacy v5 DB gains the missing table and advances to schema v6."""
+        """Legacy v5 DB gains v6's comments_extraction_metadata via the
+        migration chain; schema_version lands at the current latest (v7)
+        because ``connect()`` applies every pending migration."""
         db_path = tmp_path / "v5_to_v6.db"
         self._create_v5_db_without_metadata(db_path)
 
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 6
+            assert db.get_schema_version() == 7
 
             cols = _get_column_names(db_path, "comments_extraction_metadata")
             assert cols == {
@@ -2052,7 +2090,7 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 6
+            assert db2.get_schema_version() == 7
             row = db2.execute(
                 "SELECT COUNT(*) AS cnt FROM comments_extraction_metadata"
             ).fetchone()
@@ -2230,6 +2268,487 @@ class TestMigrationV5ToV6CommentsExtractionMetadata:
             holder.close()
 
 
+class TestMigrationV6ToV7TeamsTables:
+    """v6 → v7: create ``teams`` and ``team_members`` for legacy pre-existing DBs.
+
+    Root cause:
+        Second instance of the SCHEMA_SQL-without-migration landmine
+        (first was ``migrate_v5_to_v6`` / comments_extraction_metadata).
+        Phase 3.3 (2026-01-14) added ``teams`` and ``team_members`` to
+        ``SCHEMA_SQL`` but no earlier migration ever created them.  Any
+        DB whose file predates that change lacks both tables entirely.
+        Once ``_extract_teams()`` in ``cli.py`` starts writing team
+        rows (the control-plane wiring landing in the same PR), every
+        such legacy DB would crash on the first ``upsert_team`` with
+        ``sqlite3.OperationalError: no such table: teams``.
+
+    Fix locked by tests in this module:
+        v6 → v7 migration creates both tables + their three indexes
+        (idempotent via ``IF NOT EXISTS``) and advances ``schema_version``
+        to 7.  No row backfill — teams are refetched every run.
+    """
+
+    # v6 schema WITHOUT teams/team_members — reproduces the affected
+    # vintage (DBs created before 2026-01-14 that nonetheless passed
+    # through v5→v6 to gain comments_extraction_metadata).  The
+    # ``projects`` table uses the composite PK matching current
+    # SCHEMA_SQL so the ``teams → projects`` FK check engaged by
+    # ``PRAGMA foreign_keys = ON`` in DatabaseManager.connect() can
+    # succeed when a fixture pre-seeds a project row.
+    _V6_SCHEMA_WITHOUT_TEAMS_SQL = """
+        CREATE TABLE extraction_metadata (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            last_extraction_date TEXT NOT NULL,
+            last_extraction_timestamp TEXT NOT NULL
+        );
+        CREATE TABLE comments_extraction_metadata (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_run_timestamp TEXT NOT NULL,
+            prs_processed INTEGER NOT NULL DEFAULT 0,
+            threads_fetched INTEGER NOT NULL DEFAULT 0,
+            comments_fetched INTEGER NOT NULL DEFAULT 0,
+            capped INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE organizations (organization_name TEXT PRIMARY KEY);
+        CREATE TABLE projects (
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            PRIMARY KEY (organization_name, project_name)
+        );
+        CREATE TABLE repositories (
+            repository_id TEXT PRIMARY KEY,
+            repository_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            organization_name TEXT NOT NULL
+        );
+        CREATE TABLE users (
+            user_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            email TEXT
+        );
+        CREATE TABLE pull_requests (
+            pull_request_uid TEXT PRIMARY KEY,
+            pull_request_id INTEGER NOT NULL,
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            repository_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            description TEXT,
+            creation_date TEXT NOT NULL,
+            closed_date TEXT,
+            cycle_time_minutes REAL,
+            review_time_minutes REAL,
+            comments_extracted_at TEXT,
+            raw_json TEXT
+        );
+        CREATE TABLE reviewers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pull_request_uid TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            vote INTEGER NOT NULL,
+            repository_id TEXT NOT NULL,
+            reviewed_at TEXT,
+            UNIQUE(pull_request_uid, user_id)
+        );
+        CREATE TABLE pr_threads (
+            thread_id TEXT NOT NULL,
+            pull_request_uid TEXT NOT NULL,
+            status TEXT,
+            thread_context TEXT,
+            last_updated TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_deleted INTEGER DEFAULT 0,
+            PRIMARY KEY (pull_request_uid, thread_id)
+        );
+        CREATE TABLE pr_comments (
+            comment_id TEXT NOT NULL,
+            thread_id TEXT NOT NULL,
+            pull_request_uid TEXT NOT NULL,
+            author_id TEXT NOT NULL,
+            content TEXT,
+            comment_type TEXT,
+            created_at TEXT NOT NULL,
+            last_updated TEXT,
+            is_deleted INTEGER DEFAULT 0,
+            PRIMARY KEY (pull_request_uid, thread_id, comment_id)
+        );
+        CREATE TABLE schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );
+        INSERT INTO schema_version (version, applied_at) VALUES (6, datetime('now'));
+    """
+
+    def _create_v6_db_without_teams(self, path: Path) -> None:
+        """Seed a v6-vintage DB with no teams / team_members tables."""
+        conn = sqlite3.connect(str(path))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript(self._V6_SCHEMA_WITHOUT_TEAMS_SQL)
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def _pragma_table_info(
+        path: Path, table: str
+    ) -> list[tuple[str, str, int, object, int]]:
+        """Return (name, type, notnull, dflt_value, pk) per column — cid dropped."""
+        conn = sqlite3.connect(str(path))
+        try:
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        finally:
+            conn.close()
+        return [(r[1], r[2], r[3], r[4], r[5]) for r in rows]
+
+    def test_pre_migration_state_reproduces_bug(self, tmp_path: Path) -> None:
+        """Sanity check: the v6 fixture lacks teams + team_members."""
+        db_path = tmp_path / "v6_precondition.db"
+        self._create_v6_db_without_teams(db_path)
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            present = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name IN ('teams', 'team_members')"
+                ).fetchall()
+            }
+        finally:
+            conn.close()
+        assert present == set(), (
+            "Test fixture must start without teams/team_members — "
+            "otherwise the v6→v7 migration would be a no-op here"
+        )
+
+    def test_connect_creates_tables_and_advances_to_v7(self, tmp_path: Path) -> None:
+        """Legacy v6 DB gains teams + team_members + 3 indexes post-connect."""
+        db_path = tmp_path / "v6_to_v7.db"
+        self._create_v6_db_without_teams(db_path)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 7
+
+            tables = {
+                r[0]
+                for r in db.connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "teams" in tables
+            assert "team_members" in tables
+
+            indexes = {
+                r[0]
+                for r in db.connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' "
+                    "AND name NOT LIKE 'sqlite_autoindex_%'"
+                ).fetchall()
+            }
+            assert "idx_teams_project" in indexes
+            assert "idx_team_members_team" in indexes
+            assert "idx_team_members_user" in indexes
+        finally:
+            db.close()
+
+    def test_migration_is_idempotent(self, tmp_path: Path) -> None:
+        """Second connect after migration is a no-op; no duplicate v7 row."""
+        db_path = tmp_path / "v6_idempotent.db"
+        self._create_v6_db_without_teams(db_path)
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        db.close()
+
+        db2 = DatabaseManager(db_path)
+        db2.connect()
+        try:
+            assert db2.get_schema_version() == 7
+            row = db2.execute(
+                "SELECT COUNT(*) AS cnt FROM schema_version WHERE version = 7"
+            ).fetchone()
+            assert int(row["cnt"]) == 1, "idempotent re-run must not duplicate rows"
+        finally:
+            db2.close()
+
+    def test_post_migration_upsert_team_persists_end_to_end(
+        self, tmp_path: Path
+    ) -> None:
+        """End-to-end lock on the production fix: first ``upsert_team`` call
+        ``_extract_teams()`` makes on a legacy DB now persists the row.
+
+        Mirrors the v5→v6 test_update_comments_extraction_metadata_no_longer_
+        crashes end-to-end shape.
+        """
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        db_path = tmp_path / "v6_upsert_team.db"
+        self._create_v6_db_without_teams(db_path)
+
+        # Seed organization + project so the (org, project) FK on teams
+        # is satisfied once DatabaseManager.connect() re-engages
+        # ``PRAGMA foreign_keys = ON``.
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("INSERT INTO organizations (organization_name) VALUES ('org')")
+        conn.execute(
+            "INSERT INTO projects (organization_name, project_name) "
+            "VALUES ('org', 'proj')"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            repo = PRRepository(db)
+            repo.upsert_team(
+                team_id="t1",
+                team_name="Team One",
+                project_name="proj",
+                organization_name="org",
+                description="first team",
+            )
+            repo.upsert_team_member(
+                team_id="t1",
+                user_id="u1",
+                display_name="Alice",
+                email="alice@example.com",
+                is_team_admin=True,
+            )
+            db.connection.commit()
+
+            teams = repo.get_teams_for_project(
+                organization_name="org", project_name="proj"
+            )
+            assert len(teams) == 1
+            assert teams[0]["team_id"] == "t1"
+            assert teams[0]["team_name"] == "Team One"
+
+            members = repo.get_team_members("t1")
+            assert len(members) == 1
+            assert members[0]["user_id"] == "u1"
+            assert bool(members[0]["is_team_admin"]) is True
+        finally:
+            db.close()
+
+    def test_fresh_and_migrated_teams_tables_are_identical(
+        self, tmp_path: Path
+    ) -> None:
+        """Byte-level DDL parity between fresh SCHEMA_SQL and migrated v6.
+
+        Column shape (name / type / notnull / default / pk position) +
+        index list must match exactly.  Locks the duplicated
+        ``_V7_TEAMS_DDL`` / ``_V7_TEAM_MEMBERS_DDL`` constants in
+        migrations.py against drift from the declarations in
+        models.py SCHEMA_SQL.
+        """
+        fresh_path = tmp_path / "fresh.db"
+        fresh_db = DatabaseManager(fresh_path)
+        fresh_db.connect()
+        fresh_db.close()
+
+        migrated_path = tmp_path / "migrated.db"
+        self._create_v6_db_without_teams(migrated_path)
+        migrated_db = DatabaseManager(migrated_path)
+        migrated_db.connect()
+        migrated_db.close()
+
+        for table in ("teams", "team_members"):
+            fresh_cols = self._pragma_table_info(fresh_path, table)
+            migrated_cols = self._pragma_table_info(migrated_path, table)
+            assert fresh_cols == migrated_cols, (
+                f"Column parity mismatch on {table}:\n"
+                f"  fresh:    {fresh_cols}\n"
+                f"  migrated: {migrated_cols}"
+            )
+
+        teams_tables = {"teams", "team_members"}
+        fresh_indexes = {
+            (name, tbl, sql)
+            for name, tbl, sql in _get_user_indexes(fresh_path)
+            if tbl in teams_tables
+        }
+        migrated_indexes = {
+            (name, tbl, sql)
+            for name, tbl, sql in _get_user_indexes(migrated_path)
+            if tbl in teams_tables
+        }
+        assert fresh_indexes == migrated_indexes, (
+            f"Index parity mismatch on teams/team_members:\n"
+            f"  fresh only:    {fresh_indexes - migrated_indexes}\n"
+            f"  migrated only: {migrated_indexes - fresh_indexes}"
+        )
+
+    def test_rollback_leaves_schema_unchanged_on_mid_transaction_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """v6→v7 atomicity: a mid-txn failure rolls back every CREATE plus
+        the schema_version bump.
+
+        Forces the second DDL (team_members) to raise by patching its
+        module-level constant to syntactically invalid SQL.  After the
+        rollback:
+          - ``teams`` must NOT exist (first CREATE undone by SQLite's
+            transactional DDL)
+          - ``team_members`` must NOT exist
+          - ``schema_version`` must still be 6 (v7 insert undone)
+
+        Mirrors the v5→v6 rollback test at
+        ``test_rollback_leaves_schema_unchanged_on_mid_transaction_failure``.
+        """
+        import sqlite3
+
+        from ado_git_repo_insights.persistence import migrations
+
+        db_path = tmp_path / "v6_rollback.db"
+        self._create_v6_db_without_teams(db_path)
+
+        # Guardrail: prove pre-migration state so the rollback assertions
+        # below are load-bearing rather than trivially satisfied.
+        pre_conn = sqlite3.connect(str(db_path))
+        assert (
+            pre_conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+            == 6
+        ), "fixture must start at schema_version=6"
+        pre_tables = {
+            r[0]
+            for r in pre_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        assert "teams" not in pre_tables
+        assert "team_members" not in pre_tables
+        pre_conn.close()
+
+        # Patch the second DDL to invalid SQL so the inner execute raises
+        # *after* _V7_TEAMS_DDL has run inside the BEGIN IMMEDIATE txn.
+        monkeypatch.setattr(
+            migrations,
+            "_V7_TEAM_MEMBERS_DDL",
+            "CREATE TABLE team_members (INVALID_SYNTAX",
+        )
+
+        # Run the migration directly against a raw connection so the
+        # exception surfaces to the test, bypassing the catch-and-log
+        # in DatabaseManager.connect().
+        conn = sqlite3.connect(str(db_path))
+        conn.isolation_level = None  # match DatabaseManager's autocommit mode
+        try:
+            with pytest.raises(sqlite3.OperationalError):
+                migrations.migrate_v6_to_v7(conn)
+        finally:
+            conn.close()
+
+        post_conn = sqlite3.connect(str(db_path))
+        try:
+            post_tables = {
+                r[0]
+                for r in post_conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "teams" not in post_tables, (
+                "v6→v7 must NOT leave teams half-created after rollback"
+            )
+            assert "team_members" not in post_tables, (
+                "v6→v7 must NOT leave team_members half-created after rollback"
+            )
+            assert (
+                post_conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[
+                    0
+                ]
+                == 6
+            ), "schema_version must stay at 6 after rollback (v7 insert undone)"
+        finally:
+            post_conn.close()
+
+    def test_begin_immediate_failure_does_not_rollback_or_mask_error(
+        self, tmp_path: Path
+    ) -> None:
+        """``migrate_v6_to_v7`` MUST NOT issue ROLLBACK after a failed
+        BEGIN IMMEDIATE.
+
+        If BEGIN IMMEDIATE raises (writer lock held elsewhere), no txn is
+        open, so an unconditional ROLLBACK would itself raise ``cannot
+        rollback - no transaction is active`` and mask the original
+        lock error.  The ``txn_started`` guard mirrors ``migrate_v4_to_
+        v5`` / ``migrate_v5_to_v6``; this test locks that branch against
+        regression.
+
+        Real-shape reproduction: hold the writer lock on one connection
+        and invoke the migration on a second connection with
+        ``busy_timeout=0`` so BEGIN IMMEDIATE raises immediately.
+        """
+        import sqlite3
+
+        from ado_git_repo_insights.persistence.migrations import migrate_v6_to_v7
+
+        db_path = tmp_path / "v6_begin_fails.db"
+        self._create_v6_db_without_teams(db_path)
+
+        holder = sqlite3.connect(str(db_path), isolation_level=None)
+        holder.execute("BEGIN IMMEDIATE")
+        try:
+            migrator = sqlite3.connect(str(db_path), isolation_level=None)
+            migrator.execute("PRAGMA busy_timeout = 0")
+            try:
+                with pytest.raises(sqlite3.OperationalError) as excinfo:
+                    migrate_v6_to_v7(migrator)
+                message = str(excinfo.value).lower()
+                assert "database is locked" in message, message
+                # The masking "cannot rollback - no transaction is
+                # active" text from an unguarded implementation must
+                # NOT appear.
+                assert "cannot rollback" not in message, message
+                assert not migrator.in_transaction
+            finally:
+                migrator.close()
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+
+    def test_required_tables_check_catches_silent_migration_skip(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Post-migration ``_REQUIRED_TABLES`` sweep rejects DBs where the
+        migration silently failed to create teams / team_members.
+
+        If a future refactor ever removes a CREATE TABLE from
+        migrate_v6_to_v7 (or a later migration silently skips a
+        required table), the post-migration validation must catch it at
+        ``connect()`` time — NOT at first ``upsert_team`` crash.  This
+        is the exact defense #295 added (the two-phase fundamental /
+        required check) for this class of bug: the SCHEMA_SQL-without-
+        migration landmine that bit both ``comments_extraction_metadata``
+        (#295) and ``teams`` / ``team_members`` (#296).
+        """
+        from sqlite3 import Connection as _Conn
+
+        from ado_git_repo_insights.persistence import migrations
+        from ado_git_repo_insights.persistence.database import DatabaseError
+
+        db_path = tmp_path / "v6_silent_skip.db"
+        self._create_v6_db_without_teams(db_path)
+
+        def no_op_migration(conn: _Conn) -> None:
+            """Simulated regression: bumps schema_version but skips DDL."""
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+                "VALUES (7, datetime('now'))"
+            )
+
+        monkeypatch.setitem(migrations.MIGRATIONS, 7, no_op_migration)
+
+        db = DatabaseManager(db_path)
+        with pytest.raises(DatabaseError, match="Missing tables"):
+            db.connect()
+
+
 class TestConnectFailFastOnPartialDatabases:
     """Fail-fast preservation when opening a partial / foreign DB.
 
@@ -2320,8 +2839,11 @@ class TestConnectFailFastOnPartialDatabases:
         manager = DatabaseManager(db_path)
         manager.connect()
         try:
-            assert manager.get_schema_version() == 6
-            # Post-migration validation sees the migration-added table.
+            assert manager.get_schema_version() == 7
+            # Post-migration validation sees the migration-added tables
+            # from every migration in the chain (v5→v6 added
+            # comments_extraction_metadata; v6→v7 added teams +
+            # team_members).
             cursor = manager.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
                 "AND name='comments_extraction_metadata'"

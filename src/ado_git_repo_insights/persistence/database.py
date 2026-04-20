@@ -58,6 +58,8 @@ _FUNDAMENTAL_TABLES: frozenset[str] = frozenset(
 _REQUIRED_TABLES: frozenset[str] = _FUNDAMENTAL_TABLES | frozenset(
     {
         "comments_extraction_metadata",  # introduced in v5→v6
+        "teams",  # introduced in v6→v7
+        "team_members",  # introduced in v6→v7
     }
 )
 
