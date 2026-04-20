@@ -18,6 +18,7 @@ import pytest
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.models import CSV_SCHEMAS
 from ado_git_repo_insights.persistence.repository import PRRepository
+from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
 
 
@@ -175,6 +176,50 @@ class TestGoldenOutputs:
             hash1 = hash_file(output1 / f"{table_name}.csv")
             hash2 = hash_file(output2 / f"{table_name}.csv")
             assert hash1 == hash2, f"{table_name}.csv differs between runs"
+
+    def test_golden_weekly_rollups_deterministic_with_pr_records(
+        self, golden_db: tuple[DatabaseManager, Path, Path]
+    ) -> None:
+        """Feature 060: weekly rollup JSON is byte-identical across runs and
+        includes the PR-level detail fields (`prs`, `_prs_truncated`,
+        `_prs_cap`). Producer-side determinism guard for FR-012 / SC-005.
+        """
+        db, _, tmp_path = golden_db
+
+        output1 = tmp_path / "rollup_run1"
+        output2 = tmp_path / "rollup_run2"
+
+        AggregateGenerator(db, output1, run_id="golden-det-1").generate_all()
+        AggregateGenerator(db, output2, run_id="golden-det-1").generate_all()
+
+        rollup_dir1 = output1 / "aggregates" / "weekly_rollups"
+        rollup_dir2 = output2 / "aggregates" / "weekly_rollups"
+        rollup_files1 = sorted(rollup_dir1.glob("*.json"))
+        rollup_files2 = sorted(rollup_dir2.glob("*.json"))
+
+        assert rollup_files1, "no rollup files produced"
+        assert [p.name for p in rollup_files1] == [p.name for p in rollup_files2]
+
+        saw_pr_detail = False
+        for f1, f2 in zip(rollup_files1, rollup_files2, strict=True):
+            h1 = hash_file(f1)
+            h2 = hash_file(f2)
+            assert h1 == h2, f"{f1.name} differs between rollup runs"
+
+            import json as _json
+
+            payload = _json.loads(f1.read_text(encoding="utf-8"))
+            if "prs" in payload:
+                saw_pr_detail = True
+                assert isinstance(payload["prs"], list)
+                assert payload["_prs_cap"] == 500
+                assert isinstance(payload["_prs_truncated"], bool)
+
+        assert saw_pr_detail, (
+            "Golden fixture must produce at least one rollup with PR-level "
+            "detail — otherwise the determinism guard has no coverage of the "
+            "feature 060 fields."
+        )
 
     def test_golden_pull_requests_sorted_correctly(
         self, golden_db: tuple[DatabaseManager, Path, Path]

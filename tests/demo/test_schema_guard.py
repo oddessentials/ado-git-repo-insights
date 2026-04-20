@@ -46,6 +46,14 @@ DEPRECATED_FIELDS: set[str] = set()
 # review_time_p50 and review_time_p90 removed — now produced by demo
 # generators as of 052-review-time-pipeline.
 OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
+# Feature 060: these PR-level detail fields are emitted by the tenant
+# aggregator but intentionally STRIPPED from public/demo artifacts by the
+# `promote_data` gate (docs/reference/dataset-contract.md "Tenant-Sensitive
+# Fields and Public-Surface Stripping"). They MUST be absent from the demo
+# rollup surface — this set removes them from the demo-completeness check
+# so future strip-gate test additions are the single authority for their
+# absence instead of this completeness gate.
+DEMO_STRIPPED_ROOT_FIELDS = {"prs", "_prs_truncated", "_prs_cap"}
 
 
 def _extract_ts_set_fields(ts_source: str, set_name: str) -> set[str]:
@@ -81,13 +89,32 @@ class TestRootFieldCompleteness:
 
     def test_root_fields_present(self, schema_source, sample_rollup):
         known_root = _extract_ts_set_fields(schema_source, "KNOWN_ROOT_FIELDS")
-        expected = known_root - DEPRECATED_FIELDS - OPTIONAL_ROOT_FIELDS
+        expected = (
+            known_root
+            - DEPRECATED_FIELDS
+            - OPTIONAL_ROOT_FIELDS
+            - DEMO_STRIPPED_ROOT_FIELDS
+        )
         actual = set(sample_rollup.keys())
 
         missing = expected - actual
         assert not missing, (
             f"Missing root fields in demo rollup: {sorted(missing)}. "
             f"Expected: {sorted(expected)}, Got: {sorted(actual)}"
+        )
+
+    def test_demo_stripped_fields_are_absent(self, sample_rollup):
+        """Feature 060 privacy posture: PR-level detail fields MUST be absent
+        from the demo rollup. The strip happens in `promote_data` via the
+        privacy-posture contract. If this test fails, the strip gate either
+        regressed or was removed — do NOT add these fields to
+        DEMO_STRIPPED_ROOT_FIELDS as a workaround.
+        """
+        leaked = DEMO_STRIPPED_ROOT_FIELDS & set(sample_rollup.keys())
+        assert not leaked, (
+            f"Privacy-posture violation: tenant-sensitive PR-level fields "
+            f"leaked to demo rollup: {sorted(leaked)}. See "
+            f"`docs/reference/dataset-contract.md` privacy-posture section."
         )
 
 

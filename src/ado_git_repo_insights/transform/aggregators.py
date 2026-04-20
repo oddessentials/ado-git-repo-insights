@@ -31,6 +31,7 @@ from ..types import (
     JSONValue,
     OperationalSummary,
     ProjectRecord,
+    PrRecord,
     RepositoryRecord,
     ReviewerRecord,
     ReviewerSliceMetrics,
@@ -75,6 +76,10 @@ class _NumpySafeEncoder(json.JSONEncoder):
 
 # Stub generator identifier
 STUB_GENERATOR_ID = "phase3.5-stub-v1"
+
+# Feature 060 (FR-002): cap for per-week PR-level detail arrays. Locked at 500
+# by the spec; expanding requires a fresh scoping round.
+_PR_DETAIL_CAP = 500
 
 
 class AggregationError(Exception):
@@ -585,6 +590,7 @@ class AggregateGenerator:
     def _generate_weekly_rollups(self) -> list[WeeklyRollupIndexEntry]:
         """Generate weekly rollup files, one per ISO week."""
         # Query PRs with closed dates and repository info for dimension slicing
+        # plus PR-level identifiers for feature 060 PR-detail arrays.
         df = pd.read_sql_query(
             """
             SELECT
@@ -595,6 +601,8 @@ class AggregateGenerator:
                 END AS review_time_minutes,
                 pr.user_id,
                 pr.pull_request_uid,
+                pr.pull_request_id,
+                pr.title,
                 pr.repository_id,
                 r.repository_name
             FROM pull_requests pr
@@ -759,6 +767,71 @@ class AggregateGenerator:
                             )
                 rollup_dict["by_team_and_repo"] = by_team_and_repo
                 any_rollup_has_cross_dim = True
+
+            # Feature 060 (FR-001, FR-002, FR-003, FR-025): PR-level detail.
+            # Build the qualified PR set (non-null, finite cycle_time_minutes),
+            # sort by (-cycle_time, id), truncate to `_PR_DETAIL_CAP`, serialize
+            # to `PrRecord` dicts. Public/demo artifacts have these three
+            # fields stripped by the `promote_data` gate — this emission is
+            # for private tenant artifacts only.
+            #
+            # `pd.to_numeric(errors="coerce")` hardens against mixed-dtype
+            # columns: SQLite can return some NaN bit patterns as None, which
+            # leaves the column `object` dtype and makes `np.isfinite` raise
+            # "ufunc not supported for the input types". The coerce step
+            # collapses every non-numeric value to NaN, then `notna &
+            # isfinite` filters to finite floats for the sort + emit pass.
+            cycle_numeric = pd.to_numeric(group["cycle_time_minutes"], errors="coerce")
+            qualified = group[cycle_numeric.notna() & np.isfinite(cycle_numeric)]
+            if not qualified.empty:
+                qualified = qualified.sort_values(
+                    by=["cycle_time_minutes", "pull_request_id"],
+                    ascending=[False, True],
+                    kind="stable",
+                )
+                total_qualified = len(qualified)
+                prs_truncated = total_qualified > _PR_DETAIL_CAP
+                if prs_truncated:
+                    qualified = qualified.head(_PR_DETAIL_CAP)
+
+                prs: list[PrRecord] = []
+                for row in qualified.itertuples(index=False):
+                    pr_id = getattr(row, "pull_request_id", None)
+                    title = getattr(row, "title", None)
+                    user_id = getattr(row, "user_id", None)
+                    repository_id = getattr(row, "repository_id", None)
+                    cycle_time = getattr(row, "cycle_time_minutes", None)
+                    # Defensive: require well-typed fields. Partial rows are
+                    # logged and excluded from the `prs` array; the aggregate
+                    # `pr_count` attribution is unaffected (the PR still counts
+                    # in the slice totals).
+                    if (
+                        not isinstance(title, str)
+                        or not isinstance(user_id, str)
+                        or not isinstance(repository_id, str)
+                        or not isinstance(pr_id, (int, float))
+                        or not isinstance(cycle_time, (int, float))
+                    ):
+                        logger.warning(
+                            "PR-level detail: skipping PR with incomplete "
+                            "fields in week %s (pull_request_id=%r)",
+                            week_str,
+                            pr_id,
+                        )
+                        continue
+                    prs.append(
+                        {
+                            "id": int(pr_id),
+                            "title": title,
+                            "author_id": user_id,
+                            "repository_id": repository_id,
+                            "cycle_time": float(cycle_time),
+                        }
+                    )
+
+                rollup_dict["prs"] = prs
+                rollup_dict["_prs_truncated"] = prs_truncated
+                rollup_dict["_prs_cap"] = _PR_DETAIL_CAP
 
             # Write file
             file_path = (

@@ -42,9 +42,14 @@ def _extract_ts_set_fields(ts_source: str, set_name: str) -> set[str]:
 
 
 def _extract_python_dynamic_fields(py_source: str) -> set[str]:
-    """Extract breakdown field names added dynamically to rollup_dict."""
-    # Matches: rollup_dict["by_repository"] = ...
-    return set(re.findall(r'rollup_dict\["(by_\w+)"\]', py_source))
+    """Extract field names added dynamically to rollup_dict.
+
+    Originally limited to ``by_*`` breakdown keys; broadened in feature 060 to
+    include any key so the parity check also covers private-tenant PR-level
+    fields (``prs`` / ``_prs_truncated`` / ``_prs_cap``) which do not share
+    the ``by_*`` prefix.
+    """
+    return set(re.findall(r'rollup_dict\["([^"]+)"\]', py_source))
 
 
 @pytest.fixture(scope="module")
