@@ -876,6 +876,18 @@ def _extract_teams(
                 stats["projects_team_skipped"] += 1
                 continue
 
+            # #296 review P1: PRExtractor writes projects rows only as a
+            # side effect of ``upsert_pr_with_related`` inside its PR
+            # for-loop (pr_extractor.py:152-159).  A succeeded project
+            # with zero PRs in the extract window never hits that line,
+            # so (organization_name, project_name) stays absent on a
+            # fresh DB.  The teams FK to projects would then raise
+            # IntegrityError on the first ``upsert_team``.  Upsert the
+            # parent rows exactly once per project loop iteration
+            # (INSERT OR IGNORE is zero-cost when already present).
+            repo.upsert_organization(config.organization)
+            repo.upsert_project(config.organization, project)
+
             project_members = 0
             for team in teams:
                 team_id = team["id"]
@@ -886,8 +898,14 @@ def _extract_teams(
                     organization_name=config.organization,
                     description=team.get("description"),
                 )
-                repo.clear_team_members(team_id)
 
+                # #296 review P2: clear_team_members must NOT precede
+                # get_team_members.  Clearing first and then skipping on
+                # ExtractionError leaves the team with zero members —
+                # avoidable data loss on transient 403/network errors
+                # (exactly the class this branch is meant to tolerate).
+                # Clearing only after a successful fetch keeps the
+                # prior membership intact until fresh data is in hand.
                 try:
                     members = client.get_team_members(project, team_id)
                 except ExtractionError as e:
@@ -899,6 +917,7 @@ def _extract_teams(
                     )
                     continue
 
+                repo.clear_team_members(team_id)
                 for member in members:
                     user_id = member.get("id")
                     if not user_id:
@@ -921,11 +940,14 @@ def _extract_teams(
                         continue
                     # ``uniqueName`` is the AD account name from the ADO
                     # IdentityRef shape; commonly an email address.
+                    # Coalesce an empty string to None so the column
+                    # stores NULL rather than "" for users without a
+                    # resolvable account name.
                     repo.upsert_team_member(
                         team_id=team_id,
                         user_id=user_id,
                         display_name=display_name,
-                        email=member.get("uniqueName"),
+                        email=member.get("uniqueName") or None,
                     )
                     project_members += 1
 
