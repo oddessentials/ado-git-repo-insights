@@ -27,7 +27,9 @@ describe("setup-guides", () => {
 
     it("includes predictions YAML snippet", () => {
       const html = renderPredictionsSetupGuide();
-      expect(html).toContain("run-predictions: true");
+      expect(html).toContain("- task: ExtractPullRequests@2");
+      expect(html).toContain("enablePredictions: true");
+      expect(html).toContain("generateAggregates: true");
     });
 
     it("includes copy button with aria-label", () => {
@@ -57,8 +59,9 @@ describe("setup-guides", () => {
 
     it("includes insights YAML snippet", () => {
       const html = renderInsightsSetupGuide();
-      expect(html).toContain("run-insights: true");
-      expect(html).toContain("openai-api-key: $(OPENAI_API_KEY)");
+      expect(html).toContain("- task: ExtractPullRequests@2");
+      expect(html).toContain("enableInsights: true");
+      expect(html).toContain("openaiApiKey: $(OPENAI_API_KEY)");
     });
 
     it("includes copy button with unique ID", () => {
@@ -449,15 +452,17 @@ describe("setup-guides", () => {
   describe("getters", () => {
     it("getPredictionsYaml returns correct YAML", () => {
       const yaml = getPredictionsYaml();
-      expect(yaml).toContain("build-aggregates:");
-      expect(yaml).toContain("run-predictions: true");
+      expect(yaml).toContain("- task: ExtractPullRequests@2");
+      expect(yaml).toContain("generateAggregates: true");
+      expect(yaml).toContain("enablePredictions: true");
     });
 
     it("getInsightsYaml returns correct YAML", () => {
       const yaml = getInsightsYaml();
-      expect(yaml).toContain("build-aggregates:");
-      expect(yaml).toContain("run-insights: true");
-      expect(yaml).toContain("openai-api-key: $(OPENAI_API_KEY)");
+      expect(yaml).toContain("- task: ExtractPullRequests@2");
+      expect(yaml).toContain("generateAggregates: true");
+      expect(yaml).toContain("enableInsights: true");
+      expect(yaml).toContain("openaiApiKey: $(OPENAI_API_KEY)");
     });
   });
 

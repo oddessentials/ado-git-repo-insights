@@ -752,5 +752,5 @@ ado-insights build-aggregates --db data.db --out ./dataset --enable-insights
 - [CLI User Guide](../user-guide/local-cli.md) — Getting started with the CLI
 - [CSV Schema](csv-schema.md) — Output file format details
 - [Troubleshooting](../user-guide/troubleshooting.md) — Common issues
-- [Enable ML Features](../internal/enable-ml-features.md) — Detailed ML setup guide
+- [Enable ML Features](../user-guide/enable-ml-features.md) — Detailed ML setup guide
 - [Manual Testing Walkthrough](../internal/manual-walkthrough.md) — End-to-end CLI scenarios

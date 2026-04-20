@@ -14,38 +14,47 @@ class TestYamlSnippetGeneration:
     def test_predictions_yaml_snippet_structure(self) -> None:
         """Predictions YAML snippet should have correct structure."""
         yaml_snippet = """
-build-aggregates:
-  run-predictions: true
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true
 """.strip()
 
-        assert "build-aggregates" in yaml_snippet
-        assert "run-predictions: true" in yaml_snippet
+        assert "- task: ExtractPullRequests@2" in yaml_snippet
+        assert "enablePredictions: true" in yaml_snippet
+        assert "generateAggregates: true" in yaml_snippet
 
     def test_predictions_yaml_indentation(self) -> None:
-        """Predictions YAML should use 2-space indentation."""
-        yaml_snippet = """build-aggregates:
-  run-predictions: true"""
+        """Predictions YAML should use 2-space indentation under inputs."""
+        yaml_snippet = """- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true"""
 
         lines = yaml_snippet.split("\n")
-        # Second line should start with 2 spaces
-        assert lines[1].startswith("  ")
-        assert not lines[1].startswith("    ")  # Not 4 spaces
+        # inputs: is 2 spaces under the task
+        assert lines[1].startswith("  inputs:")
+        # input keys are 4 spaces (2-space indent under inputs:)
+        assert lines[2].startswith("    ")
+        assert not lines[2].startswith("      ")  # Not 6 spaces
 
     def test_insights_yaml_snippet_structure(self) -> None:
         """Insights YAML snippet should have correct structure."""
         yaml_snippet = """
-build-aggregates:
-  run-insights: true
-  openai-api-key: $(OPENAI_API_KEY)
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enableInsights: true
+    openaiApiKey: $(OPENAI_API_KEY)
 """.strip()
 
-        assert "build-aggregates" in yaml_snippet
-        assert "run-insights: true" in yaml_snippet
-        assert "openai-api-key" in yaml_snippet
+        assert "- task: ExtractPullRequests@2" in yaml_snippet
+        assert "enableInsights: true" in yaml_snippet
+        assert "openaiApiKey" in yaml_snippet
 
     def test_insights_yaml_uses_variable_syntax(self) -> None:
         """Insights YAML should use ADO variable syntax for API key."""
-        yaml_snippet = "openai-api-key: $(OPENAI_API_KEY)"
+        yaml_snippet = "openaiApiKey: $(OPENAI_API_KEY)"
 
         # Should use $() syntax for ADO variables
         assert "$(" in yaml_snippet
@@ -56,14 +65,16 @@ build-aggregates:
     def test_combined_yaml_snippet(self) -> None:
         """Combined YAML should enable both features."""
         yaml_snippet = """
-build-aggregates:
-  run-predictions: true
-  run-insights: true
-  openai-api-key: $(OPENAI_API_KEY)
+- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true
+    enableInsights: true
+    openaiApiKey: $(OPENAI_API_KEY)
 """.strip()
 
-        assert "run-predictions: true" in yaml_snippet
-        assert "run-insights: true" in yaml_snippet
+        assert "enablePredictions: true" in yaml_snippet
+        assert "enableInsights: true" in yaml_snippet
 
 
 class TestClipboardCopy:
@@ -75,8 +86,10 @@ class TestClipboardCopy:
 
     def test_copy_content_is_string(self) -> None:
         """Content to copy should be a string."""
-        content = """build-aggregates:
-  run-predictions: true"""
+        content = """- task: ExtractPullRequests@2
+  inputs:
+    generateAggregates: true
+    enablePredictions: true"""
 
         assert isinstance(content, str)
         assert len(content) > 0
@@ -120,7 +133,7 @@ class TestSetupGuideContent:
         guide = {
             "title": "Enable Predictions",
             "description": "Add time-series forecasting to your pipeline.",
-            "yaml": "run-predictions: true",
+            "yaml": "enablePredictions: true",
         }
 
         assert len(guide["description"]) > 10
@@ -154,7 +167,7 @@ class TestSetupGuideContent:
         guide = {
             "title": "Enable Predictions",
             "description": "Zero-config forecasting. No API key required.",
-            "yaml": "run-predictions: true",
+            "yaml": "enablePredictions: true",
         }
 
         # Should not require API key
