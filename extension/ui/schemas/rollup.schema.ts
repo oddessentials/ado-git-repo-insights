@@ -13,10 +13,18 @@ import type {
   ValidationWarning,
   SchemaValidator,
 } from "./types";
-import { validResult, invalidResult, createError } from "./types";
+import {
+  validResult,
+  invalidResult,
+  createError,
+  createWarning,
+} from "./types";
 import {
   isObject,
+  isArray,
+  isString,
   isNumber,
+  isBoolean,
   getTypeName,
   buildPath,
   validateRequired,
@@ -56,6 +64,21 @@ export interface ReviewerBreakdownEntry {
 }
 
 /**
+ * Individual PR record element of the weekly rollup `prs` array (feature 060).
+ *
+ * Exactly five fields per the locked PR-record contract (FR-001, data-model §1,
+ * specs/060-throughput-pr-drilldown/contracts/pr-record.md). Expansion requires
+ * a fresh scoping round — do not add fields opportunistically.
+ */
+export interface PrRecord {
+  id: number;
+  title: string;
+  author_id: string;
+  repository_id: string;
+  cycle_time: number;
+}
+
+/**
  * Weekly rollup structure.
  */
 export interface WeeklyRollup {
@@ -75,6 +98,11 @@ export interface WeeklyRollup {
   by_team?: Record<string, BreakdownEntry>;
   by_reviewer?: Record<string, ReviewerBreakdownEntry>;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
+  // Feature 060 PR-level detail (present on private tenant artifacts only;
+  // stripped from public/demo artifacts per the privacy-posture contract).
+  prs?: readonly PrRecord[];
+  _prs_truncated?: boolean;
+  _prs_cap?: number;
 }
 
 // ============================================================================
@@ -98,7 +126,20 @@ const KNOWN_ROOT_FIELDS = new Set([
   "by_team",
   "by_reviewer",
   "by_team_and_repo",
+  // Feature 060 PR-level detail fields (optional on tenant rollups,
+  // absent from demo-surface rollups).
+  "prs",
+  "_prs_truncated",
+  "_prs_cap",
 ]);
+
+const PR_RECORD_REQUIRED_FIELDS: readonly (keyof PrRecord)[] = [
+  "id",
+  "title",
+  "author_id",
+  "repository_id",
+  "cycle_time",
+];
 
 const KNOWN_BREAKDOWN_FIELDS = new Set([
   "pr_count",
@@ -352,6 +393,115 @@ function validateNestedBreakdown(
   return { errors, warnings };
 }
 
+/**
+ * Validate the `prs` array (feature 060). Permissive: malformed elements and
+ * missing required fields produce warnings, never errors — matches the
+ * schema-validator convention for new optional fields. The UI treats warned
+ * elements as absent (no partial render).
+ */
+function validatePrRecordArray(
+  data: unknown,
+  path: string,
+): { warnings: ValidationWarning[] } {
+  const warnings: ValidationWarning[] = [];
+
+  if (!isArray(data)) {
+    warnings.push(
+      createWarning(
+        path,
+        `'prs' present but not an array (got ${getTypeName(data)}); ignored`,
+      ),
+    );
+    return { warnings };
+  }
+
+  for (const [i, pr] of data.entries()) {
+    const prPath = buildPath(path, i);
+    if (!isObject(pr)) {
+      warnings.push(
+        createWarning(
+          prPath,
+          `'prs[${i}]' is not an object (got ${getTypeName(pr)}); element ignored`,
+        ),
+      );
+      continue;
+    }
+    for (const field of PR_RECORD_REQUIRED_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(pr, field)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, field),
+            `missing required PR field '${field}'; element will be treated as absent`,
+          ),
+        );
+      }
+    }
+    const idValue = Object.prototype.hasOwnProperty.call(pr, "id")
+      ? Object.getOwnPropertyDescriptor(pr, "id")?.value
+      : undefined;
+    if (idValue !== undefined && !isNumber(idValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "id"),
+          `expected number, got ${getTypeName(idValue)}`,
+        ),
+      );
+    }
+    const titleValue = Object.prototype.hasOwnProperty.call(pr, "title")
+      ? Object.getOwnPropertyDescriptor(pr, "title")?.value
+      : undefined;
+    if (titleValue !== undefined && !isString(titleValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "title"),
+          `expected string, got ${getTypeName(titleValue)}`,
+        ),
+      );
+    }
+    const authorIdValue = Object.prototype.hasOwnProperty.call(pr, "author_id")
+      ? Object.getOwnPropertyDescriptor(pr, "author_id")?.value
+      : undefined;
+    if (authorIdValue !== undefined && !isString(authorIdValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "author_id"),
+          `expected string, got ${getTypeName(authorIdValue)}`,
+        ),
+      );
+    }
+    const repoIdValue = Object.prototype.hasOwnProperty.call(
+      pr,
+      "repository_id",
+    )
+      ? Object.getOwnPropertyDescriptor(pr, "repository_id")?.value
+      : undefined;
+    if (repoIdValue !== undefined && !isString(repoIdValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "repository_id"),
+          `expected string, got ${getTypeName(repoIdValue)}`,
+        ),
+      );
+    }
+    const cycleTimeValue = Object.prototype.hasOwnProperty.call(
+      pr,
+      "cycle_time",
+    )
+      ? Object.getOwnPropertyDescriptor(pr, "cycle_time")?.value
+      : undefined;
+    if (cycleTimeValue !== undefined && !isNumber(cycleTimeValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "cycle_time"),
+          `expected number, got ${getTypeName(cycleTimeValue)}`,
+        ),
+      );
+    }
+  }
+
+  return { warnings };
+}
+
 // ============================================================================
 // Main Validator
 // ============================================================================
@@ -492,6 +642,75 @@ export function validateRollup(
     );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
+  }
+
+  // Feature 060: PR-level detail (`prs` + `_prs_truncated` + `_prs_cap`).
+  // All three are optional. When `prs` is present, markers are expected; when
+  // markers appear without `prs`, they are ignored. Permissive throughout —
+  // warnings only, never errors. Matches pr-record.md validator contract.
+  const prsValue = Object.prototype.hasOwnProperty.call(data, "prs")
+    ? Object.getOwnPropertyDescriptor(data, "prs")?.value
+    : undefined;
+  const truncatedValue = Object.prototype.hasOwnProperty.call(
+    data,
+    "_prs_truncated",
+  )
+    ? Object.getOwnPropertyDescriptor(data, "_prs_truncated")?.value
+    : undefined;
+  const capValue = Object.prototype.hasOwnProperty.call(data, "_prs_cap")
+    ? Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value
+    : undefined;
+  const hasPrs = prsValue !== undefined;
+  const hasTruncated = truncatedValue !== undefined;
+  const hasCap = capValue !== undefined;
+
+  if (hasPrs) {
+    const prsResult = validatePrRecordArray(prsValue, "prs");
+    warnings.push(...prsResult.warnings);
+    if (!hasTruncated) {
+      warnings.push(
+        createWarning(
+          "_prs_truncated",
+          "'prs' present but '_prs_truncated' absent; treated as false",
+        ),
+      );
+    } else if (!isBoolean(truncatedValue)) {
+      warnings.push(
+        createWarning(
+          "_prs_truncated",
+          `expected boolean, got ${getTypeName(truncatedValue)}`,
+        ),
+      );
+    }
+    if (!hasCap) {
+      warnings.push(
+        createWarning(
+          "_prs_cap",
+          "'prs' present but '_prs_cap' absent; truncation-indicator math will be skipped",
+        ),
+      );
+    } else if (!isNumber(capValue)) {
+      warnings.push(
+        createWarning(
+          "_prs_cap",
+          `expected number, got ${getTypeName(capValue)}`,
+        ),
+      );
+    }
+  } else {
+    if (hasTruncated) {
+      warnings.push(
+        createWarning(
+          "_prs_truncated",
+          "'_prs_truncated' present without 'prs'; ignored",
+        ),
+      );
+    }
+    if (hasCap) {
+      warnings.push(
+        createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored"),
+      );
+    }
   }
 
   // Check for unknown fields at root

@@ -28,6 +28,7 @@ import {
 import type {
   BreakdownEntry,
   ReviewerBreakdownEntry,
+  PrRecord,
 } from "./schemas/rollup.schema";
 
 // ============================================================================
@@ -131,6 +132,14 @@ export interface Rollup {
   by_team: Record<string, BreakdownEntry> | null;
   by_reviewer?: Record<string, ReviewerBreakdownEntry> | null;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
+  // Feature 060 PR-level detail. All three fields are optional and are present
+  // only on private tenant rollups; demo/public-surface rollups have them
+  // stripped by the promote_data strip gate (dataset-contract.md privacy
+  // posture). Readonly at the type level to discourage in-place mutation by
+  // consumers.
+  prs?: readonly PrRecord[];
+  _prs_truncated?: boolean;
+  _prs_cap?: number;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 

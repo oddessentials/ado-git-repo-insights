@@ -1304,8 +1304,20 @@ var PRInsightsDashboard = (() => {
     "by_author_and_repo",
     "by_team",
     "by_reviewer",
-    "by_team_and_repo"
+    "by_team_and_repo",
+    // Feature 060 PR-level detail fields (optional on tenant rollups,
+    // absent from demo-surface rollups).
+    "prs",
+    "_prs_truncated",
+    "_prs_cap"
   ]);
+  var PR_RECORD_REQUIRED_FIELDS = [
+    "id",
+    "title",
+    "author_id",
+    "repository_id",
+    "cycle_time"
+  ];
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
     "cycle_time_p50",
@@ -1480,6 +1492,92 @@ var PRInsightsDashboard = (() => {
     }
     return { errors, warnings };
   }
+  function validatePrRecordArray(data, path) {
+    const warnings = [];
+    if (!isArray(data)) {
+      warnings.push(
+        createWarning(
+          path,
+          `'prs' present but not an array (got ${getTypeName(data)}); ignored`
+        )
+      );
+      return { warnings };
+    }
+    for (const [i2, pr] of data.entries()) {
+      const prPath = buildPath(path, i2);
+      if (!isObject(pr)) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `'prs[${i2}]' is not an object (got ${getTypeName(pr)}); element ignored`
+          )
+        );
+        continue;
+      }
+      for (const field of PR_RECORD_REQUIRED_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(pr, field)) {
+          warnings.push(
+            createWarning(
+              buildPath(prPath, field),
+              `missing required PR field '${field}'; element will be treated as absent`
+            )
+          );
+        }
+      }
+      const idValue = Object.prototype.hasOwnProperty.call(pr, "id") ? Object.getOwnPropertyDescriptor(pr, "id")?.value : void 0;
+      if (idValue !== void 0 && !isNumber(idValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "id"),
+            `expected number, got ${getTypeName(idValue)}`
+          )
+        );
+      }
+      const titleValue = Object.prototype.hasOwnProperty.call(pr, "title") ? Object.getOwnPropertyDescriptor(pr, "title")?.value : void 0;
+      if (titleValue !== void 0 && !isString(titleValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "title"),
+            `expected string, got ${getTypeName(titleValue)}`
+          )
+        );
+      }
+      const authorIdValue = Object.prototype.hasOwnProperty.call(pr, "author_id") ? Object.getOwnPropertyDescriptor(pr, "author_id")?.value : void 0;
+      if (authorIdValue !== void 0 && !isString(authorIdValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "author_id"),
+            `expected string, got ${getTypeName(authorIdValue)}`
+          )
+        );
+      }
+      const repoIdValue = Object.prototype.hasOwnProperty.call(
+        pr,
+        "repository_id"
+      ) ? Object.getOwnPropertyDescriptor(pr, "repository_id")?.value : void 0;
+      if (repoIdValue !== void 0 && !isString(repoIdValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "repository_id"),
+            `expected string, got ${getTypeName(repoIdValue)}`
+          )
+        );
+      }
+      const cycleTimeValue = Object.prototype.hasOwnProperty.call(
+        pr,
+        "cycle_time"
+      ) ? Object.getOwnPropertyDescriptor(pr, "cycle_time")?.value : void 0;
+      if (cycleTimeValue !== void 0 && !isNumber(cycleTimeValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "cycle_time"),
+            `expected number, got ${getTypeName(cycleTimeValue)}`
+          )
+        );
+      }
+    }
+    return { warnings };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1572,6 +1670,63 @@ var PRInsightsDashboard = (() => {
       );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    const prsValue = Object.prototype.hasOwnProperty.call(data, "prs") ? Object.getOwnPropertyDescriptor(data, "prs")?.value : void 0;
+    const truncatedValue = Object.prototype.hasOwnProperty.call(
+      data,
+      "_prs_truncated"
+    ) ? Object.getOwnPropertyDescriptor(data, "_prs_truncated")?.value : void 0;
+    const capValue = Object.prototype.hasOwnProperty.call(data, "_prs_cap") ? Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value : void 0;
+    const hasPrs = prsValue !== void 0;
+    const hasTruncated = truncatedValue !== void 0;
+    const hasCap = capValue !== void 0;
+    if (hasPrs) {
+      const prsResult = validatePrRecordArray(prsValue, "prs");
+      warnings.push(...prsResult.warnings);
+      if (!hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'prs' present but '_prs_truncated' absent; treated as false"
+          )
+        );
+      } else if (!isBoolean(truncatedValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            `expected boolean, got ${getTypeName(truncatedValue)}`
+          )
+        );
+      }
+      if (!hasCap) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            "'prs' present but '_prs_cap' absent; truncation-indicator math will be skipped"
+          )
+        );
+      } else if (!isNumber(capValue)) {
+        warnings.push(
+          createWarning(
+            "_prs_cap",
+            `expected number, got ${getTypeName(capValue)}`
+          )
+        );
+      }
+    } else {
+      if (hasTruncated) {
+        warnings.push(
+          createWarning(
+            "_prs_truncated",
+            "'_prs_truncated' present without 'prs'; ignored"
+          )
+        );
+      }
+      if (hasCap) {
+        warnings.push(
+          createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored")
+        );
+      }
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);

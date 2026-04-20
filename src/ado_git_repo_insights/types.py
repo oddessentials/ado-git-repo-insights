@@ -286,6 +286,21 @@ class ReviewerSliceMetrics(TypedDict):
     repositories_count: int
 
 
+class PrRecord(TypedDict):
+    """Individual PR element of a weekly rollup's ``prs`` array (feature 060).
+
+    Exactly five fields per the locked PR-record contract (FR-001, data-model §1
+    and ``specs/060-throughput-pr-drilldown/contracts/pr-record.md``). Expansion
+    requires a fresh scoping round — do NOT add fields opportunistically.
+    """
+
+    id: int
+    title: str
+    author_id: str
+    repository_id: str
+    cycle_time: float
+
+
 class WeeklyRollupIndexEntry(TypedDict):
     """Index entry for a weekly rollup file in aggregate_index."""
 
