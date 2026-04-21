@@ -1925,10 +1925,19 @@ def main(argv: list[str] | None = None) -> int:
 
         # Feature 309 #315: append synthetic PR-level detail as the LAST three
         # keys, matching the aggregator's insertion order at aggregators.py:832.
+        # On the truncation-exercise week and the contrast weeks we also
+        # overwrite `rollup_data["pr_count"]` so the top-level count, the
+        # emitted `prs` array length, and the UI badge gate
+        # (`renderedCount < actualFilteredCount` at
+        # extension/ui/modules/shared/detail-panel.ts:456) stay coherent.
+        # Non-override weeks keep the natural `rollup.pr_count` already set
+        # in the dict literal above.
         if rollup.week == truncation_week:
             qualified_count = target_qualified_count
+            rollup_data["pr_count"] = qualified_count
         elif rollup.week in contrast_weeks:
             qualified_count = min(int(rollup.pr_count), contrast_max_count)
+            rollup_data["pr_count"] = qualified_count
         else:
             qualified_count = int(rollup.pr_count)
 

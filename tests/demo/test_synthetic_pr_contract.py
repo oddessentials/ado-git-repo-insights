@@ -145,6 +145,74 @@ def test_truncation_exercise_week_locked() -> None:
         )
 
 
+def test_truncation_badge_renders_for_exercise_week() -> None:
+    """UI-contract regression (PR #320 Codex P1): the badge-gate condition must fire.
+
+    The badge-render gate in
+    ``extension/ui/modules/shared/detail-panel.ts:456`` is
+    ``renderedCount < actualFilteredCount``, where ``actualFilteredCount``
+    is ``rollup.pr_count`` and ``renderedCount`` is ``len(rollup.prs)``.
+    For the committed truncation-exercise week (``2025-W26``), that
+    condition MUST evaluate to true — otherwise the drill-down renders
+    500 PR rows with no truncation indicator, silently failing feature
+    309 US3. Locks the load-bearing inequality: ``pr_count > _prs_cap``.
+    """
+    rollups_dir = REPO_ROOT / "docs" / "data" / "aggregates" / "weekly_rollups"
+    payload = json.loads((rollups_dir / "2025-W26.json").read_text(encoding="utf-8"))
+    pr_count = payload.get("pr_count")
+    prs_cap = payload.get("_prs_cap")
+    prs = payload.get("prs")
+    assert isinstance(pr_count, int), f"pr_count must be int; got {pr_count!r}"
+    assert isinstance(prs_cap, int), f"_prs_cap must be int; got {prs_cap!r}"
+    assert isinstance(prs, list), f"prs must be list; got {type(prs).__name__}"
+    assert pr_count > prs_cap, (
+        f"truncation-badge gate requires pr_count ({pr_count}) > _prs_cap "
+        f"({prs_cap}); otherwise `renderedCount < actualFilteredCount` is "
+        "false and the drill-down renders 500 rows with no indicator."
+    )
+    assert len(prs) == prs_cap, (
+        f"len(prs)={len(prs)} must equal _prs_cap={prs_cap} on the exercise week"
+    )
+
+
+def test_synthetic_exercise_weeks_data_coherence() -> None:
+    """PR count, prs length, and _prs_truncated must be coherent across the three
+    synthetic-exercise weeks (contract: #315 slice 2d, Codex P1 correction).
+
+    - W26 (truncation week): ``len(prs) == _prs_cap == 500``,
+      ``pr_count == target_qualified_pr_count == 520``, ``_prs_truncated == True``.
+    - W25 & W27 (contrast weeks): ``_prs_truncated == False``,
+      ``len(prs) == pr_count`` (1:1 correspondence).
+    """
+    rollups_dir = REPO_ROOT / "docs" / "data" / "aggregates" / "weekly_rollups"
+    w26 = json.loads((rollups_dir / "2025-W26.json").read_text(encoding="utf-8"))
+    assert w26.get("_prs_truncated") is True, (
+        f"W26 _prs_truncated must be True; got {w26.get('_prs_truncated')!r}"
+    )
+    assert w26.get("_prs_cap") == 500, (
+        f"W26 _prs_cap must be 500; got {w26.get('_prs_cap')!r}"
+    )
+    assert isinstance(w26.get("prs"), list), "W26 prs must be a list"
+    assert len(w26["prs"]) == 500, f"W26 len(prs) must be 500; got {len(w26['prs'])}"
+    assert w26.get("pr_count") == 520, (
+        f"W26 pr_count must be target_qualified_pr_count (520); "
+        f"got {w26.get('pr_count')!r}"
+    )
+
+    for week in ("2025-W25", "2025-W27"):
+        payload = json.loads((rollups_dir / f"{week}.json").read_text(encoding="utf-8"))
+        assert payload.get("_prs_truncated") is False, (
+            f"{week} _prs_truncated must be False; got {payload.get('_prs_truncated')!r}"
+        )
+        prs = payload.get("prs")
+        pr_count = payload.get("pr_count")
+        assert isinstance(prs, list), f"{week} prs must be a list"
+        assert isinstance(pr_count, int), f"{week} pr_count must be int"
+        assert len(prs) == pr_count, (
+            f"{week} len(prs)={len(prs)} must equal pr_count={pr_count}"
+        )
+
+
 def test_key_insertion_order_matches_aggregator() -> None:
     """The three PR-level keys MUST be present in a committed rollup.
 

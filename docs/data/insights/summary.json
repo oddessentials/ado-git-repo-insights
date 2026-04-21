@@ -62,12 +62,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR throughput increased by 29.0% during 2024-W02 to 2024-W05. Average weekly PRs went from 66.8 to 86.3. This surge could indicate a major release push or increased team capacity.",
+      "description": "PR throughput increased by 78.0% during 2025-W23 to 2025-W26. Average weekly PRs went from 131.5 to 233.5. This surge could indicate a major release push or increased team capacity.",
       "evidence_refs": [
-        "rollup:2024-W02",
-        "rollup:2024-W03",
-        "rollup:2024-W04",
-        "rollup:2024-W05"
+        "rollup:2025-W23",
+        "rollup:2025-W24",
+        "rollup:2025-W25",
+        "rollup:2025-W26"
       ],
       "id": "trend-001",
       "severity": "info",
@@ -102,12 +102,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR throughput decreased by 21.0% during 2024-W41 to 2024-W44. Average weekly PRs dropped from 115.8 to 91.3. This decline may indicate team capacity issues, blockers, or seasonal slowdown.",
+      "description": "PR throughput decreased by 43.0% during 2025-W30 to 2025-W33. Average weekly PRs dropped from 238.8 to 136.8. This decline may indicate team capacity issues, blockers, or seasonal slowdown.",
       "evidence_refs": [
-        "rollup:2024-W41",
-        "rollup:2024-W42",
-        "rollup:2024-W43",
-        "rollup:2024-W44"
+        "rollup:2025-W30",
+        "rollup:2025-W31",
+        "rollup:2025-W32",
+        "rollup:2025-W33"
       ],
       "id": "trend-003",
       "severity": "warning",
@@ -122,9 +122,9 @@
         }
       ],
       "category": "anomaly",
-      "description": "Week 2022-W21 had 109 PRs, which is 4.0 standard deviations above the 8-week rolling average of 95.4. This spike could indicate a major release, hackathon, or concentrated feature work.",
+      "description": "Week 2025-W26 had 520 PRs, which is 68.0 standard deviations above the 8-week rolling average of 134.0. This spike could indicate a major release, hackathon, or concentrated feature work.",
       "evidence_refs": [
-        "rollup:2022-W21"
+        "rollup:2025-W26"
       ],
       "id": "anomaly-001",
       "severity": "info",
