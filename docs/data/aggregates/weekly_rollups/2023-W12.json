@@ -1,4 +1,6 @@
 {
+  "_prs_cap": 500,
+  "_prs_truncated": false,
   "authors_count": 30,
   "by_author": {
     "0139879c-ac5b-5d79-8a7b-499784002eb8": {
@@ -2142,6 +2144,715 @@
   "cycle_time_p90": 2242.581,
   "end_date": "2023-03-26",
   "pr_count": 101,
+  "prs": [
+    {
+      "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+      "cycle_time": 360426.165,
+      "id": 202312045,
+      "repository_id": "etl-jobs",
+      "title": "auto-20260313-1826-auto-20260308-1818-auto-20260206-1833-auto-20260320-1"
+    },
+    {
+      "author_id": "cbd5bf5c-4c72-513e-8f8b-7e4629d47b2a",
+      "cycle_time": 92045.749,
+      "id": 202312075,
+      "repository_id": "etl-jobs",
+      "title": "auto-20260212-1844-hardening-auto-20260228-1817-auto-20260221-1819-auto-"
+    },
+    {
+      "author_id": "530d9e42-833f-51c7-8daa-03395d8f573c",
+      "cycle_time": 78801.503,
+      "id": 202312076,
+      "repository_id": "auth-service",
+      "title": "auto-20260408-h21-r81-auto-20260401-h10-r68-auto-20260315-1822-auto-2026"
+    },
+    {
+      "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+      "cycle_time": 59319.441,
+      "id": 202312046,
+      "repository_id": "ios-app",
+      "title": "auto-20260331-h15-r65-auto-20260218-1837"
+    },
+    {
+      "author_id": "b7ad1ee1-902d-532c-9b80-0eda227e722c",
+      "cycle_time": 18327.562,
+      "id": 202312069,
+      "repository_id": "ios-app",
+      "title": "auto-20260410-h21-r81-auto-20260321-1820-auto-20260331-h15-r65"
+    },
+    {
+      "author_id": "b49c78dd-667a-5b08-b69e-3f70d3ad2f93",
+      "cycle_time": 9007.794,
+      "id": 202312089,
+      "repository_id": "ios-app",
+      "title": "auto-20260414-h21-r91-auto-20260416-h21-r52-auto-20260217-1840"
+    },
+    {
+      "author_id": "577689a9-035b-5053-9d85-eb8c695edda5",
+      "cycle_time": 7200.577,
+      "id": 202312013,
+      "repository_id": "design-system",
+      "title": "auto-20260211-1846-auto-20260315-1822-auto-20260126-1819"
+    },
+    {
+      "author_id": "b5bbf539-5403-5bdb-b3ac-48bae2e0f805",
+      "cycle_time": 6826.547,
+      "id": 202312030,
+      "repository_id": "stream-processor",
+      "title": "auto-20260407-h16-r49-auto-20260217-1840"
+    },
+    {
+      "author_id": "d3225da6-88d8-50bf-80c3-f547b9c530b7",
+      "cycle_time": 5702.838,
+      "id": 202312064,
+      "repository_id": "ios-app",
+      "title": "auto-20260331-h15-r65-auto-20260401-h21-r52-auto-20260414-h10-r85"
+    },
+    {
+      "author_id": "9ac1c4ec-36b0-58da-99f4-5832c021d3bb",
+      "cycle_time": 4621.507,
+      "id": 202312020,
+      "repository_id": "react-shell",
+      "title": "setup-auto-20260227-1825-auto-20260223-1847"
+    },
+    {
+      "author_id": "9ac1c4ec-36b0-58da-99f4-5832c021d3bb",
+      "cycle_time": 4480.008,
+      "id": 202312009,
+      "repository_id": "android-app",
+      "title": "auto-20260402-h15-r80-auto-20260128-1823-auto-20260223-1847-auto-2026040"
+    },
+    {
+      "author_id": "9434ad44-21e0-5d3c-a09c-3c33640cb086",
+      "cycle_time": 2739.355,
+      "id": 202312092,
+      "repository_id": "auth-service",
+      "title": "release-auto-20260216-1828-auto-20260124-1012-auto-20260222-1819-feature"
+    },
+    {
+      "author_id": "bd9e17b1-0b06-5284-9bf5-2300a7ec5778",
+      "cycle_time": 2356.351,
+      "id": 202312023,
+      "repository_id": "data-warehouse",
+      "title": "auto-20260113-2213-auto-20260412-h10-r95-auto-20260113-2213-auto-2026020"
+    },
+    {
+      "author_id": "bc38140d-a62f-5b00-829c-7e251ddd9ef9",
+      "cycle_time": 1515.867,
+      "id": 202312062,
+      "repository_id": "ios-app",
+      "title": "auto-20260221-1819-auto-20260126-1819-auto-20260215-1819"
+    },
+    {
+      "author_id": "d448bc60-8fe8-5fde-9da8-eeb195c80b72",
+      "cycle_time": 1286.45,
+      "id": 202312005,
+      "repository_id": "feature-store",
+      "title": "auto-20260317-1844-auto-20260201-1819-auto-20260308-1818-auto-20260202-1"
+    },
+    {
+      "author_id": "4990918a-5676-50c3-9598-5f23646ffc7c",
+      "cycle_time": 1267.032,
+      "id": 202312084,
+      "repository_id": "auth-service",
+      "title": "auto-20260406-h21-r67-auto-20260416-h10-r41-auto-20260420-h15-r84-auto-2"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 972.989,
+      "id": 202312034,
+      "repository_id": "react-shell",
+      "title": "auto-20260323-1838-auto-20260325-1841-auto-20260408-h10-r83-auto-2026030"
+    },
+    {
+      "author_id": "96515d60-2f47-57fd-9caf-ab557b4a4267",
+      "cycle_time": 807.362,
+      "id": 202312081,
+      "repository_id": "user-service",
+      "title": "auto-20260402-h15-r80-auto-20260204-1833-auto-20260321-1820-day-4"
+    },
+    {
+      "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+      "cycle_time": 802.112,
+      "id": 202312097,
+      "repository_id": "data-warehouse",
+      "title": "auto-20260306-1828-auto-20260321-1820"
+    },
+    {
+      "author_id": "a2d87e8b-8f92-57cf-95a3-f51fb3603d15",
+      "cycle_time": 801.778,
+      "id": 202312061,
+      "repository_id": "design-system",
+      "title": "auto-20260307-1818-auto-20260201-1819-auto-20260409-h16-r72-auto-2026022"
+    },
+    {
+      "author_id": "5690cecf-177b-5c80-b64b-3fbce2c5f7a5",
+      "cycle_time": 756.684,
+      "id": 202312096,
+      "repository_id": "ios-app",
+      "title": "auto-20260313-1826-auto-20260302-1831-auto-20260316-1845-auto-20260303-1"
+    },
+    {
+      "author_id": "a7aaa70f-ed59-5ab8-bd5c-d3bf956e7c6b",
+      "cycle_time": 641.175,
+      "id": 202312079,
+      "repository_id": "user-service",
+      "title": "auto-20260415-h15-r55-auto-20260314-1821-auto-20260208-1820-auto-2026032"
+    },
+    {
+      "author_id": "9434ad44-21e0-5d3c-a09c-3c33640cb086",
+      "cycle_time": 632.318,
+      "id": 202312047,
+      "repository_id": "gateway-core",
+      "title": "auto-20260221-1819-auto-20260209-1841-auto-20260412-h10-r95"
+    },
+    {
+      "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
+      "cycle_time": 404.684,
+      "id": 202312051,
+      "repository_id": "notification-service",
+      "title": "auto-20260221-1819-auto-20260128-1823-auto-20260302-1831-auto-20260131-1"
+    },
+    {
+      "author_id": "fa2210af-6bf9-5f40-b530-17574196e576",
+      "cycle_time": 346.038,
+      "id": 202312007,
+      "repository_id": "design-system",
+      "title": "auto-20260320-1831-auto-20260222-1819-auto-20260312-1837-auto-20260402-h"
+    },
+    {
+      "author_id": "fea4a98a-8269-59fa-96bb-3b7fad5cd3f1",
+      "cycle_time": 333.002,
+      "id": 202312042,
+      "repository_id": "react-shell",
+      "title": "auto-20260301-1818-auto-20260318-1842-auto-20260217-1840"
+    },
+    {
+      "author_id": "4990918a-5676-50c3-9598-5f23646ffc7c",
+      "cycle_time": 324.256,
+      "id": 202312041,
+      "repository_id": "ios-app",
+      "title": "auto-20260416-h21-r52-auto-20260302-1831-auto-20260322-1820-auto-2026030"
+    },
+    {
+      "author_id": "fea4a98a-8269-59fa-96bb-3b7fad5cd3f1",
+      "cycle_time": 316.607,
+      "id": 202312094,
+      "repository_id": "user-service",
+      "title": "auto-20260131-1817-auto-20260213-1830"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 273.871,
+      "id": 202312031,
+      "repository_id": "ios-app",
+      "title": "auto-20260325-1841-auto-20260317-1844-auto-20260318-1842"
+    },
+    {
+      "author_id": "bc38140d-a62f-5b00-829c-7e251ddd9ef9",
+      "cycle_time": 253.499,
+      "id": 202312017,
+      "repository_id": "ios-app",
+      "title": "auto-20260321-1820-auto-20260205-1834-auto-20260301-1818-auto-20260316-1"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 251.728,
+      "id": 202312012,
+      "repository_id": "dashboard-api",
+      "title": "auto-20260406-h21-r67-auto-20260203-1840"
+    },
+    {
+      "author_id": "7bfae255-fb96-5f69-8d1b-f086c2b3f494",
+      "cycle_time": 196.88,
+      "id": 202312077,
+      "repository_id": "dashboard-api",
+      "title": "auto-20260304-1832-auto-20260412-h10-r95-auto-20260403-h10-r32-auto-2026"
+    },
+    {
+      "author_id": "f53c8daa-8a1c-5b4a-83ed-57fc8d270479",
+      "cycle_time": 195.118,
+      "id": 202312024,
+      "repository_id": "ios-app",
+      "title": "auto-20260305-1906-auto-20260413-h16-r68-semantic-release-auto-20260401-"
+    },
+    {
+      "author_id": "08cf57e7-c6eb-568f-a9ef-8baa194946b6",
+      "cycle_time": 172.002,
+      "id": 202312095,
+      "repository_id": "user-service",
+      "title": "auto-20260301-1818-auto-20260218-1837"
+    },
+    {
+      "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+      "cycle_time": 146.018,
+      "id": 202312010,
+      "repository_id": "ios-app",
+      "title": "auto-20260409-h16-r72-auto-20260211-1846"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 132.131,
+      "id": 202312066,
+      "repository_id": "react-shell",
+      "title": "auto-20260408-h21-r81-auto-20260205-1834-auto-20260216-1828-auto-2026031"
+    },
+    {
+      "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+      "cycle_time": 129.007,
+      "id": 202312022,
+      "repository_id": "model-training",
+      "title": "auto-20260123-1015-auto-20260126-1819"
+    },
+    {
+      "author_id": "27033abe-8d6c-5612-88b9-296ea8b603be",
+      "cycle_time": 121.345,
+      "id": 202312059,
+      "repository_id": "feature-store",
+      "title": "auto-20260219-1838-auto-20260327-1841-featureday-2026010-4"
+    },
+    {
+      "author_id": "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216",
+      "cycle_time": 108.468,
+      "id": 202312002,
+      "repository_id": "notification-service",
+      "title": "choretest-400-diag3-7-auto-20260212-1844-auto-20260323-1838-auto-2026022"
+    },
+    {
+      "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+      "cycle_time": 105.03,
+      "id": 202312080,
+      "repository_id": "react-shell",
+      "title": "auto-20260130-1826-semantic-release-auto-20260418-h10-r87"
+    },
+    {
+      "author_id": "530d9e42-833f-51c7-8daa-03395d8f573c",
+      "cycle_time": 103.824,
+      "id": 202312086,
+      "repository_id": "stream-processor",
+      "title": "auto-20260307-1818-auto-20260406-h10-r60-auto-20260221-1819-auto-2026022"
+    },
+    {
+      "author_id": "bc38140d-a62f-5b00-829c-7e251ddd9ef9",
+      "cycle_time": 84.616,
+      "id": 202312016,
+      "repository_id": "dashboard-api",
+      "title": "auto-20260408-h21-r81-auto-20260223-1847-auto-20260303-1832-auto-2026020"
+    },
+    {
+      "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "cycle_time": 75.408,
+      "id": 202312063,
+      "repository_id": "user-service",
+      "title": "auto-20260310-1833-test-400-diag-auto-20260129-1829-auto-20260406-h10-r6"
+    },
+    {
+      "author_id": "9434ad44-21e0-5d3c-a09c-3c33640cb086",
+      "cycle_time": 49.913,
+      "id": 202312082,
+      "repository_id": "user-service",
+      "title": "auto-20260319-1840-auto-20260125-1012-auto-20260314-1821-auto-20260205-1"
+    },
+    {
+      "author_id": "7bfae255-fb96-5f69-8d1b-f086c2b3f494",
+      "cycle_time": 42.303,
+      "id": 202312029,
+      "repository_id": "ios-app",
+      "title": "auto-20260215-1819-auto-20260317-1844-auto-20260204-1833-auto-20260418-h"
+    },
+    {
+      "author_id": "65d44a2c-47b6-58bb-95e3-9452d553c007",
+      "cycle_time": 30.947,
+      "id": 202312027,
+      "repository_id": "etl-jobs",
+      "title": "test-400-diag3-auto-20260207-1818"
+    },
+    {
+      "author_id": "677bb7bd-0214-5e76-ae56-bbda25b1e871",
+      "cycle_time": 29.649,
+      "id": 202312000,
+      "repository_id": "user-service",
+      "title": "test-400-diag2-auto-20260325-1841-auto-20260216-1828-auto-20260221-1819"
+    },
+    {
+      "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+      "cycle_time": 28.308,
+      "id": 202312014,
+      "repository_id": "auth-service",
+      "title": "auto-20260402-h15-r80-auto-20260301-1818-auto-20260321-1820"
+    },
+    {
+      "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+      "cycle_time": 25.388,
+      "id": 202312039,
+      "repository_id": "user-service",
+      "title": "auto-20260412-h10-r95-day-4"
+    },
+    {
+      "author_id": "429e1343-3733-55c1-af54-d9a82f37935c",
+      "cycle_time": 23.38,
+      "id": 202312052,
+      "repository_id": "model-training",
+      "title": "auto-20260414-h10-r85-auto-20260414-h10-r85-auto-20260320-1831"
+    },
+    {
+      "author_id": "f04e5f18-a655-5fb2-9899-cfb66dfbdd40",
+      "cycle_time": 22.443,
+      "id": 202312048,
+      "repository_id": "ios-app",
+      "title": "auto-20260320-1831-auto-20260315-1822-auto-20260216-1828-auto-20260226-1"
+    },
+    {
+      "author_id": "7bfae255-fb96-5f69-8d1b-f086c2b3f494",
+      "cycle_time": 20.465,
+      "id": 202312015,
+      "repository_id": "user-service",
+      "title": "auto-20260326-1849-auto-20260130-1826-day-2026010-auto-20260208-1820-aut"
+    },
+    {
+      "author_id": "a791accb-541c-5010-9202-d3d286437286",
+      "cycle_time": 19.261,
+      "id": 202312099,
+      "repository_id": "design-system",
+      "title": "auto-20260223-1847-auto-20260407-h16-r49-auto-20260317-1844-tests-auto-2"
+    },
+    {
+      "author_id": "cc294c6d-7d4c-510f-a891-95b1820f4239",
+      "cycle_time": 19.195,
+      "id": 202312065,
+      "repository_id": "etl-jobs",
+      "title": "auto-20260205-1834-auto-20260324-1845"
+    },
+    {
+      "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+      "cycle_time": 13.446,
+      "id": 202312050,
+      "repository_id": "ios-app",
+      "title": "auto-20260322-1820-auto-20260402-h15-r80-auto-20260326-1849-auto-2026020"
+    },
+    {
+      "author_id": "20c3cd5f-fd32-591a-91fe-8fb395a703cc",
+      "cycle_time": 12.448,
+      "id": 202312003,
+      "repository_id": "user-service",
+      "title": "auto-20260321-1820-auto-20260414-h21-r91-auto-20260222-1819-auto-2026033"
+    },
+    {
+      "author_id": "a7aaa70f-ed59-5ab8-bd5c-d3bf956e7c6b",
+      "cycle_time": 11.33,
+      "id": 202312055,
+      "repository_id": "user-service",
+      "title": "featureday-1-4-auto-20260311-1838-auto-20260219-1838-auto-20260125-1012-"
+    },
+    {
+      "author_id": "513b4803-0e3a-5217-b377-5bd8ed10011f",
+      "cycle_time": 10.602,
+      "id": 202312057,
+      "repository_id": "gateway-core",
+      "title": "featuretest-400-diag2-1-auto-20260126-1819-test-400-diag"
+    },
+    {
+      "author_id": "9c653f8c-83a0-58b2-9832-4bacbfb73690",
+      "cycle_time": 10.408,
+      "id": 202312026,
+      "repository_id": "ios-app",
+      "title": "auto-20260127-1822-auto-20260317-1844"
+    },
+    {
+      "author_id": "76b80c19-5714-524e-b656-41176d684adb",
+      "cycle_time": 9.188,
+      "id": 202312036,
+      "repository_id": "ios-app",
+      "title": "auto-20260312-1837-auto-20260312-1837-auto-20260410-h10-r6-auto-20260406"
+    },
+    {
+      "author_id": "9ac1c4ec-36b0-58da-99f4-5832c021d3bb",
+      "cycle_time": 8.516,
+      "id": 202312087,
+      "repository_id": "react-shell",
+      "title": "auto-20260327-1841-test-400-diag"
+    },
+    {
+      "author_id": "513b4803-0e3a-5217-b377-5bd8ed10011f",
+      "cycle_time": 8.258,
+      "id": 202312072,
+      "repository_id": "stream-processor",
+      "title": "auto-20260306-1828-hotfixday-2026010-0-auto-20260410-h21-r81"
+    },
+    {
+      "author_id": "f04e5f18-a655-5fb2-9899-cfb66dfbdd40",
+      "cycle_time": 7.489,
+      "id": 202312083,
+      "repository_id": "ios-app",
+      "title": "build-featureday-1-1"
+    },
+    {
+      "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
+      "cycle_time": 5.641,
+      "id": 202312078,
+      "repository_id": "model-training",
+      "title": "auto-20260401-h21-r52-auto-20260323-1838-auto-20260124-1012-auto-2026022"
+    },
+    {
+      "author_id": "ce701784-66e1-5265-bb39-3bafacb0d515",
+      "cycle_time": 5.49,
+      "id": 202312044,
+      "repository_id": "auth-service",
+      "title": "auto-20260321-1820-auto-20260327-1841-auto-20260210-1851-auto-20260212-1"
+    },
+    {
+      "author_id": "a2d87e8b-8f92-57cf-95a3-f51fb3603d15",
+      "cycle_time": 4.929,
+      "id": 202312011,
+      "repository_id": "data-warehouse",
+      "title": "auto-20260214-1818-auto-20260331-h15-r65-auto-20260215-1819-auto-2026021"
+    },
+    {
+      "author_id": "b5bbf539-5403-5bdb-b3ac-48bae2e0f805",
+      "cycle_time": 3.799,
+      "id": 202312074,
+      "repository_id": "android-app",
+      "title": "auto-20260306-1828-auto-20260323-1838-auto-20260203-1840-auto-20260123-1"
+    },
+    {
+      "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+      "cycle_time": 3.379,
+      "id": 202312073,
+      "repository_id": "react-shell",
+      "title": "auto-20260415-h15-r55-auto-20260302-1831"
+    },
+    {
+      "author_id": "54c6fbbc-70c1-5d67-bb5f-8a4685113aa0",
+      "cycle_time": 3.135,
+      "id": 202312071,
+      "repository_id": "etl-jobs",
+      "title": "day-1-auto-20260226-1836-auto-20260315-1822-auto-20260127-1822-hooks"
+    },
+    {
+      "author_id": "b7ad1ee1-902d-532c-9b80-0eda227e722c",
+      "cycle_time": 2.999,
+      "id": 202312049,
+      "repository_id": "user-service",
+      "title": "auto-20260125-1012-auto-20260408-h21-r81"
+    },
+    {
+      "author_id": "cbef9c82-665d-56bf-a0ff-b94a0f0eb1b3",
+      "cycle_time": 1.84,
+      "id": 202312070,
+      "repository_id": "ios-app",
+      "title": "auto-20260302-1831-auto-20260302-1831-auto-20260131-1817-auto-20260412-h"
+    },
+    {
+      "author_id": "2b44dd0c-c10e-562c-88e1-f34149fa431d",
+      "cycle_time": 1.614,
+      "id": 202312088,
+      "repository_id": "model-training",
+      "title": "auto-20260410-h21-r81-auto-20260221-1819-auto-20260221-1819-auto-2026040"
+    },
+    {
+      "author_id": "08cf57e7-c6eb-568f-a9ef-8baa194946b6",
+      "cycle_time": 1.492,
+      "id": 202312058,
+      "repository_id": "ios-app",
+      "title": "auto-20260221-1819-featureday-4-5"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 1.333,
+      "id": 202312038,
+      "repository_id": "model-training",
+      "title": "auto-20260226-1836-auto-20260128-1823-auto-20260125-1012"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 1.025,
+      "id": 202312035,
+      "repository_id": "dashboard-api",
+      "title": "auto-20260215-1819-auto-20260213-1830-auto-20260313-1826-auto-20260221-1"
+    },
+    {
+      "author_id": "bd9e17b1-0b06-5284-9bf5-2300a7ec5778",
+      "cycle_time": 0.876,
+      "id": 202312037,
+      "repository_id": "design-system",
+      "title": "auto-20260324-1845-auto-20260202-1827"
+    },
+    {
+      "author_id": "639dc735-977c-5375-9ad9-61de9de9b186",
+      "cycle_time": 0.839,
+      "id": 202312067,
+      "repository_id": "etl-jobs",
+      "title": "auto-20260208-1820-auto-20260314-1821-auto-20260316-1845-auto-20260318-1"
+    },
+    {
+      "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+      "cycle_time": 0.826,
+      "id": 202312068,
+      "repository_id": "user-service",
+      "title": "auto-20260410-h10-r6-auto-20260403-h21-r76-auto-20260321-1820"
+    },
+    {
+      "author_id": "cc294c6d-7d4c-510f-a891-95b1820f4239",
+      "cycle_time": 0.823,
+      "id": 202312028,
+      "repository_id": "user-service",
+      "title": "auto-20260205-1834-auto-20260221-1819-auto-20260204-1833"
+    },
+    {
+      "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+      "cycle_time": 0.751,
+      "id": 202312090,
+      "repository_id": "user-service",
+      "title": "auto-20260203-1840-auto-20260309-1836"
+    },
+    {
+      "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "cycle_time": 0.728,
+      "id": 202312093,
+      "repository_id": "user-service",
+      "title": "auto-20260213-1830-auto-20260211-1846-auto-20260418-h10-r87"
+    },
+    {
+      "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+      "cycle_time": 0.701,
+      "id": 202312032,
+      "repository_id": "design-system",
+      "title": "auto-20260304-1832-auto-20260123-1015-auto-20260407-h16-r49-auto-2026031"
+    },
+    {
+      "author_id": "20c3cd5f-fd32-591a-91fe-8fb395a703cc",
+      "cycle_time": 0.558,
+      "id": 202312001,
+      "repository_id": "react-shell",
+      "title": "auto-20260311-1838-auto-20260311-1838-auto-20260410-h10-r6"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 0.425,
+      "id": 202312043,
+      "repository_id": "design-system",
+      "title": "auto-20260414-h10-r85-auto-20260414-h10-r85-fixci-auto-20260401-h21-r52-"
+    },
+    {
+      "author_id": "2b44dd0c-c10e-562c-88e1-f34149fa431d",
+      "cycle_time": 0.338,
+      "id": 202312021,
+      "repository_id": "etl-jobs",
+      "title": "auto-20260215-1819-auto-20260319-1840-auto-20260418-h10-r87-auto-2026013"
+    },
+    {
+      "author_id": "bc38140d-a62f-5b00-829c-7e251ddd9ef9",
+      "cycle_time": 0.249,
+      "id": 202312100,
+      "repository_id": "ios-app",
+      "title": "auto-20260222-1819-auto-20260311-1838"
+    },
+    {
+      "author_id": "1f512ed5-c075-547f-b192-d85f6eab15e4",
+      "cycle_time": 0.214,
+      "id": 202312004,
+      "repository_id": "ios-app",
+      "title": "auto-20260308-1818-auto-20260304-1832"
+    },
+    {
+      "author_id": "cbef9c82-665d-56bf-a0ff-b94a0f0eb1b3",
+      "cycle_time": 0.201,
+      "id": 202312054,
+      "repository_id": "gateway-core",
+      "title": "auto-20260123-1015-auto-20260216-1828-auto-20260220-1831"
+    },
+    {
+      "author_id": "4990918a-5676-50c3-9598-5f23646ffc7c",
+      "cycle_time": 0.176,
+      "id": 202312006,
+      "repository_id": "ios-app",
+      "title": "auto-20260317-1844-auto-20260205-1834-auto-20260212-1844-test-400-diag3-"
+    },
+    {
+      "author_id": "27033abe-8d6c-5612-88b9-296ea8b603be",
+      "cycle_time": 0.147,
+      "id": 202312019,
+      "repository_id": "notification-service",
+      "title": "auto-20260227-1825-auto-20260302-1831-auto-20260123-1015"
+    },
+    {
+      "author_id": "639dc735-977c-5375-9ad9-61de9de9b186",
+      "cycle_time": 0.147,
+      "id": 202312098,
+      "repository_id": "react-shell",
+      "title": "auto-20260301-1818-auto-20260306-1828-auto-20260303-1832"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 0.137,
+      "id": 202312091,
+      "repository_id": "react-shell",
+      "title": "auto-20260304-1832-tests-auto-20260222-1819"
+    },
+    {
+      "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+      "cycle_time": 0.117,
+      "id": 202312018,
+      "repository_id": "user-service",
+      "title": "auto-20260415-h15-r55-auto-20260323-1838"
+    },
+    {
+      "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+      "cycle_time": 0.103,
+      "id": 202312040,
+      "repository_id": "model-training",
+      "title": "auto-20260317-1844-auto-20260320-1831-auto-20260220-1831-auto-20260326-1"
+    },
+    {
+      "author_id": "577689a9-035b-5053-9d85-eb8c695edda5",
+      "cycle_time": 0.095,
+      "id": 202312053,
+      "repository_id": "react-shell",
+      "title": "auto-20260221-1819-auto-20260401-h21-r52-auto-20260331-h15-r65-auto-2026"
+    },
+    {
+      "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+      "cycle_time": 0.095,
+      "id": 202312060,
+      "repository_id": "model-training",
+      "title": "auto-20260309-1836-test-400-diag2-auto-20260129-1829-auto-20260215-1819-"
+    },
+    {
+      "author_id": "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5",
+      "cycle_time": 0.089,
+      "id": 202312085,
+      "repository_id": "feature-store",
+      "title": "auto-20260212-1844-auto-20260320-1831-auto-20260305-1906-auto-20260414-h"
+    },
+    {
+      "author_id": "fa2210af-6bf9-5f40-b530-17574196e576",
+      "cycle_time": 0.085,
+      "id": 202312056,
+      "repository_id": "react-shell",
+      "title": "auto-20260129-1829-auto-20260401-h10-r68-auto-20260412-h10-r95-auto-2026"
+    },
+    {
+      "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
+      "cycle_time": 0.069,
+      "id": 202312008,
+      "repository_id": "react-shell",
+      "title": "auto-20260126-1819-auto-20260409-h16-r72-auto-20260303-1832"
+    },
+    {
+      "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "cycle_time": 0.059,
+      "id": 202312033,
+      "repository_id": "android-app",
+      "title": "auto-20260410-h10-r6-auto-20260306-1828-auto-20260227-1825"
+    },
+    {
+      "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+      "cycle_time": 0.008,
+      "id": 202312025,
+      "repository_id": "stream-processor",
+      "title": "auto-20260322-1820-auto-20260312-1837"
+    }
+  ],
   "review_time_p50": 145.751,
   "review_time_p90": 883.815,
   "reviewers_count": 45,

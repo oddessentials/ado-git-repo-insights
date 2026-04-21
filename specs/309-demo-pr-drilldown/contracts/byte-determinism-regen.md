@@ -23,7 +23,7 @@ import json
 
 def canonical_serialize(payload: dict[str, object]) -> bytes:
     return (
-        json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False)
+        json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
         + "\n"
     ).encode("utf-8")
 ```
@@ -31,7 +31,7 @@ def canonical_serialize(payload: dict[str, object]) -> bytes:
 **Parameter lock**:
 - `indent=2` — exact two-space indentation, no alternate forms.
 - `ensure_ascii=False` — unicode characters emitted as UTF-8 raw bytes, not `\uXXXX` escapes.
-- `sort_keys=False` — preserves Python dict insertion order. Critical for matching the aggregator's `rollup_dict[key] = ...` emission sequence at `aggregators.py:832-834`.
+- `sort_keys=True` — alphabetically sorts keys, normalizing insertion-order drift out of the byte stream. Matches the aggregator (`aggregators.py:1705`) and the demo writer (`demo_generation_common.canonical_json:210`).
 - Trailing `\n` — single LF at end of file. No CRLF on Windows.
 
 **Encoding**: UTF-8 explicit. Never the default encoding.
@@ -40,39 +40,46 @@ def canonical_serialize(payload: dict[str, object]) -> bytes:
 
 **Test**: `tests/demo/test_regen_byte_stability.py`.
 
-**Procedure**:
+**Procedure** (strip BOTH sides; committed and regen both carry PR fields post-slice-2d):
 
 ```python
-for committed_path in sorted((DOCS_DATA / "aggregates" / "weekly_rollups").glob("*.json")):
-    committed_bytes = committed_path.read_bytes()
-    regen_path = REGEN_OUTPUT / committed_path.relative_to(DOCS_DATA)
-    regen_payload = json.loads(regen_path.read_text(encoding="utf-8"))
+def strip_pr(payload: dict[str, object]) -> dict[str, object]:
+    out = dict(payload)
     for key in ("prs", "_prs_truncated", "_prs_cap"):
-        regen_payload.pop(key, None)
-    regen_stripped_bytes = canonical_serialize(regen_payload)
-    assert regen_stripped_bytes == committed_bytes, (
+        out.pop(key, None)
+    return out
+
+for committed_path in sorted((DOCS_DATA / "aggregates" / "weekly_rollups").glob("*.json")):
+    regen_path = REGEN_OUTPUT / committed_path.relative_to(DOCS_DATA)
+    committed_bytes = canonical_serialize(strip_pr(json.loads(committed_path.read_text("utf-8"))))
+    regen_bytes = canonical_serialize(strip_pr(json.loads(regen_path.read_text("utf-8"))))
+    assert regen_bytes == committed_bytes, (
         f"Byte-determinism regression: {committed_path.name} non-PR content drifted."
     )
 ```
 
-**Fails on**: key-order drift, whitespace drift, unicode-escape drift, trailing-newline drift, or any content change in non-PR fields.
+**Fails on**: whitespace drift, unicode-escape drift, trailing-newline drift, or any content change in non-PR fields. Key-order drift cannot surface because both sides are serialized with `sort_keys=True`.
 
 **Runs during**: slice 2d CI + pre-push (once the regen commit lands); can be run manually via `python scripts/run_pytest.py tests/demo/test_regen_byte_stability.py`.
 
-## 4. Synthetic generator's key-insertion discipline
+## 4. Synthetic generator's key invariant
 
-To satisfy the byte-equality contract, the synthetic generator MUST append the three new keys to `rollup_dict` in the SAME order as the aggregator:
+To satisfy the byte-equality contract, the synthetic generator emits the three PR-level keys on every non-empty rollup:
 
 ```python
-# Existing rollup construction (unchanged): all other keys assigned here in existing order
+# Existing rollup construction (unchanged): all other keys assigned here
 
-# Feature 309: append the three PR-level keys LAST, in this exact sequence:
+# Feature 309: emit the three PR-level keys in rollup_dict:
 rollup_dict["prs"] = synthetic_prs
 rollup_dict["_prs_truncated"] = prs_truncated
 rollup_dict["_prs_cap"] = _PR_DETAIL_CAP
 ```
 
-**Test coverage**: `tests/demo/test_synthetic_pr_contract.py::test_key_insertion_order_matches_aggregator` asserts that on a regenerated rollup, the three new keys appear as the LAST three keys in the JSON file via `json.loads(text, object_pairs_hook=list)` structured-parser lookup (NOT substring search) to avoid false matches on value-embedded `"prs":` literals.
+**Insertion order is not load-bearing**: the writer uses `sort_keys=True`, so the serialized layout is alphabetically normalized. This makes byte-determinism robust to insertion-order changes.
+
+**Test coverage**:
+- `tests/demo/test_synthetic_pr_contract.py::test_key_insertion_order_matches_aggregator` asserts the three keys are PRESENT in committed rollups via `json.loads(text, object_pairs_hook=list)`.
+- `tests/demo/test_synthetic_pr_contract.py::test_committed_rollup_bytes_survive_round_trip` asserts the committed bytes exactly match `json.dumps(..., sort_keys=True, ensure_ascii=False, indent=2) + "\n"` on round-trip — the load-bearing writer-recipe invariant.
 
 ## 5. Isolated RNG stream (FR-016)
 

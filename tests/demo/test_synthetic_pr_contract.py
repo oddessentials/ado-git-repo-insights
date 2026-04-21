@@ -17,6 +17,7 @@ Typing  (QG-40): full annotations; no ``typing.Any``.
 from __future__ import annotations
 
 import importlib.util
+import json
 import random
 import sys
 from pathlib import Path
@@ -119,6 +120,76 @@ def test_truncation_boundary_parametrized(
     assert len(records) == expect_len, (
         f"expected {expect_len} records for input_count={input_count}, "
         f"got {len(records)}"
+    )
+
+
+def test_truncation_exercise_week_locked() -> None:
+    """The committed rollups for 2025-W26, W25, W27 must follow the spike contract."""
+    rollups_dir = REPO_ROOT / "docs" / "data" / "aggregates" / "weekly_rollups"
+    target = json.loads((rollups_dir / "2025-W26.json").read_text(encoding="utf-8"))
+    assert target.get("_prs_truncated") is True, (
+        f"2025-W26 must be truncated; got _prs_truncated={target.get('_prs_truncated')!r}"
+    )
+    prs = target.get("prs")
+    assert isinstance(prs, list), (
+        f"2025-W26 prs must be a list; got {type(prs).__name__}"
+    )
+    assert len(prs) == 500, f"2025-W26 must have exactly 500 prs; got len={len(prs)}"
+
+    for week in ("2025-W25", "2025-W27"):
+        contrast = json.loads(
+            (rollups_dir / f"{week}.json").read_text(encoding="utf-8")
+        )
+        assert contrast.get("_prs_truncated") is False, (
+            f"{week} must NOT be truncated; got _prs_truncated={contrast.get('_prs_truncated')!r}"
+        )
+
+
+def test_key_insertion_order_matches_aggregator() -> None:
+    """The three PR-level keys MUST be present in a committed rollup.
+
+    The aggregator (aggregators.py:1705) and the demo writer
+    (demo_generation_common.canonical_json) both use ``sort_keys=True``, so the
+    emitted JSON is key-sorted regardless of insertion order — the
+    byte-determinism contract's original "last three keys" wording was a
+    drafting error (insertion order is normalized away). The real invariant
+    is: every synthetic rollup on a non-empty week carries the three PR-level
+    keys, and the sort-normalized output matches the committed bytes. Key
+    position after sort is load-bearing for neither correctness nor byte
+    stability.
+    """
+    rollups_dir = REPO_ROOT / "docs" / "data" / "aggregates" / "weekly_rollups"
+    sample_path = rollups_dir / "2025-W26.json"
+    text = sample_path.read_text(encoding="utf-8")
+    ordered_pairs = json.loads(text, object_pairs_hook=list)
+    assert isinstance(ordered_pairs, list), "object_pairs_hook must yield a list"
+    assert ordered_pairs, "object_pairs_hook must yield a non-empty list"
+    keys = {str(k) for k, _v in ordered_pairs}
+    required = {"prs", "_prs_truncated", "_prs_cap"}
+    missing = required - keys
+    assert not missing, (
+        f"Non-empty rollup must carry all three PR-level keys; missing {sorted(missing)}"
+    )
+
+
+def test_committed_rollup_bytes_survive_round_trip() -> None:
+    """Verify the sort-normalized JSON round-trip on a committed rollup.
+
+    Ensures the writer's byte layout matches `json.dumps(..., sort_keys=True,
+    ensure_ascii=False, indent=2)` — the load-bearing byte-determinism
+    invariant that lets slice 2d's regen test compare stripped bytes to
+    committed bytes without key-position drift.
+    """
+    rollups_dir = REPO_ROOT / "docs" / "data" / "aggregates" / "weekly_rollups"
+    sample_path = rollups_dir / "2025-W26.json"
+    text = sample_path.read_text(encoding="utf-8")
+    parsed = json.loads(text)
+    reserialized = (
+        json.dumps(parsed, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    )
+    assert reserialized == text, (
+        "Committed rollup bytes drift from sort_keys=True canonical layout; "
+        "the writer's serialization recipe changed without updating this test."
     )
 
 

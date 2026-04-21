@@ -55,7 +55,7 @@ PUBLISH_SURFACE_SCRIPT = REPO_ROOT / "scripts" / "publish-demo-surface.py"
 EXTENSION_ROOT = REPO_ROOT / "extension"
 
 DEMO_PROFILE_NAME = "enterprise-demo"
-DEMO_PROFILE_VERSION = "2.0.0"
+DEMO_PROFILE_VERSION = "2.1.0"
 GENERATOR_STEPS = [
     "generate-demo-data.py",
     "generate-demo-predictions.py",
@@ -1368,6 +1368,15 @@ def main(argv: list[str] | None = None) -> int:
         if promote_dir == DOCS_DATA_DIR.resolve():
             print("[demo-build] refreshing canonical docs surface")
             ensure_canonical_demo_surface()
+        # Feature 309 binary gate: write the synthetic-authorization sentinel
+        # between generator completion and promote_data. The gate consumes +
+        # unlinks it atomically (contract: demo-strip-gate-v2.md §1;
+        # synthetic-authorization-signal.md §3). exist_ok=False fails loudly
+        # on a stale sentinel from an aborted prior run.
+        sentinel_path = (
+            ARTIFACT_DATA_DIR / "aggregates" / SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+        )
+        sentinel_path.touch(exist_ok=False)
         print(f"[demo-build] promoting {ARTIFACT_DATA_DIR} -> {promote_dir}")
         promote_data(ARTIFACT_DATA_DIR, promote_dir)
         if (

@@ -46,14 +46,14 @@ DEPRECATED_FIELDS: set[str] = set()
 # review_time_p50 and review_time_p90 removed — now produced by demo
 # generators as of 052-review-time-pipeline.
 OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
-# Feature 060: these PR-level detail fields are emitted by the tenant
-# aggregator but intentionally STRIPPED from public/demo artifacts by the
-# `promote_data` gate (docs/reference/dataset-contract.md "Tenant-Sensitive
-# Fields and Public-Surface Stripping"). They MUST be absent from the demo
-# rollup surface — this set removes them from the demo-completeness check
-# so future strip-gate test additions are the single authority for their
-# absence instead of this completeness gate.
-DEMO_STRIPPED_ROOT_FIELDS = {"prs", "_prs_truncated", "_prs_cap"}
+# Feature 309 (#315): these PR-level detail fields are emitted by the
+# synthetic demo via the provenance-based binary gate in `promote_data`
+# (docs/reference/dataset-contract.md + specs/309-demo-pr-drilldown/
+# contracts/demo-strip-gate-v2.md). On non-empty weeks they MUST be
+# PRESENT (synthetic records preserved through promotion). The schema-
+# guard completeness check excludes them because their presence is
+# enforced by test_synthetic_demo_has_prs below instead.
+DEMO_REQUIRED_ROOT_FIELDS = {"prs", "_prs_truncated", "_prs_cap"}
 
 
 def _extract_ts_set_fields(ts_source: str, set_name: str) -> set[str]:
@@ -93,7 +93,7 @@ class TestRootFieldCompleteness:
             known_root
             - DEPRECATED_FIELDS
             - OPTIONAL_ROOT_FIELDS
-            - DEMO_STRIPPED_ROOT_FIELDS
+            - DEMO_REQUIRED_ROOT_FIELDS
         )
         actual = set(sample_rollup.keys())
 
@@ -103,19 +103,31 @@ class TestRootFieldCompleteness:
             f"Expected: {sorted(expected)}, Got: {sorted(actual)}"
         )
 
-    def test_demo_stripped_fields_are_absent(self, sample_rollup):
-        """Feature 060 privacy posture: PR-level detail fields MUST be absent
-        from the demo rollup. The strip happens in `promote_data` via the
-        privacy-posture contract. If this test fails, the strip gate either
-        regressed or was removed — do NOT add these fields to
-        DEMO_STRIPPED_ROOT_FIELDS as a workaround.
+    def test_synthetic_demo_has_prs(self, sample_rollup):
+        """Feature 309 provenance-based gate: PR-level detail fields MUST be
+        PRESENT on any non-empty-week rollup after promotion. The synthetic
+        generator emits them; the binary gate preserves them through
+        promote_data on sentinel-present source; sentinel-absent source
+        falls back to the legacy strip helper (for tenant data). See
+        `specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`.
         """
-        leaked = DEMO_STRIPPED_ROOT_FIELDS & set(sample_rollup.keys())
-        assert not leaked, (
-            f"Privacy-posture violation: tenant-sensitive PR-level fields "
-            f"leaked to demo rollup: {sorted(leaked)}. See "
-            f"`docs/reference/dataset-contract.md` privacy-posture section."
-        )
+        pr_count = sample_rollup.get("pr_count", 0)
+        keys = set(sample_rollup.keys())
+        if pr_count > 0:
+            missing = DEMO_REQUIRED_ROOT_FIELDS - keys
+            assert not missing, (
+                "Synthetic PR-level detail missing from non-empty demo rollup: "
+                f"{sorted(missing)}. If this fails, the promote_data binary "
+                "gate or the generator emission loop regressed."
+            )
+            assert sample_rollup["_prs_cap"] == 500, (
+                f"_prs_cap must be 500; got {sample_rollup['_prs_cap']!r}"
+            )
+            prs = sample_rollup["prs"]
+            assert isinstance(prs, list), "prs must be a list"
+            assert prs, "prs must be non-empty on non-empty weeks"
+        # Empty-week weeks MAY have the keys absent OR present with len(prs)==0;
+        # the shape helper (assert_synthetic_shape) enforces the union contract.
 
 
 class TestBreakdownFieldCompleteness:

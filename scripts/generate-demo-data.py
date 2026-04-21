@@ -29,7 +29,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TypedDict
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.types import (
@@ -67,6 +67,7 @@ FIXED_GENERATED_AT: str = _common_mod.FIXED_GENERATED_AT
 build_generation_provenance = _common_mod.build_generation_provenance
 discover_demo_feature_flags = _common_mod.discover_demo_feature_flags
 largest_remainder_allocate = _common_mod.largest_remainder_allocate
+round_float = _common_mod.round_float
 require_demo_generation_baseline_for_output = (
     _common_mod.require_demo_generation_baseline_for_output
 )
@@ -117,7 +118,7 @@ DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / ".tmp" / "generate-demo-data
 # importing the full build-demo-dataset module.
 _DOCS_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 DEMO_PROFILE_NAME = "enterprise-demo"
-DEMO_PROFILE_VERSION = "2.0.0"
+DEMO_PROFILE_VERSION = "2.1.0"
 GENERATOR_SCRIPT = "scripts/generate-demo-data.py"
 GENERATION_MODE = "helper-demo-data"
 DEMO_COMMENT_BATCH_COUNT = 100
@@ -253,6 +254,50 @@ _PR_TITLE_TOKEN_COUNT_RANGE: Final[tuple[int, int]] = (2, 6)
 pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
 
 
+class _TruncationExerciseConfig(TypedDict):
+    week: str
+    target_qualified_pr_count: int
+    contrast_weeks: list[str]
+    contrast_max_pr_count: int
+
+
+@functools.lru_cache(maxsize=1)
+def _load_truncation_exercise_config() -> _TruncationExerciseConfig:
+    """Load + validate the locked truncation-exercise-week fixture.
+
+    Contract: ``specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md``
+    §2.5 — the values are locked LITERALS. If the fixture drifts, the
+    generator aborts loudly instead of silently emitting a non-contract spike.
+    """
+    path = _DISTRIBUTION_FIXTURE_DIR / "truncation-exercise-week.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("week") != "2025-W26":
+        raise ValueError(
+            f"truncation-exercise-week.json: week must be '2025-W26'; got {payload.get('week')!r}"
+        )
+    if payload.get("target_qualified_pr_count") != 520:
+        raise ValueError(
+            "truncation-exercise-week.json: target_qualified_pr_count must be 520; "
+            f"got {payload.get('target_qualified_pr_count')!r}"
+        )
+    if payload.get("contrast_weeks") != ["2025-W25", "2025-W27"]:
+        raise ValueError(
+            "truncation-exercise-week.json: contrast_weeks must be "
+            f"['2025-W25', '2025-W27']; got {payload.get('contrast_weeks')!r}"
+        )
+    if payload.get("contrast_max_pr_count") != 300:
+        raise ValueError(
+            "truncation-exercise-week.json: contrast_max_pr_count must be 300; "
+            f"got {payload.get('contrast_max_pr_count')!r}"
+        )
+    return _TruncationExerciseConfig(
+        week=str(payload["week"]),
+        target_qualified_pr_count=int(payload["target_qualified_pr_count"]),
+        contrast_weeks=[str(w) for w in payload["contrast_weeks"]],
+        contrast_max_pr_count=int(payload["contrast_max_pr_count"]),
+    )
+
+
 def _box_muller_normal(rng: random.Random) -> float:
     """Generate standard normal variate using Box-Muller transform.
     Uses only rng.random() and stable math operations.
@@ -367,7 +412,11 @@ def generate_pr_records(
         if mu_sigma is None:
             mu_sigma = next(iter(categories.values()))
         mu, sigma = mu_sigma
-        cycle_time = _log_normal(pr_record_rng, mu, sigma)
+        # Round cycle_time to canonical 3-decimal precision BEFORE sort so
+        # the sorted order matches the post-serialization byte layout written
+        # by canonical_json (demo_generation_common._process_floats). Without
+        # this, ties created by post-write rounding can invert sort order.
+        cycle_time = round_float(_log_normal(pr_record_rng, mu, sigma))
         author_id = pr_record_rng.choice(author_pool)
         title = _sample_title(pr_record_rng, title_tokens)
         records.append(
@@ -1845,8 +1894,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Generated {len(rollups)} weekly rollups")
 
     rollups_dir = output_dir / "aggregates" / "weekly_rollups"
+    truncation_config = _load_truncation_exercise_config()
+    truncation_week = truncation_config["week"]
+    target_qualified_count = truncation_config["target_qualified_pr_count"]
+    contrast_weeks: set[str] = set(truncation_config["contrast_weeks"])
+    contrast_max_count = truncation_config["contrast_max_pr_count"]
+
     for rollup in rollups:
-        rollup_data = {
+        rollup_data: dict[str, object] = {
             "week": rollup.week,
             "start_date": rollup.start_date,
             "end_date": rollup.end_date,
@@ -1864,6 +1919,44 @@ def main(argv: list[str] | None = None) -> int:
             "by_reviewer": rollup.by_reviewer,
             "by_team_and_repo": rollup.by_team_and_repo,
         }
+
+        # Feature 309 #315: append synthetic PR-level detail as the LAST three
+        # keys, matching the aggregator's insertion order at aggregators.py:832.
+        if rollup.week == truncation_week:
+            qualified_count = target_qualified_count
+        elif rollup.week in contrast_weeks:
+            qualified_count = min(int(rollup.pr_count), contrast_max_count)
+        else:
+            qualified_count = int(rollup.pr_count)
+
+        if qualified_count > 0 and rollup.by_repository:
+            repo_pool = list(rollup.by_repository.keys())
+            repo_weights = [
+                max(int(rollup.by_repository[r].get("pr_count", 1) or 1), 1)
+                for r in repo_pool
+            ]
+            repo_entries: list[object] = list(
+                pr_record_rng.choices(
+                    repo_pool, weights=repo_weights, k=qualified_count
+                )
+            )
+            author_entries: list[object] = (
+                list(rollup.by_author.keys())
+                if rollup.by_author
+                else [f"fallback-author-{rollup.week}"]
+            )
+            synthetic_prs = generate_pr_records(
+                rollup.week, repo_entries, author_entries, pr_record_rng
+            )
+            prs_truncated = qualified_count > _PR_DETAIL_CAP
+            rollup_data["prs"] = synthetic_prs
+            rollup_data["_prs_truncated"] = prs_truncated
+            rollup_data["_prs_cap"] = _PR_DETAIL_CAP
+        else:
+            rollup_data["prs"] = []
+            rollup_data["_prs_truncated"] = False
+            rollup_data["_prs_cap"] = _PR_DETAIL_CAP
+
         write_json_file(
             rollups_dir / f"{rollup.week}.json",
             rollup_data,
