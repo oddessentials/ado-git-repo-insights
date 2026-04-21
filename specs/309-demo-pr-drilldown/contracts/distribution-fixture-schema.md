@@ -116,6 +116,8 @@ Each file is a top-level JSON object. Field-level schemas below.
 
 ## 3. Derivation procedure (one-time)
 
+**Scope statement**: the tenant SQLite is a minimal provenance/blocklist seed for shape-safe derivation — not a representative tenant population sample. Sparse dimensions (e.g., a tenant with 3 users) are acceptable inputs: the derivation path and privacy-gate logic are real and deterministic regardless of tenant size. Synthetic richness is the product surface (see `byte-determinism-regen.md` §4 and the generator helper in `scripts/generate-demo-data.py`), not the seed.
+
 **Script**: `scripts/extract_distribution_fixtures.py` (new; standalone).
 
 **Inputs**:
@@ -140,6 +142,8 @@ Each file is a top-level JSON object. Field-level schemas below.
 - After derivation completes, the developer rotates the PAT (standing operating procedure).
 
 ## 4. Privacy-review gate
+
+**What this gate proves**: no blocked tenant tokens/fragments from the selected extract appear in committed fixture files. It does NOT prove "all privacy risk is eliminated" — the upper bound of the guarantee is the completeness of the blocklist source dimensions present in the tenant SQLite at derivation time. Source-dimension sparsity (e.g., 3-user tenants, empty-teams tenants) narrows the gate proportionally; it does not change the gate's contract.
 
 **Test**: `tests/unit/test_distribution_fixture_privacy.py`.
 
