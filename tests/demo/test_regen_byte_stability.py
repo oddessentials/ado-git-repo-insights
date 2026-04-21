@@ -19,20 +19,46 @@ Typing  (QG-40): full annotations; no ``typing.Any``.
 
 from __future__ import annotations
 
+import atexit
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+from itertools import count
 from pathlib import Path
 from typing import Final
-
-import pytest
 
 REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 DOCS_DATA: Final[Path] = REPO_ROOT / "docs" / "data"
 ROLLUPS_DIR: Final[Path] = DOCS_DATA / "aggregates" / "weekly_rollups"
 BUILD_SCRIPT: Final[Path] = REPO_ROOT / "scripts" / "build-demo-dataset.py"
+# Mirror tests/demo/test_demo_parity_pipeline.py's scratch pattern: the demo
+# build resolves ARTIFACT_ROOT.relative_to(REPO_ROOT) in several places, so
+# the scratch artifact root MUST live under REPO_ROOT. pytest's default
+# tmp_path_factory plants dirs under /tmp on Linux/macOS — outside the repo
+# — which trips `relative_to` at regen time. Pattern deliberately copied
+# (not imported) to avoid cross-test-module coupling.
+_TEST_TMP_ROOT: Final[Path] = REPO_ROOT / "tmp_test_work"
+_SCRATCH_COUNTER = count()
+
+
+def _cleanup_test_tmp_root() -> None:
+    """Best-effort cleanup for the repo-local scratch directory on exit."""
+    shutil.rmtree(_TEST_TMP_ROOT, ignore_errors=True)
+
+
+atexit.register(_cleanup_test_tmp_root)
+
+
+def _make_scratch_dir(prefix: str) -> Path:
+    _TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    scratch = _TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    while scratch.exists():
+        scratch = _TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    scratch.mkdir(parents=True, exist_ok=False)
+    return scratch
 
 
 def _load_baseline_python_major_minor() -> tuple[int, int]:
@@ -74,10 +100,14 @@ def _strip_pr_keys(payload: dict[str, object]) -> dict[str, object]:
     return stripped
 
 
-def _regenerate_once(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Regenerate the canonical demo into a scratch root (baseline Python only)."""
-    scratch = tmp_path_factory.mktemp("byte-stability-regen")
-    artifact_root = scratch / "artifacts"
+def _regenerate_once() -> Path:
+    """Regenerate the canonical demo into a scratch root (baseline Python only).
+
+    The scratch artifact root is created under ``REPO_ROOT / "tmp_test_work"``
+    so ``build-demo-dataset.py``'s ``ARTIFACT_ROOT.relative_to(REPO_ROOT)``
+    calls succeed. See module-level _TEST_TMP_ROOT comment.
+    """
+    artifact_root = _make_scratch_dir("byte-stability-regen") / "artifacts"
     env = os.environ.copy()
     env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
     result = subprocess.run(
@@ -120,9 +150,7 @@ def test_committed_rollups_survive_canonical_round_trip() -> None:
     )
 
 
-def test_regen_non_pr_content_byte_matches_committed(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> None:
+def test_regen_non_pr_content_byte_matches_committed() -> None:
     """Full regen vs. committed symmetric-strip byte compare (baseline Python).
 
     The baseline interpreter (3.12.x) is the only environment whose regen
@@ -144,7 +172,7 @@ def test_regen_non_pr_content_byte_matches_committed(
             )
         return
 
-    regenerated_root = _regenerate_once(tmp_path_factory)
+    regenerated_root = _regenerate_once()
     drift: list[tuple[str, int]] = []
     for committed_path in committed_rollups:
         rel = committed_path.relative_to(DOCS_DATA)
