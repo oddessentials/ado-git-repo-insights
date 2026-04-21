@@ -1,7 +1,7 @@
 {
   "rule": "S603",
-  "total_call_sites": 90,
-  "unsafe_count": 8,
+  "total_call_sites": 98,
+  "unsafe_count": 9,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
@@ -13,15 +13,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 116,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "scripts/build-demo-dataset.py",
-      "line": 132,
+      "line": 154,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -29,7 +21,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 250,
+      "line": 191,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -37,7 +29,23 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 288,
+      "line": 207,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 325,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 363,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +53,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 296,
+      "line": 371,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -460,6 +468,54 @@
       "safety": "safe-literal-list"
     },
     {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 56,
+      "code": "subprocess.run([\"git\", \"init\", \"-q\"], cwd=str(repo_root), check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 57,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 62,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 74,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 79,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 114,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
       "file": "tests/unit/test_audit_suppressions.py",
       "line": 69,
       "code": "subprocess.run([\"git\", \"init\"], cwd=repo_root, capture_output=True, check=False)",
@@ -671,6 +727,14 @@
       "file": "tests/unit/test_optional_deps_isolation.py",
       "line": 67,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_strip_gate_entrypoint_parity.py",
+      "line": 38,
+      "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

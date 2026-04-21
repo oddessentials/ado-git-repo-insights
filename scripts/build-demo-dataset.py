@@ -107,7 +107,82 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip generation; validate already-committed docs/data artifacts",
     )
+    parser.add_argument(
+        "--allow-dirty-inputs",
+        action="store_true",
+        help=(
+            "Local-dev only: skip the staged-vs-worktree guard on demo-build "
+            "inputs. MUST NOT be combined with promotion; the script aborts "
+            "if --allow-dirty-inputs is set without --no-promote."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+DEMO_BUILD_INPUTS: Final[list[Path]] = [
+    Path("scripts/build-demo-dataset.py"),
+    Path("scripts/generate-demo-data.py"),
+    Path("scripts/generate-demo-insights.py"),
+    Path("scripts/generate-demo-predictions.py"),
+    Path("scripts/demo_generation_common.py"),
+    Path("scripts/strip_pr_arrays.py"),
+    Path("scripts/demo-distributions/title-tokens.json"),
+    Path("scripts/demo-distributions/cycle-time-per-repo-size.json"),
+    Path("scripts/demo-distributions/author-concentration.json"),
+    Path("scripts/demo-distributions/pr-count-per-week-per-repo.json"),
+    Path("scripts/demo-distributions/truncation-exercise-week.json"),
+]
+
+
+class UncommittedInputsError(RuntimeError):
+    """Raised when demo-build inputs have unstaged or staged-but-not-in-HEAD changes.
+
+    Contract: ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
+    sections 6-8. The guard rejects any combination of staged + worktree
+    state that cannot be reproduced from a single git commit, ensuring the
+    promotion step operates on a reviewable snapshot only.
+    """
+
+
+def _run_git_input_diff(repo_root: Path, flag: str, inputs: list[Path]) -> str:
+    """Invoke ``git diff {flag} --name-only -- <inputs>`` and return stdout."""
+    argv: list[str] = ["git", "diff"]
+    if flag:
+        argv.append(flag)
+    argv.extend(["--name-only", "--"])
+    argv.extend(p.as_posix() for p in inputs)
+    result = subprocess.run(
+        argv,
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def assert_inputs_clean(
+    repo_root: Path,
+    inputs: list[Path],
+    *,
+    allow_dirty: bool = False,
+) -> None:
+    """Verify every path in ``inputs`` is byte-identical to HEAD, staged and worktree.
+
+    Raises :class:`UncommittedInputsError` with distinct messages for staged
+    vs. unstaged drift. Set ``allow_dirty=True`` for local-only iteration
+    where the resulting build will NOT be promoted.
+    """
+    if allow_dirty:
+        return
+    staged = _run_git_input_diff(repo_root, "--cached", inputs)
+    if staged:
+        raise UncommittedInputsError(f"[demo-build] staged changes in inputs: {staged}")
+    unstaged = _run_git_input_diff(repo_root, "", inputs)
+    if unstaged:
+        raise UncommittedInputsError(
+            f"[demo-build] unstaged changes in inputs: {unstaged}"
+        )
 
 
 def run_generator(script_name: str, output_root: Path) -> None:
@@ -1249,6 +1324,16 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "--validate-only cannot be used with promotion; rerun with --no-promote"
         )
+    if args.allow_dirty_inputs and not args.no_promote:
+        raise RuntimeError(
+            "--allow-dirty-inputs must be combined with --no-promote; promotion "
+            "onto docs/data/ requires a staged snapshot (contract: byte-determinism-regen.md §11)."
+        )
+    assert_inputs_clean(
+        REPO_ROOT,
+        DEMO_BUILD_INPUTS,
+        allow_dirty=args.allow_dirty_inputs,
+    )
 
     if args.validate_only:
         prepare_validate_only_artifact_root()

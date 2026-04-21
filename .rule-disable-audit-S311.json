@@ -1,16 +1,22 @@
 {
   "rule": "S311",
-  "total_usages": 8,
+  "total_usages": 15,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 225,
+      "line": 228,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1120,
+      "line": 253,
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1251,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
@@ -42,6 +48,42 @@
       "file": "scripts/generate-synthetic-dataset.py",
       "line": 635,
       "code": "random.seed(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 59,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 86,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 108,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 132,
+      "code": "control_rng = random.Random(2000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 140,
+      "code": "perturbed_rng = random.Random(2000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 143,
+      "code": "shared_rng = getattr(generate_demo_data, \"RNG\", random.Random(0))",
       "purpose": "deterministic-seeded"
     },
     {

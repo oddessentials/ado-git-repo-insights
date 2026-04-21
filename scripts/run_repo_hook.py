@@ -1196,7 +1196,7 @@ def run_version_guard() -> None:
     run_command([sys.executable, "scripts/check-version-unchanged.py", "origin/main"])
 
 
-def run_sentinel_absence_check() -> None:
+def run_sentinel_absence_check(docs_data_dir: Path | None = None) -> None:
     """Verify no synthetic-authorization sentinel leaked into the public demo tree.
 
     Feature 309 binary gate (contract:
@@ -1207,7 +1207,9 @@ def run_sentinel_absence_check() -> None:
 
     Exposed as a named subcommand so CI (``.github/workflows/demo.yml``
     first-step) and local pre-push invoke the SAME entrypoint — satisfies
-    the entrypoint-command parity contract (QG-49).
+    the entrypoint-command parity contract (QG-49). The ``docs_data_dir``
+    override exists only for entrypoint-parity tests (tmp_path scratch);
+    production callers omit it and scan the real ``docs/data/`` tree.
     """
     sentinel_spec = _importlib_util.spec_from_file_location(
         "strip_pr_arrays", REPO_ROOT / "scripts" / "strip_pr_arrays.py"
@@ -1219,13 +1221,13 @@ def run_sentinel_absence_check() -> None:
     sentinel_spec.loader.exec_module(strip_module)
     sentinel_name = strip_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
 
-    docs_data = REPO_ROOT / "docs" / "data"
-    matches = sorted(docs_data.rglob(sentinel_name))
+    scan_root = (
+        docs_data_dir if docs_data_dir is not None else REPO_ROOT / "docs" / "data"
+    )
+    matches = sorted(scan_root.rglob(sentinel_name))
     if matches:
-        raise SystemExit(
-            f"[sentinel-absence] sentinel leaked to docs/data/: "
-            f"{[p.relative_to(REPO_ROOT).as_posix() for p in matches]}"
-        )
+        display = [p.as_posix() for p in matches]
+        raise SystemExit(f"[sentinel-absence] sentinel leaked to docs/data/: {display}")
     safe_print("[sentinel-absence] ok")
 
 
@@ -1247,6 +1249,15 @@ def run_pre_push_hook() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run repo-owned Git hook logic.")
     parser.add_argument("hook", choices=("pre-commit", "pre-push", "sentinel-absence"))
+    parser.add_argument(
+        "--docs-data-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Override the docs/data scan root for the sentinel-absence "
+            "subcommand (testing only; production omits this flag)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1256,7 +1267,7 @@ def main() -> int:
         run_pre_commit_hook()
         return 0
     if args.hook == "sentinel-absence":
-        run_sentinel_absence_check()
+        run_sentinel_absence_check(docs_data_dir=args.docs_data_dir)
         return 0
     run_pre_push_hook()
     return 0

@@ -19,7 +19,9 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
+import json
 import math
 import random
 import sys
@@ -27,11 +29,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.types import (
         CommentsCoverage,
+        PrRecord,
         ReviewerSliceMetrics,
         SliceMetrics,
     )
@@ -235,6 +238,20 @@ RNG = init_random(SEED)
 # per generate_weekly_rollups() call for in-process determinism.
 _REVIEW_TIME_SEED_OFFSET = 1_000_000
 
+# Feature 309 (#315): synthetic PR-record generator state. Isolated seed
+# offset keeps pr-record draws independent of the shared RNG, mirroring
+# the review-time pattern above. Contract:
+# specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md §5.
+_PR_RECORD_SEED_OFFSET: Final[int] = 2000
+_PR_DETAIL_CAP: Final[int] = 500
+_DISTRIBUTION_FIXTURE_DIR: Final[Path] = (
+    Path(__file__).resolve().parent / "demo-distributions"
+)
+_PR_TITLE_MAX_LEN: Final[int] = 72
+_PR_TITLE_TOKEN_COUNT_RANGE: Final[tuple[int, int]] = (2, 6)
+
+pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
+
 
 def _box_muller_normal(rng: random.Random) -> float:
     """Generate standard normal variate using Box-Muller transform.
@@ -251,6 +268,120 @@ def _box_muller_normal(rng: random.Random) -> float:
 def _log_normal(rng: random.Random, mu: float, sigma: float) -> float:
     """Generate log-normal variate using locked Box-Muller implementation."""
     return math.exp(mu + sigma * _box_muller_normal(rng))
+
+
+# =============================================================================
+# Synthetic PR Records (feature 309 #315, slice 2c)
+# =============================================================================
+
+# Distribution-fixture loaders are memoized via functools.lru_cache so unit
+# tests can import this module without touching disk until they exercise
+# the helper, while keeping the per-call cost at a single dict lookup.
+# Contract: specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md.
+_REPO_CATEGORY_LABELS: Final[tuple[str, str, str]] = ("small", "medium", "large")
+
+
+@functools.lru_cache(maxsize=1)
+def _load_title_tokens() -> tuple[tuple[str, float], ...]:
+    path = _DISTRIBUTION_FIXTURE_DIR / "title-tokens.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    entries = payload["tokens"]
+    return tuple((str(entry["token"]), float(entry["weight"])) for entry in entries)
+
+
+@functools.lru_cache(maxsize=1)
+def _load_cycle_time_categories() -> tuple[tuple[str, float, float], ...]:
+    path = _DISTRIBUTION_FIXTURE_DIR / "cycle-time-per-repo-size.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    categories_obj = payload["categories"]
+    return tuple(
+        (name, float(body["mu"]), float(body["sigma"]))
+        for name, body in categories_obj.items()
+    )
+
+
+def _week_pr_id_base(week: str) -> int:
+    """Deterministic per-week id offset; globally unique across the 2021-2025 range."""
+    try:
+        year_str, week_str = week.split("-W")
+        year = int(year_str)
+        week_num = int(week_str)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError(f"Invalid ISO week label: {week!r}") from exc
+    return year * 100 * _PR_DETAIL_CAP * 2 + week_num * _PR_DETAIL_CAP * 2
+
+
+def _repo_category(repo_id: str) -> str:
+    """Deterministically assign a repo to small/medium/large via stable hash."""
+    digest = uuid.uuid5(DNS_NAMESPACE, f"repo-category::{repo_id}").int
+    return _REPO_CATEGORY_LABELS[digest % len(_REPO_CATEGORY_LABELS)]
+
+
+def _sample_title(rng: random.Random, tokens: tuple[tuple[str, float], ...]) -> str:
+    low, high = _PR_TITLE_TOKEN_COUNT_RANGE
+    count = rng.randint(low, high)
+    weights = [weight for _tok, weight in tokens]
+    population = [tok for tok, _weight in tokens]
+    chosen = rng.choices(population, weights=weights, k=count)
+    title = "-".join(chosen)
+    return title[:_PR_TITLE_MAX_LEN]
+
+
+def generate_pr_records(
+    week: str,
+    repo_entries: list[object],
+    author_entries: list[object],
+    pr_record_rng: random.Random,
+) -> list[PrRecord]:
+    """Produce synthetic PR records for a single rollup week.
+
+    Each entry in ``repo_entries`` represents one qualified PR in the week
+    (the caller computes the qualified count; the helper assigns title,
+    cycle time, author, and id to each). Returns at most ``_PR_DETAIL_CAP``
+    records, sorted by ``(-cycle_time, id)``. Slice 2c scaffolds the
+    helper; slice 2d wires emission into the rollup loop and regenerates
+    ``docs/data/``.
+
+    Contract:
+        * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
+          §4 (key-insertion order) and §5 (isolated RNG).
+        * Reads fixtures from ``scripts/demo-distributions/`` (slice 2a).
+    """
+    title_tokens = _load_title_tokens()
+    categories_tuple = _load_cycle_time_categories()
+    categories: dict[str, tuple[float, float]] = {
+        name: (mu, sigma) for name, mu, sigma in categories_tuple
+    }
+    base_id = _week_pr_id_base(week)
+    capped_entries = list(repo_entries)[:_PR_DETAIL_CAP]
+
+    if not author_entries:
+        raise ValueError("author_entries must be non-empty")
+    author_pool = [str(entry) for entry in author_entries]
+
+    records: list[PrRecord] = []
+    for idx, entry in enumerate(capped_entries):
+        repo_id = str(entry)
+        category = _repo_category(repo_id)
+        mu_sigma = categories.get(category)
+        if mu_sigma is None:
+            mu_sigma = next(iter(categories.values()))
+        mu, sigma = mu_sigma
+        cycle_time = _log_normal(pr_record_rng, mu, sigma)
+        author_id = pr_record_rng.choice(author_pool)
+        title = _sample_title(pr_record_rng, title_tokens)
+        records.append(
+            {
+                "id": base_id + idx,
+                "title": title,
+                "author_id": author_id,
+                "repository_id": repo_id,
+                "cycle_time": float(cycle_time),
+            }
+        )
+
+    records.sort(key=lambda r: (-float(r["cycle_time"]), int(r["id"])))
+    return records
 
 
 # =============================================================================
