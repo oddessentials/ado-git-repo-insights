@@ -3312,7 +3312,14 @@ class TestConsistencyWarningLogging:
 
         import logging
 
-        with caplog.at_level(logging.WARNING):
+        # Scope capture to the aggregator logger directly so we don't depend
+        # on root-logger propagation — under concurrent pytest load the
+        # un-scoped at_level form can race with caplog's handler attach and
+        # drop the record.
+        with caplog.at_level(
+            logging.WARNING,
+            logger="ado_git_repo_insights.transform.aggregators",
+        ):
             generator = AggregateGenerator(db, output_dir)
             generator.generate_all()  # Must NOT raise
 
