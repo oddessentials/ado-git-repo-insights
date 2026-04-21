@@ -101,6 +101,7 @@ import {
   installReviewerDrilldown,
   installSparklineNavigator,
 } from "./modules";
+import { resolveDisplayName } from "./modules/shared/identity-fallback";
 
 // Dashboard state
 let loader: IDatasetLoader | null = null;
@@ -1393,13 +1394,20 @@ function renderReviewerActivity(
   // #308: resolve the filtered reviewer's display name upstream so the
   // chart module stays dumb. `filters.reviewers` is effectively
   // single-select end-to-end (see reviewer-activity.ts filter-semantics
-  // comment); we scope to [0] to match that.
+  // comment); we scope to [0] to match that. Uses the shared
+  // `resolveDisplayName` so the non-UUID-id fallback stays consistent
+  // with the drill-down panel surfaces.
   const filterReviewerId = currentFilters.reviewers[0];
-  const filterReviewerName = filterReviewerId
-    ? currentDimensions?.reviewers?.find(
-        (r) => r.reviewer_id === filterReviewerId,
-      )?.reviewer_name
-    : undefined;
+  const reviewerNameByKey = new Map(
+    (currentDimensions?.reviewers ?? []).map((r) => [
+      r.reviewer_id,
+      r.reviewer_name,
+    ]),
+  );
+  const filterReviewerName =
+    filterReviewerId !== undefined
+      ? resolveDisplayName(filterReviewerId, reviewerNameByKey)
+      : undefined;
   renderReviewerActivityModule(
     elements.get("reviewer-activity") ?? null,
     rollups,

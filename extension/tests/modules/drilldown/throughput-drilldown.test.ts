@@ -151,11 +151,41 @@ describe("throughput-drilldown", () => {
     expect(rowValues).toEqual(["35", "12"]);
   });
 
-  it("By-author rows fall back to 'Unknown user' when authorsDimension is missing at install time", () => {
+  it("By-author non-UUID keys render verbatim when authorsDimension is missing (Codex catch: no blanket masking)", () => {
     const rollups = [makeRollup()];
     const container = mountChart(rollups);
     // Dimension not yet loaded (early-render race). Panel must not
-    // crash; every row falls through to UNKNOWN_USER_LABEL.
+    // crash; non-UUID keys ("alice", "bob") are already human-readable
+    // and survive the fallback unchanged.
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    expect(rowLabels).toEqual(["bob", "alice"]);
+    const rowValues = Array.from(
+      authorSection.querySelectorAll("tbody tr td"),
+    ).map((td) => td.textContent);
+    expect(rowValues).toEqual(["35", "12"]);
+  });
+
+  it("By-author UUID keys fall back to 'Unknown user' when authorsDimension is missing", () => {
+    // #308 + Codex catch: only UUID-shaped keys mask; the GUID itself
+    // must never surface as visible text.
+    const rollups = [
+      makeRollup({
+        by_author: {
+          "f47ac10b-58cc-4372-a567-0e02b2c3d479": { pr_count: 35 },
+          "12345678-1234-1234-1234-123456789abc": { pr_count: 12 },
+        },
+      }),
+    ];
+    const container = mountChart(rollups);
     installThroughputDrilldown(container, rollups);
 
     click(firstBar(container));
@@ -167,15 +197,18 @@ describe("throughput-drilldown", () => {
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
     expect(rowLabels).toEqual(["Unknown user", "Unknown user"]);
-    // Row order is preserved via the pr_count sort — still 35 then 12.
-    const rowValues = Array.from(
-      authorSection.querySelectorAll("tbody tr td"),
-    ).map((td) => td.textContent);
-    expect(rowValues).toEqual(["35", "12"]);
   });
 
-  it("By-author rows fall back to 'Unknown user' for ids missing from the supplied authorsDimension", () => {
-    const rollups = [makeRollup()];
+  it("By-author mixed keys: resolved → name, UUID-missing → fallback, non-UUID-missing → raw id", () => {
+    const rollups = [
+      makeRollup({
+        by_author: {
+          alice: { pr_count: 35 },
+          "f47ac10b-58cc-4372-a567-0e02b2c3d479": { pr_count: 20 },
+          "legacy-user-42": { pr_count: 8 },
+        },
+      }),
+    ];
     const container = mountChart(rollups);
     installThroughputDrilldown(container, rollups, {
       authorsDimension: [{ author_id: "alice", author_name: "Alice Smith" }],
@@ -189,9 +222,13 @@ describe("throughput-drilldown", () => {
     const rowLabels = Array.from(
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
-    // bob has pr_count=35 (sort first) and is missing from the
-    // dimension; alice is present and second by sort.
-    expect(rowLabels).toEqual(["Unknown user", "Alice Smith"]);
+    // Sorted by pr_count desc: alice (35) → resolved, UUID (20) →
+    // masked, legacy-user-42 (8) → raw (non-UUID).
+    expect(rowLabels).toEqual([
+      "Alice Smith",
+      "Unknown user",
+      "legacy-user-42",
+    ]);
   });
 
   it("panel renders By-repository breakdown rows from rollup.by_repository", () => {

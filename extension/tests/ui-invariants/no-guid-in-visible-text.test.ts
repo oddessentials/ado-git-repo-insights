@@ -361,6 +361,89 @@ describe("UI invariant: no GUID in visible text (#308)", () => {
     });
   });
 
+  describe("non-UUID ids survive the fallback without masking (Codex catch)", () => {
+    it("throughput By-author: non-UUID keys render verbatim when authorsDimension is missing", () => {
+      // Fixture: non-UUID keys like emails or short codes. With no
+      // dimension supplied, the rows should show the raw keys — not
+      // "Unknown user".
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W12",
+          pr_count: 20,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 2,
+          reviewers_count: 1,
+          by_repository: null,
+          by_author: {
+            "alice@example.com": { pr_count: 12 },
+            "legacy-user-42": { pr_count: 8 },
+          },
+          by_team: null,
+        },
+      ];
+      const container = document.createElement("div");
+      container.id = "throughput-chart";
+      document.body.appendChild(container);
+      renderThroughputChart(container, rollups);
+      installThroughputDrilldown(container, rollups);
+      container
+        .querySelector<HTMLElement>(".bar-container")!
+        .dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+
+      assertNoGuidInVisibleText(document.body);
+      const body = document.body.textContent ?? "";
+      expect(body).toContain("alice@example.com");
+      expect(body).toContain("legacy-user-42");
+      // Confirms masking did not fire for non-UUID ids.
+      expect(body).not.toContain(UNKNOWN_USER_LABEL);
+    });
+
+    it("reviewer panel title: non-UUID reviewer_id renders verbatim when reviewersDimension is missing", () => {
+      const emailId = "alice@example.com";
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W12",
+          pr_count: 10,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 3,
+          reviewers_count: 1,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            [emailId]: {
+              reviews_count: 5,
+              reviewed_prs: 3,
+              approval_rate: 0.8,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+      const container = document.createElement("div");
+      container.id = "reviewer-activity";
+      document.body.appendChild(container);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: [emailId], authors: [] },
+      });
+      installReviewerDrilldown(container, rollups);
+      container
+        .querySelector<HTMLElement>(".h-bar-row")!
+        .dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+
+      assertNoGuidInVisibleText(document.body);
+      expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+        emailId,
+      );
+    });
+  });
+
   describe("fallback consistency (#308)", () => {
     it("UNKNOWN_USER_LABEL is 'Unknown user' and fires across all three remediated surfaces", () => {
       // Throughput By-author fallback

@@ -1007,7 +1007,7 @@ describe("reviewer-activity module", () => {
       }
     });
 
-    it("aria-label falls back to 'Unknown user' when filterReviewerName is not supplied (shared fallback copy)", () => {
+    it("aria-label falls back to 'Unknown user' when filterReviewerName is absent AND the id is UUID-shaped", () => {
       renderReviewerActivity(container, rollupsWithReviewer(GUID), {
         reviewerFilterActive: true,
         filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
@@ -1023,6 +1023,31 @@ describe("reviewer-activity module", () => {
         // panel title, locked by the fallback-consistency gate.
         expect(label).toContain("Unknown user");
         expect(label).not.toContain(GUID);
+      }
+    });
+
+    it("aria-label uses the non-UUID reviewer_id verbatim when filterReviewerName is absent (Codex catch)", () => {
+      const EMAIL_ID = "alice@example.com";
+      renderReviewerActivity(container, rollupsWithReviewer(EMAIL_ID), {
+        reviewerFilterActive: true,
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: [EMAIL_ID],
+          authors: [],
+        },
+      });
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        const label = row.getAttribute("aria-label") ?? "";
+        // Non-UUID ids survive the fallback — no masking as "Unknown
+        // user". Useful info (the email) stays visible for the SR user.
+        expect(label).toContain(EMAIL_ID);
+        expect(label).not.toContain("Unknown user");
       }
     });
 

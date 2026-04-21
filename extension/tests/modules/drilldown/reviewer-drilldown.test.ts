@@ -181,7 +181,10 @@ describe("reviewer-drilldown", () => {
     );
   });
 
-  it("panel title falls back to 'Unknown user' when reviewersDimension is missing at install time", () => {
+  it("panel title uses the non-UUID reviewer_id verbatim when reviewersDimension is missing (Codex catch)", () => {
+    // REVIEWER_ID is "alice@example.com" — an email, not a UUID. With
+    // no dimension supplied the panel title shows the id verbatim
+    // rather than masking it as "Unknown user".
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups);
@@ -190,21 +193,46 @@ describe("reviewer-drilldown", () => {
 
     expect(isDetailPanelOpen()).toBe(true);
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      "Unknown user",
+      REVIEWER_ID,
     );
   });
 
-  it("panel title falls back to 'Unknown user' when the reviewer_id is not present in the dimension", () => {
+  it("panel title uses the non-UUID reviewer_id verbatim when it is not present in the dimension (Codex catch)", () => {
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups, {
       // Dimension present but for a different reviewer; REVIEWER_ID
-      // from the trigger is not in the map so the panel title
-      // fallback fires.
+      // from the trigger is not in the map and is not UUID-shaped, so
+      // it surfaces verbatim.
       reviewersDimension: [
         { reviewer_id: "someone-else", reviewer_name: "Other Person" },
       ],
     });
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      REVIEWER_ID,
+    );
+  });
+
+  it("panel title falls back to 'Unknown user' when the reviewer_id IS UUID-shaped and missing from the dimension", () => {
+    const uuidReviewerId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const rollups = [
+      makeRollup(
+        {
+          week: "2025-W10",
+          reviewers_count: 3,
+          reviewsCount: 5,
+          reviewedPrs: 3,
+          approvalRate: 0.8,
+        },
+        uuidReviewerId,
+      ),
+    ];
+    const container = mountChart(rollups, true, uuidReviewerId);
+    installReviewerDrilldown(container, rollups);
 
     click(rowFor(container, "2025-W10"));
 

@@ -14,6 +14,7 @@ import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { UNKNOWN_USER_LABEL } from "../shared/identity-fallback";
+import { isUuid } from "../shared/uuid-pattern";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { weekRangeForAria } from "../drilldown/week-range";
 
@@ -187,12 +188,18 @@ export function renderReviewerActivity(
   const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
   // #308: aria-label uses the resolved display name when the dashboard
   // supplies one; the raw reviewer_id stays in the data-* attribute so
-  // drill-down dispatch and debugging remain id-keyed. Fallback copy
-  // matches the shared `UNKNOWN_USER_LABEL` so every #308 surface uses
-  // one consistent string (locked by the fallback-consistency gate in
-  // tests/ui-invariants/no-guid-in-visible-text.test.ts).
+  // drill-down dispatch and debugging remain id-keyed.
+  //
+  // Codex stop-hook catch: when `filterReviewerName` is not supplied
+  // (callers that don't go through the dashboard wrapper, or the
+  // dashboard couldn't resolve), avoid masking a legitimate non-UUID
+  // id as "Unknown user" — only fall back when the id would otherwise
+  // leak a GUID. Mirrors the shared `resolveDisplayName` semantics.
   const filterReviewerAriaName =
-    options.filterReviewerName ?? UNKNOWN_USER_LABEL;
+    options.filterReviewerName ??
+    (filterReviewerId !== null && !isUuid(filterReviewerId)
+      ? filterReviewerId
+      : UNKNOWN_USER_LABEL);
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;
