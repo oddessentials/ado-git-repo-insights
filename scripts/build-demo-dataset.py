@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import os
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Final, TypedDict
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.types import JSONValue
@@ -31,7 +32,10 @@ from demo_generation_common import (
     write_json_file,
 )
 from demo_shell import render_demo_html_from_path
-from strip_pr_arrays import strip_pr_arrays_from_rollups
+from strip_pr_arrays import (
+    SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME,
+    strip_pr_arrays_from_rollups,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_ROOT = Path(
@@ -51,7 +55,7 @@ PUBLISH_SURFACE_SCRIPT = REPO_ROOT / "scripts" / "publish-demo-surface.py"
 EXTENSION_ROOT = REPO_ROOT / "extension"
 
 DEMO_PROFILE_NAME = "enterprise-demo"
-DEMO_PROFILE_VERSION = "2.0.0"
+DEMO_PROFILE_VERSION = "2.1.0"
 GENERATOR_STEPS = [
     "generate-demo-data.py",
     "generate-demo-predictions.py",
@@ -103,7 +107,82 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip generation; validate already-committed docs/data artifacts",
     )
+    parser.add_argument(
+        "--allow-dirty-inputs",
+        action="store_true",
+        help=(
+            "Local-dev only: skip the staged-vs-worktree guard on demo-build "
+            "inputs. MUST NOT be combined with promotion; the script aborts "
+            "if --allow-dirty-inputs is set without --no-promote."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+DEMO_BUILD_INPUTS: Final[list[Path]] = [
+    Path("scripts/build-demo-dataset.py"),
+    Path("scripts/generate-demo-data.py"),
+    Path("scripts/generate-demo-insights.py"),
+    Path("scripts/generate-demo-predictions.py"),
+    Path("scripts/demo_generation_common.py"),
+    Path("scripts/strip_pr_arrays.py"),
+    Path("scripts/demo-distributions/title-tokens.json"),
+    Path("scripts/demo-distributions/cycle-time-per-repo-size.json"),
+    Path("scripts/demo-distributions/author-concentration.json"),
+    Path("scripts/demo-distributions/pr-count-per-week-per-repo.json"),
+    Path("scripts/demo-distributions/truncation-exercise-week.json"),
+]
+
+
+class UncommittedInputsError(RuntimeError):
+    """Raised when demo-build inputs have unstaged or staged-but-not-in-HEAD changes.
+
+    Contract: ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
+    sections 6-8. The guard rejects any combination of staged + worktree
+    state that cannot be reproduced from a single git commit, ensuring the
+    promotion step operates on a reviewable snapshot only.
+    """
+
+
+def _run_git_input_diff(repo_root: Path, flag: str, inputs: list[Path]) -> str:
+    """Invoke ``git diff {flag} --name-only -- <inputs>`` and return stdout."""
+    argv: list[str] = ["git", "diff"]
+    if flag:
+        argv.append(flag)
+    argv.extend(["--name-only", "--"])
+    argv.extend(p.as_posix() for p in inputs)
+    result = subprocess.run(
+        argv,
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def assert_inputs_clean(
+    repo_root: Path,
+    inputs: list[Path],
+    *,
+    allow_dirty: bool = False,
+) -> None:
+    """Verify every path in ``inputs`` is byte-identical to HEAD, staged and worktree.
+
+    Raises :class:`UncommittedInputsError` with distinct messages for staged
+    vs. unstaged drift. Set ``allow_dirty=True`` for local-only iteration
+    where the resulting build will NOT be promoted.
+    """
+    if allow_dirty:
+        return
+    staged = _run_git_input_diff(repo_root, "--cached", inputs)
+    if staged:
+        raise UncommittedInputsError(f"[demo-build] staged changes in inputs: {staged}")
+    unstaged = _run_git_input_diff(repo_root, "", inputs)
+    if unstaged:
+        raise UncommittedInputsError(
+            f"[demo-build] unstaged changes in inputs: {unstaged}"
+        )
 
 
 def run_generator(script_name: str, output_root: Path) -> None:
@@ -1042,19 +1121,169 @@ def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, object]:
     return startup_parity
 
 
-def promote_data(source_dir: Path, destination_dir: Path) -> None:
-    """Replace docs/data atomically from the canonical artifact root.
+class SyntheticShapeError(RuntimeError):
+    """Raised when a sentinel-present source violates the synthetic PR-record shape.
 
-    Feature 060 FR-023 strip gate: when the destination is
-    ``DOCS_DATA_DIR`` (the public demo surface), run
-    :func:`strip_pr_arrays_from_rollups` against the source ``aggregates``
-    tree FIRST. The helper raises :class:`PrArrayResidueError` if any
-    residue remains after the strip pass; in that case this function
-    propagates the error and never reaches the copy step, leaving
-    ``docs/data/`` byte-identical to its pre-call state.
+    Contract: ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §3.
+    The fail-closed gate on the sentinel-present branch of ``promote_data``
+    raises this before any destination mutation occurs, preserving atomicity.
+    """
+
+
+_SYNTHETIC_PR_CAP: Final[int] = 500
+
+
+def _synthetic_shape_violations(rollup_path: Path) -> list[str]:
+    """Return the rule violations (if any) for a single weekly rollup.
+
+    Rules (contract §3):
+        * ``_prs_cap`` MUST equal 500 everywhere it appears.
+        * ``pr_count == 0`` rollups MUST have none of ``prs`` / ``_prs_truncated``
+          / ``_prs_cap`` OR have them all with ``len(prs) == 0`` and
+          ``_prs_truncated == False`` and ``_prs_cap == 500``.
+        * ``pr_count > 0`` rollups MUST have all three keys; ``len(prs)`` MUST
+          be ``<= _prs_cap``; ``prs`` MUST be sorted by ``(-cycle_time, id)``.
+    """
+    violations: list[str] = []
+    with rollup_path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    if not isinstance(payload, dict):
+        return [f"{rollup_path.name}: rollup JSON must be an object"]
+
+    has_prs = "prs" in payload
+    has_trunc = "_prs_truncated" in payload
+    has_cap = "_prs_cap" in payload
+    pr_count_raw = payload.get("pr_count", 0)
+    pr_count = int(pr_count_raw) if isinstance(pr_count_raw, (int, float)) else 0
+
+    if has_cap and payload["_prs_cap"] != _SYNTHETIC_PR_CAP:
+        violations.append(
+            f"{rollup_path.name}: _prs_cap must be {_SYNTHETIC_PR_CAP} everywhere, "
+            f"found {payload['_prs_cap']!r}"
+        )
+
+    if pr_count == 0:
+        if has_prs or has_trunc or has_cap:
+            if not (has_prs and has_trunc and has_cap):
+                violations.append(
+                    f"{rollup_path.name}: pr_count=0 requires either all three "
+                    "PR-level keys absent or all three present with empty prs"
+                )
+            else:
+                prs_val = payload["prs"]
+                if (
+                    not isinstance(prs_val, list)
+                    or prs_val
+                    or payload["_prs_truncated"] is not False
+                ):
+                    violations.append(
+                        f"{rollup_path.name}: pr_count=0 with keys present must have "
+                        "len(prs)==0 and _prs_truncated==False"
+                    )
+        return violations
+
+    if not (has_prs and has_trunc and has_cap):
+        missing = [k for k in ("prs", "_prs_truncated", "_prs_cap") if k not in payload]
+        violations.append(
+            f"{rollup_path.name}: pr_count>0 requires all three PR-level keys; "
+            f"missing {missing}"
+        )
+        return violations
+
+    prs = payload["prs"]
+    if not isinstance(prs, list):
+        violations.append(f"{rollup_path.name}: prs must be a list")
+        return violations
+
+    cap = payload["_prs_cap"] if isinstance(payload["_prs_cap"], int) else 0
+    if len(prs) > cap:
+        violations.append(
+            f"{rollup_path.name}: len(prs)={len(prs)} exceeds _prs_cap={cap}"
+        )
+
+    for record in prs:
+        if not isinstance(record, dict):
+            violations.append(f"{rollup_path.name}: every prs entry must be an object")
+            return violations
+        missing_fields = [
+            k
+            for k in ("id", "title", "author_id", "repository_id", "cycle_time")
+            if k not in record
+        ]
+        if missing_fields:
+            violations.append(
+                f"{rollup_path.name}: PR record missing fields {missing_fields}"
+            )
+            return violations
+
+    expected_order = sorted(prs, key=lambda r: (-float(r["cycle_time"]), int(r["id"])))
+    if prs != expected_order:
+        violations.append(
+            f"{rollup_path.name}: prs must be sorted by (-cycle_time, id)"
+        )
+
+    return violations
+
+
+def assert_synthetic_shape(aggregates_dir: Path) -> None:
+    """Verify every weekly rollup under ``aggregates_dir`` matches the synthetic contract.
+
+    Raises :class:`SyntheticShapeError` listing every offending rollup if any
+    rule is violated. Contract:
+    ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §3.
+    """
+    rollup_dir = aggregates_dir / "weekly_rollups"
+    if not rollup_dir.is_dir():
+        raise SyntheticShapeError(
+            f"Expected weekly_rollups directory under {aggregates_dir}"
+        )
+    all_violations: list[str] = []
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        all_violations.extend(_synthetic_shape_violations(rollup_path))
+    if all_violations:
+        raise SyntheticShapeError(
+            "Synthetic-shape violations on sentinel-present source:\n  "
+            + "\n  ".join(all_violations)
+        )
+
+
+def promote_data(source_dir: Path, destination_dir: Path) -> None:
+    """Replace the destination atomically from the canonical artifact root.
+
+    When ``destination_dir`` is the public demo surface (``DOCS_DATA_DIR``),
+    behavior branches on the presence of the synthetic-authorization sentinel
+    (``scripts/strip_pr_arrays.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME``) at
+    ``source_dir / 'aggregates' /`` — feature-309 binary gate. Contract:
+    ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §1.
+
+        * Sentinel PRESENT: ``assert_synthetic_shape`` fails closed on any
+          shape violation; otherwise ``sentinel.unlink()`` runs FIRST (before
+          any destination mutation), PR-level fields are preserved through
+          the copytree, and the destination ends up without the sentinel.
+        * Sentinel ABSENT: the legacy feature-060 strip helper
+          (``strip_pr_arrays_from_rollups``) runs; PR-level fields are
+          stripped from the source tree before copytree.
+
+    Every other destination (private tenant artifacts, non-promotion scratch
+    paths) preserves the existing non-gated behavior.
+
+    On ANY failure (shape violation, unlink OSError, strip residue, mkdir
+    error, copytree error) the destination directory is byte-identical to
+    its pre-call state. See ``tests/unit/test_promote_data_unlink_ordering.py``
+    and ``tests/demo/test_demo_parity_pipeline.py::TestPromoteDataStripGateAtomicity``.
     """
     if destination_dir.resolve() == DOCS_DATA_DIR.resolve():
-        strip_pr_arrays_from_rollups(source_dir / "aggregates")
+        aggregates = source_dir / "aggregates"
+        sentinel = aggregates / SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+        if sentinel.exists():
+            assert_synthetic_shape(aggregates)
+            sentinel.unlink()
+        else:
+            assert not sentinel.exists(), (
+                "Sentinel path toggled between exists() check and else-branch "
+                "reached — destination identity check must remain monotonic."
+            )
+            strip_pr_arrays_from_rollups(aggregates)
 
     destination_dir.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
@@ -1095,6 +1324,16 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "--validate-only cannot be used with promotion; rerun with --no-promote"
         )
+    if args.allow_dirty_inputs and not args.no_promote:
+        raise RuntimeError(
+            "--allow-dirty-inputs must be combined with --no-promote; promotion "
+            "onto docs/data/ requires a staged snapshot (contract: byte-determinism-regen.md §11)."
+        )
+    assert_inputs_clean(
+        REPO_ROOT,
+        DEMO_BUILD_INPUTS,
+        allow_dirty=args.allow_dirty_inputs,
+    )
 
     if args.validate_only:
         prepare_validate_only_artifact_root()
@@ -1129,6 +1368,15 @@ def main(argv: list[str] | None = None) -> int:
         if promote_dir == DOCS_DATA_DIR.resolve():
             print("[demo-build] refreshing canonical docs surface")
             ensure_canonical_demo_surface()
+        # Feature 309 binary gate: write the synthetic-authorization sentinel
+        # between generator completion and promote_data. The gate consumes +
+        # unlinks it atomically (contract: demo-strip-gate-v2.md §1;
+        # synthetic-authorization-signal.md §3). exist_ok=False fails loudly
+        # on a stale sentinel from an aborted prior run.
+        sentinel_path = (
+            ARTIFACT_DATA_DIR / "aggregates" / SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+        )
+        sentinel_path.touch(exist_ok=False)
         print(f"[demo-build] promoting {ARTIFACT_DATA_DIR} -> {promote_dir}")
         promote_data(ARTIFACT_DATA_DIR, promote_dir)
         if (

@@ -3,7 +3,13 @@
   "entries": [
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 128,
+      "line": 154,
+      "code": "result = subprocess.run(",
+      "reason": "Repo-owned git diff for assert_inputs_clean; argv list is literal strings + constant-rooted Paths"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 207,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned script path constructed from constants"
     },

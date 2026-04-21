@@ -1309,6 +1309,59 @@ describe("throughput-drilldown", () => {
       }
     });
 
+    // Feature 309 (#315): demo-mode webContext stub lets the PR list render
+    // against synthetic `prs` data published by slice 2d. Regression: prior
+    // to slice 2d's fix in dashboard.ts, `currentCollectionUri` stayed null
+    // in local/demo mode, so `webContext` was undefined and
+    // buildPrListSection short-circuited to "supported-empty" regardless of
+    // the populated `prs` array.
+    it("demo-mode webContext stub + non-empty prs renders contentState='pr-list' with deterministic oddessentials URLs", () => {
+      const DEMO_WEB_CTX = {
+        collectionUri: "https://dev.azure.com/oddessentials/",
+      };
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 202510042,
+            title: "feature-deployment-verified",
+            author_id: "user-alpha",
+            repository_id: "repo-1",
+            cycle_time: 90.0,
+          },
+          {
+            id: 202510043,
+            title: "refactor-hooks-baseline",
+            author_id: "user-bravo",
+            repository_id: "repo-1",
+            cycle_time: 42.5,
+          },
+        ]),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: DEMO_WEB_CTX,
+      });
+
+      click(firstBar(container));
+
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      expect(prSection!.getAttribute("data-content-state")).toBe("pr-list");
+
+      const rowLinks = prSection!.querySelectorAll<HTMLAnchorElement>(
+        "ol li .detail-panel-pr-link",
+      );
+      expect(rowLinks.length).toBe(2);
+      expect(rowLinks[0]!.getAttribute("href")).toBe(
+        "https://dev.azure.com/oddessentials/Frontend/_git/web-app/pullrequest/202510042",
+      );
+      expect(rowLinks[1]!.getAttribute("href")).toBe(
+        "https://dev.azure.com/oddessentials/Frontend/_git/web-app/pullrequest/202510043",
+      );
+    });
+
     // T043 (feature 060 Phase 6)
     it("supported filter yielding zero matches → contentState='supported-empty' with copy DISTINCT from team/reviewer messages", () => {
       // Simulate the post-applyFiltersToRollups state: an author filter has

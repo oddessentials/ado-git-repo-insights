@@ -72,6 +72,7 @@ import {
   initializeAdoSdk,
   isLocalMode,
   getLocalDatasetPath,
+  getLocalCollectionUri,
   getExtensionDataService,
   getWebContext,
   getCollectionUri,
@@ -585,6 +586,11 @@ async function init(): Promise<void> {
       const datasetPath = getLocalDatasetPath();
       loader = new DatasetLoader(datasetPath);
       currentBuildId = null;
+      // Feature 309 (#315): the demo shell runs without the ADO SDK, so
+      // `getCollectionUri()` is unreachable. Populate a deterministic stub
+      // so the feature-060 throughput drill-down receives a defined
+      // `webContext` and renders the PR list against synthetic `prs` data.
+      currentCollectionUri = getLocalCollectionUri();
 
       const projectNameEl = document.getElementById("current-project-name");
       if (projectNameEl) {

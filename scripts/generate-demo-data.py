@@ -19,7 +19,9 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
+import json
 import math
 import random
 import sys
@@ -27,11 +29,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final, TypedDict
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.types import (
         CommentsCoverage,
+        PrRecord,
         ReviewerSliceMetrics,
         SliceMetrics,
     )
@@ -64,6 +67,7 @@ FIXED_GENERATED_AT: str = _common_mod.FIXED_GENERATED_AT
 build_generation_provenance = _common_mod.build_generation_provenance
 discover_demo_feature_flags = _common_mod.discover_demo_feature_flags
 largest_remainder_allocate = _common_mod.largest_remainder_allocate
+round_float = _common_mod.round_float
 require_demo_generation_baseline_for_output = (
     _common_mod.require_demo_generation_baseline_for_output
 )
@@ -114,7 +118,7 @@ DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / ".tmp" / "generate-demo-data
 # importing the full build-demo-dataset module.
 _DOCS_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 DEMO_PROFILE_NAME = "enterprise-demo"
-DEMO_PROFILE_VERSION = "2.0.0"
+DEMO_PROFILE_VERSION = "2.1.0"
 GENERATOR_SCRIPT = "scripts/generate-demo-data.py"
 GENERATION_MODE = "helper-demo-data"
 DEMO_COMMENT_BATCH_COUNT = 100
@@ -235,6 +239,64 @@ RNG = init_random(SEED)
 # per generate_weekly_rollups() call for in-process determinism.
 _REVIEW_TIME_SEED_OFFSET = 1_000_000
 
+# Feature 309 (#315): synthetic PR-record generator state. Isolated seed
+# offset keeps pr-record draws independent of the shared RNG, mirroring
+# the review-time pattern above. Contract:
+# specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md §5.
+_PR_RECORD_SEED_OFFSET: Final[int] = 2000
+_PR_DETAIL_CAP: Final[int] = 500
+_DISTRIBUTION_FIXTURE_DIR: Final[Path] = (
+    Path(__file__).resolve().parent / "demo-distributions"
+)
+_PR_TITLE_MAX_LEN: Final[int] = 72
+_PR_TITLE_TOKEN_COUNT_RANGE: Final[tuple[int, int]] = (2, 6)
+
+pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
+
+
+class _TruncationExerciseConfig(TypedDict):
+    week: str
+    target_qualified_pr_count: int
+    contrast_weeks: list[str]
+    contrast_max_pr_count: int
+
+
+@functools.lru_cache(maxsize=1)
+def _load_truncation_exercise_config() -> _TruncationExerciseConfig:
+    """Load + validate the locked truncation-exercise-week fixture.
+
+    Contract: ``specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md``
+    §2.5 — the values are locked LITERALS. If the fixture drifts, the
+    generator aborts loudly instead of silently emitting a non-contract spike.
+    """
+    path = _DISTRIBUTION_FIXTURE_DIR / "truncation-exercise-week.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("week") != "2025-W26":
+        raise ValueError(
+            f"truncation-exercise-week.json: week must be '2025-W26'; got {payload.get('week')!r}"
+        )
+    if payload.get("target_qualified_pr_count") != 520:
+        raise ValueError(
+            "truncation-exercise-week.json: target_qualified_pr_count must be 520; "
+            f"got {payload.get('target_qualified_pr_count')!r}"
+        )
+    if payload.get("contrast_weeks") != ["2025-W25", "2025-W27"]:
+        raise ValueError(
+            "truncation-exercise-week.json: contrast_weeks must be "
+            f"['2025-W25', '2025-W27']; got {payload.get('contrast_weeks')!r}"
+        )
+    if payload.get("contrast_max_pr_count") != 300:
+        raise ValueError(
+            "truncation-exercise-week.json: contrast_max_pr_count must be 300; "
+            f"got {payload.get('contrast_max_pr_count')!r}"
+        )
+    return _TruncationExerciseConfig(
+        week=str(payload["week"]),
+        target_qualified_pr_count=int(payload["target_qualified_pr_count"]),
+        contrast_weeks=[str(w) for w in payload["contrast_weeks"]],
+        contrast_max_pr_count=int(payload["contrast_max_pr_count"]),
+    )
+
 
 def _box_muller_normal(rng: random.Random) -> float:
     """Generate standard normal variate using Box-Muller transform.
@@ -251,6 +313,124 @@ def _box_muller_normal(rng: random.Random) -> float:
 def _log_normal(rng: random.Random, mu: float, sigma: float) -> float:
     """Generate log-normal variate using locked Box-Muller implementation."""
     return math.exp(mu + sigma * _box_muller_normal(rng))
+
+
+# =============================================================================
+# Synthetic PR Records (feature 309 #315, slice 2c)
+# =============================================================================
+
+# Distribution-fixture loaders are memoized via functools.lru_cache so unit
+# tests can import this module without touching disk until they exercise
+# the helper, while keeping the per-call cost at a single dict lookup.
+# Contract: specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md.
+_REPO_CATEGORY_LABELS: Final[tuple[str, str, str]] = ("small", "medium", "large")
+
+
+@functools.lru_cache(maxsize=1)
+def _load_title_tokens() -> tuple[tuple[str, float], ...]:
+    path = _DISTRIBUTION_FIXTURE_DIR / "title-tokens.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    entries = payload["tokens"]
+    return tuple((str(entry["token"]), float(entry["weight"])) for entry in entries)
+
+
+@functools.lru_cache(maxsize=1)
+def _load_cycle_time_categories() -> tuple[tuple[str, float, float], ...]:
+    path = _DISTRIBUTION_FIXTURE_DIR / "cycle-time-per-repo-size.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    categories_obj = payload["categories"]
+    return tuple(
+        (name, float(body["mu"]), float(body["sigma"]))
+        for name, body in categories_obj.items()
+    )
+
+
+def _week_pr_id_base(week: str) -> int:
+    """Deterministic per-week id offset; globally unique across the 2021-2025 range."""
+    try:
+        year_str, week_str = week.split("-W")
+        year = int(year_str)
+        week_num = int(week_str)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError(f"Invalid ISO week label: {week!r}") from exc
+    return year * 100 * _PR_DETAIL_CAP * 2 + week_num * _PR_DETAIL_CAP * 2
+
+
+def _repo_category(repo_id: str) -> str:
+    """Deterministically assign a repo to small/medium/large via stable hash."""
+    digest = uuid.uuid5(DNS_NAMESPACE, f"repo-category::{repo_id}").int
+    return _REPO_CATEGORY_LABELS[digest % len(_REPO_CATEGORY_LABELS)]
+
+
+def _sample_title(rng: random.Random, tokens: tuple[tuple[str, float], ...]) -> str:
+    low, high = _PR_TITLE_TOKEN_COUNT_RANGE
+    count = rng.randint(low, high)
+    weights = [weight for _tok, weight in tokens]
+    population = [tok for tok, _weight in tokens]
+    chosen = rng.choices(population, weights=weights, k=count)
+    title = "-".join(chosen)
+    return title[:_PR_TITLE_MAX_LEN]
+
+
+def generate_pr_records(
+    week: str,
+    repo_entries: list[object],
+    author_entries: list[object],
+    pr_record_rng: random.Random,
+) -> list[PrRecord]:
+    """Produce synthetic PR records for a single rollup week.
+
+    Each entry in ``repo_entries`` represents one qualified PR in the week
+    (the caller computes the qualified count; the helper assigns title,
+    cycle time, author, and id to each). Returns at most ``_PR_DETAIL_CAP``
+    records, sorted by ``(-cycle_time, id)``. Slice 2c scaffolds the
+    helper; slice 2d wires emission into the rollup loop and regenerates
+    ``docs/data/``.
+
+    Contract:
+        * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
+          §4 (key-insertion order) and §5 (isolated RNG).
+        * Reads fixtures from ``scripts/demo-distributions/`` (slice 2a).
+    """
+    title_tokens = _load_title_tokens()
+    categories_tuple = _load_cycle_time_categories()
+    categories: dict[str, tuple[float, float]] = {
+        name: (mu, sigma) for name, mu, sigma in categories_tuple
+    }
+    base_id = _week_pr_id_base(week)
+    capped_entries = list(repo_entries)[:_PR_DETAIL_CAP]
+
+    if not author_entries:
+        raise ValueError("author_entries must be non-empty")
+    author_pool = [str(entry) for entry in author_entries]
+
+    records: list[PrRecord] = []
+    for idx, entry in enumerate(capped_entries):
+        repo_id = str(entry)
+        category = _repo_category(repo_id)
+        mu_sigma = categories.get(category)
+        if mu_sigma is None:
+            mu_sigma = next(iter(categories.values()))
+        mu, sigma = mu_sigma
+        # Round cycle_time to canonical 3-decimal precision BEFORE sort so
+        # the sorted order matches the post-serialization byte layout written
+        # by canonical_json (demo_generation_common._process_floats). Without
+        # this, ties created by post-write rounding can invert sort order.
+        cycle_time = round_float(_log_normal(pr_record_rng, mu, sigma))
+        author_id = pr_record_rng.choice(author_pool)
+        title = _sample_title(pr_record_rng, title_tokens)
+        records.append(
+            {
+                "id": base_id + idx,
+                "title": title,
+                "author_id": author_id,
+                "repository_id": repo_id,
+                "cycle_time": float(cycle_time),
+            }
+        )
+
+    records.sort(key=lambda r: (-float(r["cycle_time"]), int(r["id"])))
+    return records
 
 
 # =============================================================================
@@ -1678,9 +1858,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Output directory: {output_dir}")
 
     # Reset random state for consistent generation across repeated
-    # in-process calls (test harnesses, orchestrators).
-    global RNG
+    # in-process calls (test harnesses, orchestrators). The PR-record
+    # stream (feature 309 #315) has its own offset so it must be reset
+    # alongside the shared stream.
+    global RNG, pr_record_rng
     RNG = init_random(SEED)
+    pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
 
     # Generate entities
     print("\n[1/6] Generating entities...")
@@ -1714,8 +1897,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Generated {len(rollups)} weekly rollups")
 
     rollups_dir = output_dir / "aggregates" / "weekly_rollups"
+    truncation_config = _load_truncation_exercise_config()
+    truncation_week = truncation_config["week"]
+    target_qualified_count = truncation_config["target_qualified_pr_count"]
+    contrast_weeks: set[str] = set(truncation_config["contrast_weeks"])
+    contrast_max_count = truncation_config["contrast_max_pr_count"]
+
     for rollup in rollups:
-        rollup_data = {
+        rollup_data: dict[str, object] = {
             "week": rollup.week,
             "start_date": rollup.start_date,
             "end_date": rollup.end_date,
@@ -1733,6 +1922,53 @@ def main(argv: list[str] | None = None) -> int:
             "by_reviewer": rollup.by_reviewer,
             "by_team_and_repo": rollup.by_team_and_repo,
         }
+
+        # Feature 309 #315: append synthetic PR-level detail as the LAST three
+        # keys, matching the aggregator's insertion order at aggregators.py:832.
+        # On the truncation-exercise week and the contrast weeks we also
+        # overwrite `rollup_data["pr_count"]` so the top-level count, the
+        # emitted `prs` array length, and the UI badge gate
+        # (`renderedCount < actualFilteredCount` at
+        # extension/ui/modules/shared/detail-panel.ts:456) stay coherent.
+        # Non-override weeks keep the natural `rollup.pr_count` already set
+        # in the dict literal above.
+        if rollup.week == truncation_week:
+            qualified_count = target_qualified_count
+            rollup_data["pr_count"] = qualified_count
+        elif rollup.week in contrast_weeks:
+            qualified_count = min(int(rollup.pr_count), contrast_max_count)
+            rollup_data["pr_count"] = qualified_count
+        else:
+            qualified_count = int(rollup.pr_count)
+
+        if qualified_count > 0 and rollup.by_repository:
+            repo_pool = list(rollup.by_repository.keys())
+            repo_weights = [
+                max(int(rollup.by_repository[r].get("pr_count", 1) or 1), 1)
+                for r in repo_pool
+            ]
+            repo_entries: list[object] = list(
+                pr_record_rng.choices(
+                    repo_pool, weights=repo_weights, k=qualified_count
+                )
+            )
+            author_entries: list[object] = (
+                list(rollup.by_author.keys())
+                if rollup.by_author
+                else [f"fallback-author-{rollup.week}"]
+            )
+            synthetic_prs = generate_pr_records(
+                rollup.week, repo_entries, author_entries, pr_record_rng
+            )
+            prs_truncated = qualified_count > _PR_DETAIL_CAP
+            rollup_data["prs"] = synthetic_prs
+            rollup_data["_prs_truncated"] = prs_truncated
+            rollup_data["_prs_cap"] = _PR_DETAIL_CAP
+        else:
+            rollup_data["prs"] = []
+            rollup_data["_prs_truncated"] = False
+            rollup_data["_prs_cap"] = _PR_DETAIL_CAP
+
         write_json_file(
             rollups_dir / f"{rollup.week}.json",
             rollup_data,

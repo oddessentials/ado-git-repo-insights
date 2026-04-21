@@ -4814,6 +4814,10 @@ var PRInsightsDashboard = (() => {
     }
     return "./dataset";
   }
+  var LOCAL_DASHBOARD_COLLECTION_URI = "https://dev.azure.com/oddessentials/";
+  function getLocalCollectionUri() {
+    return LOCAL_DASHBOARD_COLLECTION_URI;
+  }
 
   // ../ui/modules/shared/svg-path.ts
   function buildLinePath(points) {
@@ -9298,6 +9302,7 @@ var PRInsightsDashboard = (() => {
         const datasetPath = getLocalDatasetPath();
         loader = new DatasetLoader(datasetPath);
         currentBuildId = null;
+        currentCollectionUri = getLocalCollectionUri();
         const projectNameEl = document.getElementById("current-project-name");
         if (projectNameEl) {
           projectNameEl.textContent = "Local Dashboard";

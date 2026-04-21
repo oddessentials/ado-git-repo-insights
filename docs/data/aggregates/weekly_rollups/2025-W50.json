@@ -1,4 +1,6 @@
 {
+  "_prs_cap": 500,
+  "_prs_truncated": false,
   "authors_count": 29,
   "by_author": {
     "03943000-b3aa-55b3-8033-bd4e5bab83fb": {
@@ -2107,6 +2109,694 @@
   "cycle_time_p90": 2763.865,
   "end_date": "2025-12-14",
   "pr_count": 98,
+  "prs": [
+    {
+      "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+      "cycle_time": 3865370.425,
+      "id": 202550073,
+      "repository_id": "user-service",
+      "title": "prod-update-semantic-release-ci-metal-config"
+    },
+    {
+      "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+      "cycle_time": 3789013.19,
+      "id": 202550042,
+      "repository_id": "dashboard-api",
+      "title": "compatibility-nodejs-free-review-review-add"
+    },
+    {
+      "author_id": "1d6fcb02-a878-50f0-9221-ca058b41701f",
+      "cycle_time": 791944.168,
+      "id": 202550059,
+      "repository_id": "user-service",
+      "title": "nextstepsmd-update-ci-free"
+    },
+    {
+      "author_id": "3a27b729-1c55-5383-a129-770ee1d44029",
+      "cycle_time": 381128.021,
+      "id": 202550034,
+      "repository_id": "ios-app",
+      "title": "fix-feat-job-add-deployment-gaps"
+    },
+    {
+      "author_id": "db58c77c-2999-5071-a857-37ed2deae874",
+      "cycle_time": 159088.38,
+      "id": 202550014,
+      "repository_id": "ios-app",
+      "title": "ai-ci-review"
+    },
+    {
+      "author_id": "3a27b729-1c55-5383-a129-770ee1d44029",
+      "cycle_time": 108598.207,
+      "id": 202550024,
+      "repository_id": "etl-jobs",
+      "title": "feat-tests-semantic-release-ci"
+    },
+    {
+      "author_id": "84434e77-3995-5517-aa30-e9724a4307ed",
+      "cycle_time": 87834.773,
+      "id": 202550015,
+      "repository_id": "notification-service",
+      "title": "disable-verified-ci"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 67884.135,
+      "id": 202550037,
+      "repository_id": "gateway-core",
+      "title": "config-review"
+    },
+    {
+      "author_id": "5b99e00c-ab32-5315-9404-232bade14bdf",
+      "cycle_time": 35565.486,
+      "id": 202550091,
+      "repository_id": "auth-service",
+      "title": "ci-review-complete-prod-reviews-job"
+    },
+    {
+      "author_id": "5b99e00c-ab32-5315-9404-232bade14bdf",
+      "cycle_time": 23632.704,
+      "id": 202550062,
+      "repository_id": "ios-app",
+      "title": "update-ci"
+    },
+    {
+      "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "cycle_time": 11525.223,
+      "id": 202550001,
+      "repository_id": "stream-processor",
+      "title": "baseline-upgrade-ci-gaps-free"
+    },
+    {
+      "author_id": "45454a1f-599b-5b19-81c8-c01c423442c3",
+      "cycle_time": 6951.539,
+      "id": 202550012,
+      "repository_id": "auth-service",
+      "title": "semantic-release-tests-tests"
+    },
+    {
+      "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "cycle_time": 6524.727,
+      "id": 202550096,
+      "repository_id": "auth-service",
+      "title": "fix-hardening-update"
+    },
+    {
+      "author_id": "36f40327-12d8-5b26-a15f-313debe03843",
+      "cycle_time": 4724.407,
+      "id": 202550041,
+      "repository_id": "react-shell",
+      "title": "fixci-fixci"
+    },
+    {
+      "author_id": "a7aaa70f-ed59-5ab8-bd5c-d3bf956e7c6b",
+      "cycle_time": 4205.716,
+      "id": 202550025,
+      "repository_id": "auth-service",
+      "title": "add-metal"
+    },
+    {
+      "author_id": "a791accb-541c-5010-9202-d3d286437286",
+      "cycle_time": 3585.51,
+      "id": 202550064,
+      "repository_id": "ios-app",
+      "title": "prod-devex-workspace-config"
+    },
+    {
+      "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+      "cycle_time": 2697.442,
+      "id": 202550097,
+      "repository_id": "ios-app",
+      "title": "baseline-prod-config-nextstepsmd-fixci"
+    },
+    {
+      "author_id": "46341819-09c7-5f56-af79-05d9be8b22af",
+      "cycle_time": 2036.867,
+      "id": 202550018,
+      "repository_id": "design-system",
+      "title": "ai-fixci-ci-ci-ai"
+    },
+    {
+      "author_id": "8673d9b1-1769-5602-97ed-135c806c2b4e",
+      "cycle_time": 1646.974,
+      "id": 202550039,
+      "repository_id": "feature-store",
+      "title": "review-tests"
+    },
+    {
+      "author_id": "2daa926c-4827-599c-800c-78ceba1e2558",
+      "cycle_time": 1506.608,
+      "id": 202550026,
+      "repository_id": "etl-jobs",
+      "title": "feat-code-feat"
+    },
+    {
+      "author_id": "513b4803-0e3a-5217-b377-5bd8ed10011f",
+      "cycle_time": 1434.234,
+      "id": 202550032,
+      "repository_id": "android-app",
+      "title": "self-hosted-setup-hooks-reviews-prod-tests"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 1203.238,
+      "id": 202550005,
+      "repository_id": "etl-jobs",
+      "title": "reviews-workspace"
+    },
+    {
+      "author_id": "3a27b729-1c55-5383-a129-770ee1d44029",
+      "cycle_time": 961.842,
+      "id": 202550053,
+      "repository_id": "data-warehouse",
+      "title": "workspace-build"
+    },
+    {
+      "author_id": "2daa926c-4827-599c-800c-78ceba1e2558",
+      "cycle_time": 633.949,
+      "id": 202550020,
+      "repository_id": "stream-processor",
+      "title": "tests-ci"
+    },
+    {
+      "author_id": "d093c274-679c-53ff-b1ca-73932f1f4434",
+      "cycle_time": 555.671,
+      "id": 202550068,
+      "repository_id": "user-service",
+      "title": "devex-semantic-release-test-nodejs-review-workspace"
+    },
+    {
+      "author_id": "0b249c6f-ede6-5846-b400-d4e2ab3fdc92",
+      "cycle_time": 481.064,
+      "id": 202550070,
+      "repository_id": "model-training",
+      "title": "release-ci-ai-husky"
+    },
+    {
+      "author_id": "43f64846-3ad1-579b-98e9-f3a08e718f75",
+      "cycle_time": 365.888,
+      "id": 202550055,
+      "repository_id": "etl-jobs",
+      "title": "review-fix"
+    },
+    {
+      "author_id": "45454a1f-599b-5b19-81c8-c01c423442c3",
+      "cycle_time": 252.233,
+      "id": 202550075,
+      "repository_id": "user-service",
+      "title": "compatibility-nodejs"
+    },
+    {
+      "author_id": "b1238244-1dff-5232-aae6-73ad452a75a0",
+      "cycle_time": 215.701,
+      "id": 202550045,
+      "repository_id": "android-app",
+      "title": "dependencies-update-config-config-better-standards"
+    },
+    {
+      "author_id": "612fbb5d-1bbc-58bc-af66-928e26768f59",
+      "cycle_time": 85.604,
+      "id": 202550081,
+      "repository_id": "notification-service",
+      "title": "tests-dependencies-prod-fixci"
+    },
+    {
+      "author_id": "3281ab9d-1db0-551b-9810-33c4a8d872c4",
+      "cycle_time": 81.657,
+      "id": 202550044,
+      "repository_id": "model-training",
+      "title": "stability-feat-feat-standards"
+    },
+    {
+      "author_id": "5b99e00c-ab32-5315-9404-232bade14bdf",
+      "cycle_time": 69.897,
+      "id": 202550021,
+      "repository_id": "ios-app",
+      "title": "gaps-prod-ci-add"
+    },
+    {
+      "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
+      "cycle_time": 69.821,
+      "id": 202550027,
+      "repository_id": "model-training",
+      "title": "review-update"
+    },
+    {
+      "author_id": "59cb7d66-58a2-59e7-942f-4da2b915d6c9",
+      "cycle_time": 61.911,
+      "id": 202550043,
+      "repository_id": "user-service",
+      "title": "ai-add-playwright-shared-code"
+    },
+    {
+      "author_id": "3d8f75f7-ac9c-5402-929a-a63bce3a8897",
+      "cycle_time": 60.749,
+      "id": 202550002,
+      "repository_id": "dashboard-api",
+      "title": "ai-remaining"
+    },
+    {
+      "author_id": "8a5b2406-9f57-5e4a-bea2-a06ec7602c34",
+      "cycle_time": 54.927,
+      "id": 202550047,
+      "repository_id": "data-warehouse",
+      "title": "remaining-better-update"
+    },
+    {
+      "author_id": "45454a1f-599b-5b19-81c8-c01c423442c3",
+      "cycle_time": 50.373,
+      "id": 202550066,
+      "repository_id": "etl-jobs",
+      "title": "ci-code-map-screen"
+    },
+    {
+      "author_id": "27033abe-8d6c-5612-88b9-296ea8b603be",
+      "cycle_time": 50.308,
+      "id": 202550094,
+      "repository_id": "etl-jobs",
+      "title": "hardening-add-nodejs-shared"
+    },
+    {
+      "author_id": "1e6a1278-fa30-5862-ae60-0bd2208dbb3d",
+      "cycle_time": 48.065,
+      "id": 202550065,
+      "repository_id": "dashboard-api",
+      "title": "self-hosted-baseline-ci-better"
+    },
+    {
+      "author_id": "577689a9-035b-5053-9d85-eb8c695edda5",
+      "cycle_time": 39.925,
+      "id": 202550050,
+      "repository_id": "android-app",
+      "title": "gaps-prod-alignment-review-add-feat"
+    },
+    {
+      "author_id": "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6",
+      "cycle_time": 39.13,
+      "id": 202550040,
+      "repository_id": "auth-service",
+      "title": "review-dependencies"
+    },
+    {
+      "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "cycle_time": 37.853,
+      "id": 202550063,
+      "repository_id": "react-shell",
+      "title": "job-nextstepsmd-test"
+    },
+    {
+      "author_id": "5e64877f-9bf3-5333-98a9-b4e2476d5273",
+      "cycle_time": 36.804,
+      "id": 202550093,
+      "repository_id": "user-service",
+      "title": "code-feat-setup-add-hooks"
+    },
+    {
+      "author_id": "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194",
+      "cycle_time": 35.582,
+      "id": 202550083,
+      "repository_id": "ios-app",
+      "title": "compatibility-map-ci-ci"
+    },
+    {
+      "author_id": "a791accb-541c-5010-9202-d3d286437286",
+      "cycle_time": 32.177,
+      "id": 202550022,
+      "repository_id": "feature-store",
+      "title": "baseline-hooks"
+    },
+    {
+      "author_id": "36f40327-12d8-5b26-a15f-313debe03843",
+      "cycle_time": 31.966,
+      "id": 202550080,
+      "repository_id": "auth-service",
+      "title": "ai-during-hardening"
+    },
+    {
+      "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+      "cycle_time": 31.942,
+      "id": 202550035,
+      "repository_id": "stream-processor",
+      "title": "review-prod-tests-better"
+    },
+    {
+      "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
+      "cycle_time": 30.378,
+      "id": 202550008,
+      "repository_id": "user-service",
+      "title": "nextstepsmd-tests"
+    },
+    {
+      "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+      "cycle_time": 29.704,
+      "id": 202550017,
+      "repository_id": "user-service",
+      "title": "ci-standards-ai-metal-compatibility-compatibility"
+    },
+    {
+      "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "cycle_time": 28.709,
+      "id": 202550072,
+      "repository_id": "data-warehouse",
+      "title": "blank-baseline-tests"
+    },
+    {
+      "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "cycle_time": 25.124,
+      "id": 202550086,
+      "repository_id": "gateway-core",
+      "title": "tests-nextstepsmd-prod-stability-self-hosted-standards"
+    },
+    {
+      "author_id": "04c36b2c-5096-58df-b775-0672dd0ac715",
+      "cycle_time": 22.967,
+      "id": 202550074,
+      "repository_id": "auth-service",
+      "title": "code-add-self-hosted"
+    },
+    {
+      "author_id": "2daa926c-4827-599c-800c-78ceba1e2558",
+      "cycle_time": 21.46,
+      "id": 202550079,
+      "repository_id": "feature-store",
+      "title": "feat-husky-verified"
+    },
+    {
+      "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "cycle_time": 16.387,
+      "id": 202550046,
+      "repository_id": "etl-jobs",
+      "title": "dependencies-hardening-add-disable-release-fix"
+    },
+    {
+      "author_id": "9434ad44-21e0-5d3c-a09c-3c33640cb086",
+      "cycle_time": 15.865,
+      "id": 202550019,
+      "repository_id": "ios-app",
+      "title": "hooks-test-workspace"
+    },
+    {
+      "author_id": "0b249c6f-ede6-5846-b400-d4e2ab3fdc92",
+      "cycle_time": 15.495,
+      "id": 202550049,
+      "repository_id": "react-shell",
+      "title": "feat-compatibility-ai-playwright"
+    },
+    {
+      "author_id": "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194",
+      "cycle_time": 14.842,
+      "id": 202550033,
+      "repository_id": "ios-app",
+      "title": "config-setup-marker"
+    },
+    {
+      "author_id": "513b4803-0e3a-5217-b377-5bd8ed10011f",
+      "cycle_time": 14.466,
+      "id": 202550067,
+      "repository_id": "user-service",
+      "title": "add-compatibility-standards-during-compatibility-code"
+    },
+    {
+      "author_id": "9cc11263-ee7a-5cf3-8cf0-984b7e573dff",
+      "cycle_time": 14.248,
+      "id": 202550052,
+      "repository_id": "auth-service",
+      "title": "ci-add-docs"
+    },
+    {
+      "author_id": "612fbb5d-1bbc-58bc-af66-928e26768f59",
+      "cycle_time": 13.285,
+      "id": 202550076,
+      "repository_id": "etl-jobs",
+      "title": "screen-disable-ci-stability"
+    },
+    {
+      "author_id": "864bbd27-2179-5171-a2fb-b9cb7d3f88db",
+      "cycle_time": 13.215,
+      "id": 202550007,
+      "repository_id": "react-shell",
+      "title": "disable-ci"
+    },
+    {
+      "author_id": "3281ab9d-1db0-551b-9810-33c4a8d872c4",
+      "cycle_time": 11.708,
+      "id": 202550023,
+      "repository_id": "inference-service",
+      "title": "marker-transitions-better-review"
+    },
+    {
+      "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+      "cycle_time": 10.512,
+      "id": 202550057,
+      "repository_id": "auth-service",
+      "title": "gaps-code-add"
+    },
+    {
+      "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+      "cycle_time": 8.42,
+      "id": 202550090,
+      "repository_id": "android-app",
+      "title": "update-review-screen-fixci-fixci"
+    },
+    {
+      "author_id": "cdc00a5c-993a-56ab-aa8a-9739fbb4d3a3",
+      "cycle_time": 7.272,
+      "id": 202550077,
+      "repository_id": "model-training",
+      "title": "gaps-step-prod-prod-standards-fix"
+    },
+    {
+      "author_id": "36f40327-12d8-5b26-a15f-313debe03843",
+      "cycle_time": 6.283,
+      "id": 202550058,
+      "repository_id": "model-training",
+      "title": "prod-prod-tests-workspace"
+    },
+    {
+      "author_id": "b1238244-1dff-5232-aae6-73ad452a75a0",
+      "cycle_time": 6.274,
+      "id": 202550082,
+      "repository_id": "auth-service",
+      "title": "add-upgrade-shared"
+    },
+    {
+      "author_id": "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194",
+      "cycle_time": 5.658,
+      "id": 202550069,
+      "repository_id": "model-training",
+      "title": "metal-devex-fixci-feat"
+    },
+    {
+      "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+      "cycle_time": 5.109,
+      "id": 202550011,
+      "repository_id": "inference-service",
+      "title": "ai-standards"
+    },
+    {
+      "author_id": "8673d9b1-1769-5602-97ed-135c806c2b4e",
+      "cycle_time": 3.998,
+      "id": 202550003,
+      "repository_id": "react-shell",
+      "title": "fixci-add-config"
+    },
+    {
+      "author_id": "d093c274-679c-53ff-b1ca-73932f1f4434",
+      "cycle_time": 3.554,
+      "id": 202550009,
+      "repository_id": "user-service",
+      "title": "devex-add-nodejs"
+    },
+    {
+      "author_id": "698ff602-383e-5e11-b00c-6a74b22f2238",
+      "cycle_time": 2.498,
+      "id": 202550085,
+      "repository_id": "react-shell",
+      "title": "ci-hardening-transitions"
+    },
+    {
+      "author_id": "3d8f75f7-ac9c-5402-929a-a63bce3a8897",
+      "cycle_time": 2.018,
+      "id": 202550054,
+      "repository_id": "model-training",
+      "title": "blank-fix"
+    },
+    {
+      "author_id": "65d44a2c-47b6-58bb-95e3-9452d553c007",
+      "cycle_time": 1.591,
+      "id": 202550084,
+      "repository_id": "dashboard-api",
+      "title": "code-baseline"
+    },
+    {
+      "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+      "cycle_time": 1.53,
+      "id": 202550087,
+      "repository_id": "auth-service",
+      "title": "step-deployment-repo-setup"
+    },
+    {
+      "author_id": "1e6a1278-fa30-5862-ae60-0bd2208dbb3d",
+      "cycle_time": 1.4,
+      "id": 202550004,
+      "repository_id": "ios-app",
+      "title": "update-feat-tests-playwright-feat-feat"
+    },
+    {
+      "author_id": "1fbcf577-0afe-5393-8090-5fd25137a8e8",
+      "cycle_time": 1.301,
+      "id": 202550071,
+      "repository_id": "user-service",
+      "title": "config-add-review"
+    },
+    {
+      "author_id": "1fbcf577-0afe-5393-8090-5fd25137a8e8",
+      "cycle_time": 1.045,
+      "id": 202550061,
+      "repository_id": "user-service",
+      "title": "standards-semantic-release-hooks-semantic-release-config-tests"
+    },
+    {
+      "author_id": "1d6fcb02-a878-50f0-9221-ca058b41701f",
+      "cycle_time": 0.94,
+      "id": 202550051,
+      "repository_id": "auth-service",
+      "title": "feat-screen-gaps-review"
+    },
+    {
+      "author_id": "1fbcf577-0afe-5393-8090-5fd25137a8e8",
+      "cycle_time": 0.882,
+      "id": 202550060,
+      "repository_id": "android-app",
+      "title": "repo-complete"
+    },
+    {
+      "author_id": "1d6fcb02-a878-50f0-9221-ca058b41701f",
+      "cycle_time": 0.707,
+      "id": 202550089,
+      "repository_id": "data-warehouse",
+      "title": "add-tests-feat"
+    },
+    {
+      "author_id": "1fbcf577-0afe-5393-8090-5fd25137a8e8",
+      "cycle_time": 0.691,
+      "id": 202550028,
+      "repository_id": "model-training",
+      "title": "update-prod-remaining-feat-step"
+    },
+    {
+      "author_id": "612fbb5d-1bbc-58bc-af66-928e26768f59",
+      "cycle_time": 0.592,
+      "id": 202550013,
+      "repository_id": "model-training",
+      "title": "verified-metal-nodejs-gaps"
+    },
+    {
+      "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+      "cycle_time": 0.392,
+      "id": 202550078,
+      "repository_id": "stream-processor",
+      "title": "tests-update-feat-prod"
+    },
+    {
+      "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+      "cycle_time": 0.326,
+      "id": 202550006,
+      "repository_id": "inference-service",
+      "title": "ai-nextstepsmd-hardening-dependencies"
+    },
+    {
+      "author_id": "3d8f75f7-ac9c-5402-929a-a63bce3a8897",
+      "cycle_time": 0.31,
+      "id": 202550095,
+      "repository_id": "user-service",
+      "title": "review-ai"
+    },
+    {
+      "author_id": "84434e77-3995-5517-aa30-e9724a4307ed",
+      "cycle_time": 0.297,
+      "id": 202550030,
+      "repository_id": "auth-service",
+      "title": "gaps-prod"
+    },
+    {
+      "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "cycle_time": 0.24,
+      "id": 202550048,
+      "repository_id": "etl-jobs",
+      "title": "refactor-gaps-fix"
+    },
+    {
+      "author_id": "30f9f653-d7f5-52a2-a7c4-578f1e1d241f",
+      "cycle_time": 0.234,
+      "id": 202550056,
+      "repository_id": "etl-jobs",
+      "title": "job-marker-ci-compatibility-tests"
+    },
+    {
+      "author_id": "864bbd27-2179-5171-a2fb-b9cb7d3f88db",
+      "cycle_time": 0.22,
+      "id": 202550016,
+      "repository_id": "android-app",
+      "title": "update-fix-update-config-review"
+    },
+    {
+      "author_id": "e7df4671-04e7-5ad1-8d32-4e1923c91065",
+      "cycle_time": 0.171,
+      "id": 202550031,
+      "repository_id": "react-shell",
+      "title": "remaining-during"
+    },
+    {
+      "author_id": "59cb7d66-58a2-59e7-942f-4da2b915d6c9",
+      "cycle_time": 0.089,
+      "id": 202550029,
+      "repository_id": "inference-service",
+      "title": "screen-hooks-baseline-tests-disable"
+    },
+    {
+      "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "cycle_time": 0.088,
+      "id": 202550092,
+      "repository_id": "user-service",
+      "title": "update-review-add-reviews"
+    },
+    {
+      "author_id": "f6a6d51a-6648-578d-9582-e5420d036157",
+      "cycle_time": 0.081,
+      "id": 202550088,
+      "repository_id": "user-service",
+      "title": "prod-complete-docs"
+    },
+    {
+      "author_id": "0b249c6f-ede6-5846-b400-d4e2ab3fdc92",
+      "cycle_time": 0.04,
+      "id": 202550036,
+      "repository_id": "inference-service",
+      "title": "complete-gaps-blank-job"
+    },
+    {
+      "author_id": "a7aaa70f-ed59-5ab8-bd5c-d3bf956e7c6b",
+      "cycle_time": 0.013,
+      "id": 202550010,
+      "repository_id": "gateway-core",
+      "title": "ci-fix-fixci-ci-setup"
+    },
+    {
+      "author_id": "65d44a2c-47b6-58bb-95e3-9452d553c007",
+      "cycle_time": 0.002,
+      "id": 202550000,
+      "repository_id": "ios-app",
+      "title": "build-fix-gaps-alignment-shared-ai"
+    },
+    {
+      "author_id": "36f40327-12d8-5b26-a15f-313debe03843",
+      "cycle_time": 0.0,
+      "id": 202550038,
+      "repository_id": "auth-service",
+      "title": "update-feat"
+    }
+  ],
   "review_time_p50": 188.958,
   "review_time_p90": 1444.382,
   "reviewers_count": 44,
