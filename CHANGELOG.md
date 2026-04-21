@@ -1,3 +1,20 @@
+# [101.14.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.13.0...v101.14.0) (2026-04-21)
+
+
+### Bug Fixes
+
+* **#308:** align identity fallback with substring UUID invariant (2nd Codex catch) ([505a9f9](https://github.com/oddessentials/ado-git-repo-insights/commit/505a9f9ae2572af71642eaf1afe9cc9355dd2a30)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** do not mask non-UUID ids as Unknown user (Codex catch) ([fdfe225](https://github.com/oddessentials/ado-git-repo-insights/commit/fdfe225c0611f128211adce7c83f5d71eb0bd843)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** eliminate partial-branch debt in C4 UUID guards ([2975eef](https://github.com/oddessentials/ado-git-repo-insights/commit/2975eef90a9564a6a735c3e994d912ae7f6dd1b4)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** reject UUID titles and row labels at build time (C4) ([a347fb0](https://github.com/oddessentials/ado-git-repo-insights/commit/a347fb076a00699d4fbc54e769665b325247058c)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** reshape — drop runtime masking/rejection; fall back to raw id (reviewer directive) ([6aaa6ba](https://github.com/oddessentials/ado-git-repo-insights/commit/6aaa6babe9a4e9c44725be672ed614f50b197da9)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** resolve visible GUIDs to friendly names across 3 drill-down surfaces (C2) ([34d8534](https://github.com/oddessentials/ado-git-repo-insights/commit/34d85341fa6ce17bcae6ed5baca800e8eb0b214b)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+
+
+### Features
+
+* **#308:** shared UUID + identity fallback helpers (C1) ([93be04f](https://github.com/oddessentials/ado-git-repo-insights/commit/93be04fc45db3ec5df6a87cda12ada247196f564)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+
 # [101.13.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.4...v101.13.0) (2026-04-20)
 
 
