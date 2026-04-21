@@ -163,70 +163,33 @@ describe("detail-panel — construction invariants", () => {
     ).toThrow(TypeError);
   });
 
-  // #308: construction-time defense-in-depth. Post-C3 every production
-  // caller passes a human-readable title/label; this guard stops a
-  // future regression from landing a bare GUID without catching the
-  // invariant gates in CI. See C3 PR notes for the caller-sweep that
-  // proved C4 safe to land.
-  describe("UUID-rejection (#308)", () => {
-    const BARE_UUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-    const EMBEDDED_UUID = `Drill into ${BARE_UUID} for week`;
+  // #308 (reshape): the builders intentionally do NOT reject
+  // UUID-shaped content. A partial-dimension render with a raw GUID in
+  // a row label is a cosmetic leak, not a crash surface — throwing
+  // here turned off the entire panel. Leak-prevention lives in
+  // resolveDisplayName (happy path) + the ui-invariants gates
+  // (happy-path CI assertion); the builders stay narrow (shape only).
+  it("makePanelContent accepts a title that contains a UUID substring (no runtime masking)", () => {
+    expect(() =>
+      makePanelContent(
+        "Context for f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        null,
+        [makeEmptyState("x", "y")],
+      ),
+    ).not.toThrow();
+  });
 
-    it("makePanelContent throws when title is a bare UUID", () => {
-      expect(() =>
-        makePanelContent(BARE_UUID, null, [makeEmptyState("x", "y")]),
-      ).toThrow(/UUID/);
-    });
-
-    it("makePanelContent throws when title embeds a UUID substring", () => {
-      expect(() =>
-        makePanelContent(EMBEDDED_UUID, null, [makeEmptyState("x", "y")]),
-      ).toThrow(/UUID/);
-    });
-
-    it("makeBreakdownTable throws when a row label is a bare UUID", () => {
-      expect(() =>
-        makeBreakdownTable(
-          "By author",
-          ["Author", "PRs"],
-          [{ label: BARE_UUID, values: ["12"] }],
-        ),
-      ).toThrow(/UUID/);
-    });
-
-    it("makeBreakdownTable throws when a row label embeds a UUID substring", () => {
-      expect(() =>
-        makeBreakdownTable(
-          "By author",
-          ["Author", "PRs"],
-          [
-            { label: "alice", values: ["8"] },
-            { label: EMBEDDED_UUID, values: ["12"] },
-          ],
-        ),
-      ).toThrow(/UUID/);
-    });
-
-    it("makePanelContent accepts a human-readable title", () => {
-      expect(() =>
-        makePanelContent("Week of Mar 18 – 24, 2025", null, [
-          makeEmptyState("x", "y"),
-        ]),
-      ).not.toThrow();
-    });
-
-    it("makeBreakdownTable accepts human-readable row labels", () => {
-      expect(() =>
-        makeBreakdownTable(
-          "By author",
-          ["Author", "PRs"],
-          [
-            { label: "Alice Smith", values: ["12"] },
-            { label: "Unknown user", values: ["8"] },
-          ],
-        ),
-      ).not.toThrow();
-    });
+  it("makeBreakdownTable accepts row labels that contain a UUID substring (no runtime masking)", () => {
+    expect(() =>
+      makeBreakdownTable(
+        "By author",
+        ["Author", "PRs"],
+        [
+          { label: "Alice Smith", values: ["12"] },
+          { label: "f47ac10b-58cc-4372-a567-0e02b2c3d479", values: ["8"] },
+        ],
+      ),
+    ).not.toThrow();
   });
 
   it("valid construction returns the expected shape", () => {

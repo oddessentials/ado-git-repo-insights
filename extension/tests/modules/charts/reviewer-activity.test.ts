@@ -1007,7 +1007,10 @@ describe("reviewer-activity module", () => {
       }
     });
 
-    it("aria-label falls back to 'Unknown user' when filterReviewerName is absent AND the id is UUID-shaped", () => {
+    it("aria-label uses the reviewer_id verbatim when filterReviewerName is absent (UUID — rare-exception path)", () => {
+      // Reshape: GUIDs may surface in the aria-label in partial-
+      // dimension cases. An ugly SR announcement beats a hard crash
+      // or every reviewer collapsing to the same label.
       renderReviewerActivity(container, rollupsWithReviewer(GUID), {
         reviewerFilterActive: true,
         filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
@@ -1019,14 +1022,11 @@ describe("reviewer-activity module", () => {
       expect(rows.length).toBeGreaterThan(0);
       for (const row of Array.from(rows)) {
         const label = row.getAttribute("aria-label") ?? "";
-        // #308: fallback copy matches throughput `By author` + reviewer
-        // panel title, locked by the fallback-consistency gate.
-        expect(label).toContain("Unknown user");
-        expect(label).not.toContain(GUID);
+        expect(label).toContain(GUID);
       }
     });
 
-    it("aria-label uses the non-UUID reviewer_id verbatim when filterReviewerName is absent (Codex catch)", () => {
+    it("aria-label uses the non-UUID reviewer_id verbatim when filterReviewerName is absent", () => {
       const EMAIL_ID = "alice@example.com";
       renderReviewerActivity(container, rollupsWithReviewer(EMAIL_ID), {
         reviewerFilterActive: true,
@@ -1044,10 +1044,7 @@ describe("reviewer-activity module", () => {
       expect(rows.length).toBeGreaterThan(0);
       for (const row of Array.from(rows)) {
         const label = row.getAttribute("aria-label") ?? "";
-        // Non-UUID ids survive the fallback — no masking as "Unknown
-        // user". Useful info (the email) stays visible for the SR user.
         expect(label).toContain(EMAIL_ID);
-        expect(label).not.toContain("Unknown user");
       }
     });
 

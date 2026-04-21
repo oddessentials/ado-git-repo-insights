@@ -1395,8 +1395,8 @@ function renderReviewerActivity(
   // chart module stays dumb. `filters.reviewers` is effectively
   // single-select end-to-end (see reviewer-activity.ts filter-semantics
   // comment); we scope to [0] to match that. Uses the shared
-  // `resolveDisplayName` so the non-UUID-id fallback stays consistent
-  // with the drill-down panel surfaces.
+  // `resolveDisplayName` so fallback behavior (mapped name → raw id)
+  // stays consistent with the drill-down panel surfaces.
   const filterReviewerId = currentFilters.reviewers[0];
   const reviewerNameByKey = new Map(
     (currentDimensions?.reviewers ?? []).map((r) => [

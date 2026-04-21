@@ -3964,14 +3964,6 @@ var PRInsightsDashboard = (() => {
     state?.returnTarget?.focus();
   }
 
-  // ../ui/modules/shared/uuid-pattern.ts
-  var UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-  var UUID_REGEX = new RegExp(UUID_PATTERN, "i");
-  var UUID_WHOLE_STRING_REGEX = new RegExp(`^${UUID_PATTERN}$`, "i");
-  function containsUuid(value) {
-    return UUID_REGEX.test(value);
-  }
-
   // ../ui/modules/drilldown/lifecycle-signals.ts
   var FILTERS_CHANGED_EVENT = "drilldown:filters-changed";
   var TAB_CHANGED_EVENT = "drilldown:tab-changed";
@@ -3999,12 +3991,6 @@ var PRInsightsDashboard = (() => {
     if (title.length === 0) {
       throw new TypeError("PanelContent.title MUST be non-empty");
     }
-    const titleMatch = UUID_REGEX.exec(title);
-    if (titleMatch !== null) {
-      throw new TypeError(
-        `PanelContent.title MUST NOT contain a UUID (#308). Got: "${title}" (matched: ${titleMatch[0]})`
-      );
-    }
     if (sections.length === 0) {
       throw new TypeError(
         "PanelContent.sections MUST contain at least one section"
@@ -4018,12 +4004,6 @@ var PRInsightsDashboard = (() => {
       if (row.values.length !== expectedValues) {
         throw new TypeError(
           `BreakdownTableSection row has ${row.values.length} values but expected ${expectedValues} (columns.length - 1)`
-        );
-      }
-      const labelMatch = UUID_REGEX.exec(row.label);
-      if (labelMatch !== null) {
-        throw new TypeError(
-          `BreakdownTableSection row.label MUST NOT contain a UUID (#308). Got: "${row.label}" (matched: ${labelMatch[0]})`
         );
       }
     }
@@ -7568,14 +7548,6 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ../ui/modules/shared/identity-fallback.ts
-  var UNKNOWN_USER_LABEL = "Unknown user";
-  function resolveDisplayName(id, map) {
-    const mapped = map.get(id);
-    if (mapped !== void 0) return mapped;
-    return containsUuid(id) ? UNKNOWN_USER_LABEL : id;
-  }
-
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
   function computeApprovalRate(rollups, reviewerIds) {
@@ -7664,7 +7636,7 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
-    const filterReviewerAriaName = options.filterReviewerName ?? (filterReviewerId !== null && !containsUuid(filterReviewerId) ? filterReviewerId : UNKNOWN_USER_LABEL);
+    const filterReviewerAriaName = options.filterReviewerName ?? filterReviewerId ?? "";
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
@@ -8448,6 +8420,12 @@ var PRInsightsDashboard = (() => {
     }
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
+
+  // ../ui/modules/shared/identity-fallback.ts
+  function resolveDisplayName(id, map) {
+    const mapped = map.get(id);
+    return mapped !== void 0 ? mapped : id;
+  }
 
   // ../ui/modules/shared/pr-url.ts
   function ensureTrailingSlash(uri) {

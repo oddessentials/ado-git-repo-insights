@@ -61,11 +61,6 @@ var PRInsightsSettings = (() => {
     state?.returnTarget?.focus();
   }
 
-  // ../ui/modules/shared/uuid-pattern.ts
-  var UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-  var UUID_REGEX = new RegExp(UUID_PATTERN, "i");
-  var UUID_WHOLE_STRING_REGEX = new RegExp(`^${UUID_PATTERN}$`, "i");
-
   // ../ui/modules/drilldown/lifecycle-signals.ts
   var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
 

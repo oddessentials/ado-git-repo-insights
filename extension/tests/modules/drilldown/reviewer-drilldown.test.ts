@@ -181,10 +181,9 @@ describe("reviewer-drilldown", () => {
     );
   });
 
-  it("panel title uses the non-UUID reviewer_id verbatim when reviewersDimension is missing (Codex catch)", () => {
-    // REVIEWER_ID is "alice@example.com" — an email, not a UUID. With
-    // no dimension supplied the panel title shows the id verbatim
-    // rather than masking it as "Unknown user".
+  it("panel title uses the reviewer_id verbatim when reviewersDimension is missing", () => {
+    // REVIEWER_ID is "alice@example.com" — an email. With no
+    // dimension the title shows the id verbatim.
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups);
@@ -197,13 +196,10 @@ describe("reviewer-drilldown", () => {
     );
   });
 
-  it("panel title uses the non-UUID reviewer_id verbatim when it is not present in the dimension (Codex catch)", () => {
+  it("panel title uses the reviewer_id verbatim when it is not present in the dimension", () => {
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups, {
-      // Dimension present but for a different reviewer; REVIEWER_ID
-      // from the trigger is not in the map and is not UUID-shaped, so
-      // it surfaces verbatim.
       reviewersDimension: [
         { reviewer_id: "someone-else", reviewer_name: "Other Person" },
       ],
@@ -217,7 +213,10 @@ describe("reviewer-drilldown", () => {
     );
   });
 
-  it("panel title falls back to 'Unknown user' when the reviewer_id IS UUID-shaped and missing from the dimension", () => {
+  it("panel title renders a UUID-shaped reviewer_id verbatim when missing from the dimension (rare-exception path)", () => {
+    // Reshape: GUIDs surface as a cosmetic leak in partial-dimension
+    // cases rather than crashing the panel. Title is ugly but the
+    // panel renders and the id correlates with upstream data.
     const uuidReviewerId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const rollups = [
       makeRollup(
@@ -238,7 +237,7 @@ describe("reviewer-drilldown", () => {
 
     expect(isDetailPanelOpen()).toBe(true);
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
-      "Unknown user",
+      uuidReviewerId,
     );
   });
 

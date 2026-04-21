@@ -13,8 +13,6 @@ import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
-import { UNKNOWN_USER_LABEL } from "../shared/identity-fallback";
-import { containsUuid } from "../shared/uuid-pattern";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { weekRangeForAria } from "../drilldown/week-range";
 
@@ -187,22 +185,12 @@ export function renderReviewerActivity(
   // down attributes are omitted so clicks are no-ops.
   const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
   // #308: aria-label uses the resolved display name when the dashboard
-  // supplies one; the raw reviewer_id stays in the data-* attribute so
-  // drill-down dispatch and debugging remain id-keyed.
-  //
-  // Codex stop-hook catches: when `filterReviewerName` is not supplied
-  // (callers that don't go through the dashboard wrapper, or the
-  // dashboard couldn't resolve), avoid masking a legitimate non-UUID
-  // id as "Unknown user" — only fall back when the id would otherwise
-  // leak a GUID. Uses `containsUuid` (substring) rather than `isUuid`
-  // (whole-string) so the criterion stays aligned with the visible-
-  // text invariant gate; otherwise an id like `"user-<uuid>"` would
-  // leak past this fallback.
+  // supplies one; otherwise falls back to the raw reviewer_id. The
+  // raw id survives even when it is a GUID — a rare cosmetic leak
+  // beats a hard panel crash or a generic "Unknown user" label the
+  // user cannot correlate with anything upstream.
   const filterReviewerAriaName =
-    options.filterReviewerName ??
-    (filterReviewerId !== null && !containsUuid(filterReviewerId)
-      ? filterReviewerId
-      : UNKNOWN_USER_LABEL);
+    options.filterReviewerName ?? filterReviewerId ?? "";
   const barsHtml = recentRollups
     .map((r) => {
       const count = r.reviewers_count || 0;

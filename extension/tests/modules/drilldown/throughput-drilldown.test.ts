@@ -151,12 +151,11 @@ describe("throughput-drilldown", () => {
     expect(rowValues).toEqual(["35", "12"]);
   });
 
-  it("By-author non-UUID keys render verbatim when authorsDimension is missing (Codex catch: no blanket masking)", () => {
+  it("By-author non-UUID keys render verbatim when authorsDimension is missing", () => {
     const rollups = [makeRollup()];
     const container = mountChart(rollups);
     // Dimension not yet loaded (early-render race). Panel must not
-    // crash; non-UUID keys ("alice", "bob") are already human-readable
-    // and survive the fallback unchanged.
+    // crash; non-UUID keys ("alice", "bob") surface verbatim.
     installThroughputDrilldown(container, rollups);
 
     click(firstBar(container));
@@ -174,14 +173,17 @@ describe("throughput-drilldown", () => {
     expect(rowValues).toEqual(["35", "12"]);
   });
 
-  it("By-author UUID keys fall back to 'Unknown user' when authorsDimension is missing", () => {
-    // #308 + Codex catch: only UUID-shaped keys mask; the GUID itself
-    // must never surface as visible text.
+  it("By-author UUID keys render verbatim when authorsDimension is missing (rare-exception path)", () => {
+    // Reshape: GUIDs surface as a cosmetic leak in partial-dimension
+    // cases rather than collapsing every row into an indistinguishable
+    // "Unknown user" list. Panel renders, rows stay distinguishable.
+    const uuidA = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const uuidB = "12345678-1234-1234-1234-123456789abc";
     const rollups = [
       makeRollup({
         by_author: {
-          "f47ac10b-58cc-4372-a567-0e02b2c3d479": { pr_count: 35 },
-          "12345678-1234-1234-1234-123456789abc": { pr_count: 12 },
+          [uuidA]: { pr_count: 35 },
+          [uuidB]: { pr_count: 12 },
         },
       }),
     ];
@@ -196,15 +198,18 @@ describe("throughput-drilldown", () => {
     const rowLabels = Array.from(
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
-    expect(rowLabels).toEqual(["Unknown user", "Unknown user"]);
+    expect(rowLabels).toEqual([uuidA, uuidB]);
+    // Rows remain distinguishable despite the leak.
+    expect(new Set(rowLabels).size).toBe(rowLabels.length);
   });
 
-  it("By-author mixed keys: resolved → name, UUID-missing → fallback, non-UUID-missing → raw id", () => {
+  it("By-author mixed keys: resolved keys get friendly names, unresolved keys render verbatim", () => {
+    const uuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const rollups = [
       makeRollup({
         by_author: {
           alice: { pr_count: 35 },
-          "f47ac10b-58cc-4372-a567-0e02b2c3d479": { pr_count: 20 },
+          [uuid]: { pr_count: 20 },
           "legacy-user-42": { pr_count: 8 },
         },
       }),
@@ -222,13 +227,9 @@ describe("throughput-drilldown", () => {
     const rowLabels = Array.from(
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
-    // Sorted by pr_count desc: alice (35) → resolved, UUID (20) →
-    // masked, legacy-user-42 (8) → raw (non-UUID).
-    expect(rowLabels).toEqual([
-      "Alice Smith",
-      "Unknown user",
-      "legacy-user-42",
-    ]);
+    // Sorted by pr_count desc: alice (35) → resolved name;
+    // UUID (20) → raw id (unresolved); legacy-user-42 (8) → raw id.
+    expect(rowLabels).toEqual(["Alice Smith", uuid, "legacy-user-42"]);
   });
 
   it("panel renders By-repository breakdown rows from rollup.by_repository", () => {
