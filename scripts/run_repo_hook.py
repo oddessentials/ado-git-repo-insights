@@ -1196,6 +1196,39 @@ def run_version_guard() -> None:
     run_command([sys.executable, "scripts/check-version-unchanged.py", "origin/main"])
 
 
+def run_sentinel_absence_check() -> None:
+    """Verify no synthetic-authorization sentinel leaked into the public demo tree.
+
+    Feature 309 binary gate (contract:
+    ``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md`` §6).
+    The gate is defense in depth — ``promote_data`` already unlinks the sentinel
+    before ``shutil.copytree`` — but if that ordering regresses or a developer
+    writes the sentinel manually, this check fails the push before publish.
+
+    Exposed as a named subcommand so CI (``.github/workflows/demo.yml``
+    first-step) and local pre-push invoke the SAME entrypoint — satisfies
+    the entrypoint-command parity contract (QG-49).
+    """
+    sentinel_spec = _importlib_util.spec_from_file_location(
+        "strip_pr_arrays", REPO_ROOT / "scripts" / "strip_pr_arrays.py"
+    )
+    if sentinel_spec is None or sentinel_spec.loader is None:
+        raise SystemExit("[sentinel-absence] cannot load scripts/strip_pr_arrays.py")
+    strip_module = _importlib_util.module_from_spec(sentinel_spec)
+    sys.modules["strip_pr_arrays"] = strip_module
+    sentinel_spec.loader.exec_module(strip_module)
+    sentinel_name = strip_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+
+    docs_data = REPO_ROOT / "docs" / "data"
+    matches = sorted(docs_data.rglob(sentinel_name))
+    if matches:
+        raise SystemExit(
+            f"[sentinel-absence] sentinel leaked to docs/data/: "
+            f"{[p.relative_to(REPO_ROOT).as_posix() for p in matches]}"
+        )
+    safe_print("[sentinel-absence] ok")
+
+
 def run_pre_push_hook() -> None:
     run_version_guard()
     safe_print("[pre-push] running baseline integrity check")
@@ -1207,12 +1240,13 @@ def run_pre_push_hook() -> None:
 
     safe_print("[pre-push] running PR preflight")
     run_command([sys.executable, "scripts/run_pr_preflight.py"])
+    run_sentinel_absence_check()
     safe_print("[pre-push] all pre-push checks passed")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run repo-owned Git hook logic.")
-    parser.add_argument("hook", choices=("pre-commit", "pre-push"))
+    parser.add_argument("hook", choices=("pre-commit", "pre-push", "sentinel-absence"))
     return parser.parse_args()
 
 
@@ -1220,6 +1254,9 @@ def main() -> int:
     args = parse_args()
     if args.hook == "pre-commit":
         run_pre_commit_hook()
+        return 0
+    if args.hook == "sentinel-absence":
+        run_sentinel_absence_check()
         return 0
     run_pre_push_hook()
     return 0

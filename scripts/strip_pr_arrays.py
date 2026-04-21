@@ -29,6 +29,15 @@ PR_LEVEL_FIELDS: Final[tuple[str, str, str]] = ("prs", "_prs_truncated", "_prs_c
 ROLLUPS_GLOB: Final[str] = "weekly_rollups/*.json"
 """Glob relative to ``rollup_dir``; matches every weekly rollup artifact."""
 
+SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME: Final[str] = ".synthetic-prs-authorized"
+"""Sentinel-file basename for feature-309's provenance-based binary gate.
+
+The single-source-of-truth for the sentinel name. Lives here (not in
+``scripts/build-demo-dataset.py``) because that orchestrator is hyphenated
+and cannot be imported by other modules. Contract:
+``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md``.
+"""
+
 
 class PrArrayResidueError(RuntimeError):
     """Raised if any rollup retains a PR-level field after strip-and-re-verify."""

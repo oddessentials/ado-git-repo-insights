@@ -133,6 +133,20 @@ mechanized gate at `tests/unit/test_privacy_posture_ordering.py` verifies the
 ordering by failing when producer code is present without the section's stable
 anchor (`<!-- anchor: privacy-posture-tenant-sensitive-fields -->`).
 
+**Provenance-based narrowing (feature-309)**: feature-060's destination-identity
+check was narrowed to a provenance-based binary gate. The single gate site in
+`promote_data` now branches on the presence of a synthetic-authorization
+sentinel file under the source `aggregates/` tree: when the sentinel is
+present the source is asserted to conform to the synthetic-PR-record shape
+and the PR-level fields are preserved through the promotion; when the sentinel
+is absent the feature-060 strip helper runs unchanged. Both branches
+fail-closed on shape or residue violations with destination byte-identical to
+its pre-call state. See
+[`specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`](../../specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md)
+for the binary-gate contract and
+[`specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md`](../../specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md)
+for the sentinel-lifecycle contract.
+
 ## Schema Versions
 
 All consumers MUST validate schema versions before rendering:

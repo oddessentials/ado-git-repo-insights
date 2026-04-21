@@ -1,5 +1,7 @@
 # Contract: Demo-Publish Strip Gate
 
+> **Superseded by**: [`specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`](../../309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md) (provenance-based binary gate; the destination-identity-based gate described below — feature-060 FR-023 — was narrowed to a binary fail-closed gate keyed on a synthetic-authorization sentinel). The file-level strip helper (`strip_pr_arrays_from_rollups`) is preserved unchanged and is invoked on the sentinel-absent branch of the new gate.
+
 **Scope**: new helper module `scripts/strip_pr_arrays.py`, with ONE gate-integration site (inside `promote_data` at `scripts/build-demo-dataset.py:1044`) and ONE separate bypass-closure site (`scripts/generate-demo-data.py` — NOT a second gate; default-dir change + early-exit guard). This contract plus the invariant test in tasks T050 are the sole authoritative enforcement for FR-023.
 
 **Authoritative spec refs**: FR-013, FR-014, FR-023. Data-model: `data-model.md` §2 publish transitions.
