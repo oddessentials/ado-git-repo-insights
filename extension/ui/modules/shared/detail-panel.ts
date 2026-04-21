@@ -27,7 +27,7 @@
 import { createElement, appendText, clearElement } from "./render";
 import { formatDuration } from "./format";
 import { trapFocus, restoreFocus } from "./focus-trap";
-import { UUID_REGEX, findFirstUuid } from "./uuid-pattern";
+import { UUID_REGEX } from "./uuid-pattern";
 import {
   COMPARISON_TOGGLED_EVENT,
   FILTERS_CHANGED_EVENT,
@@ -161,10 +161,13 @@ export function makePanelContent(
   // #308 UI invariant: no GUID-shaped substring may appear in a
   // user-visible title. Caller sweep verified every production and
   // test site passes human-readable strings (formatted weeks, resolved
-  // names, or UNKNOWN_USER_LABEL).
-  if (UUID_REGEX.test(title)) {
+  // names, or UNKNOWN_USER_LABEL). Using .exec() here (rather than
+  // .test() + a second findFirstUuid call) keeps the error branch
+  // fully reachable — no nullish-fallback partial branch.
+  const titleMatch = UUID_REGEX.exec(title);
+  if (titleMatch !== null) {
     throw new TypeError(
-      `PanelContent.title MUST NOT contain a UUID (#308). Got: "${title}" (matched: ${findFirstUuid(title) ?? "?"})`,
+      `PanelContent.title MUST NOT contain a UUID (#308). Got: "${title}" (matched: ${titleMatch[0]})`,
     );
   }
   if (sections.length === 0) {
@@ -192,9 +195,10 @@ export function makeBreakdownTable(
     // By-repository and time-axis rows already carry names/week
     // labels. A bare GUID here is an unresolved id — fail loudly at
     // construction rather than let it reach the DOM.
-    if (UUID_REGEX.test(row.label)) {
+    const labelMatch = UUID_REGEX.exec(row.label);
+    if (labelMatch !== null) {
       throw new TypeError(
-        `BreakdownTableSection row.label MUST NOT contain a UUID (#308). Got: "${row.label}" (matched: ${findFirstUuid(row.label) ?? "?"})`,
+        `BreakdownTableSection row.label MUST NOT contain a UUID (#308). Got: "${row.label}" (matched: ${labelMatch[0]})`,
       );
     }
   }
