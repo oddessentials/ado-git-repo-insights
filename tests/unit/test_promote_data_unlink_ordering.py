@@ -21,6 +21,7 @@ import hashlib
 import importlib.util
 import shutil
 import sys
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import ModuleType
 from typing import Final
@@ -87,23 +88,47 @@ def test_sentinel_unlink_precedes_all_destination_mutations(
 
     original_unlink = Path.unlink
 
-    def _record_unlink(self: Path, *args: object, **kwargs: object) -> None:
+    def _record_unlink(self: Path, missing_ok: bool = False) -> None:
         if self.name == build_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME:
             order.append("sentinel.unlink")
-        original_unlink(self, *args, **kwargs)
+        original_unlink(self, missing_ok=missing_ok)
 
     original_mkdir = Path.mkdir
 
-    def _record_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+    def _record_mkdir(
+        self: Path,
+        mode: int = 0o777,
+        parents: bool = False,
+        exist_ok: bool = False,
+    ) -> None:
         if self == destination:
             order.append("destination.mkdir")
-        original_mkdir(self, *args, **kwargs)
+        original_mkdir(self, mode=mode, parents=parents, exist_ok=exist_ok)
 
     original_copytree = shutil.copytree
+    copytree_seen = [False]
 
-    def _record_copytree(src: str, dst: str, *args: object, **kwargs: object) -> str:
-        order.append("shutil.copytree")
-        return original_copytree(src, dst, *args, **kwargs)
+    def _record_copytree(
+        src: str,
+        dst: str,
+        symlinks: bool = False,
+        ignore: Callable[[str, list[str]], Iterable[str]] | None = None,
+        copy_function: Callable[[str, str], object] = shutil.copy2,
+        ignore_dangling_symlinks: bool = False,
+        dirs_exist_ok: bool = False,
+    ) -> str:
+        if not copytree_seen[0]:
+            order.append("shutil.copytree")
+            copytree_seen[0] = True
+        return original_copytree(
+            src,
+            dst,
+            symlinks=symlinks,
+            ignore=ignore,
+            copy_function=copy_function,
+            ignore_dangling_symlinks=ignore_dangling_symlinks,
+            dirs_exist_ok=dirs_exist_ok,
+        )
 
     monkeypatch.setattr(Path, "unlink", _record_unlink)
     monkeypatch.setattr(Path, "mkdir", _record_mkdir)
@@ -135,10 +160,10 @@ def test_sentinel_unlink_failure_leaves_destination_untouched(
 
     original_unlink = Path.unlink
 
-    def _raising_unlink(self: Path, *args: object, **kwargs: object) -> None:
+    def _raising_unlink(self: Path, missing_ok: bool = False) -> None:
         if self.name == build_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME:
             raise PermissionError("simulated unlink failure")
-        original_unlink(self, *args, **kwargs)
+        original_unlink(self, missing_ok=missing_ok)
 
     monkeypatch.setattr(Path, "unlink", _raising_unlink)
 

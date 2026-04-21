@@ -3,1256 +3,224 @@
   "source_sample_size": 5429,
   "tokens": [
     {
-      "token": "auto-20260123-1015",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260124-1012",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260125-1012",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260126-1819",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260126-1017",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260127-1822",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260128-1823",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260129-1829",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260130-1826",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260131-1817",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260201-1819",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260202-1827",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260203-1840",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260204-1833",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260205-1834",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260206-1833",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260207-1818",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260208-1820",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260209-1841",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260210-1851",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260211-1846",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260212-1844",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260213-1830",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260214-1818",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260215-1819",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260216-1828",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260217-1840",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260218-1837",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260219-1838",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260220-1831",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260221-1819",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260222-1819",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260223-1847",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260224-1845",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260225-1850",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260226-1836",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260227-1825",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260228-1817",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260301-1818",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260302-1831",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260303-1832",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260304-1832",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260305-1906",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260306-1828",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260307-1818",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260308-1818",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260309-1836",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260310-1833",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260311-1838",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260312-1837",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260313-1826",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260314-1821",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260315-1822",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260316-1845",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260317-1844",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260318-1842",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260319-1840",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260320-1831",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260321-1820",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260322-1820",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260323-1838",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260324-1845",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260325-1841",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260326-1849",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260327-1841",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260331-h15-r65",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260401-h21-r52",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260401-h10-r68",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260402-h15-r80",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260403-h21-r76",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260403-h10-r32",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260406-h21-r67",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260406-h10-r60",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260407-h16-r49",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260408-h21-r81",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260408-h10-r83",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260409-h16-r72",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260410-h21-r81",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260410-h10-r6",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260412-h10-r95",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260413-h16-r68",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260414-h21-r91",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260414-h10-r85",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260415-h15-r55",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260416-h21-r52",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260416-h10-r41",
-      "weight": 0.010145
-    },
-    {
-      "token": "auto-20260417-h15-r18",
-      "weight": 0.008396
-    },
-    {
-      "token": "day-1",
-      "weight": 0.007347
-    },
-    {
-      "token": "auto-20260418-h10-r87",
-      "weight": 0.006647
-    },
-    {
-      "token": "auto-20260420-h15-r84",
-      "weight": 0.006647
-    },
-    {
-      "token": "auto-20260114-1015",
-      "weight": 0.006472
-    },
-    {
-      "token": "auto-20260113-2213",
-      "weight": 0.006472
-    },
-    {
-      "token": "test-400-diag3",
-      "weight": 0.006472
-    },
-    {
-      "token": "day-2026010",
-      "weight": 0.005947
-    },
-    {
-      "token": "test-400-diag2",
-      "weight": 0.005947
-    },
-    {
-      "token": "test-400-diag",
-      "weight": 0.005947
-    },
-    {
-      "token": "day-4",
-      "weight": 0.005947
-    },
-    {
       "token": "feat",
-      "weight": 0.000875
+      "weight": 0.060976
     },
     {
       "token": "ci",
-      "weight": 0.0007
+      "weight": 0.04878
     },
     {
       "token": "ai",
-      "weight": 0.0007
+      "weight": 0.04878
     },
     {
       "token": "update",
-      "weight": 0.000525
+      "weight": 0.036585
     },
     {
       "token": "prod",
-      "weight": 0.000525
+      "weight": 0.036585
     },
     {
       "token": "fixci",
-      "weight": 0.000525
+      "weight": 0.036585
     },
     {
       "token": "add",
-      "weight": 0.000525
+      "weight": 0.036585
     },
     {
       "token": "review",
-      "weight": 0.000525
-    },
-    {
-      "token": "featureday-2026010-1",
-      "weight": 0.000525
-    },
-    {
-      "token": "bugfixday-1-0",
-      "weight": 0.000525
-    },
-    {
-      "token": "choreday-1-5",
-      "weight": 0.000525
-    },
-    {
-      "token": "featureday-1-1",
-      "weight": 0.000525
-    },
-    {
-      "token": "featureday-1-4",
-      "weight": 0.000525
-    },
-    {
-      "token": "featuretest-400-diag2-1",
-      "weight": 0.000525
-    },
-    {
-      "token": "choretest-400-diag2-5",
-      "weight": 0.000525
-    },
-    {
-      "token": "featuretest-400-diag-1",
-      "weight": 0.000525
-    },
-    {
-      "token": "choretest-400-diag-5",
-      "weight": 0.000525
-    },
-    {
-      "token": "choreday-2026010-5",
-      "weight": 0.000525
-    },
-    {
-      "token": "featureday-4-1",
-      "weight": 0.000525
-    },
-    {
-      "token": "choreday-4-5",
-      "weight": 0.000525
-    },
-    {
-      "token": "featureday-1-2",
-      "weight": 0.000525
-    },
-    {
-      "token": "choretest-400-diag3-7",
-      "weight": 0.000525
-    },
-    {
-      "token": "featuretest-400-diag3-1",
-      "weight": 0.000525
+      "weight": 0.036585
     },
     {
       "token": "hardening",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "gaps",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "deployment",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "setup",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "semantic-release",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "tests",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "fix",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixday-1-6",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixday-1-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "choreday-1-2",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixtest-400-diag3-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "refactortest-400-diag3-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixtest-400-diag3-0",
-      "weight": 0.00035
-    },
-    {
-      "token": "choretest-400-diag3-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag3-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixtest-400-diag2-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixtest-400-diag2-6",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag2-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixtest-400-diag-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixtest-400-diag-6",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixday-2026010-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixday-2026010-6",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-2026010-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixday-4-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixday-4-6",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-4-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "refactortest-400-diag3-5",
-      "weight": 0.00035
-    },
-    {
-      "token": "jan-8",
-      "weight": 0.00035
-    },
-    {
-      "token": "jan-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "jan-5",
-      "weight": 0.00035
-    },
-    {
-      "token": "refactorday-1-2",
-      "weight": 0.00035
-    },
-    {
-      "token": "bugfixday-1-1",
-      "weight": 0.00035
-    },
-    {
-      "token": "choreday-1-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-1-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "refactortest-400-diag3-1",
-      "weight": 0.00035
-    },
-    {
-      "token": "hotfixtest-400-diag3-4",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag3-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "choretest-400-diag2-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag2-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag2-2",
-      "weight": 0.00035
-    },
-    {
-      "token": "choretest-400-diag-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "featuretest-400-diag-2",
-      "weight": 0.00035
-    },
-    {
-      "token": "choreday-2026010-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-2026010-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-2026010-2",
-      "weight": 0.00035
-    },
-    {
-      "token": "choreday-4-7",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-4-3",
-      "weight": 0.00035
-    },
-    {
-      "token": "featureday-4-2",
-      "weight": 0.00035
+      "weight": 0.02439
     },
     {
       "token": "test",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "repo",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "standards",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "alignment",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "docs",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "nextstepsmd",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "verified",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "baseline",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "remaining",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "dependencies",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "disable",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "husky",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "hooks",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "during",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "shared",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "workspace",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "build",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "step",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "release",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "job",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "upgrade",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "nodejs",
-      "weight": 0.000175
-    },
-    {
-      "token": "22x",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "compatibility",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "blank",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "screen",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "transitions",
-      "weight": 0.000175
-    },
-    {
-      "token": "e2e",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "playwright",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "free",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "self-hosted",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "code",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "metal",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "reviews",
-      "weight": 0.000175
-    },
-    {
-      "token": "2d",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "map",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "marker",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "stability",
-      "weight": 0.000175
-    },
-    {
-      "token": "002-map-toggle-guard",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "complete",
-      "weight": 0.000175
-    },
-    {
-      "token": "001-fix-map-bugs",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "better",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "devex",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "config",
-      "weight": 0.000175
+      "weight": 0.012195
     },
     {
       "token": "refactor",
-      "weight": 0.000175
-    },
-    {
-      "token": "006-github-pages-deploy",
-      "weight": 0.000175
-    },
-    {
-      "token": "005-white-label-config",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-1-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-1-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "choreday-1-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-1-7",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag3-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag3-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag3-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag3-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag3-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag2-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag2-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag2-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag2-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag2-7",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag-7",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-2026010-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "choreday-2026010-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "choreday-2026010-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-2026010-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-2026010-7",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-4-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "choreday-4-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "choreday-4-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-4-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-4-7",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag3-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "featurejan-8-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "chorejan-8-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "featurejan-7-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "chorejan-7-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "featurejan-5-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "chorejan-5-1",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-4-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-1-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-1-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-1-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag3-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag3-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag3-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag3-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag3-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag2-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag2-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag2-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag2-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag2-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-2026010-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-2026010-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-2026010-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-2026010-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-2026010-2",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-4-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-4-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-4-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-4-4",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-2026010-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-1-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-1-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-1-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-1-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-1-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-1-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "choretest-400-diag3-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag3-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag2-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag2-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag2-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag2-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag2-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag2-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactortest-400-diag-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "featuretest-400-diag-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixtest-400-diag-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixtest-400-diag-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-2026010-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-2026010-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-2026010-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-2026010-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-2026010-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-4-6",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-4-5",
-      "weight": 0.000175
-    },
-    {
-      "token": "refactorday-4-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "featureday-4-0",
-      "weight": 0.000175
-    },
-    {
-      "token": "bugfixday-4-3",
-      "weight": 0.000175
-    },
-    {
-      "token": "hotfixday-4-0",
-      "weight": 0.000175
+      "weight": 0.012195
     }
   ]
 }

@@ -1858,9 +1858,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Output directory: {output_dir}")
 
     # Reset random state for consistent generation across repeated
-    # in-process calls (test harnesses, orchestrators).
-    global RNG
+    # in-process calls (test harnesses, orchestrators). The PR-record
+    # stream (feature 309 #315) has its own offset so it must be reset
+    # alongside the shared stream.
+    global RNG, pr_record_rng
     RNG = init_random(SEED)
+    pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
 
     # Generate entities
     print("\n[1/6] Generating entities...")

@@ -1,6 +1,6 @@
 {
   "rule": "S311",
-  "total_usages": 15,
+  "total_usages": 16,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
@@ -18,6 +18,12 @@
       "file": "scripts/generate-demo-data.py",
       "line": 1300,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1866,
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {

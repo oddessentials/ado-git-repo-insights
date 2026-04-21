@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 TOKEN_STRIP_RE: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9-]+")
 EMAIL_RE: Final[re.Pattern[str]] = re.compile(r"\S+@\S+\.\S+")
 URL_RE: Final[re.Pattern[str]] = re.compile(r"https?://\S+")
+ANY_DIGIT_RE: Final[re.Pattern[str]] = re.compile(r"\d")
 MAX_TOKEN_LEN: Final[int] = 24
 MIN_TOKEN_LEN: Final[int] = 2
 USER_FRAGMENT_WINDOW: Final[int] = 6
@@ -194,11 +195,30 @@ def _normalize_token(raw: str) -> str:
     return TOKEN_STRIP_RE.sub("", raw.lower()).strip("-")
 
 
+def _is_bot_noise(token: str) -> bool:
+    """Drop any token containing a digit.
+
+    In the tenant extracts observed so far, the overwhelming majority of
+    digit-bearing title tokens are CI-bot artifacts — timestamps
+    (``auto-20260123-1015``), auto-generated test-fixture names
+    (``bugfixtest-400-diag-3``), numeric-suffixed branch conventions
+    (``chorejan-7-1``). These drag down demo-title realism and
+    false-positive downstream generic-secret heuristics. Stripping
+    every digit-bearing token is a simple, cross-OS, deterministic rule
+    that leaves only human-word content for the synthetic title pool.
+    """
+    return bool(ANY_DIGIT_RE.search(token))
+
+
 def _tokenize_title(title: str) -> list[str]:
     result: list[str] = []
     for raw in re.split(r"\s+", title):
         token = _normalize_token(raw)
-        if MIN_TOKEN_LEN <= len(token) <= MAX_TOKEN_LEN and token not in STOPWORDS:
+        if (
+            MIN_TOKEN_LEN <= len(token) <= MAX_TOKEN_LEN
+            and token not in STOPWORDS
+            and not _is_bot_noise(token)
+        ):
             result.append(token)
     return result
 

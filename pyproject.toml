@@ -167,6 +167,7 @@ module = [
     "demo_generation_common",
     "demo_shell",
     "env_guard",
+    "extract_distribution_fixtures",
     "generate_cli_reference",
     "invariant_contracts",
     "manage_generated_artifacts",
