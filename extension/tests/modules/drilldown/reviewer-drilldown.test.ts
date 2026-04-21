@@ -38,6 +38,10 @@ if (typeof PointerEvent === "undefined") {
 // ---------------------------------------------------------------------------
 
 const REVIEWER_ID = "alice@example.com";
+const REVIEWER_NAME = "Alice Anderson";
+const REVIEWERS_DIM = [
+  { reviewer_id: REVIEWER_ID, reviewer_name: REVIEWER_NAME },
+];
 
 interface ReviewerWeek {
   week: string;
@@ -161,7 +165,25 @@ describe("reviewer-drilldown", () => {
   // Activation + panel shape
   // -------------------------------------------------------------------------
 
-  it("click on a reviewer row opens the panel with the reviewer id as title", () => {
+  it("click on a reviewer row opens the panel with the resolved reviewer name as title", () => {
+    const rollups = makeDefaultRollups();
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, {
+      reviewersDimension: REVIEWERS_DIM,
+    });
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    // #308: the title is the friendly name, not the reviewer_id GUID.
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      REVIEWER_NAME,
+    );
+  });
+
+  it("panel title uses the reviewer_id verbatim when reviewersDimension is missing", () => {
+    // REVIEWER_ID is "alice@example.com" — an email. With no
+    // dimension the title shows the id verbatim.
     const rollups = makeDefaultRollups();
     const container = mountChart(rollups);
     installReviewerDrilldown(container, rollups);
@@ -171,6 +193,51 @@ describe("reviewer-drilldown", () => {
     expect(isDetailPanelOpen()).toBe(true);
     expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
       REVIEWER_ID,
+    );
+  });
+
+  it("panel title uses the reviewer_id verbatim when it is not present in the dimension", () => {
+    const rollups = makeDefaultRollups();
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, {
+      reviewersDimension: [
+        { reviewer_id: "someone-else", reviewer_name: "Other Person" },
+      ],
+    });
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      REVIEWER_ID,
+    );
+  });
+
+  it("panel title renders a UUID-shaped reviewer_id verbatim when missing from the dimension (rare-exception path)", () => {
+    // Reshape: GUIDs surface as a cosmetic leak in partial-dimension
+    // cases rather than crashing the panel. Title is ugly but the
+    // panel renders and the id correlates with upstream data.
+    const uuidReviewerId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const rollups = [
+      makeRollup(
+        {
+          week: "2025-W10",
+          reviewers_count: 3,
+          reviewsCount: 5,
+          reviewedPrs: 3,
+          approvalRate: 0.8,
+        },
+        uuidReviewerId,
+      ),
+    ];
+    const container = mountChart(rollups, true, uuidReviewerId);
+    installReviewerDrilldown(container, rollups);
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(document.querySelector("#detail-panel-title")!.textContent).toBe(
+      uuidReviewerId,
     );
   });
 

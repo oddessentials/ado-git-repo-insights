@@ -163,6 +163,35 @@ describe("detail-panel — construction invariants", () => {
     ).toThrow(TypeError);
   });
 
+  // #308 (reshape): the builders intentionally do NOT reject
+  // UUID-shaped content. A partial-dimension render with a raw GUID in
+  // a row label is a cosmetic leak, not a crash surface — throwing
+  // here turned off the entire panel. Leak-prevention lives in
+  // resolveDisplayName (happy path) + the ui-invariants gates
+  // (happy-path CI assertion); the builders stay narrow (shape only).
+  it("makePanelContent accepts a title that contains a UUID substring (no runtime masking)", () => {
+    expect(() =>
+      makePanelContent(
+        "Context for f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        null,
+        [makeEmptyState("x", "y")],
+      ),
+    ).not.toThrow();
+  });
+
+  it("makeBreakdownTable accepts row labels that contain a UUID substring (no runtime masking)", () => {
+    expect(() =>
+      makeBreakdownTable(
+        "By author",
+        ["Author", "PRs"],
+        [
+          { label: "Alice Smith", values: ["12"] },
+          { label: "f47ac10b-58cc-4372-a567-0e02b2c3d479", values: ["8"] },
+        ],
+      ),
+    ).not.toThrow();
+  });
+
   it("valid construction returns the expected shape", () => {
     const content = makePanelContent("T", "S", [makeEmptyState("E", "D")]);
     expect(content.title).toBe("T");

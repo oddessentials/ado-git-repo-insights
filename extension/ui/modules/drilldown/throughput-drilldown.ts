@@ -26,6 +26,7 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import type { AuthorEntry } from "../../schemas/dimensions.schema";
 import type { BreakdownEntry } from "../../schemas/rollup.schema";
 import { createEmptyFilterState, type FilterState } from "../filters";
 import { dismissAllTooltips } from "../tooltip-manager";
@@ -42,6 +43,7 @@ import {
   type PrListRow,
   type PrListSection,
 } from "../shared/detail-panel";
+import { resolveDisplayName } from "../shared/identity-fallback";
 import {
   resolvePrUrl,
   type PrUrlRepositoryEntry,
@@ -57,10 +59,11 @@ import { formatWeekTitle } from "./week-range";
 const ACTIVE_CLASS = "is-drilldown-active";
 
 /**
- * Options passed at `installThroughputDrilldown` time. Feature 060 adds the
- * three fields the PR-detail section needs; all are optional so existing
- * tests that call the two-argument form keep working (the PR section
- * defaults to `supported-empty` in that case).
+ * Options passed at `installThroughputDrilldown` time. Feature 060 added the
+ * PR-detail fields; issue #308 adds `authorsDimension` so the `By author`
+ * breakdown resolves `user_id` GUIDs to friendly names (no GUID in visible
+ * text). All fields remain optional — when `authorsDimension` is missing
+ * every row label falls back to `UNKNOWN_USER_LABEL`.
  */
 export interface ThroughputDrilldownOptions {
   readonly filters?: FilterState;
@@ -69,21 +72,29 @@ export interface ThroughputDrilldownOptions {
     | null
     | undefined;
   readonly webContext?: PrUrlWebContext;
+  readonly authorsDimension?: readonly AuthorEntry[] | null | undefined;
 }
 
+/**
+ * When `nameByKey` is supplied, row labels are resolved through it (with
+ * `UNKNOWN_USER_LABEL` fallback per #308). Omitting `nameByKey` preserves
+ * the key-as-label shape for non-identity breakdowns (e.g. the
+ * `By repository` table, whose keys are already repository names).
+ */
 function breakdownSection(
   title: string,
   columns: readonly [string, string, ...string[]],
   entries: Record<string, BreakdownEntry> | null | undefined,
   emptyDetail: string,
+  nameByKey?: ReadonlyMap<string, string>,
 ): PanelSection {
   if (!entries || Object.keys(entries).length === 0) {
     return makeEmptyState(title, emptyDetail);
   }
   const rows: PanelRow[] = Object.entries(entries)
     .sort((a, b) => b[1].pr_count - a[1].pr_count)
-    .map(([label, entry]) => ({
-      label,
+    .map(([key, entry]) => ({
+      label: nameByKey ? resolveDisplayName(key, nameByKey) : key,
       values: [String(entry.pr_count)],
     }));
   return makeBreakdownTable(title, columns, rows);
@@ -145,11 +156,13 @@ function buildPanelContent(
 ): PanelContent {
   const count = rollup.pr_count;
   const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+  const authorNameByKey = buildAuthorNameMap(options.authorsDimension);
   const byAuthor = breakdownSection(
     "By author",
     ["Author", "PRs"] as const,
     rollup.by_author,
     "No author-level activity for this week.",
+    authorNameByKey,
   );
   const byRepository = breakdownSection(
     "By repository",
@@ -163,6 +176,13 @@ function buildPanelContent(
     byRepository,
     prList,
   ]);
+}
+
+function buildAuthorNameMap(
+  dim: readonly AuthorEntry[] | null | undefined,
+): ReadonlyMap<string, string> {
+  if (!dim || dim.length === 0) return new Map();
+  return new Map(dim.map((a) => [a.author_id, a.author_name]));
 }
 
 export function installThroughputDrilldown(

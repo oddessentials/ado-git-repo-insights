@@ -123,10 +123,15 @@ describe("throughput-drilldown", () => {
     ).toContain("47 PRs");
   });
 
-  it("panel renders By-author breakdown rows from rollup.by_author (sorted desc)", () => {
+  it("panel renders By-author breakdown rows with friendly names from authorsDimension (sorted desc)", () => {
     const rollups = [makeRollup()];
     const container = mountChart(rollups);
-    installThroughputDrilldown(container, rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [
+        { author_id: "alice", author_name: "Alice Smith" },
+        { author_id: "bob", author_name: "Bob Jones" },
+      ],
+    });
 
     click(firstBar(container));
 
@@ -137,11 +142,94 @@ describe("throughput-drilldown", () => {
     const rowLabels = Array.from(
       authorSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);
+    // #308: raw `user_id` keys ("alice", "bob") are resolved to friendly
+    // names; no GUID-shaped text surfaces to the user.
+    expect(rowLabels).toEqual(["Bob Jones", "Alice Smith"]);
+    const rowValues = Array.from(
+      authorSection.querySelectorAll("tbody tr td"),
+    ).map((td) => td.textContent);
+    expect(rowValues).toEqual(["35", "12"]);
+  });
+
+  it("By-author non-UUID keys render verbatim when authorsDimension is missing", () => {
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    // Dimension not yet loaded (early-render race). Panel must not
+    // crash; non-UUID keys ("alice", "bob") surface verbatim.
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
     expect(rowLabels).toEqual(["bob", "alice"]);
     const rowValues = Array.from(
       authorSection.querySelectorAll("tbody tr td"),
     ).map((td) => td.textContent);
     expect(rowValues).toEqual(["35", "12"]);
+  });
+
+  it("By-author UUID keys render verbatim when authorsDimension is missing (rare-exception path)", () => {
+    // Reshape: GUIDs surface as a cosmetic leak in partial-dimension
+    // cases rather than collapsing every row into an indistinguishable
+    // "Unknown user" list. Panel renders, rows stay distinguishable.
+    const uuidA = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const uuidB = "12345678-1234-1234-1234-123456789abc";
+    const rollups = [
+      makeRollup({
+        by_author: {
+          [uuidA]: { pr_count: 35 },
+          [uuidB]: { pr_count: 12 },
+        },
+      }),
+    ];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups);
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    expect(rowLabels).toEqual([uuidA, uuidB]);
+    // Rows remain distinguishable despite the leak.
+    expect(new Set(rowLabels).size).toBe(rowLabels.length);
+  });
+
+  it("By-author mixed keys: resolved keys get friendly names, unresolved keys render verbatim", () => {
+    const uuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const rollups = [
+      makeRollup({
+        by_author: {
+          alice: { pr_count: 35 },
+          [uuid]: { pr_count: 20 },
+          "legacy-user-42": { pr_count: 8 },
+        },
+      }),
+    ];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [{ author_id: "alice", author_name: "Alice Smith" }],
+    });
+
+    click(firstBar(container));
+
+    const authorSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[0]!;
+    const rowLabels = Array.from(
+      authorSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    // Sorted by pr_count desc: alice (35) → resolved name;
+    // UUID (20) → raw id (unresolved); legacy-user-42 (8) → raw id.
+    expect(rowLabels).toEqual(["Alice Smith", uuid, "legacy-user-42"]);
   });
 
   it("panel renders By-repository breakdown rows from rollup.by_repository", () => {
@@ -155,6 +243,30 @@ describe("throughput-drilldown", () => {
       ".detail-panel-section--breakdown-table",
     )[1]!;
     expect(repoSection.querySelector("h3")!.textContent).toBe("By repository");
+    const rowLabels = Array.from(
+      repoSection.querySelectorAll("tbody th[scope='row']"),
+    ).map((th) => th.textContent);
+    expect(rowLabels).toEqual(["frontend", "backend-api"]);
+  });
+
+  it("By-repository labels are UNAFFECTED by authorsDimension (name resolution is column-scoped)", () => {
+    // Regression guard: authorsDimension must only reach the By-author
+    // column; By-repository keys are repository_names, not GUIDs, and
+    // must render verbatim regardless of what authors are supplied.
+    const rollups = [makeRollup()];
+    const container = mountChart(rollups);
+    installThroughputDrilldown(container, rollups, {
+      authorsDimension: [
+        { author_id: "alice", author_name: "Alice Smith" },
+        { author_id: "frontend", author_name: "SHOULD NOT APPEAR" },
+      ],
+    });
+
+    click(firstBar(container));
+
+    const repoSection = document.querySelectorAll(
+      ".detail-panel-section--breakdown-table",
+    )[1]!;
     const rowLabels = Array.from(
       repoSection.querySelectorAll("tbody th[scope='row']"),
     ).map((th) => th.textContent);

@@ -101,6 +101,7 @@ import {
   installReviewerDrilldown,
   installSparklineNavigator,
 } from "./modules";
+import { resolveDisplayName } from "./modules/shared/identity-fallback";
 
 // Dashboard state
 let loader: IDatasetLoader | null = null;
@@ -1091,6 +1092,7 @@ async function refreshMetrics(): Promise<void> {
           webContext: currentCollectionUri
             ? { collectionUri: currentCollectionUri }
             : undefined,
+          authorsDimension: currentDimensions?.authors,
         }),
       );
     }
@@ -1103,7 +1105,9 @@ async function refreshMetrics(): Promise<void> {
     const reviewerContainer = document.getElementById("reviewer-activity");
     if (reviewerContainer) {
       activeDrilldownHandles.push(
-        installReviewerDrilldown(reviewerContainer, rollups),
+        installReviewerDrilldown(reviewerContainer, rollups, {
+          reviewersDimension: currentDimensions?.reviewers,
+        }),
       );
     }
     const summaryCardsContainer =
@@ -1387,6 +1391,23 @@ function renderReviewerActivity(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
+  // #308: resolve the filtered reviewer's display name upstream so the
+  // chart module stays dumb. `filters.reviewers` is effectively
+  // single-select end-to-end (see reviewer-activity.ts filter-semantics
+  // comment); we scope to [0] to match that. Uses the shared
+  // `resolveDisplayName` so fallback behavior (mapped name → raw id)
+  // stays consistent with the drill-down panel surfaces.
+  const filterReviewerId = currentFilters.reviewers[0];
+  const reviewerNameByKey = new Map(
+    (currentDimensions?.reviewers ?? []).map((r) => [
+      r.reviewer_id,
+      r.reviewer_name,
+    ]),
+  );
+  const filterReviewerName =
+    filterReviewerId !== undefined
+      ? resolveDisplayName(filterReviewerId, reviewerNameByKey)
+      : undefined;
   renderReviewerActivityModule(
     elements.get("reviewer-activity") ?? null,
     rollups,
@@ -1395,6 +1416,7 @@ function renderReviewerActivity(
       filters: currentFilters,
       unfilteredRollups,
       availability,
+      filterReviewerName,
     },
   );
 }

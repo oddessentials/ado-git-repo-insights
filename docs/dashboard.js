@@ -7636,12 +7636,13 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
+    const filterReviewerAriaName = options.filterReviewerName ?? filterReviewerId ?? "";
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
-      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r2)}`)}"` : "";
+      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerAriaName} for week of ${weekRangeForAria(r2)}`)}"` : "";
       return `
             <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
@@ -8420,6 +8421,12 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/shared/identity-fallback.ts
+  function resolveDisplayName(id, map) {
+    const mapped = map.get(id);
+    return mapped !== void 0 ? mapped : id;
+  }
+
   // ../ui/modules/shared/pr-url.ts
   function ensureTrailingSlash(uri) {
     return uri.endsWith("/") ? uri : `${uri}/`;
@@ -8449,12 +8456,12 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/drilldown/throughput-drilldown.ts
   var ACTIVE_CLASS = "is-drilldown-active";
-  function breakdownSection(title, columns, entries, emptyDetail) {
+  function breakdownSection(title, columns, entries, emptyDetail, nameByKey) {
     if (!entries || Object.keys(entries).length === 0) {
       return makeEmptyState(title, emptyDetail);
     }
-    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
-      label,
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([key, entry]) => ({
+      label: nameByKey ? resolveDisplayName(key, nameByKey) : key,
       values: [String(entry.pr_count)]
     }));
     return makeBreakdownTable(title, columns, rows);
@@ -8493,11 +8500,13 @@ var PRInsightsDashboard = (() => {
   function buildPanelContent(rollup, options) {
     const count = rollup.pr_count;
     const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const authorNameByKey = buildAuthorNameMap(options.authorsDimension);
     const byAuthor = breakdownSection(
       "By author",
       ["Author", "PRs"],
       rollup.by_author,
-      "No author-level activity for this week."
+      "No author-level activity for this week.",
+      authorNameByKey
     );
     const byRepository = breakdownSection(
       "By repository",
@@ -8511,6 +8520,10 @@ var PRInsightsDashboard = (() => {
       byRepository,
       prList
     ]);
+  }
+  function buildAuthorNameMap(dim) {
+    if (!dim || dim.length === 0) return /* @__PURE__ */ new Map();
+    return new Map(dim.map((a2) => [a2.author_id, a2.author_name]));
   }
   function installThroughputDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
@@ -8790,19 +8803,25 @@ var PRInsightsDashboard = (() => {
       rows
     );
   }
-  function buildPanelContent3(rollups, reviewerId) {
+  function buildPanelContent3(rollups, reviewerId, reviewerNameByKey) {
     const stats = buildStatRow(rollups, reviewerId);
     const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
-    return makePanelContent(reviewerId, subtitle, [
+    const displayName = resolveDisplayName(reviewerId, reviewerNameByKey);
+    return makePanelContent(displayName, subtitle, [
       stats.section,
       buildWeeklyTable(rollups, reviewerId)
     ]);
   }
-  function installReviewerDrilldown(container, rollups) {
+  function buildReviewerNameMap(dim) {
+    if (!dim || dim.length === 0) return /* @__PURE__ */ new Map();
+    return new Map(dim.map((r2) => [r2.reviewer_id, r2.reviewer_name]));
+  }
+  function installReviewerDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const observers = /* @__PURE__ */ new Set();
     let activeTrigger = null;
+    const reviewerNameByKey = buildReviewerNameMap(options.reviewersDimension);
     function resolveTrigger(evt) {
       const target = evt.target;
       if (!(target instanceof Element)) return null;
@@ -8840,7 +8859,7 @@ var PRInsightsDashboard = (() => {
         sourceChart: "reviewer",
         focusedData: { kind: "reviewer", reviewerId },
         triggerElement: trigger,
-        content: buildPanelContent3(rollups, reviewerId)
+        content: buildPanelContent3(rollups, reviewerId, reviewerNameByKey)
       };
       openDetailPanel(context);
       clearActive();
@@ -9580,7 +9599,8 @@ var PRInsightsDashboard = (() => {
               project_name: r2.project_name ?? "",
               organization_name: r2.organization_name
             })),
-            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors
           })
         );
       }
@@ -9593,7 +9613,9 @@ var PRInsightsDashboard = (() => {
       const reviewerContainer = document.getElementById("reviewer-activity");
       if (reviewerContainer) {
         activeDrilldownHandles.push(
-          installReviewerDrilldown(reviewerContainer, rollups)
+          installReviewerDrilldown(reviewerContainer, rollups, {
+            reviewersDimension: currentDimensions?.reviewers
+          })
         );
       }
       const summaryCardsContainer = document.querySelector(".summary-cards");
@@ -9750,6 +9772,14 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
+    const filterReviewerId = currentFilters.reviewers[0];
+    const reviewerNameByKey = new Map(
+      (currentDimensions?.reviewers ?? []).map((r2) => [
+        r2.reviewer_id,
+        r2.reviewer_name
+      ])
+    );
+    const filterReviewerName = filterReviewerId !== void 0 ? resolveDisplayName(filterReviewerId, reviewerNameByKey) : void 0;
     renderReviewerActivity(
       elements.get("reviewer-activity") ?? null,
       rollups,
@@ -9757,7 +9787,8 @@ var PRInsightsDashboard = (() => {
         reviewerFilterActive: currentFilters.reviewers.length > 0,
         filters: currentFilters,
         unfilteredRollups,
-        availability
+        availability,
+        filterReviewerName
       }
     );
   }
