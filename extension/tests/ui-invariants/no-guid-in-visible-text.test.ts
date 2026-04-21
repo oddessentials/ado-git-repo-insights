@@ -361,6 +361,51 @@ describe("UI invariant: no GUID in visible text (#308)", () => {
     });
   });
 
+  describe("embedded-UUID ids are masked (second Codex catch — substring invariant alignment)", () => {
+    it("throughput By-author: a 'user-<uuid>' key falls back to UNKNOWN_USER_LABEL, not leaked as raw text", () => {
+      // The fallback check uses substring containsUuid so an id shaped
+      // like "user-<uuid>" (UUID embedded in a longer token) cannot
+      // slip past and either leak visibly or trip the C4 builder
+      // guard. Before the fix, isUuid (whole-string) returned false,
+      // so resolveDisplayName returned the raw id verbatim and the
+      // builder guard threw TypeError on construction.
+      const embeddedId = "user-f47ac10b-58cc-4372-a567-0e02b2c3d479";
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W12",
+          pr_count: 20,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 1,
+          reviewers_count: 1,
+          by_repository: null,
+          by_author: {
+            [embeddedId]: { pr_count: 20 },
+          },
+          by_team: null,
+        },
+      ];
+      const container = document.createElement("div");
+      container.id = "throughput-chart";
+      document.body.appendChild(container);
+      renderThroughputChart(container, rollups);
+      // No authorsDimension — fallback must mask embedded-UUID id.
+      installThroughputDrilldown(container, rollups);
+      container
+        .querySelector<HTMLElement>(".bar-container")!
+        .dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+
+      // Invariant gate: no UUID substring visible.
+      assertNoGuidInVisibleText(document.body);
+      // Positive: fallback fired with the shared label.
+      const body = document.body.textContent ?? "";
+      expect(body).toContain(UNKNOWN_USER_LABEL);
+      expect(body).not.toContain(embeddedId);
+    });
+  });
+
   describe("non-UUID ids survive the fallback without masking (Codex catch)", () => {
     it("throughput By-author: non-UUID keys render verbatim when authorsDimension is missing", () => {
       // Fixture: non-UUID keys like emails or short codes. With no

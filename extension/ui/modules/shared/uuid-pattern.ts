@@ -25,6 +25,16 @@ export function isUuid(value: string): boolean {
   return UUID_WHOLE_STRING_REGEX.test(value);
 }
 
+/** Substring match. Use when deciding whether a string would leak a
+ *  GUID if it reached user-visible surfaces — mirrors the visible-text
+ *  invariant gate (`assertNoGuidInVisibleText`) and the construction-
+ *  time builder guard in `makePanelContent` / `makeBreakdownTable`.
+ *  Prefer this over `isUuid` whenever the concern is the invariant,
+ *  not "is this exact string a UUID". */
+export function containsUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
 /** Returns the first UUID substring (lowercased by the match) for
  *  diagnostic reporting in invariant-gate failures; returns `null` when
  *  no UUID is present. */

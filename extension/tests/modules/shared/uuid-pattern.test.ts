@@ -6,6 +6,7 @@
 import {
   UUID_REGEX,
   isUuid,
+  containsUuid,
   findFirstUuid,
 } from "../../../ui/modules/shared/uuid-pattern";
 
@@ -46,6 +47,34 @@ describe("UUID_REGEX (unanchored)", () => {
   test("does not match a near-UUID with wrong group lengths", () => {
     expect(UUID_REGEX.test("f47ac10b-58cc-4372-a567-0e02b2c3d47")).toBe(false);
     expect(UUID_REGEX.test("f47ac10-58cc-4372-a567-0e02b2c3d479")).toBe(false);
+  });
+});
+
+describe("containsUuid (substring — visible-text invariant alignment)", () => {
+  test("returns true for a bare UUID", () => {
+    expect(containsUuid(CANONICAL_LOWER)).toBe(true);
+    expect(containsUuid(CANONICAL_UPPER)).toBe(true);
+  });
+
+  test("returns true when the UUID is embedded anywhere in the string", () => {
+    expect(containsUuid(`user-${CANONICAL_LOWER}`)).toBe(true);
+    expect(containsUuid(`${CANONICAL_LOWER}-suffix`)).toBe(true);
+    expect(containsUuid(`prefix ${CANONICAL_LOWER} suffix`)).toBe(true);
+    expect(containsUuid(`Drill into ${CANONICAL_LOWER} for week`)).toBe(true);
+  });
+
+  test("returns false for non-UUID strings", () => {
+    expect(containsUuid("alice@example.com")).toBe(false);
+    expect(containsUuid("legacy-user-42")).toBe(false);
+    expect(containsUuid("Week of Mar 18 – 24, 2025")).toBe(false);
+    expect(containsUuid("")).toBe(false);
+  });
+
+  test("returns false for near-UUID shapes with wrong group lengths", () => {
+    expect(containsUuid("f47ac10b")).toBe(false);
+    expect(containsUuid("user-f47ac10b-58cc-4372-a567-0e02b2c3d47")).toBe(
+      false,
+    );
   });
 });
 

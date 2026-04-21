@@ -3968,8 +3968,8 @@ var PRInsightsDashboard = (() => {
   var UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   var UUID_REGEX = new RegExp(UUID_PATTERN, "i");
   var UUID_WHOLE_STRING_REGEX = new RegExp(`^${UUID_PATTERN}$`, "i");
-  function isUuid(value) {
-    return UUID_WHOLE_STRING_REGEX.test(value);
+  function containsUuid(value) {
+    return UUID_REGEX.test(value);
   }
 
   // ../ui/modules/drilldown/lifecycle-signals.ts
@@ -7573,7 +7573,7 @@ var PRInsightsDashboard = (() => {
   function resolveDisplayName(id, map) {
     const mapped = map.get(id);
     if (mapped !== void 0) return mapped;
-    return isUuid(id) ? UNKNOWN_USER_LABEL : id;
+    return containsUuid(id) ? UNKNOWN_USER_LABEL : id;
   }
 
   // ../ui/modules/charts/reviewer-activity.ts
@@ -7664,7 +7664,7 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
-    const filterReviewerAriaName = options.filterReviewerName ?? (filterReviewerId !== null && !isUuid(filterReviewerId) ? filterReviewerId : UNKNOWN_USER_LABEL);
+    const filterReviewerAriaName = options.filterReviewerName ?? (filterReviewerId !== null && !containsUuid(filterReviewerId) ? filterReviewerId : UNKNOWN_USER_LABEL);
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;

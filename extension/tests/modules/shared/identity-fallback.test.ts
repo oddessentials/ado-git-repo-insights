@@ -51,6 +51,22 @@ describe("resolveDisplayName", () => {
     expect(resolveDisplayName(UUID, map)).toBe("Alice Resolved");
   });
 
+  test("returns UNKNOWN_USER_LABEL when the id CONTAINS a UUID substring (second Codex catch)", () => {
+    // Fallback uses containsUuid (substring) rather than isUuid
+    // (whole-string) so an id like "user-<uuid>" cannot slip past.
+    // Otherwise the rendered raw id would trip the visible-text
+    // invariant gate or the C4 builder UUID guard.
+    expect(resolveDisplayName(`user-${UUID}`, new Map())).toBe(
+      UNKNOWN_USER_LABEL,
+    );
+    expect(resolveDisplayName(`${UUID}-suffix`, new Map())).toBe(
+      UNKNOWN_USER_LABEL,
+    );
+    expect(resolveDisplayName(`prefix ${UUID} suffix`, new Map())).toBe(
+      UNKNOWN_USER_LABEL,
+    );
+  });
+
   test("returns UNKNOWN_USER_LABEL when the map is empty AND id is UUID-shaped", () => {
     expect(resolveDisplayName(UUID, new Map())).toBe(UNKNOWN_USER_LABEL);
   });
