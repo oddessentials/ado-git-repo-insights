@@ -9,6 +9,7 @@ import {
   type PrUrlRepositoryEntry,
   type PrUrlWebContext,
 } from "../../../ui/modules/shared/pr-url";
+import { LOCAL_DASHBOARD_COLLECTION_URI } from "../../../ui/modules/sdk";
 
 const CTX: PrUrlWebContext = {
   collectionUri: "https://dev.azure.com/acme-org/",
@@ -112,6 +113,30 @@ describe("resolvePrUrl (FR-005 / FR-005a)", () => {
       };
       expect(resolvePrUrl(pr, [], CTX)).toBe(
         "https://dev.azure.com/acme-org/_git/repo%20id%20with%20spaces/pullrequest/33",
+      );
+    });
+  });
+
+  describe("demo-mode collection URI (feature 309 #315)", () => {
+    it("composes a deterministic URL rooted at LOCAL_DASHBOARD_COLLECTION_URI", () => {
+      // Pure composition: no DOM, no bootstrap. Locks the URL shape the
+      // local-mode dashboard will produce for synthetic PR rows on the
+      // published demo surface.
+      const ctx: PrUrlWebContext = {
+        collectionUri: LOCAL_DASHBOARD_COLLECTION_URI,
+      };
+      const repo: PrUrlRepositoryEntry = {
+        repository_id: "repo-guid-alpha",
+        repository_name: "feature-store",
+        project_name: "Data",
+        organization_name: "oddessentials",
+      };
+      const pr: PrUrlPrRecord = {
+        id: 202510042,
+        repository_id: "repo-guid-alpha",
+      };
+      expect(resolvePrUrl(pr, [repo], ctx)).toBe(
+        "https://dev.azure.com/oddessentials/Data/_git/feature-store/pullrequest/202510042",
       );
     });
   });
