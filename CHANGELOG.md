@@ -1,3 +1,20 @@
+# [101.15.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.14.0...v101.15.0) (2026-04-21)
+
+
+### Bug Fixes
+
+* **#315:** make truncation-exercise week pr_count coherent with emitted prs array ([4aef854](https://github.com/oddessentials/ado-git-repo-insights/commit/4aef8549c8daf70a1cb45aed587b6e6333d10a5a)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#320](https://github.com/oddessentials/ado-git-repo-insights/issues/320)
+* **#315:** populate demo webContext stub so PR list renders in local mode ([dd2a168](https://github.com/oddessentials/ado-git-repo-insights/commit/dd2a168a7427b0167fcaa2477e1c2e48ec94ba55)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** reroot regen-byte-stability scratch under repo-local tmp_test_work ([ed53187](https://github.com/oddessentials/ado-git-repo-insights/commit/ed5318749c6cc0f420bb8c5b0dfa837f3c0a6d01)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#320](https://github.com/oddessentials/ado-git-repo-insights/issues/320)
+
+
+### Features
+
+* **#315:** add synthetic PR generator helpers; scaffold sentinel & inputs-clean guards ([2d03aee](https://github.com/oddessentials/ado-git-repo-insights/commit/2d03aee8bab1a378f57450afe61619b26cd0ddf6)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** derive distribution fixtures for synthetic demo PR generator ([b3bea46](https://github.com/oddessentials/ado-git-repo-insights/commit/b3bea46e35080a4f877ea709db36ac8fc34bc5fd)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** narrow feature-060 FR-023 to provenance-based binary gate (dead-code sentinel branch) ([3c63437](https://github.com/oddessentials/ado-git-repo-insights/commit/3c634372b10eda655836e6518110a3f87cb02dac)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** publish synthetic PR-level detail to docs/data/; bump demo profile 2.0.0 -> 2.1.0 ([2dd27aa](https://github.com/oddessentials/ado-git-repo-insights/commit/2dd27aad569396ddbf01d7a2173b1157d275e4da)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+
 # [101.14.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.13.0...v101.14.0) (2026-04-21)
 
 
