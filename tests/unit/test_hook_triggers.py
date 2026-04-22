@@ -26,6 +26,7 @@ _spec.loader.exec_module(_hook_module)
 
 is_ui_trigger = _hook_module.is_ui_trigger
 is_test_trigger = _hook_module.is_test_trigger
+is_pr_record_parity_trigger = _hook_module.is_pr_record_parity_trigger
 
 
 class TestIsTestTrigger:
@@ -132,3 +133,56 @@ class TestIsUiTrigger:
     )
     def test_non_ui_files_are_not_triggers(self, path: str) -> None:
         assert is_ui_trigger(path) is False
+
+
+class TestIsPrRecordParityTrigger:
+    """is_pr_record_parity_trigger must cover exactly the three files that
+    ``scripts/check_pr_record_schema_parity.py`` parses (Feature 310, QG-47).
+
+    Scope is intentionally exact — the gate parses three files and the
+    trigger set MUST match those files one-for-one.  Near-miss rejections
+    below lock the scope against accidental broadening (e.g. triggering on
+    the 060 contract the gate does not read, or on any file under
+    ``src/ado_git_repo_insights/`` that is not ``types.py``).
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "src/ado_git_repo_insights/types.py",
+            "extension/ui/schemas/rollup.schema.ts",
+            "specs/310-comments-visualization/contracts/pr-record-comments-fields.md",
+        ],
+    )
+    def test_parity_gate_read_paths_are_triggers(self, path: str) -> None:
+        """The three files the parity gate parses MUST each fire the dispatch."""
+        assert is_pr_record_parity_trigger(path) is True
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            # 060 contract is a human-continuity pointer, NOT parsed by the gate.
+            "specs/060-throughput-pr-drilldown/contracts/pr-record.md",
+            # 310 spec / plan / research / data-model / sibling gate contract
+            # are not parsed by the parity gate.
+            "specs/310-comments-visualization/spec.md",
+            "specs/310-comments-visualization/plan.md",
+            "specs/310-comments-visualization/research.md",
+            "specs/310-comments-visualization/data-model.md",
+            "specs/310-comments-visualization/contracts/schema-parity-gate.md",
+            # Other Python files under the same package are out of scope.
+            "src/ado_git_repo_insights/models.py",
+            "src/ado_git_repo_insights/cli.py",
+            # Other TypeScript files under the schemas/ directory are out of scope.
+            "extension/ui/schemas/manifest.schema.ts",
+            # Unrelated extension and script files are out of scope.
+            "extension/ui/dashboard.ts",
+            "scripts/run_repo_hook.py",
+            "scripts/check_pr_record_schema_parity.py",
+            # The gate itself and its pytest wrapper are not gate-triggers.
+            "tests/unit/test_pr_record_schema_parity.py",
+        ],
+    )
+    def test_near_miss_paths_are_not_triggers(self, path: str) -> None:
+        """Exact-match scope rejects everything outside the three read paths."""
+        assert is_pr_record_parity_trigger(path) is False

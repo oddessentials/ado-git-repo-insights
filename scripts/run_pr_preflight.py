@@ -304,6 +304,10 @@ def build_commands(
             ("__PYTHON__", "scripts/check_no_any_types.py"),
         ),
         CommandSpec(
+            "PR-record schema parity",
+            ("__PYTHON__", "scripts/check_pr_record_schema_parity.py"),
+        ),
+        CommandSpec(
             "Pandas version policy",
             (
                 "__PYTHON__",
