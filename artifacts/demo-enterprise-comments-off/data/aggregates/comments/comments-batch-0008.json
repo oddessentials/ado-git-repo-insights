@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 22,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Quinn Anderson",
+              "author_id": "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb",
+              "comment_id": "comment-22-1",
+              "content_length": 86
+            },
+            {
+              "author": "Rachel Smith",
+              "author_id": "9dd16093-4cd4-5588-95a4-024ef402adf1",
+              "comment_id": "comment-22-2",
+              "content_length": 87
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-22-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 23,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Rachel Smith",
+              "author_id": "9dd16093-4cd4-5588-95a4-024ef402adf1",
+              "comment_id": "comment-23-1",
+              "content_length": 87
+            },
+            {
+              "author": "Rachel Hill",
+              "author_id": "530d9e42-833f-51c7-8daa-03395d8f573c",
+              "comment_id": "comment-23-2",
+              "content_length": 88
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-23-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 24,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Rachel Hill",
+              "author_id": "530d9e42-833f-51c7-8daa-03395d8f573c",
+              "comment_id": "comment-24-1",
+              "content_length": 88
+            },
+            {
+              "author": "Samuel Sanchez",
+              "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+              "comment_id": "comment-24-2",
+              "content_length": 89
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-24-1"
+        }
+      ]
+    }
+  ]
+}
