@@ -996,6 +996,7 @@ class TestInvariantContractInventory:
             "Extension test count validation",
             "Partial-branch ratchet",
             "Extension smoke tests",
+            "Extension VSIX package",
             "Extension VSIX artifact inspection",
         }
         assert set(reviews) == expected_gates, (
@@ -1437,4 +1438,103 @@ class TestPatchCoverageParity:
             "and --junit-extension flags in both branches, with "
             "--marker-range present only in the push branch; "
             f"got: {commands!r}"
+        )
+
+
+class TestVsixGateParity:
+    """Lock the VSIX package + inspection gate so local preflight matches CI.
+
+    Prior to this contract, preflight ran ``pnpm run test:vsix`` against
+    whatever ``*.vsix`` happened to be sitting in ``extension/`` (if any)
+    and without ``VSIX_REQUIRED=true``. That produced two silent-skip paths
+    where local passed but CI would have caught the failure:
+
+    * No VSIX on disk -> inspection test skipped; Row 18 did not run at all.
+    * Stale VSIX on disk -> inspection test ran against an artifact that
+      had no relationship to HEAD.
+
+    These tests lock preflight to CI's exact shape: build a fresh VSIX
+    via ``package:vsix`` immediately before the inspection, and set
+    ``VSIX_REQUIRED=true`` on the inspection so a missing VSIX is a hard
+    failure instead of a silent pass.
+    """
+
+    @staticmethod
+    def _preflight_specs() -> list:
+        module = _load_preflight_module()
+        return list(module.build_commands(None, gitleaks=None))
+
+    @staticmethod
+    def _spec_index(specs: list, name: str) -> int:
+        for index, spec in enumerate(specs):
+            if spec.name == name:
+                return index
+        raise AssertionError(
+            f"Preflight CommandSpec {name!r} missing; "
+            f"present specs: {[s.name for s in specs]!r}"
+        )
+
+    def test_preflight_has_vsix_package_spec(self) -> None:
+        module = _load_preflight_module()
+        specs = self._preflight_specs()
+        index = self._spec_index(specs, "Extension VSIX package")
+        spec = specs[index]
+        assert spec.command == (
+            module.PNPM_SENTINEL,
+            "run",
+            "package:vsix",
+        ), (
+            "Preflight VSIX package step must invoke "
+            "`pnpm run package:vsix` exactly, so the artifact the "
+            "inspection consumes is always rebuilt from HEAD. "
+            f"Got: {spec.command!r}"
+        )
+        assert spec.cwd == module.EXTENSION_ROOT, (
+            "VSIX package must run in extension/ so tfx resolves "
+            "the manifest glob relative to the extension workspace."
+        )
+
+    def test_preflight_inspection_sets_vsix_required_true(self) -> None:
+        specs = self._preflight_specs()
+        index = self._spec_index(specs, "Extension VSIX artifact inspection")
+        spec = specs[index]
+        assert spec.extra_env == {"VSIX_REQUIRED": "true"}, (
+            "Preflight VSIX inspection must set VSIX_REQUIRED=true so a "
+            "missing VSIX is a hard failure instead of a silent skip. "
+            f"Got extra_env={spec.extra_env!r}"
+        )
+
+    def test_preflight_package_immediately_precedes_inspection(self) -> None:
+        specs = self._preflight_specs()
+        package_index = self._spec_index(specs, "Extension VSIX package")
+        inspection_index = self._spec_index(specs, "Extension VSIX artifact inspection")
+        assert inspection_index == package_index + 1, (
+            "Extension VSIX package must run immediately before the "
+            "inspection so no unrelated step can invalidate the artifact "
+            "or consume its absence as a silent pass. "
+            f"Got package@{package_index}, inspection@{inspection_index}."
+        )
+
+    def test_ci_build_extension_packages_vsix_before_inspection(self) -> None:
+        package_step = _find_ci_step("build-extension", "Package VSIX")
+        inspection_step = _find_ci_step(
+            "build-extension", "Run VSIX Inspection Tests (Tier B)"
+        )
+        job = _load_ci_jobs()["build-extension"]
+        step_names = [s.get("name") for s in job.get("steps", [])]
+        package_pos = step_names.index(package_step["name"])
+        inspection_pos = step_names.index(inspection_step["name"])
+        assert inspection_pos == package_pos + 1, (
+            "CI `build-extension` must run `Package VSIX` immediately "
+            "before `Run VSIX Inspection Tests (Tier B)`. If steps drift "
+            "apart, local preflight parity (package-then-inspect) is no "
+            "longer aligned with CI. "
+            f"Got steps: {step_names!r}"
+        )
+
+    def test_ci_vsix_inspection_step_requires_vsix(self) -> None:
+        step = _find_ci_step("build-extension", "Run VSIX Inspection Tests (Tier B)")
+        env = step.get("env") or {}
+        assert env.get("VSIX_REQUIRED") == "true", (
+            f"CI VSIX inspection step must set VSIX_REQUIRED=true. Got env={env!r}"
         )

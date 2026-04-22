@@ -546,9 +546,15 @@ def build_commands(
             (PNPM_SENTINEL, "--dir", "extension", "run", "test:partial-branches"),
         ),
         CommandSpec(
+            "Extension VSIX package",
+            (PNPM_SENTINEL, "run", "package:vsix"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Extension VSIX artifact inspection",
             (PNPM_SENTINEL, "run", "test:vsix"),
             cwd=EXTENSION_ROOT,
+            extra_env={"VSIX_REQUIRED": "true"},
         ),
         CommandSpec(
             "Extension smoke tests",
