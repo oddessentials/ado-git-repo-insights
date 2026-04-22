@@ -431,6 +431,79 @@ def test_partial_state_no_mixed_null_numeric(
         )
 
 
+def test_true_zeros_when_extracted_at_nonnull_and_joins_empty(
+    comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """FR-3-05 / Acceptance Scenario 2.2: a covered PR with zero threads and
+    zero comments MUST emit ``(0, 0, 0)`` — explicit integer zeros — NOT the
+    ``(None, None, None)`` partial sentinel reserved for
+    ``comments_extracted_at IS NULL``.
+
+    The partial sentinel is consumer-visible (the renderer shows ``0`` vs
+    ``—``), so the producer MUST preserve the distinction.  Contract anchor:
+    ``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``
+    (Producer-contract Failure modes) — "emit ``(0, 0, 0)`` in that case
+    (true zeros per Acceptance Scenario 2.2). The partial sentinel is
+    reserved for ``comments_extracted_at IS NULL``."
+
+    Seeds a sibling PR with a real thread + comment so the aggregator's
+    JOIN subqueries DO return rows — guarding against a pass-by-accident
+    where an entirely empty join masquerades as ``(0, 0, 0)`` on the
+    target.
+    """
+    db, tmp_path = comments_db
+    monday = _week_monday(2026, 10)
+    # Target: covered (extracted_at non-null) with no threads/comments.
+    _insert_pr(
+        db,
+        uid="repo1-target-zero",
+        pr_id=71,
+        title="Covered empty",
+        closed_date=monday.isoformat(),
+        cycle_time_minutes=200.0,
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    # Sibling: covered with a thread + comment so the per-week SELECT
+    # returns non-empty result rows for at least one uid.
+    _insert_pr(
+        db,
+        uid="repo1-sibling",
+        pr_id=72,
+        title="Covered nonempty",
+        closed_date=monday.isoformat(),
+        cycle_time_minutes=100.0,
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="repo1-sibling", thread_id="t1", status="active")
+    _insert_comment(db, uid="repo1-sibling", thread_id="t1", comment_id="c1")
+    rollup = _generate(tmp_path, db)
+    prs = _prs(rollup)
+    by_id: dict[int, dict[str, object]] = {}
+    for row in prs:
+        row_id = row["id"]
+        assert isinstance(row_id, int)
+        by_id[row_id] = row
+    target = by_id[71]
+    # Explicit integer zeros, NOT ``None``.  The ``isinstance`` check is
+    # load-bearing: the partial sentinel is ``None`` and would equal ``0``
+    # under neither ``==`` nor the consumer's ``value === null`` branch,
+    # but asserting the type anchors the wire-level distinction so future
+    # refactors cannot silently swap the sentinel and zero.
+    assert target["thread_count"] == 0
+    assert isinstance(target["thread_count"], int)
+    assert target["comment_count"] == 0
+    assert isinstance(target["comment_count"], int)
+    assert target["active_thread_count"] == 0
+    assert isinstance(target["active_thread_count"], int)
+    # Sibling sanity: non-zero counts prove the query did return rows —
+    # the ``(0, 0, 0)`` on the target is a correct per-PR zero, not an
+    # empty-result-set artifact.
+    sibling = by_id[72]
+    assert sibling["thread_count"] == 1
+    assert sibling["comment_count"] == 1
+    assert sibling["active_thread_count"] == 1
+
+
 # ---------------------------------------------------------------------------
 # INV-09 active_thread_count <= thread_count (property)
 # ---------------------------------------------------------------------------
