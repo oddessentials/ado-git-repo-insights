@@ -329,14 +329,14 @@ pnpm run package:vsix
 ### Python Development
 
 ```bash
-# Install with development dependencies
-pip install -e ".[dev]"
+# Install with development dependencies (uv-managed, Python 3.12)
+uv sync --extra dev
 
 # Run tests
-python scripts/run_pytest.py
+uv run python scripts/run_pytest.py
 
 # Run linting
-ruff check .
+uv run ruff check .
 ```
 
 ### Demo Parity Build

@@ -8,11 +8,12 @@ How to set up a development environment for contributing to ado-git-repo-insight
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.12, 3.13, or 3.14 | Demo generation requires exactly 3.12 |
-| Node.js | 22 | For extension development |
-| pnpm | 9.15.0 | Enforced by `packageManager` field |
-| Git | Any recent version | Windows: must include Git Bash |
-| gitleaks | Any recent version | Secret scanning (CI parity) — [install](https://github.com/gitleaks/gitleaks#installing) |
+| uv | 0.9+ | Canonical Python + project venv manager. [install](https://docs.astral.sh/uv/getting-started/installation/). Provides `uv python install 3.12`, which is **required for CI-pinned gates** (CLI-reference-drift skips on non-3.12). |
+| Python | 3.12 | Acquire via `uv python install 3.12`. Runtime supports 3.12/3.13/3.14 but CI-canonical is 3.12. |
+| Node.js | 22 | For extension development. |
+| pnpm | 9.15.0 | Enforced by `packageManager` field. Enable via `corepack enable`. |
+| Git | Any recent version | Windows: must include Git Bash (Husky requires `sh`). |
+| gitleaks | Any recent version | Secret scanning (CI parity). Preflight fails closed if missing — no silent skip. Install: `winget install -e --id Gitleaks.Gitleaks` (Windows), `brew install gitleaks` (macOS), `apt install gitleaks` or a [release binary](https://github.com/gitleaks/gitleaks/releases) (Linux). **Windows note:** winget updates PATH for future shells only; if `gitleaks --version` fails in your current shell after install, restart it. |
 
 ---
 
@@ -23,21 +24,28 @@ How to set up a development environment for contributing to ado-git-repo-insight
 git clone https://github.com/oddessentials/ado-git-repo-insights.git
 cd ado-git-repo-insights
 
-# 1. Install root Node dependencies and activate Husky git hooks
-#    This MUST be the first step — hooks enforce all quality gates.
+# 1. Install uv if you don't already have it
+#    https://docs.astral.sh/uv/getting-started/installation/
+
+# 2. Acquire the canonical Python interpreter (3.12)
+#    Some CI-hard gates (e.g. CLI-reference-drift) are pinned to 3.12
+#    and will SKIP locally on any other interpreter.
+uv python install 3.12
+
+# 3. Install root Node dependencies and activate Husky git hooks
+#    This MUST be the first Node step — hooks enforce all quality gates.
 pnpm install
 
-# 2. Create and activate Python virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+# 4. Create the project venv and install Python dev deps
+uv sync --extra dev
 
-# 3. Install Python dependencies (including dev tools)
-pip install -e .[dev]
-
-# 4. Install extension Node.js dependencies
+# 5. Install extension Node dependencies
+#    This also auto-downloads the pinned Playwright browser (~110 MB)
+#    via the extension's `postinstall` script — watch for the progress bar.
 cd extension && pnpm install && cd ..
 ```
+
+> **Not using uv?** You can substitute `python -m venv .venv` + `pip install -e .[dev]` for step 4, **but** you must first ensure your `python` resolves to 3.12 — otherwise gates pinned to 3.12 will silently skip locally while CI (always 3.12) remains authoritative.
 
 ---
 
@@ -45,20 +53,17 @@ cd extension && pnpm install && cd ..
 
 ### Install Options
 
-**Basic (for running the tool):**
-```bash
-pip install -e .
-```
+The `Quick Setup` section above uses `uv sync --extra dev`, which installs every
+optional group needed for development. If you need a narrower surface:
 
-**Development (includes testing and linting tools):**
-```bash
-pip install -e .[dev]
-```
+| Goal | Command |
+|------|---------|
+| Runtime only (no dev tools) | `uv sync` |
+| Development (tests, lint, type-check) | `uv sync --extra dev` |
+| With ML extras (Prophet, OpenAI) | `uv sync --extra dev --extra ml` |
 
-**ML features (includes Prophet and OpenAI):**
-```bash
-pip install -e .[ml]
-```
+Non-uv users can substitute `pip install -e .[dev]` / `pip install -e .[ml]`
+after activating a Python 3.12 venv, with the caveat noted in Quick Setup.
 
 ### Code Quality Tools
 
