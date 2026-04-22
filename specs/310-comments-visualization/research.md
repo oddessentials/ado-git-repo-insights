@@ -80,7 +80,7 @@ All clarifications C1..C5 are already resolved in [spec.md](./spec.md) and are N
 | pre-commit | new predicate (`is_pr_record_parity_trigger`) + runner (`run_pr_record_schema_parity_check`) in `scripts/run_repo_hook.py`, following the existing `is_ui_trigger` / `is_test_trigger` pattern (there is no `CommandSpec` abstraction in `run_repo_hook.py`) → identical command string |
 | pre-push preflight | `scripts/run_pr_preflight.py` — new `CommandSpec(name=..., command=...)` using only the five real fields from the `@dataclass(frozen=True)` at `run_pr_preflight.py:71-76` (no `triggers_any_of`, no `degraded_fallback`) → identical command string |
 | CI (Python job, Ubuntu + Windows) | `.github/workflows/ci.yml` step → exact command string |
-| `pnpm test:ci` | `extension/package.json` adds `"test:schema-parity": "python ../scripts/check_pr_record_schema_parity.py"` and chains it into the existing `test:ci` script. Mirrors the existing `test:partial-branches` precedent at `extension/package.json:34` (which already shells from `pnpm test:ci` into `python ../scripts/check_partial_branches.py`). No duplicated logic; single canonical command string across all four entry points. |
+| `pnpm test:ci` | `extension/package.json` adds `"test:schema-parity": "python ../scripts/check_pr_record_schema_parity.py"` and chains it into the existing `test:ci` script. Mirrors the existing `test:partial-branches` precedent at `extension/package.json:34` (which already shells from `pnpm test:ci` into the repo's partial-branches Python coverage-ratchet script — see row 36 of `LOCAL_CI_PARITY_INVARIANTS.md` for the authoritative parity contract). No duplicated logic; single canonical command string across all four entry points. |
 
 **What the script checks**:
 

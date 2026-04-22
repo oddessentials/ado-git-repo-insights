@@ -1587,6 +1587,61 @@ var PRInsightsDatasetLoader = (() => {
           )
         );
       }
+      const threadCount = pr.thread_count;
+      const commentCount = pr.comment_count;
+      const activeThreadCount = pr.active_thread_count;
+      if (threadCount !== void 0 && threadCount !== null && !isNumber(threadCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "thread_count"),
+            `expected number or null, got ${getTypeName(threadCount)}`
+          )
+        );
+      }
+      if (commentCount !== void 0 && commentCount !== null && !isNumber(commentCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "comment_count"),
+            `expected number or null, got ${getTypeName(commentCount)}`
+          )
+        );
+      }
+      if (activeThreadCount !== void 0 && activeThreadCount !== null && !isNumber(activeThreadCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "active_thread_count"),
+            `expected number or null, got ${getTypeName(activeThreadCount)}`
+          )
+        );
+      }
+      const presentCount = (threadCount !== void 0 ? 1 : 0) + (commentCount !== void 0 ? 1 : 0) + (activeThreadCount !== void 0 ? 1 : 0);
+      if (presentCount !== 0 && presentCount !== 3) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `comments-metrics atomicity violated (INV-08): expected all three of thread_count / comment_count / active_thread_count to be present together, or all absent; got ${presentCount} of 3 present`
+          )
+        );
+      }
+      if (presentCount === 3) {
+        const nullCount = (threadCount === null ? 1 : 0) + (commentCount === null ? 1 : 0) + (activeThreadCount === null ? 1 : 0);
+        if (nullCount !== 0 && nullCount !== 3) {
+          warnings.push(
+            createWarning(
+              prPath,
+              `comments-metrics coverage-partial consistency violated (INV-10): expected thread_count / comment_count / active_thread_count to be all numeric or all null; got ${nullCount} of 3 null`
+            )
+          );
+        }
+        if (isNumber(threadCount) && isNumber(activeThreadCount) && activeThreadCount > threadCount) {
+          warnings.push(
+            createWarning(
+              prPath,
+              `comments-metrics ordering violated (INV-09): active_thread_count (${activeThreadCount}) MUST NOT exceed thread_count (${threadCount})`
+            )
+          );
+        }
+      }
     }
     return { warnings };
   }

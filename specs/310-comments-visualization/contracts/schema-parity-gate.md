@@ -174,12 +174,14 @@ Add a step in the existing Python job (both Ubuntu and Windows lanes per QG-45 c
 
 ### `pnpm test:ci`
 
-Add a new pnpm script in `extension/package.json` that wraps the canonical command, and chain it into the existing `test:ci` definition. Mirrors the existing `test:partial-branches` precedent at `extension/package.json:34` (which already shells from `pnpm test:ci` into `python ../scripts/check_partial_branches.py`):
+Add a new pnpm script in `extension/package.json` that wraps the canonical command, and chain it into the existing `test:ci` definition. Mirrors the `test:partial-branches` precedent at `extension/package.json:34` (which already shells from `pnpm test:ci` into the repo's partial-branches Python coverage-ratchet script — see row 36 of [LOCAL_CI_PARITY_INVARIANTS.md](../../../LOCAL_CI_PARITY_INVARIANTS.md) for the authoritative parity contract):
 
 ```jsonc
 "scripts": {
   // ... existing scripts ...
-  "test:partial-branches": "python ../scripts/check_partial_branches.py --lcov coverage/lcov.info --baseline ../.coverage-partial-branches-baseline.json",
+  // (existing test:partial-branches line — authoritative form lives in
+  // extension/package.json; mentioning the command string verbatim here
+  // would duplicate the source of truth and is intentionally omitted)
   "test:schema-parity": "python ../scripts/check_pr_record_schema_parity.py",
   "test:ci": "pnpm run build:check && pnpm run lint:tests && pnpm run build:check-tests && pnpm run test:config-parity && pnpm run format:check && pnpm run test:types && pnpm run test:coverage && pnpm run test:partial-branches && pnpm run test:schema-parity && pnpm run test:smoke"
   // ... remaining scripts ...
