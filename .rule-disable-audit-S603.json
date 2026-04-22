@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 600,
+      "line": 604,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 623,
+      "line": 627,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 716,
+      "line": 720,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 798,
+      "line": 802,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +341,7 @@
     },
     {
       "file": "tests/demo/test_regen_byte_stability.py",
-      "line": 82,
+      "line": 113,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
