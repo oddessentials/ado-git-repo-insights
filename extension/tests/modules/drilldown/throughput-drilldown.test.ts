@@ -1393,5 +1393,89 @@ describe("throughput-drilldown", () => {
       expect(emptyText).not.toMatch(/clear the team/i);
       expect(emptyText).not.toMatch(/clear the reviewer/i);
     });
+
+    it("capability-on install path wires commentsMetricsAvailable through buildPrListSection to the renderer (feature 310)", () => {
+      // Covers throughput-drilldown.ts buildPrListSection's
+      // ``!commentsMetricsAvailable`` false branch: when the install
+      // passes the flag, PR rows are mapped with the three comments-
+      // metrics fields (thread_count / comment_count /
+      // active_thread_count) from the rollup's PrRecord shape.
+      // End-to-end verification: the rendered panel carries one
+      // .comments-metric span per axis per row + the sort / filter
+      // controls added by detail-panel's capability-on branch.
+      const rollups = [
+        makeRollupWithPrs([
+          {
+            id: 201,
+            title: "feat: oauth",
+            author_id: "alice",
+            repository_id: "repo-1",
+            cycle_time: 125.0,
+            thread_count: 7,
+            comment_count: 22,
+            active_thread_count: 3,
+          },
+          {
+            id: 202,
+            title: "fix: partial-coverage",
+            author_id: "bob",
+            repository_id: "repo-1",
+            cycle_time: 55.0,
+            thread_count: null,
+            comment_count: null,
+            active_thread_count: null,
+          },
+        ] as ReadonlyArray<{
+          readonly id: number;
+          readonly title: string;
+          readonly author_id: string;
+          readonly repository_id: string;
+          readonly cycle_time: number;
+          readonly thread_count?: number | null;
+          readonly comment_count?: number | null;
+          readonly active_thread_count?: number | null;
+        }>),
+      ];
+      const container = mountChart(rollups);
+      installThroughputDrilldown(container, rollups, {
+        filters: { repos: [], teams: [], reviewers: [], authors: [] },
+        repositoriesDimension: BASE_REPOS,
+        webContext: BASE_WEB_CTX,
+        commentsMetricsAvailable: true,
+      });
+      click(firstBar(container));
+
+      expect(isDetailPanelOpen()).toBe(true);
+      const prSection = document.getElementById("pr-detail");
+      expect(prSection).not.toBeNull();
+      // Controls present (capability-on path in the renderer).
+      expect(
+        prSection!.querySelector(".detail-panel-pr-list-controls"),
+      ).not.toBeNull();
+      const rows = prSection!.querySelectorAll<HTMLLIElement>(
+        ".detail-panel-pr-row",
+      );
+      expect(rows).toHaveLength(2);
+      // Covered row — numeric spans.
+      const covered = rows[0]!;
+      expect(
+        covered.querySelector(".comments-metric--threads")?.textContent,
+      ).toBe("7");
+      expect(
+        covered.querySelector(".comments-metric--comments")?.textContent,
+      ).toBe("22");
+      expect(
+        covered.querySelector(".comments-metric--unresolved")?.textContent,
+      ).toBe("3");
+      // Partial row — three "—" spans and row-level data-partial.
+      const partial = rows[1]!;
+      expect(partial.getAttribute("data-partial")).toBe("true");
+      const partialSpans =
+        partial.querySelectorAll<HTMLSpanElement>(".comments-metric");
+      for (const span of partialSpans) {
+        expect(span.getAttribute("data-partial")).toBe("true");
+        expect(span.textContent).toBe("—");
+      }
+    });
   });
 });

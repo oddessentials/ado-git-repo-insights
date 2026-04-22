@@ -72,12 +72,30 @@ export interface EmptyStateSection {
  * Pre-derived PR row shown inside the PrListSection "pr-list" content state.
  * Feature 060 contract — the URL is pre-composed at build time (by
  * `resolvePrUrl`) so the renderer has no I/O or resolution work.
+ *
+ * Feature 310 extends the row with three optional comments-metrics fields
+ * (`threadCount` / `commentCount` / `activeThreadCount`).  They carry data
+ * per row but are only RENDERED when the enclosing section's
+ * `commentsMetricsAvailable` flag is `true` (section-level capability
+ * gate — absent entirely on the capability-off path, preserving SC-03
+ * byte-identity).  Per-row semantics mirror the producer's wire shape:
+ *   - `undefined` / absent: capability-off row (the section flag is
+ *     `false`; downstream code MUST NOT read these fields in that case).
+ *   - `null`: covered PR whose `comments_extracted_at` is NULL (partial
+ *     sentinel per INV-10 / FR-3-05; renders visibly distinct from a
+ *     numeric 0).
+ *   - number: covered PR with known counts.  `0` is a true zero.
+ * All three field values arrive together or not at all (INV-08 mirrored
+ * on the consumer side).
  */
 export interface PrListRow {
   readonly id: number;
   readonly title: string;
   readonly cycleTimeMinutes: number;
   readonly url: string;
+  readonly threadCount?: number | null;
+  readonly commentCount?: number | null;
+  readonly activeThreadCount?: number | null;
 }
 
 /**
@@ -102,6 +120,11 @@ export interface PrListSectionWithRows {
   readonly renderedCount: number;
   readonly actualFilteredCount: number;
   readonly capValue: number;
+  // Feature 310 — section-level capability gate for the three
+  // comments-metrics columns.  When `true` the renderer emits one
+  // additional header + three `<span>`s per row; when `false` the
+  // DOM stays byte-identical to the pre-310 shape (SC-03 / FR-3-06).
+  readonly commentsMetricsAvailable: boolean;
 }
 
 export interface PrListSectionMessage {
@@ -204,6 +227,9 @@ export type PrListSectionInput =
       readonly renderedCount: number;
       readonly actualFilteredCount: number;
       readonly capValue: number;
+      // Feature 310 — required on the pr-list variant only.  Message
+      // variants never render rows so the flag does not apply there.
+      readonly commentsMetricsAvailable: boolean;
     }
   | {
       readonly contentState:
@@ -221,6 +247,7 @@ export function makePrListSection(input: PrListSectionInput): PrListSection {
       renderedCount: input.renderedCount,
       actualFilteredCount: input.actualFilteredCount,
       capValue: input.capValue,
+      commentsMetricsAvailable: input.commentsMetricsAvailable,
     };
   }
   return { type: "pr-list", contentState: input.contentState };
@@ -412,6 +439,199 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
   return wrapper;
 }
 
+// ---------------------------------------------------------------------------
+// Feature 310 — comments-metrics sort + filter controls.
+// ---------------------------------------------------------------------------
+
+/** One of the three comments-metrics sort + filter axes. */
+type CommentsMetricsKey = "threads" | "comments" | "unresolved";
+
+const COMMENTS_METRICS_AXES: readonly {
+  readonly key: CommentsMetricsKey;
+  readonly label: string;
+  readonly dataAttr: string;
+}[] = [
+  { key: "threads", label: "Threads", dataAttr: "data-threads" },
+  { key: "comments", label: "Comments", dataAttr: "data-comments" },
+  { key: "unresolved", label: "Unresolved", dataAttr: "data-unresolved" },
+];
+
+function readMetricValue(li: HTMLLIElement, dataAttr: string): number | null {
+  const raw = li.getAttribute(dataAttr);
+  if (raw === null) return null;
+  // Writers in ``renderPrListSection`` always stringify a numeric count
+  // via ``String(value)`` where ``value`` is ``number``, so the attribute
+  // text is always a well-formed decimal integer.  Callers only read
+  // attributes they themselves wrote — no external mutation path exists
+  // — so a ``Number.isFinite`` fallback here would be unreachable
+  // defensive code (partial-branch debt).
+  return Number.parseInt(raw, 10);
+}
+
+/**
+ * Build the sort + threshold-filter control block for the comments-metrics
+ * columns (FR-3-02 / FR-3-03 / FR-4-02).  Operates directly on the `<li>`
+ * children of ``list``:
+ *
+ *   - Sort buttons re-order the rows DESCENDING by the selected axis;
+ *     partial-sentinel rows (``data-<key>`` absent) sort to the END so
+ *     the sort view's top entries are always meaningful numerics, never
+ *     ``—`` placeholders.  Click handlers set ``aria-pressed`` on the
+ *     active button (others toggle off).
+ *   - Threshold inputs set `hidden` on rows whose numeric count falls
+ *     below the entered minimum.  Partial-sentinel rows (no
+ *     ``data-<key>``) are hidden when a threshold is set on that axis,
+ *     per FR-3-05's rule that partial rows are excluded from numeric
+ *     comparisons.  Filters compose with AND semantics across axes.
+ */
+function buildCommentsMetricsControls(list: HTMLOListElement): HTMLElement {
+  const controls = createElement("div", {
+    class: "detail-panel-pr-list-controls",
+    role: "group",
+    "aria-label": "Comments metrics controls",
+  });
+
+  const sortGroup = createElement("div", {
+    class: "detail-panel-pr-list-sort",
+    role: "group",
+    "aria-label": "Sort by comments metric",
+  });
+  sortGroup.appendChild(
+    createElement(
+      "span",
+      { class: "detail-panel-pr-list-controls-label" },
+      "Sort:",
+    ),
+  );
+  const sortButtons: HTMLButtonElement[] = [];
+  for (const axis of COMMENTS_METRICS_AXES) {
+    const button = createElement("button", {
+      type: "button",
+      class: "detail-panel-pr-list-sort-button",
+      "aria-pressed": "false",
+      "data-sort-key": axis.key,
+    });
+    appendText(button, axis.label);
+    button.addEventListener("click", () => {
+      for (const other of sortButtons) {
+        other.setAttribute("aria-pressed", other === button ? "true" : "false");
+      }
+      applySort(list, axis.dataAttr);
+    });
+    sortGroup.appendChild(button);
+    sortButtons.push(button);
+  }
+  controls.appendChild(sortGroup);
+
+  const filterGroup = createElement("div", {
+    class: "detail-panel-pr-list-filter",
+    role: "group",
+    "aria-label": "Filter by minimum comments metric",
+  });
+  filterGroup.appendChild(
+    createElement(
+      "span",
+      { class: "detail-panel-pr-list-controls-label" },
+      "Min:",
+    ),
+  );
+  const filterDescriptors: FilterDescriptor[] = [];
+  for (const axis of COMMENTS_METRICS_AXES) {
+    const label = createElement("label", {
+      class: "detail-panel-pr-list-filter-label",
+    });
+    appendText(label, `${axis.label} ≥ `);
+    const input = createElement("input", {
+      type: "number",
+      min: "0",
+      class: "detail-panel-pr-list-filter-input",
+      "data-filter-key": axis.key,
+      "aria-label": `Minimum ${axis.label.toLowerCase()}`,
+    });
+    const descriptor: FilterDescriptor = { input, dataAttr: axis.dataAttr };
+    input.addEventListener("input", () =>
+      applyFilters(list, filterDescriptors),
+    );
+    label.appendChild(input);
+    filterGroup.appendChild(label);
+    filterDescriptors.push(descriptor);
+  }
+  controls.appendChild(filterGroup);
+
+  return controls;
+}
+
+/** One filter input + its data attribute, paired at build time. */
+interface FilterDescriptor {
+  readonly input: HTMLInputElement;
+  readonly dataAttr: string;
+}
+
+function applySort(list: HTMLOListElement, dataAttr: string): void {
+  // ``querySelectorAll("li")`` narrows to HTMLLIElement by selector, so no
+  // instanceof check is needed on each child — the list is built by this
+  // module and only contains ``<li>`` children.
+  const items = Array.from(list.querySelectorAll<HTMLLIElement>("li"));
+  items.sort((a, b) => {
+    const aValue = readMetricValue(a, dataAttr);
+    const bValue = readMetricValue(b, dataAttr);
+    // Partial-sentinel rows (value === null) sort AFTER numeric rows so
+    // the top of a descending sort always carries meaningful counts.
+    // Two nulls compare equal (stable per Array.sort contract for equal
+    // comparator results); one-null cases push the null to the end;
+    // two-numeric descend.  Each case is its own return statement so
+    // each branch is independently coverable.
+    if (aValue === null) {
+      if (bValue === null) return 0;
+      return 1;
+    }
+    if (bValue === null) return -1;
+    return bValue - aValue;
+  });
+  for (const item of items) list.appendChild(item);
+}
+
+function applyFilters(
+  list: HTMLOListElement,
+  descriptors: readonly FilterDescriptor[],
+): void {
+  const thresholds: Array<readonly [string, number]> = [];
+  for (const desc of descriptors) {
+    const raw = desc.input.value.trim();
+    if (raw === "") continue;
+    const parsed = Number.parseInt(raw, 10);
+    // ``input[type=number][min=0]`` prevents UI entry below zero, but
+    // the test harness drives values programmatically; reject negatives
+    // explicitly here so any test (or future caller) that sets a
+    // negative threshold is ignored rather than inverted.  ``NaN`` is
+    // impossible because ``raw === ""`` was rejected above and the
+    // input is ``type="number"``.
+    if (parsed < 0) continue;
+    thresholds.push([desc.dataAttr, parsed]);
+  }
+  for (const child of list.querySelectorAll<HTMLLIElement>("li")) {
+    let hidden = false;
+    for (const [dataAttr, threshold] of thresholds) {
+      const value = readMetricValue(child, dataAttr);
+      if (value === null) {
+        // Partial-sentinel rows are excluded from numeric comparisons
+        // whenever ANY axis has an active threshold (per FR-3-05).
+        hidden = true;
+        break;
+      }
+      if (value < threshold) {
+        hidden = true;
+        break;
+      }
+    }
+    if (hidden) {
+      child.setAttribute("hidden", "");
+    } else {
+      child.removeAttribute("hidden");
+    }
+  }
+}
+
 /**
  * Feature 060: render the stable PR-detail container (FR-020).
  *
@@ -451,7 +671,13 @@ function renderPrListSection(section: PrListSection): HTMLElement {
     case "pr-list": {
       // Discriminated union: rows + counts + capValue are type-guaranteed
       // non-null when contentState === "pr-list" — no ?? fallbacks needed.
-      const { rows, renderedCount, actualFilteredCount, capValue } = section;
+      const {
+        rows,
+        renderedCount,
+        actualFilteredCount,
+        capValue,
+        commentsMetricsAvailable,
+      } = section;
 
       if (renderedCount < actualFilteredCount) {
         const indicator = createElement("div", {
@@ -465,6 +691,16 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       }
 
       const list = createElement("ol", { class: "detail-panel-pr-list" });
+      // Feature 310: interactive sort + threshold filter controls over the
+      // three comments-metrics columns.  Controls live above the list and
+      // operate directly on `<li>` DOM (re-order for sort, toggle `hidden`
+      // for filter).  They are appended BEFORE the list so the rendered
+      // order is controls → list, and they are appended only when
+      // capability is on so SC-03 byte-identity on the capability-off
+      // path is preserved.
+      if (commentsMetricsAvailable) {
+        wrapper.appendChild(buildCommentsMetricsControls(list));
+      }
       for (const row of rows) {
         const li = createElement("li", { class: "detail-panel-pr-row" });
         const link = createElement("a", {
@@ -478,6 +714,51 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         const cycle = createElement("span", { class: "cycle-time" });
         appendText(cycle, formatDuration(row.cycleTimeMinutes));
         li.appendChild(cycle);
+        if (commentsMetricsAvailable) {
+          // Feature 310: three additional `<span>` children per row,
+          // emitted together (INV-08 consumer-side mirror).  Partial
+          // sentinel (``null``) renders as ``—`` with
+          // ``data-partial="true"``, distinguishable from a numeric 0 per
+          // FR-3-05 / INV-10.  The `<li>`'s own `data-*` attributes carry
+          // machine-readable counts for sort + filter logic in
+          // ``buildCommentsMetricsControls``; `data-partial="true"` at
+          // the row level marks all three metrics partial together.
+          const triplet: readonly (readonly [
+            "threads" | "comments" | "unresolved",
+            string,
+            number | null | undefined,
+          ])[] = [
+            ["threads", "threads", row.threadCount],
+            ["comments", "comments", row.commentCount],
+            ["unresolved", "unresolved", row.activeThreadCount],
+          ];
+          // A row is partial when EVERY field is absent (undefined —
+          // capability-off-passthrough row that leaked through) or
+          // coverage-partial (``null`` — covered PR with
+          // ``comments_extracted_at IS NULL``).  Both shapes render as
+          // ``—`` per-span; the row-level ``data-partial`` attribute lets
+          // tests assert the row-scoped partial state in one check.
+          // The producer guarantees all-three or none-three (INV-08), so
+          // a non-``allPartial`` row will always have numeric spans.
+          const allPartial = triplet.every(
+            ([, , value]) => value === null || value === undefined,
+          );
+          if (allPartial) li.setAttribute("data-partial", "true");
+          for (const [key, cls, value] of triplet) {
+            const span = createElement("span", {
+              class: `comments-metric comments-metric--${cls}`,
+            });
+            if (value === null || value === undefined) {
+              span.setAttribute("data-partial", "true");
+              appendText(span, "—");
+            } else {
+              span.setAttribute("data-partial", "false");
+              li.setAttribute(`data-${key}`, String(value));
+              appendText(span, String(value));
+            }
+            li.appendChild(span);
+          }
+        }
         list.appendChild(li);
       }
       wrapper.appendChild(list);

@@ -73,6 +73,13 @@ export interface ThroughputDrilldownOptions {
     | undefined;
   readonly webContext?: PrUrlWebContext;
   readonly authorsDimension?: readonly AuthorEntry[] | null | undefined;
+  // Feature 310 — section-level gate for the three comments-metrics
+  // columns on the PR-detail rendering.  Default is ``false`` when absent
+  // (back-compat with callers that do not wire the capability state).
+  // When ``true`` the renderer emits thread / comment / unresolved
+  // counts per row + sort + threshold filter controls; when ``false``
+  // the DOM stays byte-identical to the pre-310 shape (SC-03).
+  readonly commentsMetricsAvailable?: boolean;
 }
 
 /**
@@ -133,18 +140,42 @@ function buildPrListSection(
       if (rawPrs.length === 0 || !webContext || capValue === undefined) {
         return makePrListSection({ contentState: "supported-empty" });
       }
-      const rows: PrListRow[] = rawPrs.map((pr) => ({
-        id: pr.id,
-        title: pr.title,
-        cycleTimeMinutes: pr.cycle_time,
-        url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
-      }));
+      const commentsMetricsAvailable =
+        options.commentsMetricsAvailable ?? false;
+      // Feature 310: when capability is on, pass the three optional
+      // comments-metrics fields straight through to the row without
+      // normalizing ``undefined`` to ``null`` — the renderer's partial
+      // check (``value === null || value === undefined``) handles both
+      // equivalently, so the extra ``??`` step would only add a
+      // partial-branch with no behavioral difference.  When capability is
+      // off, we skip attaching the triplet entirely so
+      // ``PrListRow.threadCount`` etc. stay absent (SC-03).
+      const rows: PrListRow[] = rawPrs.map((pr): PrListRow => {
+        if (!commentsMetricsAvailable) {
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          };
+        }
+        return {
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          threadCount: pr.thread_count,
+          commentCount: pr.comment_count,
+          activeThreadCount: pr.active_thread_count,
+        };
+      });
       return makePrListSection({
         contentState: "pr-list",
         rows,
         renderedCount: rows.length,
         actualFilteredCount: rollup.pr_count,
         capValue,
+        commentsMetricsAvailable,
       });
     }
   }

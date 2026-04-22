@@ -4078,7 +4078,8 @@ var PRInsightsDashboard = (() => {
         rows: input.rows,
         renderedCount: input.renderedCount,
         actualFilteredCount: input.actualFilteredCount,
-        capValue: input.capValue
+        capValue: input.capValue,
+        commentsMetricsAvailable: input.commentsMetricsAvailable
       };
     }
     return { type: "pr-list", contentState: input.contentState };
@@ -4223,6 +4224,133 @@ var PRInsightsDashboard = (() => {
     );
     return wrapper;
   }
+  var COMMENTS_METRICS_AXES = [
+    { key: "threads", label: "Threads", dataAttr: "data-threads" },
+    { key: "comments", label: "Comments", dataAttr: "data-comments" },
+    { key: "unresolved", label: "Unresolved", dataAttr: "data-unresolved" }
+  ];
+  function readMetricValue(li, dataAttr) {
+    const raw = li.getAttribute(dataAttr);
+    if (raw === null) return null;
+    return Number.parseInt(raw, 10);
+  }
+  function buildCommentsMetricsControls(list) {
+    const controls = createElement("div", {
+      class: "detail-panel-pr-list-controls",
+      role: "group",
+      "aria-label": "Comments metrics controls"
+    });
+    const sortGroup = createElement("div", {
+      class: "detail-panel-pr-list-sort",
+      role: "group",
+      "aria-label": "Sort by comments metric"
+    });
+    sortGroup.appendChild(
+      createElement(
+        "span",
+        { class: "detail-panel-pr-list-controls-label" },
+        "Sort:"
+      )
+    );
+    const sortButtons = [];
+    for (const axis of COMMENTS_METRICS_AXES) {
+      const button = createElement("button", {
+        type: "button",
+        class: "detail-panel-pr-list-sort-button",
+        "aria-pressed": "false",
+        "data-sort-key": axis.key
+      });
+      appendText(button, axis.label);
+      button.addEventListener("click", () => {
+        for (const other of sortButtons) {
+          other.setAttribute("aria-pressed", other === button ? "true" : "false");
+        }
+        applySort(list, axis.dataAttr);
+      });
+      sortGroup.appendChild(button);
+      sortButtons.push(button);
+    }
+    controls.appendChild(sortGroup);
+    const filterGroup = createElement("div", {
+      class: "detail-panel-pr-list-filter",
+      role: "group",
+      "aria-label": "Filter by minimum comments metric"
+    });
+    filterGroup.appendChild(
+      createElement(
+        "span",
+        { class: "detail-panel-pr-list-controls-label" },
+        "Min:"
+      )
+    );
+    const filterDescriptors = [];
+    for (const axis of COMMENTS_METRICS_AXES) {
+      const label = createElement("label", {
+        class: "detail-panel-pr-list-filter-label"
+      });
+      appendText(label, `${axis.label} \u2265 `);
+      const input = createElement("input", {
+        type: "number",
+        min: "0",
+        class: "detail-panel-pr-list-filter-input",
+        "data-filter-key": axis.key,
+        "aria-label": `Minimum ${axis.label.toLowerCase()}`
+      });
+      const descriptor = { input, dataAttr: axis.dataAttr };
+      input.addEventListener(
+        "input",
+        () => applyFilters(list, filterDescriptors)
+      );
+      label.appendChild(input);
+      filterGroup.appendChild(label);
+      filterDescriptors.push(descriptor);
+    }
+    controls.appendChild(filterGroup);
+    return controls;
+  }
+  function applySort(list, dataAttr) {
+    const items = Array.from(list.querySelectorAll("li"));
+    items.sort((a2, b2) => {
+      const aValue = readMetricValue(a2, dataAttr);
+      const bValue = readMetricValue(b2, dataAttr);
+      if (aValue === null) {
+        if (bValue === null) return 0;
+        return 1;
+      }
+      if (bValue === null) return -1;
+      return bValue - aValue;
+    });
+    for (const item of items) list.appendChild(item);
+  }
+  function applyFilters(list, descriptors) {
+    const thresholds = [];
+    for (const desc of descriptors) {
+      const raw = desc.input.value.trim();
+      if (raw === "") continue;
+      const parsed = Number.parseInt(raw, 10);
+      if (parsed < 0) continue;
+      thresholds.push([desc.dataAttr, parsed]);
+    }
+    for (const child of list.querySelectorAll("li")) {
+      let hidden = false;
+      for (const [dataAttr, threshold] of thresholds) {
+        const value = readMetricValue(child, dataAttr);
+        if (value === null) {
+          hidden = true;
+          break;
+        }
+        if (value < threshold) {
+          hidden = true;
+          break;
+        }
+      }
+      if (hidden) {
+        child.setAttribute("hidden", "");
+      } else {
+        child.removeAttribute("hidden");
+      }
+    }
+  }
   function renderPrListSection(section) {
     const wrapper = createElement("section", {
       id: "pr-detail",
@@ -4236,7 +4364,13 @@ var PRInsightsDashboard = (() => {
     );
     switch (section.contentState) {
       case "pr-list": {
-        const { rows, renderedCount, actualFilteredCount, capValue } = section;
+        const {
+          rows,
+          renderedCount,
+          actualFilteredCount,
+          capValue,
+          commentsMetricsAvailable
+        } = section;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
@@ -4248,6 +4382,9 @@ var PRInsightsDashboard = (() => {
           wrapper.appendChild(indicator);
         }
         const list = createElement("ol", { class: "detail-panel-pr-list" });
+        if (commentsMetricsAvailable) {
+          wrapper.appendChild(buildCommentsMetricsControls(list));
+        }
         for (const row of rows) {
           const li = createElement("li", { class: "detail-panel-pr-row" });
           const link = createElement("a", {
@@ -4261,6 +4398,31 @@ var PRInsightsDashboard = (() => {
           const cycle = createElement("span", { class: "cycle-time" });
           appendText(cycle, formatDuration(row.cycleTimeMinutes));
           li.appendChild(cycle);
+          if (commentsMetricsAvailable) {
+            const triplet = [
+              ["threads", "threads", row.threadCount],
+              ["comments", "comments", row.commentCount],
+              ["unresolved", "unresolved", row.activeThreadCount]
+            ];
+            const allPartial = triplet.every(
+              ([, , value]) => value === null || value === void 0
+            );
+            if (allPartial) li.setAttribute("data-partial", "true");
+            for (const [key, cls, value] of triplet) {
+              const span = createElement("span", {
+                class: `comments-metric comments-metric--${cls}`
+              });
+              if (value === null || value === void 0) {
+                span.setAttribute("data-partial", "true");
+                appendText(span, "\u2014");
+              } else {
+                span.setAttribute("data-partial", "false");
+                li.setAttribute(`data-${key}`, String(value));
+                appendText(span, String(value));
+              }
+              li.appendChild(span);
+            }
+          }
           list.appendChild(li);
         }
         wrapper.appendChild(list);
@@ -8540,18 +8702,33 @@ var PRInsightsDashboard = (() => {
         if (rawPrs.length === 0 || !webContext || capValue === void 0) {
           return makePrListSection({ contentState: "supported-empty" });
         }
-        const rows = rawPrs.map((pr) => ({
-          id: pr.id,
-          title: pr.title,
-          cycleTimeMinutes: pr.cycle_time,
-          url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
-        }));
+        const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+        const rows = rawPrs.map((pr) => {
+          if (!commentsMetricsAvailable) {
+            return {
+              id: pr.id,
+              title: pr.title,
+              cycleTimeMinutes: pr.cycle_time,
+              url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
+            };
+          }
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+            threadCount: pr.thread_count,
+            commentCount: pr.comment_count,
+            activeThreadCount: pr.active_thread_count
+          };
+        });
         return makePrListSection({
           contentState: "pr-list",
           rows,
           renderedCount: rows.length,
           actualFilteredCount: rollup.pr_count,
-          capValue
+          capValue,
+          commentsMetricsAvailable
         });
       }
     }
@@ -9660,7 +9837,15 @@ var PRInsightsDashboard = (() => {
               organization_name: r2.organization_name
             })),
             webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
-            authorsDimension: currentDimensions?.authors
+            authorsDimension: currentDimensions?.authors,
+            // Feature 310: gate the three comments-metrics columns on the
+            // single-source-of-truth ``DatasetCapabilityState``
+            // (``commentsMetricsAvailable`` is normalized at
+            // ``dataset-loader.ts::getCapabilityState`` — same value the
+            // dashboard's comments-coverage banner reads at line 2334).
+            // Default ``false`` when the loader has not produced a state
+            // yet (first render / dataset-less bootstrap).
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
           })
         );
       }

@@ -334,4 +334,93 @@ describe("pr-list count parity (FR-008 / FR-021 / SC-002 / SC-011)", () => {
       expect(out!.prs!.map((p) => p.id)).toEqual([99]);
     });
   });
+
+  describe("feature 310 comments-metrics fields survive filter pass-through", () => {
+    // The three optional fields added by Feature 310 (thread_count,
+    // comment_count, active_thread_count) MUST pass through
+    // ``applyFiltersToRollups`` untouched so the downstream renderer can
+    // attach them to the PrListRow (INV-08 atomic consumer emission).
+    // The filter predicate operates on author/repo only; these tests
+    // protect the pass-through from accidental field stripping in
+    // future refactors.
+    function makePrWithComments(
+      id: number,
+      authorId: string,
+      repoId: string,
+      cycleMinutes: number,
+      triplet: readonly [number | null, number | null, number | null],
+    ): PrRecord {
+      return {
+        ...makePr(id, authorId, repoId, cycleMinutes),
+        thread_count: triplet[0],
+        comment_count: triplet[1],
+        active_thread_count: triplet[2],
+      };
+    }
+
+    it("unfiltered: the comments-metrics triplet is preserved on every surviving PR", () => {
+      const rollup = makeBaseRollup({
+        prs: [
+          makePrWithComments(1, ALICE, REPO_A, 500, [5, 17, 2]),
+          makePrWithComments(2, BOB, REPO_A, 400, [0, 0, 0]),
+          makePrWithComments(3, ALICE, REPO_B, 300, [null, null, null]),
+          makePrWithComments(4, BOB, REPO_B, 200, [3, 12, 1]),
+        ],
+      });
+      const [out] = applyFiltersToRollups([rollup], {
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
+      expect(out!.prs!.length).toBe(4);
+      for (const pr of out!.prs!) {
+        expect(pr).toHaveProperty("thread_count");
+        expect(pr).toHaveProperty("comment_count");
+        expect(pr).toHaveProperty("active_thread_count");
+      }
+      // rendered vs actual counts unchanged by adding the three fields.
+      expect(out!.prs!.length).toBe(out!.pr_count);
+    });
+
+    it("author-filtered: surviving PRs retain their comments triplet untouched", () => {
+      const rollup = makeBaseRollup({
+        prs: [
+          makePrWithComments(1, ALICE, REPO_A, 500, [7, 22, 3]),
+          makePrWithComments(2, BOB, REPO_A, 400, [0, 0, 0]),
+          makePrWithComments(3, ALICE, REPO_B, 300, [null, null, null]),
+          makePrWithComments(4, BOB, REPO_B, 200, [1, 1, 1]),
+        ],
+      });
+      const [out] = applyFiltersToRollups([rollup], {
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [ALICE],
+      });
+      const byId = new Map(out!.prs!.map((pr) => [pr.id, pr]));
+      expect(byId.get(1)?.thread_count).toBe(7);
+      expect(byId.get(1)?.comment_count).toBe(22);
+      expect(byId.get(1)?.active_thread_count).toBe(3);
+      expect(byId.get(3)?.thread_count).toBeNull();
+      expect(byId.get(3)?.comment_count).toBeNull();
+      expect(byId.get(3)?.active_thread_count).toBeNull();
+    });
+
+    it("capability-off rollup (no triplet fields) passes through without inventing them", () => {
+      const rollup = makeBaseRollup();
+      // Base fixture uses makePr which emits only the five 060 fields.
+      const [out] = applyFiltersToRollups([rollup], {
+        repos: [REPO_A],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
+      for (const pr of out!.prs!) {
+        expect(pr.thread_count).toBeUndefined();
+        expect(pr.comment_count).toBeUndefined();
+        expect(pr.active_thread_count).toBeUndefined();
+      }
+    });
+  });
 });
