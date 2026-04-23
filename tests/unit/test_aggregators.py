@@ -2622,10 +2622,20 @@ class TestPerformanceGate:
     # The platform multipliers account for I/O and pandas groupby differences.
     # Configurable via PERF_THRESHOLD_SECONDS env var for ad-hoc tuning.
     #
-    # Contract (see #316): on Windows the assertion is median-of-3 after a
-    # discarded warm-up run, because the local pre-push chain produces
-    # concurrent-gate contention that caused single-sample tail spikes to
-    # trip this gate despite medians sitting well below threshold. Linux /
+    # Contract (see #316): on Windows the assertion is two-part after a
+    # discarded warm-up run:
+    #   (1) median of N timed runs ≤ PERF_THRESHOLD_SECONDS  — catches
+    #       a sustained regression (the whole distribution shifts).
+    #   (2) worst of N timed runs ≤ _WINDOWS_OUTLIER_CEILING  — catches an
+    #       intermittent regression (≥1 run blows the threshold even if
+    #       the median absorbs it).
+    # The outlier ceiling is 1.5× the median threshold, which is outside
+    # any measured tail-event variance (observed max 17s under 2-gate
+    # synthetic load, well below the 100s Windows ceiling) but tight
+    # enough that a genuine ~1.5× slowdown still fails the gate.
+    # The local pre-push chain produces concurrent-gate contention that
+    # caused single-sample tail spikes to trip the single-sample form of
+    # this gate despite medians sitting well below threshold. Linux /
     # macOS keep the single-sample contract — their CI environments don't
     # show the same tail-event pattern.
     _BASE_THRESHOLD = 45
@@ -2638,6 +2648,7 @@ class TestPerformanceGate:
         )
     )
     _WINDOWS_MEDIAN_OF_N = 3  # timed runs; 1 additional warm-up is discarded
+    _WINDOWS_OUTLIER_CEILING = int(_PERF_THRESHOLD_SECONDS * 1.5)
 
     @pytest.fixture
     def stress_db(self, tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
@@ -2753,9 +2764,11 @@ class TestPerformanceGate:
         x 100 repos x 260 weeks and asserts the wall-clock is under the
         platform-specific threshold. Failure must fail the build.
 
-        Windows uses median-of-3 after a discarded warm-up to neutralize
-        single-sample tail spikes observed under concurrent pre-push load
-        (see #316). Other platforms keep the single-sample contract.
+        Windows uses a two-part contract after a discarded warm-up (see
+        #316): median-of-N ≤ threshold catches sustained regressions while
+        worst-of-N ≤ outlier ceiling (1.5× threshold) catches intermittent
+        regressions the median would otherwise absorb. Other platforms
+        keep the single-sample contract.
         """
         db, _ = stress_db
 
@@ -2774,8 +2787,20 @@ class TestPerformanceGate:
             timed = [run_and_time(i + 1) for i in range(self._WINDOWS_MEDIAN_OF_N)]
             timings = sorted(t for t, _ in timed)
             elapsed = timings[len(timings) // 2]  # median (odd N)
+            worst = timings[-1]
             manifest = timed[-1][1]
             contract = f"median of {self._WINDOWS_MEDIAN_OF_N} (after warm-up)"
+            # Outlier ceiling: catches an intermittent regression that
+            # would otherwise be absorbed by the median assertion below.
+            assert worst <= self._WINDOWS_OUTLIER_CEILING, (
+                f"SC-007 PERFORMANCE GATE FAILED: worst of "
+                f"{self._WINDOWS_MEDIAN_OF_N} runs took {worst:.2f}s, "
+                f"exceeding the {self._WINDOWS_OUTLIER_CEILING}s outlier "
+                f"ceiling (1.5× the {self._PERF_THRESHOLD_SECONDS}s median "
+                f"threshold). Runs: {[f'{t:.2f}s' for t in timings]}. "
+                f"A single run this far above the typical median indicates "
+                f"a regression too severe to attribute to machine contention."
+            )
         else:
             elapsed, manifest = run_and_time(0)
             contract = "single run"
