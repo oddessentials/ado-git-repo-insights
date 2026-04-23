@@ -35,6 +35,7 @@ import {
   makeEmptyState,
   makePanelContent,
   makePrListSection,
+  makeStatRow,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
@@ -202,10 +203,69 @@ function buildPanelContent(
     "No repository-level activity for this week.",
   );
   const prList = buildPrListSection(rollup, options);
-  return makePanelContent(formatWeekTitle(rollup), subtitle, [
-    byAuthor,
-    byRepository,
-    prList,
+  // Feature 310 — week-level stat row (F6).  Strictly prepended before
+  // byAuthor / byRepository / prList so the existing relative ordering
+  // is byte-stable (lock #2).  Emitted only when capability is on AND
+  // the rendered slice has rows (lock #3 — zero emission otherwise).
+  // Sums are derived from ``rollup.prs`` exclusively (lock #4 — same
+  // slice that feeds the rendered rows; no rollup aggregate field is
+  // read).
+  const sections: PanelSection[] = [];
+  const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+  const rawPrs = rollup.prs ?? [];
+  if (commentsMetricsAvailable && rawPrs.length > 0) {
+    sections.push(buildCommentsStatRow(rawPrs));
+  }
+  sections.push(byAuthor, byRepository, prList);
+  return makePanelContent(formatWeekTitle(rollup), subtitle, sections);
+}
+
+/**
+ * Build the week-level comments-metrics stat row (F6).
+ *
+ * Locks honoured:
+ *   - #4 slice-only: every value read here is on ``pr.thread_count``,
+ *     ``pr.comment_count``, ``pr.active_thread_count`` for ``pr`` in
+ *     ``rawPrs``.  No ``rollup.by_author`` / ``rollup.by_repository`` /
+ *     ``rollup.pr_count`` access — sums always equal the per-row sum
+ *     even when the chart-level aggregate disagrees.
+ *   - #5 partial accounting: partial rows are NEVER excluded from the
+ *     iteration (lock #4 "never excluded from count logic"); they
+ *     contribute 0 to each numeric sum (lock #4 "partial contributes
+ *     0") and increment the partial counter that drives the
+ *     ``(+N partial)`` annotation.  The annotation appears iff
+ *     ``partialCount > 0``.
+ */
+function buildCommentsStatRow(
+  rawPrs: ReadonlyArray<{
+    readonly thread_count?: number | null;
+    readonly comment_count?: number | null;
+    readonly active_thread_count?: number | null;
+  }>,
+): PanelSection {
+  let threadsSum = 0;
+  let commentsSum = 0;
+  let unresolvedSum = 0;
+  let partialCount = 0;
+  for (const pr of rawPrs) {
+    // ``?? 0`` makes partial rows (``null`` per INV-10) and any
+    // theoretically-absent field contribute 0 to the running sum.
+    threadsSum += pr.thread_count ?? 0;
+    commentsSum += pr.comment_count ?? 0;
+    unresolvedSum += pr.active_thread_count ?? 0;
+    // Per INV-08, the producer guarantees thread_count === null implies
+    // the whole triplet is null; checking thread_count alone is
+    // sufficient to identify a partial row.
+    if (pr.thread_count === null) partialCount += 1;
+  }
+  const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+  return makeStatRow([
+    { label: "Threads", value: `${threadsSum}${partialSuffix}` },
+    { label: "Comments", value: `${commentsSum}${partialSuffix}` },
+    {
+      label: "Unresolved threads",
+      value: `${unresolvedSum}${partialSuffix}`,
+    },
   ]);
 }
 

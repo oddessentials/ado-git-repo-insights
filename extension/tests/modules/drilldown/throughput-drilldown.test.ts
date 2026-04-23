@@ -1497,5 +1497,327 @@ describe("throughput-drilldown", () => {
         expect(span.textContent).toBe("—");
       }
     });
+
+    // -----------------------------------------------------------------------
+    // Feature 310 (Commit 2 / F6) — week-level stat row.
+    // -----------------------------------------------------------------------
+    describe("week stat row (feature 310, F6)", () => {
+      function buildPrsWithComments(
+        prs: ReadonlyArray<{
+          id: number;
+          title: string;
+          author_id: string;
+          repository_id: string;
+          cycle_time: number;
+          thread_count?: number | null;
+          comment_count?: number | null;
+          active_thread_count?: number | null;
+        }>,
+      ): Rollup {
+        return makeRollupWithPrs(
+          prs as ReadonlyArray<{
+            id: number;
+            title: string;
+            author_id: string;
+            repository_id: string;
+            cycle_time: number;
+          }>,
+        );
+      }
+
+      function statRowSection(): HTMLElement | null {
+        return document.querySelector<HTMLElement>(
+          ".detail-panel-sections > .detail-panel-section--stat-row",
+        );
+      }
+
+      function statValues(): string[] {
+        return Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".detail-panel-section--stat-row .detail-panel-stats dd",
+          ),
+        ).map((dd) => dd.textContent ?? "");
+      }
+
+      it("appears as the first section when capability-on and the slice is non-empty", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        const sections = document.querySelectorAll<HTMLElement>(
+          ".detail-panel-sections > .detail-panel-section",
+        );
+        expect(sections.length).toBeGreaterThanOrEqual(4);
+        // Lock #2 — strict prepend: stat-row sits at index 0 ahead of
+        // every existing section.
+        expect(
+          sections[0]!.classList.contains("detail-panel-section--stat-row"),
+        ).toBe(true);
+      });
+
+      it("strictly prepends the stat row without reordering byAuthor / byRepository / pr-detail (lock #2)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        const sections = document.querySelectorAll<HTMLElement>(
+          ".detail-panel-sections > .detail-panel-section",
+        );
+        // Section sequence: [stat-row, by-author breakdown, by-repo
+        // breakdown, pr-detail].  Asserts that the existing trio's
+        // RELATIVE order is byte-stable (lock #2 — only a new
+        // prepend, no mutation or reordering).
+        expect(
+          sections[0]!.classList.contains("detail-panel-section--stat-row"),
+        ).toBe(true);
+        expect(sections[1]!.querySelector("h3")?.textContent).toBe("By author");
+        expect(sections[2]!.querySelector("h3")?.textContent).toBe(
+          "By repository",
+        );
+        expect(sections[3]!.id).toBe("pr-detail");
+      });
+
+      it("is absent when capability-off (lock #3 / lock #9 — zero emission, not hidden)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: false,
+        });
+        click(firstBar(container));
+
+        expect(statRowSection()).toBeNull();
+        const sections = document.querySelectorAll<HTMLElement>(
+          ".detail-panel-sections > .detail-panel-section",
+        );
+        // First visible section is the by-author breakdown, NOT a
+        // stat row — capability-off render path is unchanged.
+        expect(sections[0]!.querySelector("h3")?.textContent).toBe("By author");
+      });
+
+      it("is absent when the slice is empty even on capability-on (lock #3)", () => {
+        // No PRs in the rollup → buildPrListSection resolves to
+        // ``supported-empty`` and the stat-row gate
+        // (``rawPrs.length > 0``) keeps the section out entirely.
+        const rollups = [
+          makeRollup({
+            pr_count: 0,
+            prs: [],
+            _prs_truncated: false,
+            _prs_cap: 500,
+          }),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statRowSection()).toBeNull();
+      });
+
+      it("sums Threads / Comments / Unresolved threads correctly with all-numeric rows (no partial suffix)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 5,
+              comment_count: 17,
+              active_thread_count: 2,
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+              thread_count: 3,
+              comment_count: 8,
+              active_thread_count: 1,
+            },
+            {
+              id: 3,
+              title: "c",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 30,
+              thread_count: 0,
+              comment_count: 0,
+              active_thread_count: 0,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        // Sums: 5+3+0 / 17+8+0 / 2+1+0.  No partial rows ⇒ no suffix
+        // (lock #5 — partial annotation appears iff partialCount > 0).
+        expect(statValues()).toEqual(["8", "25", "3"]);
+      });
+
+      it("appends '(+N partial)' on every stat when at least one row is partial; partials contribute 0 to numeric sums (lock #5)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 5,
+              comment_count: 17,
+              active_thread_count: 2,
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+            {
+              id: 3,
+              title: "c",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 30,
+              thread_count: 1,
+              comment_count: 4,
+              active_thread_count: 0,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        // Numeric sums (partial row contributes 0): 5+0+1 / 17+0+4 / 2+0+0.
+        // Partial counter: 1 (the null-triplet row was iterated, not
+        // excluded from count logic — lock #4).
+        expect(statValues()).toEqual([
+          "6 (+1 partial)",
+          "21 (+1 partial)",
+          "2 (+1 partial)",
+        ]);
+      });
+
+      it("derives sums ONLY from rollup.prs even when rollup.pr_count / by_author / by_repository disagree (lock #4 slice-only guard)", () => {
+        // Setup a rollup whose chart-level aggregate fields are
+        // intentionally inconsistent with the per-row sums.  Any
+        // implementation that reads a rollup aggregate field would
+        // produce 999; the only correct value is the per-row sum from
+        // rollup.prs.  This is the explicit slice-only guard test.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 9,
+              comment_count: 100,
+              active_thread_count: 4,
+            },
+          ]),
+        ];
+        const rollup = rollups[0]!;
+        (rollup as { pr_count: number }).pr_count = 999;
+        (
+          rollup as { by_author: Record<string, { pr_count: number }> }
+        ).by_author = { alice: { pr_count: 999 } };
+        (
+          rollup as { by_repository: Record<string, { pr_count: number }> }
+        ).by_repository = { "repo-1": { pr_count: 999 } };
+
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        // Per-row sums from the single PR: 9 / 100 / 4.  Aggregate-
+        // confused values (999) MUST NOT appear in any stat — that
+        // would prove a slice-only-rule violation.
+        expect(statValues()).toEqual(["9", "100", "4"]);
+      });
+    });
   });
 });

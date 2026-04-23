@@ -8791,10 +8791,34 @@ var PRInsightsDashboard = (() => {
       "No repository-level activity for this week."
     );
     const prList = buildPrListSection(rollup, options);
-    return makePanelContent(formatWeekTitle(rollup), subtitle, [
-      byAuthor,
-      byRepository,
-      prList
+    const sections = [];
+    const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+    const rawPrs = rollup.prs ?? [];
+    if (commentsMetricsAvailable && rawPrs.length > 0) {
+      sections.push(buildCommentsStatRow(rawPrs));
+    }
+    sections.push(byAuthor, byRepository, prList);
+    return makePanelContent(formatWeekTitle(rollup), subtitle, sections);
+  }
+  function buildCommentsStatRow(rawPrs) {
+    let threadsSum = 0;
+    let commentsSum = 0;
+    let unresolvedSum = 0;
+    let partialCount = 0;
+    for (const pr of rawPrs) {
+      threadsSum += pr.thread_count ?? 0;
+      commentsSum += pr.comment_count ?? 0;
+      unresolvedSum += pr.active_thread_count ?? 0;
+      if (pr.thread_count === null) partialCount += 1;
+    }
+    const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+    return makeStatRow([
+      { label: "Threads", value: `${threadsSum}${partialSuffix}` },
+      { label: "Comments", value: `${commentsSum}${partialSuffix}` },
+      {
+        label: "Unresolved threads",
+        value: `${unresolvedSum}${partialSuffix}`
+      }
     ]);
   }
   function buildAuthorNameMap(dim) {
