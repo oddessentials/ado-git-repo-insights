@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 99,
+  "total_call_sites": 100,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 604,
+      "line": 610,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 627,
+      "line": 633,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 720,
+      "line": 726,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 802,
+      "line": 808,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -301,7 +301,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 180,
+      "line": 186,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -309,7 +309,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 189,
+      "line": 195,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +317,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 198,
+      "line": 204,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +325,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 214,
+      "line": 220,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -333,8 +333,16 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 231,
+      "line": 237,
       "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 278,
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
