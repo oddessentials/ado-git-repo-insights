@@ -1818,6 +1818,114 @@ describe("throughput-drilldown", () => {
         // would prove a slice-only-rule violation.
         expect(statValues()).toEqual(["9", "100", "4"]);
       });
+
+      // ---------------------------------------------------------------
+      // Commit 3 / Codex review follow-up — the stat row must gate on
+      // the resolved ``PrListSection.contentState``, not on
+      // ``rawPrs.length`` alone.  Without this gate, non-list
+      // content-states (team-inline / reviewer-inline / supported-
+      // empty) would still receive a week-totals header whose values
+      // do not correspond to any visible row list.
+      // ---------------------------------------------------------------
+
+      it("is absent when a team filter is active (pr-list resolves to team-inline)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: ["team-a"], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statRowSection()).toBeNull();
+        // PR-detail renders the team-inline gated message, not a list.
+        // The stat row CANNOT appear above "Clear the team filter".
+        const prSection = document.getElementById("pr-detail");
+        expect(prSection!.getAttribute("data-content-state")).toBe(
+          "team-inline",
+        );
+      });
+
+      it("is absent when a reviewer filter is active (pr-list resolves to reviewer-inline)", () => {
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: ["rev-a"], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statRowSection()).toBeNull();
+        const prSection = document.getElementById("pr-detail");
+        expect(prSection!.getAttribute("data-content-state")).toBe(
+          "reviewer-inline",
+        );
+      });
+
+      it("is absent when webContext is missing (pr-list resolves to supported-empty despite non-empty prs)", () => {
+        // rawPrs.length > 0 but buildPrListSection falls to
+        // ``supported-empty`` because the install did not pass a
+        // webContext.  The pre-fix gate (``rawPrs.length > 0``) would
+        // have emitted the stat row here; the post-fix gate
+        // (``contentState === "pr-list"``) suppresses it.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: 3,
+              comment_count: 7,
+              active_thread_count: 1,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statRowSection()).toBeNull();
+        const prSection = document.getElementById("pr-detail");
+        expect(prSection!.getAttribute("data-content-state")).toBe(
+          "supported-empty",
+        );
+      });
     });
   });
 });

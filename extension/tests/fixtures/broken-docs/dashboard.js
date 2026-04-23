@@ -8793,23 +8793,22 @@ var PRInsightsDashboard = (() => {
     const prList = buildPrListSection(rollup, options);
     const sections = [];
     const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
-    const rawPrs = rollup.prs ?? [];
-    if (commentsMetricsAvailable && rawPrs.length > 0) {
-      sections.push(buildCommentsStatRow(rawPrs));
+    if (commentsMetricsAvailable && prList.contentState === "pr-list") {
+      sections.push(buildCommentsStatRow(prList.rows));
     }
     sections.push(byAuthor, byRepository, prList);
     return makePanelContent(formatWeekTitle(rollup), subtitle, sections);
   }
-  function buildCommentsStatRow(rawPrs) {
+  function buildCommentsStatRow(rows) {
     let threadsSum = 0;
     let commentsSum = 0;
     let unresolvedSum = 0;
     let partialCount = 0;
-    for (const pr of rawPrs) {
-      threadsSum += pr.thread_count ?? 0;
-      commentsSum += pr.comment_count ?? 0;
-      unresolvedSum += pr.active_thread_count ?? 0;
-      if (pr.thread_count === null) partialCount += 1;
+    for (const row of rows) {
+      threadsSum += row.threadCount ?? 0;
+      commentsSum += row.commentCount ?? 0;
+      unresolvedSum += row.activeThreadCount ?? 0;
+      if (row.threadCount === null) partialCount += 1;
     }
     const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
     return makeStatRow([
