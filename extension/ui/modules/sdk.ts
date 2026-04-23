@@ -409,3 +409,35 @@ export function getLocalDatasetPath(): string {
   }
   return "./dataset";
 }
+
+/**
+ * Deterministic collection URI used by the published demo dashboard.
+ *
+ * The demo shell runs outside of Azure DevOps (no SDK, no host-provided
+ * `LocationService`), so `getCollectionUri()` is unreachable. Feature 060's
+ * PR-level drill-down requires a non-empty `webContext` to compose PR URLs;
+ * feature 309 populates `prs` on the public surface, so the drill-down now
+ * tries to render in demo mode. Without a stub the drill-down short-circuits
+ * to the supported-empty state ("No PRs match the active filter in this
+ * week").
+ *
+ * The literal targets the synthetic organization name used by the tenant
+ * seed extract (see `scripts/demo-distributions/`). Composed PR links
+ * resolve to a 404 from Azure DevOps — intentional, per feature 309's
+ * `specs/309-demo-pr-drilldown/tasks.md` T063 ("synthetic org — known
+ * limitation").
+ */
+export const LOCAL_DASHBOARD_COLLECTION_URI: string =
+  "https://dev.azure.com/oddessentials/";
+
+/**
+ * Get the demo-mode collection URI stub.
+ *
+ * Consumed by `dashboard.ts` in the local-mode bootstrap to set
+ * `currentCollectionUri` so the throughput drill-down receives a defined
+ * `webContext`. Always returns the frozen literal — change requires
+ * intentional edit.
+ */
+export function getLocalCollectionUri(): string {
+  return LOCAL_DASHBOARD_COLLECTION_URI;
+}

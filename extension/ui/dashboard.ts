@@ -72,6 +72,7 @@ import {
   initializeAdoSdk,
   isLocalMode,
   getLocalDatasetPath,
+  getLocalCollectionUri,
   getExtensionDataService,
   getWebContext,
   getCollectionUri,
@@ -101,6 +102,7 @@ import {
   installReviewerDrilldown,
   installSparklineNavigator,
 } from "./modules";
+import { resolveDisplayName } from "./modules/shared/identity-fallback";
 
 // Dashboard state
 let loader: IDatasetLoader | null = null;
@@ -584,6 +586,11 @@ async function init(): Promise<void> {
       const datasetPath = getLocalDatasetPath();
       loader = new DatasetLoader(datasetPath);
       currentBuildId = null;
+      // Feature 309 (#315): the demo shell runs without the ADO SDK, so
+      // `getCollectionUri()` is unreachable. Populate a deterministic stub
+      // so the feature-060 throughput drill-down receives a defined
+      // `webContext` and renders the PR list against synthetic `prs` data.
+      currentCollectionUri = getLocalCollectionUri();
 
       const projectNameEl = document.getElementById("current-project-name");
       if (projectNameEl) {
@@ -1091,6 +1098,16 @@ async function refreshMetrics(): Promise<void> {
           webContext: currentCollectionUri
             ? { collectionUri: currentCollectionUri }
             : undefined,
+          authorsDimension: currentDimensions?.authors,
+          // Feature 310: gate the three comments-metrics columns on the
+          // single-source-of-truth ``DatasetCapabilityState``
+          // (``commentsMetricsAvailable`` is normalized at
+          // ``dataset-loader.ts::getCapabilityState`` — same value the
+          // dashboard's comments-coverage banner reads at line 2334).
+          // Default ``false`` when the loader has not produced a state
+          // yet (first render / dataset-less bootstrap).
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
         }),
       );
     }
@@ -1103,7 +1120,9 @@ async function refreshMetrics(): Promise<void> {
     const reviewerContainer = document.getElementById("reviewer-activity");
     if (reviewerContainer) {
       activeDrilldownHandles.push(
-        installReviewerDrilldown(reviewerContainer, rollups),
+        installReviewerDrilldown(reviewerContainer, rollups, {
+          reviewersDimension: currentDimensions?.reviewers,
+        }),
       );
     }
     const summaryCardsContainer =
@@ -1387,6 +1406,23 @@ function renderReviewerActivity(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
+  // #308: resolve the filtered reviewer's display name upstream so the
+  // chart module stays dumb. `filters.reviewers` is effectively
+  // single-select end-to-end (see reviewer-activity.ts filter-semantics
+  // comment); we scope to [0] to match that. Uses the shared
+  // `resolveDisplayName` so fallback behavior (mapped name → raw id)
+  // stays consistent with the drill-down panel surfaces.
+  const filterReviewerId = currentFilters.reviewers[0];
+  const reviewerNameByKey = new Map(
+    (currentDimensions?.reviewers ?? []).map((r) => [
+      r.reviewer_id,
+      r.reviewer_name,
+    ]),
+  );
+  const filterReviewerName =
+    filterReviewerId !== undefined
+      ? resolveDisplayName(filterReviewerId, reviewerNameByKey)
+      : undefined;
   renderReviewerActivityModule(
     elements.get("reviewer-activity") ?? null,
     rollups,
@@ -1395,6 +1431,7 @@ function renderReviewerActivity(
       filters: currentFilters,
       unfilteredRollups,
       availability,
+      filterReviewerName,
     },
   );
 }

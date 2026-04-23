@@ -1,17 +1,41 @@
 {
   "rule": "S311",
-  "total_usages": 8,
+  "total_usages": 23,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 225,
+      "line": 229,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1120,
+      "line": 264,
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 265,
+      "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1383,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1994,
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1995,
+      "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
@@ -42,6 +66,72 @@
       "file": "scripts/generate-synthetic-dataset.py",
       "line": 635,
       "code": "random.seed(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 69,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 70,
+      "code": "comments_metrics_rng = random.Random(5555)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 126,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 148,
+      "code": "pr_record_rng = random.Random(4242)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 317,
+      "code": "control_pr_rng = random.Random(2000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 318,
+      "code": "control_comments_rng = random.Random(3000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 327,
+      "code": "perturbed_pr_rng = random.Random(2000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 328,
+      "code": "perturbed_comments_rng = random.Random(3000 + 42)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 331,
+      "code": "shared_rng = getattr(generate_demo_data, \"RNG\", random.Random(0))",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 334,
+      "code": "module_pr_rng = getattr(generate_demo_data, \"pr_record_rng\", random.Random(0))",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/demo/test_synthetic_pr_contract.py",
+      "line": 338,
+      "code": "generate_demo_data, \"comments_metrics_rng\", random.Random(0)",
       "purpose": "deterministic-seeded"
     },
     {

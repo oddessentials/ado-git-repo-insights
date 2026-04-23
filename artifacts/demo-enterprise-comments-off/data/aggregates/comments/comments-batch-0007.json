@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 19,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Olivia Brown",
+              "author_id": "374916a5-a518-588b-9a1f-005e9f3b47dd",
+              "comment_id": "comment-19-1",
+              "content_length": 83
+            },
+            {
+              "author": "Olivia Green",
+              "author_id": "27033abe-8d6c-5612-88b9-296ea8b603be",
+              "comment_id": "comment-19-2",
+              "content_length": 84
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-19-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 20,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Olivia Green",
+              "author_id": "27033abe-8d6c-5612-88b9-296ea8b603be",
+              "comment_id": "comment-20-1",
+              "content_length": 84
+            },
+            {
+              "author": "Peter Ramirez",
+              "author_id": "a2d87e8b-8f92-57cf-95a3-f51fb3603d15",
+              "comment_id": "comment-20-2",
+              "content_length": 85
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-20-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 21,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Peter Ramirez",
+              "author_id": "a2d87e8b-8f92-57cf-95a3-f51fb3603d15",
+              "comment_id": "comment-21-1",
+              "content_length": 85
+            },
+            {
+              "author": "Quinn Anderson",
+              "author_id": "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb",
+              "comment_id": "comment-21-2",
+              "content_length": 86
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-21-1"
+        }
+      ]
+    }
+  ]
+}

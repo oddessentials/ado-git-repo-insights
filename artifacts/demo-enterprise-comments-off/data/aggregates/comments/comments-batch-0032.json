@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 94,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Tina Lewis",
+              "author_id": "c05ea2fd-75f3-58c3-a3f5-97af92f23e8b",
+              "comment_id": "comment-94-1",
+              "content_length": 110
+            },
+            {
+              "author": "Ursula Thomas",
+              "author_id": "63230cdd-2ed3-5537-91ed-174558c1224b",
+              "comment_id": "comment-94-2",
+              "content_length": 111
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-94-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 95,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Ursula Thomas",
+              "author_id": "63230cdd-2ed3-5537-91ed-174558c1224b",
+              "comment_id": "comment-95-1",
+              "content_length": 111
+            },
+            {
+              "author": "Victor Williams",
+              "author_id": "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194",
+              "comment_id": "comment-95-2",
+              "content_length": 64
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-95-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 96,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Victor Williams",
+              "author_id": "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194",
+              "comment_id": "comment-96-1",
+              "content_length": 64
+            },
+            {
+              "author": "Victor Flores",
+              "author_id": "1e6a1278-fa30-5862-ae60-0bd2208dbb3d",
+              "comment_id": "comment-96-2",
+              "content_length": 65
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-96-1"
+        }
+      ]
+    }
+  ]
+}

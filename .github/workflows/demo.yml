@@ -81,6 +81,9 @@ jobs:
       - name: Validate committed-demo generation contract
         run: python scripts/validate_demo_generation_contract.py
 
+      - name: Sentinel-absence guard (feature 309)
+        run: python scripts/run_repo_hook.py sentinel-absence
+
       - name: Run canonical committed-demo build
         run: python scripts/build-demo-dataset.py
 

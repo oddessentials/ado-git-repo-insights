@@ -14,6 +14,8 @@
 import {
   isLocalMode,
   getLocalDatasetPath,
+  getLocalCollectionUri,
+  LOCAL_DASHBOARD_COLLECTION_URI,
   isSdkInitialized,
   resetSdkState,
   initializeAdoSdk,
@@ -713,6 +715,29 @@ describe("SDK Module", () => {
 
       expect(authHeader1.Authorization).toBe("Bearer token-A");
       expect(authHeader2.Authorization).toBe("Bearer token-B");
+    });
+  });
+
+  describe("getLocalCollectionUri (feature 309 #315)", () => {
+    it("returns a non-empty absolute URL with trailing slash", () => {
+      const uri = getLocalCollectionUri();
+      expect(uri).not.toBe("");
+      expect(uri.startsWith("https://")).toBe(true);
+      expect(uri.endsWith("/")).toBe(true);
+    });
+
+    it("returns the frozen demo-collection-uri literal (deterministic)", () => {
+      // Locks the demo URI value. A change here must be intentional and
+      // coordinated with:
+      //   - docs/data/* rollups' PR-link expectations
+      //   - throughput-drilldown and pr-url tests that assert composed URLs
+      //   - tasks.md T063 ("synthetic org — known limitation")
+      expect(getLocalCollectionUri()).toBe(
+        "https://dev.azure.com/oddessentials/",
+      );
+      expect(LOCAL_DASHBOARD_COLLECTION_URI).toBe(
+        "https://dev.azure.com/oddessentials/",
+      );
     });
   });
 

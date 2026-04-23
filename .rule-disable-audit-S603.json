@@ -1,7 +1,7 @@
 {
   "rule": "S603",
-  "total_call_sites": 89,
-  "unsafe_count": 8,
+  "total_call_sites": 99,
+  "unsafe_count": 10,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
@@ -13,15 +13,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 112,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "scripts/build-demo-dataset.py",
-      "line": 128,
+      "line": 166,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -29,7 +21,23 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 246,
+      "line": 221,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 266,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 384,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -37,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 284,
+      "line": 422,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +53,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 292,
+      "line": 430,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -181,7 +189,7 @@
     },
     {
       "file": "scripts/regenerate-demo.py",
-      "line": 26,
+      "line": 32,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 600,
+      "line": 604,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -229,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 623,
+      "line": 627,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 716,
+      "line": 720,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 798,
+      "line": 802,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -293,7 +301,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 165,
+      "line": 180,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -301,7 +309,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 174,
+      "line": 189,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -309,7 +317,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 183,
+      "line": 198,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +325,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 199,
+      "line": 214,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,8 +333,16 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 216,
+      "line": 231,
       "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_regen_byte_stability.py",
+      "line": 113,
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -455,6 +471,54 @@
       "file": "tests/unit/test_any_type_scanner.py",
       "line": 171,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 56,
+      "code": "subprocess.run([\"git\", \"init\", \"-q\"], cwd=str(repo_root), check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 57,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 62,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 74,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 79,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_assert_inputs_clean.py",
+      "line": 114,
+      "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -613,7 +677,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 408,
+      "line": 410,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -621,7 +685,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 431,
+      "line": 433,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -629,7 +693,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 458,
+      "line": 460,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -637,7 +701,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 503,
+      "line": 505,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -645,7 +709,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 548,
+      "line": 550,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -671,6 +735,14 @@
       "file": "tests/unit/test_optional_deps_isolation.py",
       "line": 67,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_strip_gate_entrypoint_parity.py",
+      "line": 38,
+      "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -703,6 +775,14 @@
       "file": "tests/unit/test_synthetic_dataset.py",
       "line": 900,
       "code": "result2 = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tenant_provenance_negative.py",
+      "line": 41,
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

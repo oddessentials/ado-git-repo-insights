@@ -8,7 +8,10 @@
  * the already-rendered rollups slice (no second data fetch — FR-070).
  *
  * Panel content shape per FR-040 / FR-041 / FR-042 / FR-043:
- *   - title:    the reviewer id (display-name lookup is deferred)
+ *   - title:    the reviewer's display name, resolved via
+ *               `options.reviewersDimension` (#308 — no GUID in visible
+ *               text). Falls back to `UNKNOWN_USER_LABEL` when the
+ *               dimension is missing or the id is not present in it.
  *   - subtitle: total PR count for the reviewer across rollups
  *   - sections:
  *     - StatRowSection with four stats:
@@ -33,6 +36,7 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import type { ReviewerEntry } from "../../schemas/dimensions.schema";
 import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
 import { computeApprovalRate } from "../charts/reviewer-activity";
 import { dismissAllTooltips } from "../tooltip-manager";
@@ -48,6 +52,7 @@ import {
   type PanelRow,
   type PanelSection,
 } from "../shared/detail-panel";
+import { resolveDisplayName } from "../shared/identity-fallback";
 import {
   isDrilldownDisabledByComparison,
   showComparisonAdvisoryToast,
@@ -145,23 +150,48 @@ function buildWeeklyTable(
 function buildPanelContent(
   rollups: readonly Rollup[],
   reviewerId: string,
+  reviewerNameByKey: ReadonlyMap<string, string>,
 ): PanelContent {
   const stats = buildStatRow(rollups, reviewerId);
   const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
-  return makePanelContent(reviewerId, subtitle, [
+  const displayName = resolveDisplayName(reviewerId, reviewerNameByKey);
+  return makePanelContent(displayName, subtitle, [
     stats.section,
     buildWeeklyTable(rollups, reviewerId),
   ]);
 }
 
+function buildReviewerNameMap(
+  dim: readonly ReviewerEntry[] | null | undefined,
+): ReadonlyMap<string, string> {
+  if (!dim || dim.length === 0) return new Map();
+  return new Map(dim.map((r) => [r.reviewer_id, r.reviewer_name]));
+}
+
+/**
+ * Options accepted by `installReviewerDrilldown`. Issue #308 adds
+ * `reviewersDimension` so the panel title resolves `reviewer_id` GUIDs to
+ * friendly names. Existing two-argument callers keep working — when the
+ * dimension is missing every panel title falls back to
+ * `UNKNOWN_USER_LABEL`.
+ */
+export interface ReviewerDrilldownOptions {
+  readonly reviewersDimension?: readonly ReviewerEntry[] | null | undefined;
+}
+
 export function installReviewerDrilldown(
   container: HTMLElement,
   rollups: readonly Rollup[],
+  options: ReviewerDrilldownOptions = {},
 ): { dispose(): void } {
   const controller = new AbortController();
   const { signal } = controller;
   const observers = new Set<MutationObserver>();
   let activeTrigger: HTMLElement | null = null;
+  // Built once per install so re-renders reuse a stable map; the install
+  // is re-created by dashboard.ts on every filter change, so this map
+  // stays in sync with the dimensions snapshot the UI currently shows.
+  const reviewerNameByKey = buildReviewerNameMap(options.reviewersDimension);
 
   function resolveTrigger(evt: Event): HTMLElement | null {
     const target = evt.target;
@@ -212,7 +242,7 @@ export function installReviewerDrilldown(
       sourceChart: "reviewer",
       focusedData: { kind: "reviewer", reviewerId },
       triggerElement: trigger,
-      content: buildPanelContent(rollups, reviewerId),
+      content: buildPanelContent(rollups, reviewerId, reviewerNameByKey),
     };
 
     openDetailPanel(context);

@@ -1,0 +1,22 @@
+{
+  "week": "2025-W10",
+  "pr_count": 2,
+  "prs": [
+    {
+      "id": 10,
+      "title": "synthetic-alpha",
+      "author_id": "user-aaa",
+      "repository_id": "repo-1",
+      "cycle_time": 60.0
+    },
+    {
+      "id": 11,
+      "title": "synthetic-beta",
+      "author_id": "user-bbb",
+      "repository_id": "repo-2",
+      "cycle_time": 45.0
+    }
+  ],
+  "_prs_truncated": false,
+  "_prs_cap": 500
+}

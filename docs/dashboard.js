@@ -1564,6 +1564,61 @@ var PRInsightsDashboard = (() => {
           )
         );
       }
+      const threadCount = pr.thread_count;
+      const commentCount = pr.comment_count;
+      const activeThreadCount = pr.active_thread_count;
+      if (threadCount !== void 0 && threadCount !== null && !isNumber(threadCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "thread_count"),
+            `expected number or null, got ${getTypeName(threadCount)}`
+          )
+        );
+      }
+      if (commentCount !== void 0 && commentCount !== null && !isNumber(commentCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "comment_count"),
+            `expected number or null, got ${getTypeName(commentCount)}`
+          )
+        );
+      }
+      if (activeThreadCount !== void 0 && activeThreadCount !== null && !isNumber(activeThreadCount)) {
+        warnings.push(
+          createWarning(
+            buildPath(prPath, "active_thread_count"),
+            `expected number or null, got ${getTypeName(activeThreadCount)}`
+          )
+        );
+      }
+      const presentCount = (threadCount !== void 0 ? 1 : 0) + (commentCount !== void 0 ? 1 : 0) + (activeThreadCount !== void 0 ? 1 : 0);
+      if (presentCount !== 0 && presentCount !== 3) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `comments-metrics atomicity violated (INV-08): expected all three of thread_count / comment_count / active_thread_count to be present together, or all absent; got ${presentCount} of 3 present`
+          )
+        );
+      }
+      if (presentCount === 3) {
+        const nullCount = (threadCount === null ? 1 : 0) + (commentCount === null ? 1 : 0) + (activeThreadCount === null ? 1 : 0);
+        if (nullCount !== 0 && nullCount !== 3) {
+          warnings.push(
+            createWarning(
+              prPath,
+              `comments-metrics coverage-partial consistency violated (INV-10): expected thread_count / comment_count / active_thread_count to be all numeric or all null; got ${nullCount} of 3 null`
+            )
+          );
+        }
+        if (isNumber(threadCount) && isNumber(activeThreadCount) && activeThreadCount > threadCount) {
+          warnings.push(
+            createWarning(
+              prPath,
+              `comments-metrics ordering violated (INV-09): active_thread_count (${activeThreadCount}) MUST NOT exceed thread_count (${threadCount})`
+            )
+          );
+        }
+      }
     }
     return { warnings };
   }
@@ -4023,7 +4078,8 @@ var PRInsightsDashboard = (() => {
         rows: input.rows,
         renderedCount: input.renderedCount,
         actualFilteredCount: input.actualFilteredCount,
-        capValue: input.capValue
+        capValue: input.capValue,
+        commentsMetricsAvailable: input.commentsMetricsAvailable
       };
     }
     return { type: "pr-list", contentState: input.contentState };
@@ -4168,6 +4224,180 @@ var PRInsightsDashboard = (() => {
     );
     return wrapper;
   }
+  var COMMENTS_METRICS_AXES = [
+    {
+      key: "threads",
+      label: "Threads",
+      headerLabel: "Threads",
+      dataAttr: "data-threads"
+    },
+    {
+      key: "comments",
+      label: "Comments",
+      headerLabel: "Comments",
+      dataAttr: "data-comments"
+    },
+    {
+      key: "unresolved",
+      label: "Unresolved threads",
+      headerLabel: "Unresolved",
+      dataAttr: "data-unresolved"
+    }
+  ];
+  function readMetricValue(li, dataAttr) {
+    const raw = li.getAttribute(dataAttr);
+    if (raw === null) return null;
+    return Number.parseInt(raw, 10);
+  }
+  function buildCommentsMetricsHeader(list, originalOrder) {
+    const header = createElement("div", {
+      class: "detail-panel-pr-list-header",
+      role: "row"
+    });
+    header.appendChild(
+      createElement(
+        "div",
+        {
+          class: "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--pr",
+          role: "columnheader"
+        },
+        "PR"
+      )
+    );
+    header.appendChild(
+      createElement(
+        "div",
+        {
+          class: "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--cycle",
+          role: "columnheader"
+        },
+        "Cycle"
+      )
+    );
+    const records = [];
+    for (const axis of COMMENTS_METRICS_AXES) {
+      const cell = createElement("div", {
+        class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
+        role: "columnheader",
+        "aria-sort": "none"
+      });
+      const button = createElement("button", {
+        type: "button",
+        class: "detail-panel-pr-list-header-sort",
+        "data-sort-key": axis.key,
+        "aria-label": `Sort by ${axis.label.toLowerCase()}`
+      });
+      if (axis.headerLabel !== axis.label) {
+        button.setAttribute("title", axis.label);
+      }
+      appendText(button, axis.headerLabel);
+      cell.appendChild(button);
+      header.appendChild(cell);
+      const record = { axis, cell, state: "none" };
+      records.push(record);
+      button.addEventListener("click", () => {
+        const nextDirection = advanceSortDirection(record.state);
+        for (const peer of records) {
+          if (peer === record) continue;
+          peer.state = "none";
+          peer.cell.setAttribute("aria-sort", "none");
+        }
+        record.state = nextDirection;
+        record.cell.setAttribute("aria-sort", nextDirection);
+        applySort(list, axis.dataAttr, nextDirection, originalOrder);
+      });
+    }
+    return header;
+  }
+  function advanceSortDirection(current) {
+    if (current === "none") return "descending";
+    if (current === "descending") return "ascending";
+    return "none";
+  }
+  function buildCommentsMetricsFilter(list) {
+    const filterGroup = createElement("div", {
+      class: "detail-panel-pr-list-filter",
+      role: "group",
+      "aria-label": "Filter by minimum comments metric"
+    });
+    filterGroup.appendChild(
+      createElement(
+        "span",
+        { class: "detail-panel-pr-list-controls-label" },
+        "Min:"
+      )
+    );
+    const filterDescriptors = [];
+    for (const axis of COMMENTS_METRICS_AXES) {
+      const label = createElement("label", {
+        class: "detail-panel-pr-list-filter-label"
+      });
+      appendText(label, `${axis.label} \u2265 `);
+      const input = createElement("input", {
+        type: "number",
+        min: "0",
+        class: "detail-panel-pr-list-filter-input",
+        "data-filter-key": axis.key,
+        "aria-label": `Minimum ${axis.label.toLowerCase()}`
+      });
+      const descriptor = { input, dataAttr: axis.dataAttr };
+      input.addEventListener(
+        "input",
+        () => applyFilters(list, filterDescriptors)
+      );
+      label.appendChild(input);
+      filterGroup.appendChild(label);
+      filterDescriptors.push(descriptor);
+    }
+    return filterGroup;
+  }
+  function applySort(list, dataAttr, direction, originalOrder) {
+    if (direction === "none") {
+      for (const item of originalOrder) list.appendChild(item);
+      return;
+    }
+    const items = Array.from(list.querySelectorAll("li"));
+    items.sort((a2, b2) => {
+      const aValue = readMetricValue(a2, dataAttr);
+      const bValue = readMetricValue(b2, dataAttr);
+      if (aValue === null) {
+        if (bValue === null) return 0;
+        return 1;
+      }
+      if (bValue === null) return -1;
+      return direction === "descending" ? bValue - aValue : aValue - bValue;
+    });
+    for (const item of items) list.appendChild(item);
+  }
+  function applyFilters(list, descriptors) {
+    const thresholds = [];
+    for (const desc of descriptors) {
+      const raw = desc.input.value.trim();
+      if (raw === "") continue;
+      const parsed = Number.parseInt(raw, 10);
+      if (parsed < 0) continue;
+      thresholds.push([desc.dataAttr, parsed]);
+    }
+    for (const child of list.querySelectorAll("li")) {
+      let hidden = false;
+      for (const [dataAttr, threshold] of thresholds) {
+        const value = readMetricValue(child, dataAttr);
+        if (value === null) {
+          hidden = true;
+          break;
+        }
+        if (value < threshold) {
+          hidden = true;
+          break;
+        }
+      }
+      if (hidden) {
+        child.setAttribute("hidden", "");
+      } else {
+        child.removeAttribute("hidden");
+      }
+    }
+  }
   function renderPrListSection(section) {
     const wrapper = createElement("section", {
       id: "pr-detail",
@@ -4181,7 +4411,13 @@ var PRInsightsDashboard = (() => {
     );
     switch (section.contentState) {
       case "pr-list": {
-        const { rows, renderedCount, actualFilteredCount, capValue } = section;
+        const {
+          rows,
+          renderedCount,
+          actualFilteredCount,
+          capValue,
+          commentsMetricsAvailable
+        } = section;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
@@ -4192,7 +4428,10 @@ var PRInsightsDashboard = (() => {
           );
           wrapper.appendChild(indicator);
         }
-        const list = createElement("ol", { class: "detail-panel-pr-list" });
+        const list = createElement("ol", {
+          class: commentsMetricsAvailable ? "detail-panel-pr-list detail-panel-pr-list--with-comments" : "detail-panel-pr-list"
+        });
+        const rowElements = [];
         for (const row of rows) {
           const li = createElement("li", { class: "detail-panel-pr-row" });
           const link = createElement("a", {
@@ -4206,6 +4445,39 @@ var PRInsightsDashboard = (() => {
           const cycle = createElement("span", { class: "cycle-time" });
           appendText(cycle, formatDuration(row.cycleTimeMinutes));
           li.appendChild(cycle);
+          if (commentsMetricsAvailable) {
+            const triplet = [
+              ["threads", "threads", row.threadCount],
+              ["comments", "comments", row.commentCount],
+              ["unresolved", "unresolved", row.activeThreadCount]
+            ];
+            const allPartial = triplet.every(
+              ([, , value]) => value === null || value === void 0
+            );
+            if (allPartial) li.setAttribute("data-partial", "true");
+            for (const [key, cls, value] of triplet) {
+              const span = createElement("span", {
+                class: `comments-metric comments-metric--${cls}`
+              });
+              if (value === null || value === void 0) {
+                span.setAttribute("data-partial", "true");
+                span.setAttribute("aria-label", "Coverage pending");
+                appendText(span, "\u2014");
+              } else {
+                span.setAttribute("data-partial", "false");
+                li.setAttribute(`data-${key}`, String(value));
+                appendText(span, String(value));
+              }
+              li.appendChild(span);
+            }
+          }
+          rowElements.push(li);
+        }
+        if (commentsMetricsAvailable) {
+          wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+          wrapper.appendChild(buildCommentsMetricsFilter(list));
+        }
+        for (const li of rowElements) {
           list.appendChild(li);
         }
         wrapper.appendChild(list);
@@ -4813,6 +5085,10 @@ var PRInsightsDashboard = (() => {
       return DATASET_PATH;
     }
     return "./dataset";
+  }
+  var LOCAL_DASHBOARD_COLLECTION_URI = "https://dev.azure.com/oddessentials/";
+  function getLocalCollectionUri() {
+    return LOCAL_DASHBOARD_COLLECTION_URI;
   }
 
   // ../ui/modules/shared/svg-path.ts
@@ -7636,12 +7912,13 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const filterReviewerId = options.filters?.reviewers?.[0] ?? null;
+    const filterReviewerAriaName = options.filterReviewerName ?? filterReviewerId ?? "";
     const barsHtml = recentRollups.map((r2) => {
       const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r2.week.split("-W");
       const weekLabel = wParts[1] ?? r2.week;
-      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerId} for week of ${weekRangeForAria(r2)}`)}"` : "";
+      const drilldownAttrsForRow = filterReviewerId ? ` data-drilldown-reviewer-id="${escapeHtml(filterReviewerId)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(`Drill into ${filterReviewerAriaName} for week of ${weekRangeForAria(r2)}`)}"` : "";
       return `
             <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}"${drilldownAttrsForRow}>
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
@@ -8420,6 +8697,12 @@ var PRInsightsDashboard = (() => {
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
+  // ../ui/modules/shared/identity-fallback.ts
+  function resolveDisplayName(id, map) {
+    const mapped = map.get(id);
+    return mapped !== void 0 ? mapped : id;
+  }
+
   // ../ui/modules/shared/pr-url.ts
   function ensureTrailingSlash(uri) {
     return uri.endsWith("/") ? uri : `${uri}/`;
@@ -8449,12 +8732,12 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/drilldown/throughput-drilldown.ts
   var ACTIVE_CLASS = "is-drilldown-active";
-  function breakdownSection(title, columns, entries, emptyDetail) {
+  function breakdownSection(title, columns, entries, emptyDetail, nameByKey) {
     if (!entries || Object.keys(entries).length === 0) {
       return makeEmptyState(title, emptyDetail);
     }
-    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([label, entry]) => ({
-      label,
+    const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([key, entry]) => ({
+      label: nameByKey ? resolveDisplayName(key, nameByKey) : key,
       values: [String(entry.pr_count)]
     }));
     return makeBreakdownTable(title, columns, rows);
@@ -8474,18 +8757,33 @@ var PRInsightsDashboard = (() => {
         if (rawPrs.length === 0 || !webContext || capValue === void 0) {
           return makePrListSection({ contentState: "supported-empty" });
         }
-        const rows = rawPrs.map((pr) => ({
-          id: pr.id,
-          title: pr.title,
-          cycleTimeMinutes: pr.cycle_time,
-          url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
-        }));
+        const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+        const rows = rawPrs.map((pr) => {
+          if (!commentsMetricsAvailable) {
+            return {
+              id: pr.id,
+              title: pr.title,
+              cycleTimeMinutes: pr.cycle_time,
+              url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
+            };
+          }
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+            threadCount: pr.thread_count,
+            commentCount: pr.comment_count,
+            activeThreadCount: pr.active_thread_count
+          };
+        });
         return makePrListSection({
           contentState: "pr-list",
           rows,
           renderedCount: rows.length,
           actualFilteredCount: rollup.pr_count,
-          capValue
+          capValue,
+          commentsMetricsAvailable
         });
       }
     }
@@ -8493,11 +8791,13 @@ var PRInsightsDashboard = (() => {
   function buildPanelContent(rollup, options) {
     const count = rollup.pr_count;
     const subtitle = `${count} ${count === 1 ? "PR" : "PRs"}`;
+    const authorNameByKey = buildAuthorNameMap(options.authorsDimension);
     const byAuthor = breakdownSection(
       "By author",
       ["Author", "PRs"],
       rollup.by_author,
-      "No author-level activity for this week."
+      "No author-level activity for this week.",
+      authorNameByKey
     );
     const byRepository = breakdownSection(
       "By repository",
@@ -8506,11 +8806,38 @@ var PRInsightsDashboard = (() => {
       "No repository-level activity for this week."
     );
     const prList = buildPrListSection(rollup, options);
-    return makePanelContent(formatWeekTitle(rollup), subtitle, [
-      byAuthor,
-      byRepository,
-      prList
+    const sections = [];
+    const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+    if (commentsMetricsAvailable && prList.contentState === "pr-list") {
+      sections.push(buildCommentsStatRow(prList.rows));
+    }
+    sections.push(byAuthor, byRepository, prList);
+    return makePanelContent(formatWeekTitle(rollup), subtitle, sections);
+  }
+  function buildCommentsStatRow(rows) {
+    let threadsSum = 0;
+    let commentsSum = 0;
+    let unresolvedSum = 0;
+    let partialCount = 0;
+    for (const row of rows) {
+      threadsSum += row.threadCount ?? 0;
+      commentsSum += row.commentCount ?? 0;
+      unresolvedSum += row.activeThreadCount ?? 0;
+      if (row.threadCount === null) partialCount += 1;
+    }
+    const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+    return makeStatRow([
+      { label: "Threads", value: `${threadsSum}${partialSuffix}` },
+      { label: "Comments", value: `${commentsSum}${partialSuffix}` },
+      {
+        label: "Unresolved threads",
+        value: `${unresolvedSum}${partialSuffix}`
+      }
     ]);
+  }
+  function buildAuthorNameMap(dim) {
+    if (!dim || dim.length === 0) return /* @__PURE__ */ new Map();
+    return new Map(dim.map((a2) => [a2.author_id, a2.author_name]));
   }
   function installThroughputDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
@@ -8790,19 +9117,25 @@ var PRInsightsDashboard = (() => {
       rows
     );
   }
-  function buildPanelContent3(rollups, reviewerId) {
+  function buildPanelContent3(rollups, reviewerId, reviewerNameByKey) {
     const stats = buildStatRow(rollups, reviewerId);
     const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
-    return makePanelContent(reviewerId, subtitle, [
+    const displayName = resolveDisplayName(reviewerId, reviewerNameByKey);
+    return makePanelContent(displayName, subtitle, [
       stats.section,
       buildWeeklyTable(rollups, reviewerId)
     ]);
   }
-  function installReviewerDrilldown(container, rollups) {
+  function buildReviewerNameMap(dim) {
+    if (!dim || dim.length === 0) return /* @__PURE__ */ new Map();
+    return new Map(dim.map((r2) => [r2.reviewer_id, r2.reviewer_name]));
+  }
+  function installReviewerDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const observers = /* @__PURE__ */ new Set();
     let activeTrigger = null;
+    const reviewerNameByKey = buildReviewerNameMap(options.reviewersDimension);
     function resolveTrigger(evt) {
       const target = evt.target;
       if (!(target instanceof Element)) return null;
@@ -8840,7 +9173,7 @@ var PRInsightsDashboard = (() => {
         sourceChart: "reviewer",
         focusedData: { kind: "reviewer", reviewerId },
         triggerElement: trigger,
-        content: buildPanelContent3(rollups, reviewerId)
+        content: buildPanelContent3(rollups, reviewerId, reviewerNameByKey)
       };
       openDetailPanel(context);
       clearActive();
@@ -9279,6 +9612,7 @@ var PRInsightsDashboard = (() => {
         const datasetPath = getLocalDatasetPath();
         loader = new DatasetLoader(datasetPath);
         currentBuildId = null;
+        currentCollectionUri = getLocalCollectionUri();
         const projectNameEl = document.getElementById("current-project-name");
         if (projectNameEl) {
           projectNameEl.textContent = "Local Dashboard";
@@ -9580,7 +9914,16 @@ var PRInsightsDashboard = (() => {
               project_name: r2.project_name ?? "",
               organization_name: r2.organization_name
             })),
-            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
+            // Feature 310: gate the three comments-metrics columns on the
+            // single-source-of-truth ``DatasetCapabilityState``
+            // (``commentsMetricsAvailable`` is normalized at
+            // ``dataset-loader.ts::getCapabilityState`` — same value the
+            // dashboard's comments-coverage banner reads at line 2334).
+            // Default ``false`` when the loader has not produced a state
+            // yet (first render / dataset-less bootstrap).
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
           })
         );
       }
@@ -9593,7 +9936,9 @@ var PRInsightsDashboard = (() => {
       const reviewerContainer = document.getElementById("reviewer-activity");
       if (reviewerContainer) {
         activeDrilldownHandles.push(
-          installReviewerDrilldown(reviewerContainer, rollups)
+          installReviewerDrilldown(reviewerContainer, rollups, {
+            reviewersDimension: currentDimensions?.reviewers
+          })
         );
       }
       const summaryCardsContainer = document.querySelector(".summary-cards");
@@ -9750,6 +10095,14 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
+    const filterReviewerId = currentFilters.reviewers[0];
+    const reviewerNameByKey = new Map(
+      (currentDimensions?.reviewers ?? []).map((r2) => [
+        r2.reviewer_id,
+        r2.reviewer_name
+      ])
+    );
+    const filterReviewerName = filterReviewerId !== void 0 ? resolveDisplayName(filterReviewerId, reviewerNameByKey) : void 0;
     renderReviewerActivity(
       elements.get("reviewer-activity") ?? null,
       rollups,
@@ -9757,7 +10110,8 @@ var PRInsightsDashboard = (() => {
         reviewerFilterActive: currentFilters.reviewers.length > 0,
         filters: currentFilters,
         unfilteredRollups,
-        availability
+        availability,
+        filterReviewerName
       }
     );
   }

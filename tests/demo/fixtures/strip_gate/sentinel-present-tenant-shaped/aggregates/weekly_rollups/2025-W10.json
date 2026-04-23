@@ -1,0 +1,22 @@
+{
+  "week": "2025-W10",
+  "pr_count": 2,
+  "prs": [
+    {
+      "id": 20,
+      "title": "tenant-alpha",
+      "author_id": "user-ccc",
+      "repository_id": "repo-3",
+      "cycle_time": 90.0
+    },
+    {
+      "id": 21,
+      "title": "tenant-beta",
+      "author_id": "user-ddd",
+      "repository_id": "repo-4",
+      "cycle_time": 72.0
+    }
+  ],
+  "_prs_truncated": false,
+  "_prs_cap": 1000
+}

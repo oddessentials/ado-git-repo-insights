@@ -793,3 +793,68 @@ class TestPromoteDataStripGateAtomicity:
         # Atomic-failure proof: fake_docs is byte-identical to its pre-call
         # state. No mkdir, no copytree, no partial writes.
         assert _hash_tree(fake_docs) == pre_tree
+
+    def test_sentinel_present_synthetic_preserves_prs(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Feature 309 binary gate: sentinel-present + valid shape keeps PR fields."""
+        build_module = load_build_module()
+        fixture_root = (
+            Path(__file__).parent
+            / "fixtures"
+            / "strip_gate"
+            / "sentinel-present-synthetic-shaped"
+        )
+        source_root = tmp_path / "source"
+        shutil.copytree(fixture_root, source_root)
+
+        fake_docs = make_scratch_dir("fake-docs-synthetic-preserve")
+        monkeypatch.setattr(build_module, "DOCS_DATA_DIR", fake_docs)
+
+        build_module.promote_data(source_root, fake_docs)
+
+        promoted_rollup = fake_docs / "aggregates" / "weekly_rollups" / "2025-W10.json"
+        assert promoted_rollup.exists()
+        payload = json.loads(promoted_rollup.read_text(encoding="utf-8"))
+        assert "prs" in payload
+        assert "_prs_truncated" in payload
+        assert payload.get("_prs_cap") == 500
+        # Sentinel must not be copied to the destination.
+        assert not (
+            fake_docs
+            / "aggregates"
+            / build_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+        ).exists()
+
+    def test_sentinel_present_tenant_raises_atomic(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Sentinel-present + shape violation raises SyntheticShapeError atomically."""
+        build_module = load_build_module()
+        fixture_root = (
+            Path(__file__).parent
+            / "fixtures"
+            / "strip_gate"
+            / "sentinel-present-tenant-shaped"
+        )
+        source_root = tmp_path / "source"
+        shutil.copytree(fixture_root, source_root)
+
+        fake_docs = make_scratch_dir("fake-docs-tenant-reject")
+        fake_docs.mkdir(exist_ok=True)
+        (fake_docs / "__pre-existing__.marker").write_bytes(b"baseline\n")
+        pre_tree = _hash_tree(fake_docs)
+
+        monkeypatch.setattr(build_module, "DOCS_DATA_DIR", fake_docs)
+
+        with pytest.raises(build_module.SyntheticShapeError):
+            build_module.promote_data(source_root, fake_docs)
+
+        # Atomic-failure proof: destination byte-identical to pre-call state.
+        assert _hash_tree(fake_docs) == pre_tree
+        # Source sentinel MUST remain present (contract §7 retry semantics).
+        assert (
+            source_root
+            / "aggregates"
+            / build_module.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
+        ).exists()

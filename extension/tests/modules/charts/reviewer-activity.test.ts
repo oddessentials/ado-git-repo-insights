@@ -967,4 +967,150 @@ describe("reviewer-activity module", () => {
       expect(note!.hasAttribute("aria-live")).toBe(false);
     });
   });
+
+  // #308: filter-reviewer aria-label uses the friendly display name,
+  // never the raw reviewer_id. Changes here are DISPLAY-ONLY — the
+  // filter-semantics tests below prove data paths are untouched.
+  describe("filterReviewerName (issue #308)", () => {
+    const GUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const FRIENDLY = "Alice Anderson";
+
+    function rollupsWithReviewer(id: string): Rollup[] {
+      return createRollups(3).map((r) => ({
+        ...r,
+        by_reviewer: {
+          [id]: {
+            reviews_count: 5,
+            reviewed_prs: 3,
+            approval_rate: 0.8,
+            repositories_count: 2,
+          },
+        },
+      }));
+    }
+
+    it("aria-label uses the resolved display name when filterReviewerName is supplied", () => {
+      renderReviewerActivity(container, rollupsWithReviewer(GUID), {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
+        filterReviewerName: FRIENDLY,
+      });
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        const label = row.getAttribute("aria-label") ?? "";
+        expect(label).toContain(FRIENDLY);
+        expect(label).not.toContain(GUID);
+      }
+    });
+
+    it("aria-label uses the reviewer_id verbatim when filterReviewerName is absent (UUID — rare-exception path)", () => {
+      // Reshape: GUIDs may surface in the aria-label in partial-
+      // dimension cases. An ugly SR announcement beats a hard crash
+      // or every reviewer collapsing to the same label.
+      renderReviewerActivity(container, rollupsWithReviewer(GUID), {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
+      });
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        const label = row.getAttribute("aria-label") ?? "";
+        expect(label).toContain(GUID);
+      }
+    });
+
+    it("aria-label uses the non-UUID reviewer_id verbatim when filterReviewerName is absent", () => {
+      const EMAIL_ID = "alice@example.com";
+      renderReviewerActivity(container, rollupsWithReviewer(EMAIL_ID), {
+        reviewerFilterActive: true,
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: [EMAIL_ID],
+          authors: [],
+        },
+      });
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        const label = row.getAttribute("aria-label") ?? "";
+        expect(label).toContain(EMAIL_ID);
+      }
+    });
+
+    it("raw reviewer_id remains in data-drilldown-reviewer-id regardless of display-name resolution", () => {
+      // #308: friendly name is for visible text only; the id must stay
+      // in the data-* attribute so drill-down dispatch keeps working.
+      renderReviewerActivity(container, rollupsWithReviewer(GUID), {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: [GUID], authors: [] },
+        filterReviewerName: FRIENDLY,
+      });
+
+      const rows = container.querySelectorAll<HTMLElement>(
+        ".h-bar-row[data-drilldown-reviewer-id]",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of Array.from(rows)) {
+        expect(row.getAttribute("data-drilldown-reviewer-id")).toBe(GUID);
+      }
+    });
+
+    it("filter semantics are identical with or without filterReviewerName (display-only change)", () => {
+      // Guards against a future refactor that couples filter selection to
+      // the display-name option. Rendering with and without the name must
+      // produce the same row count, same drill-down attribute set, and
+      // same values per row — only aria-label copy differs.
+      const rollups = rollupsWithReviewer(GUID);
+      const filters = {
+        repos: [],
+        teams: [],
+        reviewers: [GUID],
+        authors: [],
+      };
+
+      const containerA = document.createElement("div");
+      document.body.appendChild(containerA);
+      renderReviewerActivity(containerA, rollups, {
+        reviewerFilterActive: true,
+        filters,
+      });
+
+      const containerB = document.createElement("div");
+      document.body.appendChild(containerB);
+      renderReviewerActivity(containerB, rollups, {
+        reviewerFilterActive: true,
+        filters,
+        filterReviewerName: FRIENDLY,
+      });
+
+      const rowsA = containerA.querySelectorAll<HTMLElement>(".h-bar-row");
+      const rowsB = containerB.querySelectorAll<HTMLElement>(".h-bar-row");
+      expect(rowsA.length).toBe(rowsB.length);
+
+      const serialize = (row: HTMLElement) => ({
+        drilldownId: row.getAttribute("data-drilldown-reviewer-id"),
+        role: row.getAttribute("role"),
+        tabindex: row.getAttribute("tabindex"),
+        ariaExpanded: row.getAttribute("aria-expanded"),
+        value: row.querySelector(".h-bar-value")?.textContent,
+      });
+      expect(Array.from(rowsA).map(serialize)).toEqual(
+        Array.from(rowsB).map(serialize),
+      );
+
+      document.body.removeChild(containerA);
+      document.body.removeChild(containerB);
+    });
+  });
 });

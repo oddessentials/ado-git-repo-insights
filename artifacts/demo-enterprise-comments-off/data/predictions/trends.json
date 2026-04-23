@@ -1,0 +1,245 @@
+{
+  "forecasts": [
+    {
+      "horizon_weeks": 12,
+      "metric": "pr_throughput",
+      "unit": "count",
+      "values": [
+        {
+          "lower_bound": 52.2,
+          "period_start": "2025-12-29",
+          "predicted": 62.143,
+          "upper_bound": 72.086
+        },
+        {
+          "lower_bound": 46.164,
+          "period_start": "2026-01-05",
+          "predicted": 55.619,
+          "upper_bound": 65.074
+        },
+        {
+          "lower_bound": 40.258,
+          "period_start": "2026-01-12",
+          "predicted": 49.095,
+          "upper_bound": 57.932
+        },
+        {
+          "lower_bound": 34.483,
+          "period_start": "2026-01-19",
+          "predicted": 42.571,
+          "upper_bound": 50.66
+        },
+        {
+          "lower_bound": 28.838,
+          "period_start": "2026-01-26",
+          "predicted": 36.048,
+          "upper_bound": 43.257
+        },
+        {
+          "lower_bound": 23.324,
+          "period_start": "2026-02-02",
+          "predicted": 29.524,
+          "upper_bound": 35.724
+        },
+        {
+          "lower_bound": 17.94,
+          "period_start": "2026-02-09",
+          "predicted": 23.0,
+          "upper_bound": 28.06
+        },
+        {
+          "lower_bound": 12.687,
+          "period_start": "2026-02-16",
+          "predicted": 16.476,
+          "upper_bound": 20.266
+        },
+        {
+          "lower_bound": 7.564,
+          "period_start": "2026-02-23",
+          "predicted": 9.952,
+          "upper_bound": 12.341
+        },
+        {
+          "lower_bound": 2.571,
+          "period_start": "2026-03-02",
+          "predicted": 3.429,
+          "upper_bound": 4.286
+        },
+        {
+          "lower_bound": 0.0,
+          "period_start": "2026-03-09",
+          "predicted": 0.0,
+          "upper_bound": 0.805
+        },
+        {
+          "lower_bound": 0.0,
+          "period_start": "2026-03-16",
+          "predicted": 0.0,
+          "upper_bound": 2.597
+        }
+      ]
+    },
+    {
+      "horizon_weeks": 12,
+      "metric": "cycle_time_minutes",
+      "unit": "minutes",
+      "values": [
+        {
+          "lower_bound": 321.726,
+          "period_start": "2025-12-29",
+          "predicted": 383.008,
+          "upper_bound": 444.289
+        },
+        {
+          "lower_bound": 315.072,
+          "period_start": "2026-01-05",
+          "predicted": 379.604,
+          "upper_bound": 444.137
+        },
+        {
+          "lower_bound": 308.485,
+          "period_start": "2026-01-12",
+          "predicted": 376.201,
+          "upper_bound": 443.917
+        },
+        {
+          "lower_bound": 301.966,
+          "period_start": "2026-01-19",
+          "predicted": 372.798,
+          "upper_bound": 443.629
+        },
+        {
+          "lower_bound": 295.516,
+          "period_start": "2026-01-26",
+          "predicted": 369.394,
+          "upper_bound": 443.273
+        },
+        {
+          "lower_bound": 289.133,
+          "period_start": "2026-02-02",
+          "predicted": 365.991,
+          "upper_bound": 442.849
+        },
+        {
+          "lower_bound": 282.818,
+          "period_start": "2026-02-09",
+          "predicted": 362.588,
+          "upper_bound": 442.357
+        },
+        {
+          "lower_bound": 276.572,
+          "period_start": "2026-02-16",
+          "predicted": 359.184,
+          "upper_bound": 441.797
+        },
+        {
+          "lower_bound": 270.394,
+          "period_start": "2026-02-23",
+          "predicted": 355.781,
+          "upper_bound": 441.169
+        },
+        {
+          "lower_bound": 264.283,
+          "period_start": "2026-03-02",
+          "predicted": 352.378,
+          "upper_bound": 440.472
+        },
+        {
+          "lower_bound": 258.241,
+          "period_start": "2026-03-09",
+          "predicted": 348.974,
+          "upper_bound": 439.708
+        },
+        {
+          "lower_bound": 252.267,
+          "period_start": "2026-03-16",
+          "predicted": 345.571,
+          "upper_bound": 438.875
+        }
+      ]
+    },
+    {
+      "horizon_weeks": 12,
+      "metric": "review_time_minutes",
+      "unit": "minutes",
+      "values": [
+        {
+          "lower_bound": 128.691,
+          "period_start": "2025-12-29",
+          "predicted": 153.203,
+          "upper_bound": 177.716
+        },
+        {
+          "lower_bound": 126.029,
+          "period_start": "2026-01-05",
+          "predicted": 151.842,
+          "upper_bound": 177.655
+        },
+        {
+          "lower_bound": 123.394,
+          "period_start": "2026-01-12",
+          "predicted": 150.48,
+          "upper_bound": 177.567
+        },
+        {
+          "lower_bound": 120.786,
+          "period_start": "2026-01-19",
+          "predicted": 149.119,
+          "upper_bound": 177.452
+        },
+        {
+          "lower_bound": 118.206,
+          "period_start": "2026-01-26",
+          "predicted": 147.758,
+          "upper_bound": 177.309
+        },
+        {
+          "lower_bound": 115.653,
+          "period_start": "2026-02-02",
+          "predicted": 146.396,
+          "upper_bound": 177.14
+        },
+        {
+          "lower_bound": 113.127,
+          "period_start": "2026-02-09",
+          "predicted": 145.035,
+          "upper_bound": 176.943
+        },
+        {
+          "lower_bound": 110.629,
+          "period_start": "2026-02-16",
+          "predicted": 143.674,
+          "upper_bound": 176.719
+        },
+        {
+          "lower_bound": 108.157,
+          "period_start": "2026-02-23",
+          "predicted": 142.312,
+          "upper_bound": 176.467
+        },
+        {
+          "lower_bound": 105.713,
+          "period_start": "2026-03-02",
+          "predicted": 140.951,
+          "upper_bound": 176.189
+        },
+        {
+          "lower_bound": 103.296,
+          "period_start": "2026-03-09",
+          "predicted": 139.59,
+          "upper_bound": 175.883
+        },
+        {
+          "lower_bound": 100.907,
+          "period_start": "2026-03-16",
+          "predicted": 138.228,
+          "upper_bound": 175.55
+        }
+      ]
+    }
+  ],
+  "generated_at": "2026-01-30T12:00:00Z",
+  "generated_by": "generate-demo-predictions.py",
+  "is_stub": false,
+  "schema_version": 1
+}

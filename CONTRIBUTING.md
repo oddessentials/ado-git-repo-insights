@@ -19,24 +19,18 @@ primary Python resolution mechanism on Windows.
 
 ## Quick Start
 
+See [Development Setup Guide](docs/development/setup.md#quick-setup) for the full
+environment bootstrap (uv-managed Python 3.12, root + extension Node deps, Husky
+hooks, Playwright browsers). In brief:
+
 ```bash
-# Clone and setup
 git clone https://github.com/oddessentials/ado-git-repo-insights.git
 cd ado-git-repo-insights
-
-# 1. Install root deps + Husky hooks (MUST be first)
-pnpm install
-
-# 2. Python environment
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -e .[dev]
-
-# 3. Extension (if working on ADO extension)
-cd extension && pnpm install && cd ..
+pnpm install                 # activates Husky; MUST be first
+uv python install 3.12       # canonical interpreter for CI-hard gates
+uv sync --extra dev          # project venv + Python dev deps
+cd extension && pnpm install # extension deps + Playwright browsers
 ```
-
-**Detailed setup:** [Development Setup Guide](docs/development/setup.md)
 
 ---
 

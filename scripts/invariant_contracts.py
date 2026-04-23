@@ -124,6 +124,12 @@ TYPESCRIPT_GATE_REVIEWS: tuple[TypeScriptGateReview, ...] = (
         reason="Browser smoke tests are pass/fail behavioral checks, not a stable collection-scope artifact contract.",
     ),
     TypeScriptGateReview(
+        gate_name="Extension VSIX package",
+        authoritative_runner="pnpm run package:vsix",
+        disposition="not-an-artifacted-invariant",
+        reason="Build+stage+tfx packaging step that produces the VSIX consumed by the inspection gate; not an environment-sensitive artifact contract.",
+    ),
+    TypeScriptGateReview(
         gate_name="Extension VSIX artifact inspection",
         authoritative_runner="pnpm run test:vsix",
         disposition="not-an-artifacted-invariant",

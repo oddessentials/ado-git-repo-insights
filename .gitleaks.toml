@@ -22,4 +22,12 @@ paths = [
   '''\.md$''',
   '''package-lock\.json''',
   '''\.gitleaks\.toml''',
+  # Feature 309 #315: anonymized statistical distribution fixtures. These
+  # files contain weighted token frequencies, lognormal params, and weekly
+  # means derived from a tenant SQLite via
+  # scripts/extract_distribution_fixtures.py; they hold no secrets. The
+  # commit-time privacy gate tests/unit/test_distribution_fixture_privacy.py
+  # enforces the real invariants (no email/URL/tenant-identifier tokens,
+  # locked truncation-week literals, privacy_review_date bounds).
+  '''scripts/demo-distributions/.*''',
 ]

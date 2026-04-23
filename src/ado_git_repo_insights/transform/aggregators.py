@@ -794,6 +794,90 @@ class AggregateGenerator:
                 if prs_truncated:
                     qualified = qualified.head(_PR_DETAIL_CAP)
 
+                # Feature 310 — per-PR comments-metrics fields, gated on
+                # capabilities.comments_metrics.  The join runs strictly AFTER
+                # the qualified+sorted+capped(500) slice is built (R-05 /
+                # INV-02); no counts are computed for PRs outside the top-500
+                # slice.  Python-side atomicity: the by_uid map carries a
+                # (thread_count, comment_count, active_thread_count) triplet
+                # per uid — either all three integer when covered
+                # (comments_extracted_at IS NOT NULL) or all three None when
+                # partial (comments_extracted_at IS NULL) per INV-10.  When
+                # self._has_comments() is False (legacy DB without pr_threads
+                # or capability off upstream), the emission path is skipped
+                # entirely and every PrRecord keeps its 5-field 060 shape
+                # (INV-01 / FR-3-06 / SC-03).
+                emit_comments_metrics = self._has_comments()
+                by_uid: dict[str, tuple[int | None, int | None, int | None]] = {}
+                if emit_comments_metrics:
+                    slice_uids = [
+                        uid_value
+                        for uid_value in qualified["pull_request_uid"].tolist()
+                        if isinstance(uid_value, str) and uid_value
+                    ]
+                    if slice_uids:
+                        # Stage the capped-slice uids in a per-connection temp
+                        # table and INNER-JOIN it into the main query.  This
+                        # keeps the INV-02 top-500 scope without an f-string
+                        # ``IN (?, ?, ...)`` (which would flag S608 in ruff
+                        # for no safety benefit — placeholder count is bounded
+                        # by _PR_DETAIL_CAP=500 but the heuristic cannot see
+                        # that, and the zero-suppressions policy forbids
+                        # blanket lint suppressions).  C1 inclusion rules
+                        # encoded in the two
+                        # LEFT-JOIN subqueries: pr_threads.is_deleted=0
+                        # excluded; status='unknown' counted in thread_count
+                        # and naturally excluded from active_thread_count
+                        # (status='active' predicate); pr_comments.is_deleted=0
+                        # excluded; comment_type='system' counted by default
+                        # (no filter); author-missing rows counted naturally
+                        # (no JOIN to users).
+                        self.db.execute(
+                            "CREATE TEMP TABLE IF NOT EXISTS "
+                            "_aggr_pr_slice (pull_request_uid TEXT PRIMARY KEY)"
+                        )
+                        self.db.execute("DELETE FROM _aggr_pr_slice")
+                        self.db.executemany(
+                            "INSERT INTO _aggr_pr_slice (pull_request_uid) VALUES (?)",
+                            [(uid_value,) for uid_value in slice_uids],
+                        )
+                        cursor = self.db.execute(
+                            "SELECT "
+                            "  pr.pull_request_uid AS pull_request_uid, "
+                            "  pr.comments_extracted_at AS comments_extracted_at, "
+                            "  COALESCE(t.thread_count, 0) AS thread_count, "
+                            "  COALESCE(t.active_thread_count, 0) AS active_thread_count, "
+                            "  COALESCE(c.comment_count, 0) AS comment_count "
+                            "FROM pull_requests pr "
+                            "INNER JOIN _aggr_pr_slice s "
+                            "  ON s.pull_request_uid = pr.pull_request_uid "
+                            "LEFT JOIN ( "
+                            "  SELECT pull_request_uid, "
+                            "         COUNT(*) AS thread_count, "
+                            "         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) "
+                            "           AS active_thread_count "
+                            "  FROM pr_threads "
+                            "  WHERE is_deleted = 0 "
+                            "  GROUP BY pull_request_uid "
+                            ") t ON t.pull_request_uid = pr.pull_request_uid "
+                            "LEFT JOIN ( "
+                            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+                            "  FROM pr_comments "
+                            "  WHERE is_deleted = 0 "
+                            "  GROUP BY pull_request_uid "
+                            ") c ON c.pull_request_uid = pr.pull_request_uid"
+                        )
+                        for db_row in cursor.fetchall():
+                            row_uid = str(db_row["pull_request_uid"])
+                            if db_row["comments_extracted_at"] is None:
+                                by_uid[row_uid] = (None, None, None)
+                            else:
+                                by_uid[row_uid] = (
+                                    int(db_row["thread_count"]),
+                                    int(db_row["comment_count"]),
+                                    int(db_row["active_thread_count"]),
+                                )
+
                 prs: list[PrRecord] = []
                 for row in qualified.itertuples(index=False):
                     pr_id = getattr(row, "pull_request_id", None)
@@ -819,15 +903,30 @@ class AggregateGenerator:
                             pr_id,
                         )
                         continue
-                    prs.append(
-                        {
-                            "id": int(pr_id),
-                            "title": title,
-                            "author_id": user_id,
-                            "repository_id": repository_id,
-                            "cycle_time": float(cycle_time),
-                        }
-                    )
+                    pr_record: PrRecord = {
+                        "id": int(pr_id),
+                        "title": title,
+                        "author_id": user_id,
+                        "repository_id": repository_id,
+                        "cycle_time": float(cycle_time),
+                    }
+                    if emit_comments_metrics:
+                        # Feature 310 INV-08: attach all three fields together
+                        # or none.  The triplet is sourced from a single
+                        # by_uid lookup so per-PR coverage-partial is atomic
+                        # (INV-10).  If the row's pull_request_uid is missing
+                        # or not a string (defensive; should not occur given
+                        # the pr_id validation above), emit the partial
+                        # sentinel rather than inventing numeric zeros.
+                        attach_uid = getattr(row, "pull_request_uid", None)
+                        if isinstance(attach_uid, str) and attach_uid:
+                            counts = by_uid.get(attach_uid, (None, None, None))
+                        else:
+                            counts = (None, None, None)
+                        pr_record["thread_count"] = counts[0]
+                        pr_record["comment_count"] = counts[1]
+                        pr_record["active_thread_count"] = counts[2]
+                    prs.append(pr_record)
 
                 rollup_dict["prs"] = prs
                 rollup_dict["_prs_truncated"] = prs_truncated

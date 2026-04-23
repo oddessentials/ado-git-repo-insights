@@ -1,3 +1,60 @@
+# [101.16.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.15.0...v101.16.0) (2026-04-23)
+
+
+### Bug Fixes
+
+* **#310:** column-header 'Unresolved' fits the numeric column ([d83546c](https://github.com/oddessentials/ado-git-repo-insights/commit/d83546c5bd03bc4cb64adfdb036f6038c083679c)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310)
+* **#310:** gate stat row on prList.contentState, derive from prList.rows ([c089784](https://github.com/oddessentials/ado-git-repo-insights/commit/c089784ab69d120afddc98b74617fc723045e7c9)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4)
+* **hooks:** pre-push prefers .venv python before PATH fallbacks ([6c4a5f2](https://github.com/oddessentials/ado-git-repo-insights/commit/6c4a5f2b746fedb736188d4d0256ff1d1f2aea6c))
+* **preflight:** harden VSIX gate to match CI (package + VSIX_REQUIRED=true) ([6b138f5](https://github.com/oddessentials/ado-git-repo-insights/commit/6b138f58d982ce57c6f08167450cd23d478ada6c))
+
+
+### Features
+
+* **#182:** aggregator emits comments-metrics per PR (Phase 3 producer, T018-T021) ([423625c](https://github.com/oddessentials/ado-git-repo-insights/commit/423625c5ae8bf332c0a61c523fb6d485bd2b6e8a)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** atomic 4-surface PrRecord schema expansion + parity gate body (Phase 2, T007-T012/T017) ([c305304](https://github.com/oddessentials/ado-git-repo-insights/commit/c305304b75a40f4767ed73b511d9684fe08bd92e)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** regenerate demo artifacts with comments-metrics (Phase 2 T014/T016 + T033a) ([0365eca](https://github.com/oddessentials/ado-git-repo-insights/commit/0365eca67aaad3ae85bdbca2f222e0f279384639)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** render comments-metrics drill-down columns (Phase 3+4 consumer, T022-T039) ([54a6613](https://github.com/oddessentials/ado-git-repo-insights/commit/54a6613e2ecca6b67222e94cbe60173be73536c0)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** sc-03 capability-off baseline + spread guard (Phase 5, T040-T042) ([57ac5ff](https://github.com/oddessentials/ado-git-repo-insights/commit/57ac5fffbcc899dc085b23e69cd8431063278e03)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** scaffold PrRecord schema parity gate (Phase 1, T001-T006) ([3c8262c](https://github.com/oddessentials/ado-git-repo-insights/commit/3c8262cc614dcb1f65c9bf1a776acefc3fd75187)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** synthesize comments-metrics + byte-identity test (Phase 2 T013-T015) ([a8b091a](https://github.com/oddessentials/ado-git-repo-insights/commit/a8b091a435848ab037f9059f811e820798ab03f0)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#310:** column headers + header-driven sort + partial polish ([b10e014](https://github.com/oddessentials/ado-git-repo-insights/commit/b10e0141c13af9cffec290868320cfeb8979195e)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#202230016](https://github.com/oddessentials/ado-git-repo-insights/issues/202230016) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3)
+* **#310:** week stat row from slice-derived sums (F6) ([ae53ab6](https://github.com/oddessentials/ado-git-repo-insights/commit/ae53ab6c862a428e37896adeba2efde88546a3ef)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3) [#9](https://github.com/oddessentials/ado-git-repo-insights/issues/9) [#6](https://github.com/oddessentials/ado-git-repo-insights/issues/6) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4)
+
+# [101.15.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.14.0...v101.15.0) (2026-04-21)
+
+
+### Bug Fixes
+
+* **#315:** make truncation-exercise week pr_count coherent with emitted prs array ([4aef854](https://github.com/oddessentials/ado-git-repo-insights/commit/4aef8549c8daf70a1cb45aed587b6e6333d10a5a)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#320](https://github.com/oddessentials/ado-git-repo-insights/issues/320)
+* **#315:** populate demo webContext stub so PR list renders in local mode ([dd2a168](https://github.com/oddessentials/ado-git-repo-insights/commit/dd2a168a7427b0167fcaa2477e1c2e48ec94ba55)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** reroot regen-byte-stability scratch under repo-local tmp_test_work ([ed53187](https://github.com/oddessentials/ado-git-repo-insights/commit/ed5318749c6cc0f420bb8c5b0dfa837f3c0a6d01)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#320](https://github.com/oddessentials/ado-git-repo-insights/issues/320)
+
+
+### Features
+
+* **#315:** add synthetic PR generator helpers; scaffold sentinel & inputs-clean guards ([2d03aee](https://github.com/oddessentials/ado-git-repo-insights/commit/2d03aee8bab1a378f57450afe61619b26cd0ddf6)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** derive distribution fixtures for synthetic demo PR generator ([b3bea46](https://github.com/oddessentials/ado-git-repo-insights/commit/b3bea46e35080a4f877ea709db36ac8fc34bc5fd)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** narrow feature-060 FR-023 to provenance-based binary gate (dead-code sentinel branch) ([3c63437](https://github.com/oddessentials/ado-git-repo-insights/commit/3c634372b10eda655836e6518110a3f87cb02dac)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+* **#315:** publish synthetic PR-level detail to docs/data/; bump demo profile 2.0.0 -> 2.1.0 ([2dd27aa](https://github.com/oddessentials/ado-git-repo-insights/commit/2dd27aad569396ddbf01d7a2173b1157d275e4da)), closes [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+
+# [101.14.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.13.0...v101.14.0) (2026-04-21)
+
+
+### Bug Fixes
+
+* **#308:** align identity fallback with substring UUID invariant (2nd Codex catch) ([505a9f9](https://github.com/oddessentials/ado-git-repo-insights/commit/505a9f9ae2572af71642eaf1afe9cc9355dd2a30)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** do not mask non-UUID ids as Unknown user (Codex catch) ([fdfe225](https://github.com/oddessentials/ado-git-repo-insights/commit/fdfe225c0611f128211adce7c83f5d71eb0bd843)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** eliminate partial-branch debt in C4 UUID guards ([2975eef](https://github.com/oddessentials/ado-git-repo-insights/commit/2975eef90a9564a6a735c3e994d912ae7f6dd1b4)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** reject UUID titles and row labels at build time (C4) ([a347fb0](https://github.com/oddessentials/ado-git-repo-insights/commit/a347fb076a00699d4fbc54e769665b325247058c)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** reshape — drop runtime masking/rejection; fall back to raw id (reviewer directive) ([6aaa6ba](https://github.com/oddessentials/ado-git-repo-insights/commit/6aaa6babe9a4e9c44725be672ed614f50b197da9)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+* **#308:** resolve visible GUIDs to friendly names across 3 drill-down surfaces (C2) ([34d8534](https://github.com/oddessentials/ado-git-repo-insights/commit/34d85341fa6ce17bcae6ed5baca800e8eb0b214b)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+
+
+### Features
+
+* **#308:** shared UUID + identity fallback helpers (C1) ([93be04f](https://github.com/oddessentials/ado-git-repo-insights/commit/93be04fc45db3ec5df6a87cda12ada247196f564)), closes [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308) [#308](https://github.com/oddessentials/ado-git-repo-insights/issues/308)
+
 # [101.13.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.12.4...v101.13.0) (2026-04-20)
 
 

@@ -72,12 +72,30 @@ export interface EmptyStateSection {
  * Pre-derived PR row shown inside the PrListSection "pr-list" content state.
  * Feature 060 contract — the URL is pre-composed at build time (by
  * `resolvePrUrl`) so the renderer has no I/O or resolution work.
+ *
+ * Feature 310 extends the row with three optional comments-metrics fields
+ * (`threadCount` / `commentCount` / `activeThreadCount`).  They carry data
+ * per row but are only RENDERED when the enclosing section's
+ * `commentsMetricsAvailable` flag is `true` (section-level capability
+ * gate — absent entirely on the capability-off path, preserving SC-03
+ * byte-identity).  Per-row semantics mirror the producer's wire shape:
+ *   - `undefined` / absent: capability-off row (the section flag is
+ *     `false`; downstream code MUST NOT read these fields in that case).
+ *   - `null`: covered PR whose `comments_extracted_at` is NULL (partial
+ *     sentinel per INV-10 / FR-3-05; renders visibly distinct from a
+ *     numeric 0).
+ *   - number: covered PR with known counts.  `0` is a true zero.
+ * All three field values arrive together or not at all (INV-08 mirrored
+ * on the consumer side).
  */
 export interface PrListRow {
   readonly id: number;
   readonly title: string;
   readonly cycleTimeMinutes: number;
   readonly url: string;
+  readonly threadCount?: number | null;
+  readonly commentCount?: number | null;
+  readonly activeThreadCount?: number | null;
 }
 
 /**
@@ -102,6 +120,11 @@ export interface PrListSectionWithRows {
   readonly renderedCount: number;
   readonly actualFilteredCount: number;
   readonly capValue: number;
+  // Feature 310 — section-level capability gate for the three
+  // comments-metrics columns.  When `true` the renderer emits one
+  // additional header + three `<span>`s per row; when `false` the
+  // DOM stays byte-identical to the pre-310 shape (SC-03 / FR-3-06).
+  readonly commentsMetricsAvailable: boolean;
 }
 
 export interface PrListSectionMessage {
@@ -204,6 +227,9 @@ export type PrListSectionInput =
       readonly renderedCount: number;
       readonly actualFilteredCount: number;
       readonly capValue: number;
+      // Feature 310 — required on the pr-list variant only.  Message
+      // variants never render rows so the flag does not apply there.
+      readonly commentsMetricsAvailable: boolean;
     }
   | {
       readonly contentState:
@@ -221,6 +247,7 @@ export function makePrListSection(input: PrListSectionInput): PrListSection {
       renderedCount: input.renderedCount,
       actualFilteredCount: input.actualFilteredCount,
       capValue: input.capValue,
+      commentsMetricsAvailable: input.commentsMetricsAvailable,
     };
   }
   return { type: "pr-list", contentState: input.contentState };
@@ -412,6 +439,337 @@ function renderEmptyState(section: EmptyStateSection): HTMLElement {
   return wrapper;
 }
 
+// ---------------------------------------------------------------------------
+// Feature 310 — comments-metrics column header (sort) + threshold filter.
+// ---------------------------------------------------------------------------
+
+/** One of the three comments-metrics sort + filter axes. */
+type CommentsMetricsKey = "threads" | "comments" | "unresolved";
+
+/** Tri-state column sort direction; mirrors the ``aria-sort`` enum. */
+type SortDirection = "none" | "descending" | "ascending";
+
+const COMMENTS_METRICS_AXES: readonly {
+  readonly key: CommentsMetricsKey;
+  /**
+   * Full disambiguated label.  Used in places that have horizontal
+   * room: filter row's visible label, filter input's ``aria-label``,
+   * column-header button's ``title`` (hover tooltip), column-header
+   * button's ``aria-label`` (screen-reader label), and the stat-row
+   * label literals (which are short enough to spell out in full).
+   */
+  readonly label: string;
+  /**
+   * Short label used as the column-header button's visible
+   * ``textContent``.  Identical to ``label`` for axes whose full name
+   * already fits the narrow numeric column width; differs only for
+   * ``"unresolved"``, where ``"Unresolved threads"`` would overflow
+   * the data column reserved for 1–3-digit counts.  The full form
+   * is still surfaced to mouse + assistive-tech users via the
+   * ``title`` and ``aria-label`` attributes set in
+   * ``buildCommentsMetricsHeader`` — sighted users lose nothing
+   * meaningful; screen readers hear the disambiguated phrase the
+   * F8 rename was meant to convey.
+   */
+  readonly headerLabel: string;
+  readonly dataAttr: string;
+}[] = [
+  {
+    key: "threads",
+    label: "Threads",
+    headerLabel: "Threads",
+    dataAttr: "data-threads",
+  },
+  {
+    key: "comments",
+    label: "Comments",
+    headerLabel: "Comments",
+    dataAttr: "data-comments",
+  },
+  {
+    key: "unresolved",
+    label: "Unresolved threads",
+    headerLabel: "Unresolved",
+    dataAttr: "data-unresolved",
+  },
+];
+
+function readMetricValue(li: HTMLLIElement, dataAttr: string): number | null {
+  const raw = li.getAttribute(dataAttr);
+  if (raw === null) return null;
+  // Writers in ``renderPrListSection`` always stringify a numeric count
+  // via ``String(value)`` where ``value`` is ``number``, so the attribute
+  // text is always a well-formed decimal integer.  Callers only read
+  // attributes they themselves wrote — no external mutation path exists
+  // — so a ``Number.isFinite`` fallback here would be unreachable
+  // defensive code (partial-branch debt).
+  return Number.parseInt(raw, 10);
+}
+
+/**
+ * Build the comments-metrics column header row (FR-3-02 / FR-4-02 / F1 / F4).
+ *
+ * Emits a grid row with five ``role="columnheader"`` cells above the PR
+ * ``<ol>`` — two non-interactive labels (``PR``, ``Cycle``) followed by
+ * three sort-triggering cells carrying a ``<button data-sort-key>``
+ * each (``Threads``, ``Comments``, ``Unresolved threads``).  Clicking a
+ * sort button cycles ``aria-sort`` ``none → descending → ascending →
+ * none`` on the enclosing cell; clicking a different axis resets the
+ * previously-active cell to ``none`` (single active sort axis at a
+ * time).
+ *
+ * ``originalOrder`` is the snapshot of ``<li>`` elements in the
+ * aggregator-default sequence — captured by ``renderPrListSection``
+ * before the rows are appended to ``list``.  The unsorted state (third
+ * click on the active header) restores this sequence verbatim via
+ * ``list.appendChild(item)`` on each element in order; ``appendChild``
+ * moves rather than duplicates DOM nodes, so the restored DOM is
+ * byte-stable across any sequence of interactions.
+ *
+ * Partial-sentinel rows (``data-<key>`` absent) sort to the END
+ * regardless of direction — matches FR-3-05's "partials are not
+ * comparable" rule in the sort context as well as the filter context.
+ */
+function buildCommentsMetricsHeader(
+  list: HTMLOListElement,
+  originalOrder: readonly HTMLLIElement[],
+): HTMLElement {
+  const header = createElement("div", {
+    class: "detail-panel-pr-list-header",
+    role: "row",
+  });
+
+  header.appendChild(
+    createElement(
+      "div",
+      {
+        class:
+          "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--pr",
+        role: "columnheader",
+      },
+      "PR",
+    ),
+  );
+  header.appendChild(
+    createElement(
+      "div",
+      {
+        class:
+          "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--cycle",
+        role: "columnheader",
+      },
+      "Cycle",
+    ),
+  );
+
+  // Collect per-axis cell + state into records.  Iterating records in
+  // the click handler (instead of going through Maps keyed by axis key)
+  // keeps every cell/state access statically known to be defined — no
+  // ``Map.get()`` fallback arms are needed, which keeps the function
+  // free of partial-branch debt.
+  const records: SortHeaderRecord[] = [];
+
+  for (const axis of COMMENTS_METRICS_AXES) {
+    const cell = createElement("div", {
+      class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
+      role: "columnheader",
+      "aria-sort": "none",
+    });
+    // Visible textContent is the SHORT ``headerLabel`` so the button
+    // fits inside the narrow numeric column.  ``title`` exposes the
+    // full disambiguated label on hover; ``aria-label`` overrides the
+    // visible text for screen readers so they always announce the
+    // disambiguating phrase regardless of which axis is rendered.
+    // ``title`` is only set when ``headerLabel`` actually differs from
+    // ``label`` so axes with already-fitting labels (Threads, Comments)
+    // don't get a noise tooltip identical to their visible text.
+    const button = createElement("button", {
+      type: "button",
+      class: "detail-panel-pr-list-header-sort",
+      "data-sort-key": axis.key,
+      "aria-label": `Sort by ${axis.label.toLowerCase()}`,
+    });
+    if (axis.headerLabel !== axis.label) {
+      button.setAttribute("title", axis.label);
+    }
+    appendText(button, axis.headerLabel);
+    cell.appendChild(button);
+    header.appendChild(cell);
+    const record: SortHeaderRecord = { axis, cell, state: "none" };
+    records.push(record);
+
+    button.addEventListener("click", () => {
+      const nextDirection = advanceSortDirection(record.state);
+      // Clear every other record's aria-sort to "none" so only one axis
+      // is sort-active at a time (single-active-sort invariant — matches
+      // typical table-sort semantics).
+      for (const peer of records) {
+        if (peer === record) continue;
+        peer.state = "none";
+        peer.cell.setAttribute("aria-sort", "none");
+      }
+      record.state = nextDirection;
+      record.cell.setAttribute("aria-sort", nextDirection);
+      applySort(list, axis.dataAttr, nextDirection, originalOrder);
+    });
+  }
+
+  return header;
+}
+
+/** One column-header's mutable sort state, kept inside a closure record. */
+interface SortHeaderRecord {
+  readonly axis: (typeof COMMENTS_METRICS_AXES)[number];
+  readonly cell: HTMLElement;
+  state: SortDirection;
+}
+
+/** Cycle ``none → descending → ascending → none``. */
+function advanceSortDirection(current: SortDirection): SortDirection {
+  if (current === "none") return "descending";
+  if (current === "descending") return "ascending";
+  return "none";
+}
+
+/**
+ * Build the comments-metrics threshold filter bar (FR-3-03 / FR-4-02).
+ *
+ * Three numeric inputs that compose with AND semantics via
+ * ``applyFilters``; partial-sentinel rows are hidden whenever ANY axis
+ * has an active threshold (FR-3-05).  Copy is driven by
+ * ``COMMENTS_METRICS_AXES.label`` so the F8 rename ("Unresolved" →
+ * "Unresolved threads") propagates consistently to the visible label
+ * text and the input's ``aria-label``.
+ */
+function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
+  const filterGroup = createElement("div", {
+    class: "detail-panel-pr-list-filter",
+    role: "group",
+    "aria-label": "Filter by minimum comments metric",
+  });
+  filterGroup.appendChild(
+    createElement(
+      "span",
+      { class: "detail-panel-pr-list-controls-label" },
+      "Min:",
+    ),
+  );
+  const filterDescriptors: FilterDescriptor[] = [];
+  for (const axis of COMMENTS_METRICS_AXES) {
+    const label = createElement("label", {
+      class: "detail-panel-pr-list-filter-label",
+    });
+    appendText(label, `${axis.label} ≥ `);
+    const input = createElement("input", {
+      type: "number",
+      min: "0",
+      class: "detail-panel-pr-list-filter-input",
+      "data-filter-key": axis.key,
+      "aria-label": `Minimum ${axis.label.toLowerCase()}`,
+    });
+    const descriptor: FilterDescriptor = { input, dataAttr: axis.dataAttr };
+    input.addEventListener("input", () =>
+      applyFilters(list, filterDescriptors),
+    );
+    label.appendChild(input);
+    filterGroup.appendChild(label);
+    filterDescriptors.push(descriptor);
+  }
+  return filterGroup;
+}
+
+/** One filter input + its data attribute, paired at build time. */
+interface FilterDescriptor {
+  readonly input: HTMLInputElement;
+  readonly dataAttr: string;
+}
+
+/**
+ * Apply a tri-state sort to ``list``:
+ *
+ *   - ``"none"``: restore the aggregator-default order captured in
+ *     ``originalOrder`` at header-build time.  Re-appending each node
+ *     via ``list.appendChild(item)`` moves (not duplicates) the node,
+ *     yielding a byte-stable restoration across any interaction
+ *     sequence.
+ *   - ``"descending"``: highest numeric first; partials to end.
+ *   - ``"ascending"``: lowest numeric first; partials still to end
+ *     (partials are never comparable to numerics — FR-3-05).
+ */
+function applySort(
+  list: HTMLOListElement,
+  dataAttr: string,
+  direction: SortDirection,
+  originalOrder: readonly HTMLLIElement[],
+): void {
+  if (direction === "none") {
+    for (const item of originalOrder) list.appendChild(item);
+    return;
+  }
+  // ``querySelectorAll("li")`` narrows to HTMLLIElement by selector, so no
+  // instanceof check is needed on each child — the list is built by this
+  // module and only contains ``<li>`` children.
+  const items = Array.from(list.querySelectorAll<HTMLLIElement>("li"));
+  items.sort((a, b) => {
+    const aValue = readMetricValue(a, dataAttr);
+    const bValue = readMetricValue(b, dataAttr);
+    // Partial-sentinel rows (value === null) sort AFTER numeric rows
+    // regardless of direction.  Two nulls compare equal (stable per
+    // Array.sort contract for equal comparator results); one-null
+    // cases push the null to the end; two-numeric rows sort in the
+    // requested direction.  Each case is its own return statement so
+    // each branch is independently coverable.
+    if (aValue === null) {
+      if (bValue === null) return 0;
+      return 1;
+    }
+    if (bValue === null) return -1;
+    return direction === "descending" ? bValue - aValue : aValue - bValue;
+  });
+  for (const item of items) list.appendChild(item);
+}
+
+function applyFilters(
+  list: HTMLOListElement,
+  descriptors: readonly FilterDescriptor[],
+): void {
+  const thresholds: Array<readonly [string, number]> = [];
+  for (const desc of descriptors) {
+    const raw = desc.input.value.trim();
+    if (raw === "") continue;
+    const parsed = Number.parseInt(raw, 10);
+    // ``input[type=number][min=0]`` prevents UI entry below zero, but
+    // the test harness drives values programmatically; reject negatives
+    // explicitly here so any test (or future caller) that sets a
+    // negative threshold is ignored rather than inverted.  ``NaN`` is
+    // impossible because ``raw === ""`` was rejected above and the
+    // input is ``type="number"``.
+    if (parsed < 0) continue;
+    thresholds.push([desc.dataAttr, parsed]);
+  }
+  for (const child of list.querySelectorAll<HTMLLIElement>("li")) {
+    let hidden = false;
+    for (const [dataAttr, threshold] of thresholds) {
+      const value = readMetricValue(child, dataAttr);
+      if (value === null) {
+        // Partial-sentinel rows are excluded from numeric comparisons
+        // whenever ANY axis has an active threshold (per FR-3-05).
+        hidden = true;
+        break;
+      }
+      if (value < threshold) {
+        hidden = true;
+        break;
+      }
+    }
+    if (hidden) {
+      child.setAttribute("hidden", "");
+    } else {
+      child.removeAttribute("hidden");
+    }
+  }
+}
+
 /**
  * Feature 060: render the stable PR-detail container (FR-020).
  *
@@ -451,7 +809,13 @@ function renderPrListSection(section: PrListSection): HTMLElement {
     case "pr-list": {
       // Discriminated union: rows + counts + capValue are type-guaranteed
       // non-null when contentState === "pr-list" — no ?? fallbacks needed.
-      const { rows, renderedCount, actualFilteredCount, capValue } = section;
+      const {
+        rows,
+        renderedCount,
+        actualFilteredCount,
+        capValue,
+        commentsMetricsAvailable,
+      } = section;
 
       if (renderedCount < actualFilteredCount) {
         const indicator = createElement("div", {
@@ -464,7 +828,24 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         wrapper.appendChild(indicator);
       }
 
-      const list = createElement("ol", { class: "detail-panel-pr-list" });
+      // Capability-on path tags the <ol> with the
+      // ``detail-panel-pr-list--with-comments`` modifier class so all
+      // scoped grid + typography rules attach only to the capability-on
+      // DOM.  Capability-off <ol> carries only ``detail-panel-pr-list`` —
+      // byte-identical to the pre-310 fixture (SC-03 / INV-01; lock #1
+      // "no shared class mutation").
+      const list = createElement("ol", {
+        class: commentsMetricsAvailable
+          ? "detail-panel-pr-list detail-panel-pr-list--with-comments"
+          : "detail-panel-pr-list",
+      });
+      // Feature 310: build row `<li>` elements into an array BEFORE
+      // appending to ``list``.  The array doubles as the original-order
+      // snapshot passed to ``buildCommentsMetricsHeader`` for
+      // unsorted-state restoration (third click on the active column
+      // header).  Capturing here (rather than sampling ``list.children``
+      // later) locks the snapshot to the aggregator-default sequence.
+      const rowElements: HTMLLIElement[] = [];
       for (const row of rows) {
         const li = createElement("li", { class: "detail-panel-pr-row" });
         const link = createElement("a", {
@@ -478,6 +859,65 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         const cycle = createElement("span", { class: "cycle-time" });
         appendText(cycle, formatDuration(row.cycleTimeMinutes));
         li.appendChild(cycle);
+        if (commentsMetricsAvailable) {
+          // Feature 310: three additional `<span>` children per row,
+          // emitted together (INV-08 consumer-side mirror).  Partial
+          // sentinel (``null``) renders as ``—`` with BOTH
+          // ``data-partial="true"`` (machine-distinguishable, lock #4)
+          // AND ``aria-label="Coverage pending"`` (human- and SR-
+          // distinguishable, lock #4) — distinguishable from a numeric 0
+          // per FR-3-05 / INV-10.  The `<li>`'s own `data-*` attributes
+          // carry machine-readable counts for sort + filter logic.
+          const triplet: readonly (readonly [
+            "threads" | "comments" | "unresolved",
+            string,
+            number | null | undefined,
+          ])[] = [
+            ["threads", "threads", row.threadCount],
+            ["comments", "comments", row.commentCount],
+            ["unresolved", "unresolved", row.activeThreadCount],
+          ];
+          // A row is partial when EVERY field is absent (undefined —
+          // capability-off-passthrough row that leaked through) or
+          // coverage-partial (``null`` — covered PR with
+          // ``comments_extracted_at IS NULL``).  Both shapes render as
+          // ``—`` per-span; the row-level ``data-partial`` attribute lets
+          // tests assert the row-scoped partial state in one check.
+          // The producer guarantees all-three or none-three (INV-08), so
+          // a non-``allPartial`` row will always have numeric spans.
+          const allPartial = triplet.every(
+            ([, , value]) => value === null || value === undefined,
+          );
+          if (allPartial) li.setAttribute("data-partial", "true");
+          for (const [key, cls, value] of triplet) {
+            const span = createElement("span", {
+              class: `comments-metric comments-metric--${cls}`,
+            });
+            if (value === null || value === undefined) {
+              span.setAttribute("data-partial", "true");
+              span.setAttribute("aria-label", "Coverage pending");
+              appendText(span, "—");
+            } else {
+              span.setAttribute("data-partial", "false");
+              li.setAttribute(`data-${key}`, String(value));
+              appendText(span, String(value));
+            }
+            li.appendChild(span);
+          }
+        }
+        rowElements.push(li);
+      }
+      // Feature 310: header + filter live only on the capability-on
+      // path — lock #9 ("no DOM emission when capability-off; absent, not
+      // hidden").  They are appended BEFORE the list so the rendered
+      // order is [header] → [filter] → [list].  The header closure
+      // captures ``rowElements`` as the original-order snapshot for
+      // the unsorted sort state (third click).
+      if (commentsMetricsAvailable) {
+        wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+        wrapper.appendChild(buildCommentsMetricsFilter(list));
+      }
+      for (const li of rowElements) {
         list.appendChild(li);
       }
       wrapper.appendChild(list);

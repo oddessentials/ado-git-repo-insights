@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 1,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Alice Nguyen",
+              "author_id": "612fbb5d-1bbc-58bc-af66-928e26768f59",
+              "comment_id": "comment-1-1",
+              "content_length": 65
+            },
+            {
+              "author": "Bob Harris",
+              "author_id": "4990918a-5676-50c3-9598-5f23646ffc7c",
+              "comment_id": "comment-1-2",
+              "content_length": 66
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-1-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 2,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Bob Harris",
+              "author_id": "4990918a-5676-50c3-9598-5f23646ffc7c",
+              "comment_id": "comment-2-1",
+              "content_length": 66
+            },
+            {
+              "author": "Carol Lopez",
+              "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+              "comment_id": "comment-2-2",
+              "content_length": 67
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-2-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 3,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Carol Lopez",
+              "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
+              "comment_id": "comment-3-1",
+              "content_length": 67
+            },
+            {
+              "author": "Carol Carter",
+              "author_id": "3c2c389a-f6c8-5a9e-a63c-a024efc0cae0",
+              "comment_id": "comment-3-2",
+              "content_length": 68
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-3-1"
+        }
+      ]
+    }
+  ]
+}

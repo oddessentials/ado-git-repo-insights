@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 46,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Isabella Williams",
+              "author_id": "348c4b05-b659-5f84-9203-a2092a5071ef",
+              "comment_id": "comment-46-1",
+              "content_length": 110
+            },
+            {
+              "author": "Isabella Flores",
+              "author_id": "30f9f653-d7f5-52a2-a7c4-578f1e1d241f",
+              "comment_id": "comment-46-2",
+              "content_length": 111
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-46-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 47,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Isabella Flores",
+              "author_id": "30f9f653-d7f5-52a2-a7c4-578f1e1d241f",
+              "comment_id": "comment-47-1",
+              "content_length": 111
+            },
+            {
+              "author": "James Clark",
+              "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+              "comment_id": "comment-47-2",
+              "content_length": 64
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-47-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 48,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "James Clark",
+              "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+              "comment_id": "comment-48-1",
+              "content_length": 64
+            },
+            {
+              "author": "Katherine Wilson",
+              "author_id": "cbef9c82-665d-56bf-a0ff-b94a0f0eb1b3",
+              "comment_id": "comment-48-2",
+              "content_length": 65
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-48-1"
+        }
+      ]
+    }
+  ]
+}
