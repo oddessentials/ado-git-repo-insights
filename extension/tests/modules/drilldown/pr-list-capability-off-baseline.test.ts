@@ -151,8 +151,21 @@ describe("SC-03 capability-off baseline DOM is byte-identical to the pre-310 sha
     // regressions about the comments-metrics spans surface with a
     // readable message rather than a 100KB diff.
     expect(prSection.querySelectorAll(".comments-metric").length).toBe(0);
+    // Lock #9 — capability-off MUST NOT emit the new header row, the
+    // filter bar, or the ``detail-panel-pr-list--with-comments`` modifier
+    // on the ol.  The legacy ``.detail-panel-pr-list-controls`` container
+    // never existed post-310 either; kept as a regression guard.
+    expect(prSection.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    expect(prSection.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     expect(
       prSection.querySelector(".detail-panel-pr-list-controls"),
     ).toBeNull();
+    const list = prSection.querySelector<HTMLOListElement>(
+      "ol.detail-panel-pr-list",
+    );
+    expect(list).not.toBeNull();
+    expect(
+      list!.classList.contains("detail-panel-pr-list--with-comments"),
+    ).toBe(false);
   });
 });

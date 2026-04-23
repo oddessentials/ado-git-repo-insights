@@ -4227,50 +4227,79 @@ var PRInsightsDashboard = (() => {
   var COMMENTS_METRICS_AXES = [
     { key: "threads", label: "Threads", dataAttr: "data-threads" },
     { key: "comments", label: "Comments", dataAttr: "data-comments" },
-    { key: "unresolved", label: "Unresolved", dataAttr: "data-unresolved" }
+    {
+      key: "unresolved",
+      label: "Unresolved threads",
+      dataAttr: "data-unresolved"
+    }
   ];
   function readMetricValue(li, dataAttr) {
     const raw = li.getAttribute(dataAttr);
     if (raw === null) return null;
     return Number.parseInt(raw, 10);
   }
-  function buildCommentsMetricsControls(list) {
-    const controls = createElement("div", {
-      class: "detail-panel-pr-list-controls",
-      role: "group",
-      "aria-label": "Comments metrics controls"
+  function buildCommentsMetricsHeader(list, originalOrder) {
+    const header = createElement("div", {
+      class: "detail-panel-pr-list-header",
+      role: "row"
     });
-    const sortGroup = createElement("div", {
-      class: "detail-panel-pr-list-sort",
-      role: "group",
-      "aria-label": "Sort by comments metric"
-    });
-    sortGroup.appendChild(
+    header.appendChild(
       createElement(
-        "span",
-        { class: "detail-panel-pr-list-controls-label" },
-        "Sort:"
+        "div",
+        {
+          class: "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--pr",
+          role: "columnheader"
+        },
+        "PR"
       )
     );
-    const sortButtons = [];
+    header.appendChild(
+      createElement(
+        "div",
+        {
+          class: "detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--cycle",
+          role: "columnheader"
+        },
+        "Cycle"
+      )
+    );
+    const records = [];
     for (const axis of COMMENTS_METRICS_AXES) {
+      const cell = createElement("div", {
+        class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
+        role: "columnheader",
+        "aria-sort": "none"
+      });
       const button = createElement("button", {
         type: "button",
-        class: "detail-panel-pr-list-sort-button",
-        "aria-pressed": "false",
+        class: "detail-panel-pr-list-header-sort",
         "data-sort-key": axis.key
       });
       appendText(button, axis.label);
+      cell.appendChild(button);
+      header.appendChild(cell);
+      const record = { axis, cell, state: "none" };
+      records.push(record);
       button.addEventListener("click", () => {
-        for (const other of sortButtons) {
-          other.setAttribute("aria-pressed", other === button ? "true" : "false");
+        const nextDirection = advanceSortDirection(record.state);
+        for (const peer of records) {
+          if (peer === record) continue;
+          peer.state = "none";
+          peer.cell.setAttribute("aria-sort", "none");
         }
-        applySort(list, axis.dataAttr);
+        record.state = nextDirection;
+        record.cell.setAttribute("aria-sort", nextDirection);
+        applySort(list, axis.dataAttr, nextDirection, originalOrder);
       });
-      sortGroup.appendChild(button);
-      sortButtons.push(button);
     }
-    controls.appendChild(sortGroup);
+    return header;
+  }
+  function advanceSortDirection(current) {
+    if (current === "none") return "descending";
+    if (current === "descending") return "ascending";
+    return "none";
+  }
+  function buildCommentsMetricsFilter(list) {
     const filterGroup = createElement("div", {
       class: "detail-panel-pr-list-filter",
       role: "group",
@@ -4305,10 +4334,13 @@ var PRInsightsDashboard = (() => {
       filterGroup.appendChild(label);
       filterDescriptors.push(descriptor);
     }
-    controls.appendChild(filterGroup);
-    return controls;
+    return filterGroup;
   }
-  function applySort(list, dataAttr) {
+  function applySort(list, dataAttr, direction, originalOrder) {
+    if (direction === "none") {
+      for (const item of originalOrder) list.appendChild(item);
+      return;
+    }
     const items = Array.from(list.querySelectorAll("li"));
     items.sort((a2, b2) => {
       const aValue = readMetricValue(a2, dataAttr);
@@ -4318,7 +4350,7 @@ var PRInsightsDashboard = (() => {
         return 1;
       }
       if (bValue === null) return -1;
-      return bValue - aValue;
+      return direction === "descending" ? bValue - aValue : aValue - bValue;
     });
     for (const item of items) list.appendChild(item);
   }
@@ -4381,10 +4413,10 @@ var PRInsightsDashboard = (() => {
           );
           wrapper.appendChild(indicator);
         }
-        const list = createElement("ol", { class: "detail-panel-pr-list" });
-        if (commentsMetricsAvailable) {
-          wrapper.appendChild(buildCommentsMetricsControls(list));
-        }
+        const list = createElement("ol", {
+          class: commentsMetricsAvailable ? "detail-panel-pr-list detail-panel-pr-list--with-comments" : "detail-panel-pr-list"
+        });
+        const rowElements = [];
         for (const row of rows) {
           const li = createElement("li", { class: "detail-panel-pr-row" });
           const link = createElement("a", {
@@ -4414,6 +4446,7 @@ var PRInsightsDashboard = (() => {
               });
               if (value === null || value === void 0) {
                 span.setAttribute("data-partial", "true");
+                span.setAttribute("aria-label", "Coverage pending");
                 appendText(span, "\u2014");
               } else {
                 span.setAttribute("data-partial", "false");
@@ -4423,6 +4456,13 @@ var PRInsightsDashboard = (() => {
               li.appendChild(span);
             }
           }
+          rowElements.push(li);
+        }
+        if (commentsMetricsAvailable) {
+          wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+          wrapper.appendChild(buildCommentsMetricsFilter(list));
+        }
+        for (const li of rowElements) {
           list.appendChild(li);
         }
         wrapper.appendChild(list);

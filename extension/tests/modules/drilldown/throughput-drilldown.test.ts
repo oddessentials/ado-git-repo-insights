@@ -1448,10 +1448,27 @@ describe("throughput-drilldown", () => {
       expect(isDetailPanelOpen()).toBe(true);
       const prSection = document.getElementById("pr-detail");
       expect(prSection).not.toBeNull();
-      // Controls present (capability-on path in the renderer).
+      // Feature 310 capability-on DOM: the column-header row (F1 / F4)
+      // and the separate filter row are both present.  The pre-310
+      // ``.detail-panel-pr-list-controls`` container was removed as part
+      // of the header-driven sort swap (lock #3); asserting its absence
+      // here is a regression guard against any accidental reintroduction.
+      expect(
+        prSection!.querySelector(".detail-panel-pr-list-header"),
+      ).not.toBeNull();
+      expect(
+        prSection!.querySelector(".detail-panel-pr-list-filter"),
+      ).not.toBeNull();
       expect(
         prSection!.querySelector(".detail-panel-pr-list-controls"),
-      ).not.toBeNull();
+      ).toBeNull();
+      const list = prSection!.querySelector<HTMLOListElement>(
+        "ol.detail-panel-pr-list",
+      );
+      expect(list).not.toBeNull();
+      expect(
+        list!.classList.contains("detail-panel-pr-list--with-comments"),
+      ).toBe(true);
       const rows = prSection!.querySelectorAll<HTMLLIElement>(
         ".detail-panel-pr-row",
       );
@@ -1467,13 +1484,16 @@ describe("throughput-drilldown", () => {
       expect(
         covered.querySelector(".comments-metric--unresolved")?.textContent,
       ).toBe("3");
-      // Partial row — three "—" spans and row-level data-partial.
+      // Partial row — three "—" spans, row-level data-partial, and
+      // per-span aria-label="Coverage pending" (lock #4 — machine +
+      // human + SR distinguishable).
       const partial = rows[1]!;
       expect(partial.getAttribute("data-partial")).toBe("true");
       const partialSpans =
         partial.querySelectorAll<HTMLSpanElement>(".comments-metric");
       for (const span of partialSpans) {
         expect(span.getAttribute("data-partial")).toBe("true");
+        expect(span.getAttribute("aria-label")).toBe("Coverage pending");
         expect(span.textContent).toBe("—");
       }
     });

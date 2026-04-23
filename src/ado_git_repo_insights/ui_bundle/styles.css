@@ -3198,6 +3198,195 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     margin: 0;
 }
 
+/* ============================================================================
+ * Feature 310 — comments-metrics drill-down styling (capability-on ONLY).
+ *
+ * Every rule below is scoped under one of three capability-on-only classes
+ * emitted solely by renderPrListSection when commentsMetricsAvailable===true:
+ *
+ *   .detail-panel-pr-list--with-comments   (modifier on <ol>)
+ *   .detail-panel-pr-list-header           (new header row above the list)
+ *   .detail-panel-pr-list-filter           (threshold filter bar)
+ *
+ * No bare .detail-panel-pr-row / .detail-panel-pr-link / .cycle-time /
+ * .detail-panel-pr-list selectors appear in this block — capability-off
+ * DOM renders exactly as it did pre-310 (SC-03 / INV-01).  Global baseline
+ * styling for the Feature 060 PR list is out of scope on this branch.
+ * ========================================================================== */
+
+.detail-panel-pr-list-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 5ch 6ch 9ch;
+    column-gap: 12px;
+    align-items: baseline;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.detail-panel-pr-list-header-cell--pr {
+    text-align: left;
+}
+
+.detail-panel-pr-list-header-cell--cycle,
+.detail-panel-pr-list-header-cell--threads,
+.detail-panel-pr-list-header-cell--comments,
+.detail-panel-pr-list-header-cell--unresolved {
+    text-align: right;
+}
+
+.detail-panel-pr-list-header-sort {
+    appearance: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 4px;
+    align-items: baseline;
+}
+
+.detail-panel-pr-list-header-sort:hover,
+.detail-panel-pr-list-header-sort:focus-visible {
+    color: var(--text-primary);
+    outline: none;
+    text-decoration: underline;
+}
+
+.detail-panel-pr-list-header-sort::after {
+    content: "";
+    display: inline-block;
+    width: 0.75em;
+    text-align: left;
+    color: var(--text-tertiary, var(--text-secondary));
+    opacity: 0.45;
+}
+
+.detail-panel-pr-list-header [role="columnheader"][aria-sort="descending"]
+    .detail-panel-pr-list-header-sort::after {
+    content: "▼";
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.detail-panel-pr-list-header [role="columnheader"][aria-sort="ascending"]
+    .detail-panel-pr-list-header-sort::after {
+    content: "▲";
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.detail-panel-pr-list-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: baseline;
+    padding: 6px 12px 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-panel-pr-list-controls-label {
+    font-weight: 600;
+    margin-right: 2px;
+}
+
+.detail-panel-pr-list-filter-label {
+    display: inline-flex;
+    gap: 4px;
+    align-items: baseline;
+}
+
+.detail-panel-pr-list-filter-input {
+    width: 5ch;
+    font: inherit;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.detail-panel-pr-list-filter-input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+}
+
+.detail-panel-pr-list--with-comments {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.detail-panel-pr-list--with-comments .detail-panel-pr-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 5ch 6ch 9ch;
+    column-gap: 12px;
+    align-items: baseline;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-subtle, var(--border));
+    font-size: 13px;
+}
+
+.detail-panel-pr-list--with-comments .detail-panel-pr-row:last-child {
+    border-bottom: none;
+}
+
+.detail-panel-pr-list--with-comments .detail-panel-pr-row[hidden] {
+    /* The filter path toggles the ``hidden`` attribute; browsers honour it
+     * natively but a grid child with display:grid parent can lose the
+     * implicit display:none in some engines.  Make the intent explicit. */
+    display: none;
+}
+
+.detail-panel-pr-list--with-comments .detail-panel-pr-link {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--link, var(--primary));
+    text-decoration: none;
+}
+
+.detail-panel-pr-list--with-comments .detail-panel-pr-link:hover,
+.detail-panel-pr-list--with-comments .detail-panel-pr-link:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
+.detail-panel-pr-list--with-comments .cycle-time {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.detail-panel-pr-list--with-comments .comments-metric {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.detail-panel-pr-list--with-comments .comments-metric[data-partial="true"] {
+    color: var(--text-tertiary, var(--text-secondary));
+    font-style: italic;
+    opacity: 0.7;
+}
+
+.detail-panel-pr-list--with-comments .comments-metric--unresolved {
+    font-weight: 600;
+}
+
 /* Highlight on the source chart element whose click opened the panel. */
 .is-drilldown-active {
     outline: 2px solid var(--primary);
