@@ -451,14 +451,45 @@ type SortDirection = "none" | "descending" | "ascending";
 
 const COMMENTS_METRICS_AXES: readonly {
   readonly key: CommentsMetricsKey;
+  /**
+   * Full disambiguated label.  Used in places that have horizontal
+   * room: filter row's visible label, filter input's ``aria-label``,
+   * column-header button's ``title`` (hover tooltip), column-header
+   * button's ``aria-label`` (screen-reader label), and the stat-row
+   * label literals (which are short enough to spell out in full).
+   */
   readonly label: string;
+  /**
+   * Short label used as the column-header button's visible
+   * ``textContent``.  Identical to ``label`` for axes whose full name
+   * already fits the narrow numeric column width; differs only for
+   * ``"unresolved"``, where ``"Unresolved threads"`` would overflow
+   * the data column reserved for 1–3-digit counts.  The full form
+   * is still surfaced to mouse + assistive-tech users via the
+   * ``title`` and ``aria-label`` attributes set in
+   * ``buildCommentsMetricsHeader`` — sighted users lose nothing
+   * meaningful; screen readers hear the disambiguated phrase the
+   * F8 rename was meant to convey.
+   */
+  readonly headerLabel: string;
   readonly dataAttr: string;
 }[] = [
-  { key: "threads", label: "Threads", dataAttr: "data-threads" },
-  { key: "comments", label: "Comments", dataAttr: "data-comments" },
+  {
+    key: "threads",
+    label: "Threads",
+    headerLabel: "Threads",
+    dataAttr: "data-threads",
+  },
+  {
+    key: "comments",
+    label: "Comments",
+    headerLabel: "Comments",
+    dataAttr: "data-comments",
+  },
   {
     key: "unresolved",
     label: "Unresolved threads",
+    headerLabel: "Unresolved",
     dataAttr: "data-unresolved",
   },
 ];
@@ -544,12 +575,24 @@ function buildCommentsMetricsHeader(
       role: "columnheader",
       "aria-sort": "none",
     });
+    // Visible textContent is the SHORT ``headerLabel`` so the button
+    // fits inside the narrow numeric column.  ``title`` exposes the
+    // full disambiguated label on hover; ``aria-label`` overrides the
+    // visible text for screen readers so they always announce the
+    // disambiguating phrase regardless of which axis is rendered.
+    // ``title`` is only set when ``headerLabel`` actually differs from
+    // ``label`` so axes with already-fitting labels (Threads, Comments)
+    // don't get a noise tooltip identical to their visible text.
     const button = createElement("button", {
       type: "button",
       class: "detail-panel-pr-list-header-sort",
       "data-sort-key": axis.key,
+      "aria-label": `Sort by ${axis.label.toLowerCase()}`,
     });
-    appendText(button, axis.label);
+    if (axis.headerLabel !== axis.label) {
+      button.setAttribute("title", axis.label);
+    }
+    appendText(button, axis.headerLabel);
     cell.appendChild(button);
     header.appendChild(cell);
     const record: SortHeaderRecord = { axis, cell, state: "none" };

@@ -651,7 +651,14 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
   });
 
-  it("unresolved sort button reads 'Unresolved threads' (F8 copy)", () => {
+  it("unresolved sort button shows 'Unresolved' visibly with full disambiguation via title + aria-label (F8 + header-fit)", () => {
+    // Header-width hardening: the column reserved for the unresolved
+    // count is too narrow for the full "Unresolved threads" label.
+    // Sighted users see the short ``Unresolved`` form; the full
+    // disambiguation the F8 rename was meant to convey is preserved
+    // via the hover ``title`` and the screen-reader ``aria-label``.
+    // Locks the three-surface contract: visible textContent, hover
+    // title, SR aria-label.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -672,7 +679,11 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       'button[data-sort-key="unresolved"]',
     );
     expect(button).not.toBeNull();
-    expect(button!.textContent).toBe("Unresolved threads");
+    expect(button!.textContent).toBe("Unresolved");
+    expect(button!.getAttribute("title")).toBe("Unresolved threads");
+    expect(button!.getAttribute("aria-label")).toBe(
+      "Sort by unresolved threads",
+    );
   });
 
   it("applies the 'detail-panel-pr-list--with-comments' modifier on the ol when capability-on", () => {

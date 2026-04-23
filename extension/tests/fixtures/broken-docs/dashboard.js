@@ -4225,11 +4225,22 @@ var PRInsightsDashboard = (() => {
     return wrapper;
   }
   var COMMENTS_METRICS_AXES = [
-    { key: "threads", label: "Threads", dataAttr: "data-threads" },
-    { key: "comments", label: "Comments", dataAttr: "data-comments" },
+    {
+      key: "threads",
+      label: "Threads",
+      headerLabel: "Threads",
+      dataAttr: "data-threads"
+    },
+    {
+      key: "comments",
+      label: "Comments",
+      headerLabel: "Comments",
+      dataAttr: "data-comments"
+    },
     {
       key: "unresolved",
       label: "Unresolved threads",
+      headerLabel: "Unresolved",
       dataAttr: "data-unresolved"
     }
   ];
@@ -4273,9 +4284,13 @@ var PRInsightsDashboard = (() => {
       const button = createElement("button", {
         type: "button",
         class: "detail-panel-pr-list-header-sort",
-        "data-sort-key": axis.key
+        "data-sort-key": axis.key,
+        "aria-label": `Sort by ${axis.label.toLowerCase()}`
       });
-      appendText(button, axis.label);
+      if (axis.headerLabel !== axis.label) {
+        button.setAttribute("title", axis.label);
+      }
+      appendText(button, axis.headerLabel);
       cell.appendChild(button);
       header.appendChild(cell);
       const record = { axis, cell, state: "none" };
