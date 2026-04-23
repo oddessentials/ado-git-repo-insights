@@ -1,3 +1,26 @@
+# [101.16.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.15.0...v101.16.0) (2026-04-23)
+
+
+### Bug Fixes
+
+* **#310:** column-header 'Unresolved' fits the numeric column ([d83546c](https://github.com/oddessentials/ado-git-repo-insights/commit/d83546c5bd03bc4cb64adfdb036f6038c083679c)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310)
+* **#310:** gate stat row on prList.contentState, derive from prList.rows ([c089784](https://github.com/oddessentials/ado-git-repo-insights/commit/c089784ab69d120afddc98b74617fc723045e7c9)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4)
+* **hooks:** pre-push prefers .venv python before PATH fallbacks ([6c4a5f2](https://github.com/oddessentials/ado-git-repo-insights/commit/6c4a5f2b746fedb736188d4d0256ff1d1f2aea6c))
+* **preflight:** harden VSIX gate to match CI (package + VSIX_REQUIRED=true) ([6b138f5](https://github.com/oddessentials/ado-git-repo-insights/commit/6b138f58d982ce57c6f08167450cd23d478ada6c))
+
+
+### Features
+
+* **#182:** aggregator emits comments-metrics per PR (Phase 3 producer, T018-T021) ([423625c](https://github.com/oddessentials/ado-git-repo-insights/commit/423625c5ae8bf332c0a61c523fb6d485bd2b6e8a)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** atomic 4-surface PrRecord schema expansion + parity gate body (Phase 2, T007-T012/T017) ([c305304](https://github.com/oddessentials/ado-git-repo-insights/commit/c305304b75a40f4767ed73b511d9684fe08bd92e)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** regenerate demo artifacts with comments-metrics (Phase 2 T014/T016 + T033a) ([0365eca](https://github.com/oddessentials/ado-git-repo-insights/commit/0365eca67aaad3ae85bdbca2f222e0f279384639)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** render comments-metrics drill-down columns (Phase 3+4 consumer, T022-T039) ([54a6613](https://github.com/oddessentials/ado-git-repo-insights/commit/54a6613e2ecca6b67222e94cbe60173be73536c0)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** sc-03 capability-off baseline + spread guard (Phase 5, T040-T042) ([57ac5ff](https://github.com/oddessentials/ado-git-repo-insights/commit/57ac5fffbcc899dc085b23e69cd8431063278e03)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** scaffold PrRecord schema parity gate (Phase 1, T001-T006) ([3c8262c](https://github.com/oddessentials/ado-git-repo-insights/commit/3c8262cc614dcb1f65c9bf1a776acefc3fd75187)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#182:** synthesize comments-metrics + byte-identity test (Phase 2 T013-T015) ([a8b091a](https://github.com/oddessentials/ado-git-repo-insights/commit/a8b091a435848ab037f9059f811e820798ab03f0)), closes [#182](https://github.com/oddessentials/ado-git-repo-insights/issues/182)
+* **#310:** column headers + header-driven sort + partial polish ([b10e014](https://github.com/oddessentials/ado-git-repo-insights/commit/b10e0141c13af9cffec290868320cfeb8979195e)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#202230016](https://github.com/oddessentials/ado-git-repo-insights/issues/202230016) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3)
+* **#310:** week stat row from slice-derived sums (F6) ([ae53ab6](https://github.com/oddessentials/ado-git-repo-insights/commit/ae53ab6c862a428e37896adeba2efde88546a3ef)), closes [#310](https://github.com/oddessentials/ado-git-repo-insights/issues/310) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3) [#9](https://github.com/oddessentials/ado-git-repo-insights/issues/9) [#6](https://github.com/oddessentials/ado-git-repo-insights/issues/6) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#4](https://github.com/oddessentials/ado-git-repo-insights/issues/4)
+
 # [101.15.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.14.0...v101.15.0) (2026-04-21)
 
 
