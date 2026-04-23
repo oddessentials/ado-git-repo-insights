@@ -641,6 +641,33 @@ def is_ui_trigger(path: str) -> bool:
     return False
 
 
+# Feature 310 — PrRecord schema parity gate triggers (DIRECTIVE 2 / QG-47).
+# The gate parses exactly three files; staging any of them MUST fire the
+# gate before commit.  Kept separate from ``is_ui_trigger`` / ``is_test_trigger``
+# because a commit that stages only ``types.py`` or only the 310 contract
+# markdown matches neither of those predicates and would otherwise hit the
+# early-return in ``run_pre_commit_hook`` and silently skip the parity gate.
+_PR_RECORD_PARITY_PATHS: frozenset[str] = frozenset(
+    {
+        "src/ado_git_repo_insights/types.py",
+        "extension/ui/schemas/rollup.schema.ts",
+        "specs/310-comments-visualization/contracts/pr-record-comments-fields.md",
+    }
+)
+
+
+def is_pr_record_parity_trigger(path: str) -> bool:
+    """Return True iff ``path`` is one of the three files the parity gate reads.
+
+    CONTRACT: every file parsed by ``scripts/check_pr_record_schema_parity.py``
+    MUST be covered here (QG-47 trigger-scope alignment).  The gate today
+    parses exactly three files — see ``_PR_RECORD_PARITY_PATHS``.  If the
+    gate ever grows another read path, add it to the frozenset and extend
+    the regression test in ``tests/unit/test_hook_triggers.py``.
+    """
+    return path in _PR_RECORD_PARITY_PATHS
+
+
 def require_clean_ui_sources() -> None:
     unstaged = worktree_paths("extension/ui/")
     unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
@@ -698,6 +725,35 @@ def require_clean_tsconfigs() -> None:
     safe_print(
         "Stage or stash these files before committing so the config parity"
         " check matches the staged snapshot:"
+    )
+    for path in unstaged:
+        safe_print(f"  - {path}")
+    raise SystemExit(1)
+
+
+def require_clean_pr_record_parity_scope() -> None:
+    """Block commit if any PR-record parity gate read-path has unstaged changes.
+
+    The parity gate (``scripts/check_pr_record_schema_parity.py``) parses
+    three files from the worktree.  If any of them have unstaged changes,
+    the parity result does not match the staged snapshot — QG-48 worktree-clean
+    guard requirement.
+
+    Scope MUST match ``_PR_RECORD_PARITY_PATHS`` exactly — no broader glob,
+    no ancestor directory scan (user constraint).  Each path is queried
+    individually because ``worktree_paths`` with a specific path returns
+    only that path when unstaged.
+    """
+    unstaged: list[str] = []
+    for path in sorted(_PR_RECORD_PARITY_PATHS):
+        unstaged.extend(worktree_paths(path))
+    if not unstaged:
+        return
+    safe_print("[pre-commit] unstaged changes in PR-record parity-gate scope detected")
+    safe_print("")
+    safe_print(
+        "Stage or stash these files before committing so the parity gate"
+        " validates the staged snapshot:"
     )
     for path in unstaged:
         safe_print(f"  - {path}")
@@ -952,6 +1008,20 @@ def run_extension_config_parity() -> None:
     run_command([pnpm, "run", "test:config-parity"], cwd=EXTENSION_ROOT)
 
 
+def run_pr_record_schema_parity_check() -> None:
+    """Run the PrRecord cross-surface schema parity gate (Feature 310).
+
+    Invokes the single canonical command ``python scripts/check_pr_record_schema_parity.py``
+    — the same string invoked from pre-push preflight, CI, and
+    ``pnpm test:ci`` per QG-49 (one command, many callers).  Python-only
+    implementation so the gate stays green under ``pre-commit run --all-files``
+    in the Python test matrix where ``extension/node_modules`` is absent
+    (feedback_hook_env_parity_across_all_ci_jobs).
+    """
+    safe_print("[pre-commit] running PR-record schema parity gate")
+    run_command([sys.executable, "scripts/check_pr_record_schema_parity.py"])
+
+
 def run_scope_coverage_guard() -> None:
     """Verify every staged .py/.ts file belongs to a known audit scope (FR-026).
 
@@ -1060,11 +1130,24 @@ def run_pre_commit_hook() -> None:
     staged = staged_paths()
     ui_triggers = [path for path in staged if is_ui_trigger(path)]
     test_triggers = [path for path in staged if is_test_trigger(path)]
+    parity_triggers = [path for path in staged if is_pr_record_parity_trigger(path)]
     tsconfig_triggers = [
         path
         for path in staged
         if path.startswith("extension/tsconfig") and path.endswith(".json")
     ]
+
+    # Feature 310 — PR-record schema parity dispatch MUST precede the
+    # early-return below.  A commit that stages only ``types.py`` or only
+    # the 310 contract markdown matches neither ``is_ui_trigger`` nor
+    # ``is_test_trigger`` and would otherwise skip the gate silently.
+    if parity_triggers:
+        safe_print("")
+        safe_print("[pre-commit] PR-record schema parity triggers detected")
+        for path in parity_triggers:
+            safe_print(f"  - {path}")
+        require_clean_pr_record_parity_scope()
+        run_pr_record_schema_parity_check()
 
     if not ui_triggers and not test_triggers:
         return

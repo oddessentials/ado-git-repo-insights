@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 67,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Yvonne Robinson",
+              "author_id": "192a25de-2d1b-5e10-a0eb-dcc2b5e7ac1e",
+              "comment_id": "comment-67-1",
+              "content_length": 83
+            },
+            {
+              "author": "Alice Taylor",
+              "author_id": "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28",
+              "comment_id": "comment-67-2",
+              "content_length": 84
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-67-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 68,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Alice Taylor",
+              "author_id": "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28",
+              "comment_id": "comment-68-1",
+              "content_length": 84
+            },
+            {
+              "author": "Bob Brown",
+              "author_id": "64546a0f-3835-5db3-9a4a-64dbf4e824d9",
+              "comment_id": "comment-68-2",
+              "content_length": 85
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-68-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 69,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Bob Brown",
+              "author_id": "64546a0f-3835-5db3-9a4a-64dbf4e824d9",
+              "comment_id": "comment-69-1",
+              "content_length": 85
+            },
+            {
+              "author": "Bob Green",
+              "author_id": "382a1fe7-038d-5b3b-9c87-8a65d0376b8b",
+              "comment_id": "comment-69-2",
+              "content_length": 86
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-69-1"
+        }
+      ]
+    }
+  ]
+}

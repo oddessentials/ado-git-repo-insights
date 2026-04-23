@@ -855,6 +855,7 @@ describe("detail-panel — top offset (#303)", () => {
         renderedCount: 1,
         actualFilteredCount: 1,
         capValue: 500,
+        commentsMetricsAvailable: false,
       });
       const shellPrList = snapshotShell(openWithPrListSection(prListState));
       dismissDetailPanel("explicit-close-button");

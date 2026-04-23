@@ -4,6 +4,8 @@
 
 **Authoritative spec refs**: FR-001, FR-002, FR-003, FR-012, FR-013, FR-015, FR-025. Data-model: `data-model.md` §1 / §2.
 
+> **Cross-feature extension (Feature 310)**: the 5 fields declared here are extended by three additional fields — `thread_count`, `comment_count`, `active_thread_count` — in the [310 sibling contract](../../310-comments-visualization/contracts/pr-record-comments-fields.md) when `capabilities.comments_metrics=true`. The authoritative declaration for the extended shape is that sibling contract's §1 table; this file remains the authority for the original 5 fields only. Drift between all four PrRecord surfaces (this contract's consumers + the 310 sibling §1) is enforced by `scripts/check_pr_record_schema_parity.py` (Feature 310 DIRECTIVE 2).
+
 ## Producer contract (Python aggregator)
 
 ### Where it lives

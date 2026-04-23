@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 106,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Charlotte Thompson",
+              "author_id": "db58c77c-2999-5071-a857-37ed2deae874",
+              "comment_id": "comment-106-1",
+              "content_length": 74
+            },
+            {
+              "author": "Daniel Martinez",
+              "author_id": "d3225da6-88d8-50bf-80c3-f547b9c530b7",
+              "comment_id": "comment-106-2",
+              "content_length": 75
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-106-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 107,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Daniel Martinez",
+              "author_id": "d3225da6-88d8-50bf-80c3-f547b9c530b7",
+              "comment_id": "comment-107-1",
+              "content_length": 75
+            },
+            {
+              "author": "Daniel Campbell",
+              "author_id": "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216",
+              "comment_id": "comment-107-2",
+              "content_length": 76
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-107-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 108,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Daniel Campbell",
+              "author_id": "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216",
+              "comment_id": "comment-108-1",
+              "content_length": 76
+            },
+            {
+              "author": "Elizabeth King",
+              "author_id": "e249be08-ddb3-5d5c-8c82-1482b06f8038",
+              "comment_id": "comment-108-2",
+              "content_length": 77
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-108-1"
+        }
+      ]
+    }
+  ]
+}

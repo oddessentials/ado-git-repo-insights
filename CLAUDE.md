@@ -13,6 +13,8 @@
 - Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing. Backend: `argparse`, `sqlite3`, `pandas`, `pytest`. Extension: `@types/node`, Jest 30.x, jsdom 28.x, VSS SDK (`azure-devops-extension-sdk`). No new third-party runtime dependencies. (060-throughput-pr-drilldown)
 - SQLite via existing `DatabaseManager`. No schema changes; no migrations. All PR fields already present on `pull_requests` table (models.py:72-90). (060-throughput-pr-drilldown)
 - Python 3.12+ (backend, aggregator, scripts, tests). Matches existing baseline. TypeScript 6.0.3 is present (extension UI) but THIS FEATURE MAKES NO EXTENSION CODE CHANGES — the extension already renders whatever `prs` payload arrives; scope stops at backend + demo generator. + existing only — `argparse`, `pathlib`, `json`, `random`, `sqlite3` via `DatabaseManager`, `requests` via `ADOClient` (one-time extract only), `pytest` + `unittest.mock.MagicMock`. No new third-party runtime or dev dependencies. (309-demo-pr-drilldown)
+- Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing only — `argparse`, `pathlib`, `json`, `sqlite3` via `DatabaseManager`, `pandas` (aggregator group-by), `pytest` + `unittest.mock.MagicMock` (Python tests), Jest 30.x + jsdom 28.x (extension tests). No new third-party runtime or dev dependencies. (310-comments-visualization)
+- SQLite via existing `DatabaseManager`. No schema changes; no migrations. Reads `pr_threads`, `pr_comments`, `pull_requests.comments_extracted_at` — all present since Feature 058. INV-06 (extractor frozen) preserved. (310-comments-visualization)
 
 ## Project Structure
 
@@ -34,9 +36,9 @@ python scripts/run_pr_preflight.py        # Authoritative local PR gate
 Python 3.12+ (backend), TypeScript 6.x (frontend): Follow standard conventions
 
 ## Recent Changes
+- 310-comments-visualization: Added Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing only — `argparse`, `pathlib`, `json`, `sqlite3` via `DatabaseManager`, `pandas` (aggregator group-by), `pytest` + `unittest.mock.MagicMock` (Python tests), Jest 30.x + jsdom 28.x (extension tests). No new third-party runtime or dev dependencies.
 - 309-demo-pr-drilldown: Added Python 3.12+ (backend, aggregator, scripts, tests). Matches existing baseline. TypeScript 6.0.3 is present (extension UI) but THIS FEATURE MAKES NO EXTENSION CODE CHANGES — the extension already renders whatever `prs` payload arrives; scope stops at backend + demo generator. + existing only — `argparse`, `pathlib`, `json`, `random`, `sqlite3` via `DatabaseManager`, `requests` via `ADOClient` (one-time extract only), `pytest` + `unittest.mock.MagicMock`. No new third-party runtime or dev dependencies.
 - 060-throughput-pr-drilldown: Added Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing. Backend: `argparse`, `sqlite3`, `pandas`, `pytest`. Extension: `@types/node`, Jest 30.x, jsdom 28.x, VSS SDK (`azure-devops-extension-sdk`). No new third-party runtime dependencies.
-- 059-chart-drill-down: Added TypeScript 6.0.3 (extension UI), Jest 30.x test runner, jsdom 28.x test environment. + No new runtime dependencies. Reuses `extension/ui/modules/shared/{render,security,chart-layout,host-resize,svg-path}.ts` (shared primitives), `extension/ui/modules/tooltip-manager.ts` (overlay lifecycle pattern reference), `extension/ui/modules/typeahead-dropdown.ts` (combobox/listbox a11y pattern reference), `extension/ui/modules/charts/{throughput,cycle-time,reviewer-activity,summary-cards}.ts` (click target hosts).
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

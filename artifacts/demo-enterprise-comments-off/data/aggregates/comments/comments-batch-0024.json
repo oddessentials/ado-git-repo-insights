@@ -1,0 +1,73 @@
+{
+  "prs": [
+    {
+      "pr_id": 70,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Bob Green",
+              "author_id": "382a1fe7-038d-5b3b-9c87-8a65d0376b8b",
+              "comment_id": "comment-70-1",
+              "content_length": 86
+            },
+            {
+              "author": "Carol Ramirez",
+              "author_id": "4eadb007-7f46-56b1-8740-4a0af48b25d9",
+              "comment_id": "comment-70-2",
+              "content_length": 87
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-70-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 71,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "Carol Ramirez",
+              "author_id": "4eadb007-7f46-56b1-8740-4a0af48b25d9",
+              "comment_id": "comment-71-1",
+              "content_length": 87
+            },
+            {
+              "author": "David Anderson",
+              "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+              "comment_id": "comment-71-2",
+              "content_length": 88
+            }
+          ],
+          "status": "active",
+          "thread_id": "thread-71-1"
+        }
+      ]
+    },
+    {
+      "pr_id": 72,
+      "threads": [
+        {
+          "comments": [
+            {
+              "author": "David Anderson",
+              "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+              "comment_id": "comment-72-1",
+              "content_length": 88
+            },
+            {
+              "author": "Emma Smith",
+              "author_id": "fae290f1-a24a-56db-8d42-01b4acdd6cb9",
+              "comment_id": "comment-72-2",
+              "content_length": 89
+            }
+          ],
+          "status": "fixed",
+          "thread_id": "thread-72-1"
+        }
+      ]
+    }
+  ]
+}

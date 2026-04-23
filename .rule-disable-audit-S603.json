@@ -1,7 +1,7 @@
 {
   "rule": "S603",
   "total_call_sites": 99,
-  "unsafe_count": 9,
+  "unsafe_count": 10,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
@@ -13,7 +13,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 154,
+      "line": 166,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -21,15 +21,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 191,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "scripts/build-demo-dataset.py",
-      "line": 207,
+      "line": 221,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -37,7 +29,15 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 325,
+      "line": 266,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 384,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 363,
+      "line": 422,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -53,7 +53,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 371,
+      "line": 430,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 600,
+      "line": 604,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 623,
+      "line": 627,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 716,
+      "line": 720,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 798,
+      "line": 802,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +341,7 @@
     },
     {
       "file": "tests/demo/test_regen_byte_stability.py",
-      "line": 82,
+      "line": 113,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

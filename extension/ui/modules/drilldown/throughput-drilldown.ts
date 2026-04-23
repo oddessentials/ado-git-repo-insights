@@ -35,6 +35,7 @@ import {
   makeEmptyState,
   makePanelContent,
   makePrListSection,
+  makeStatRow,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
@@ -73,6 +74,13 @@ export interface ThroughputDrilldownOptions {
     | undefined;
   readonly webContext?: PrUrlWebContext;
   readonly authorsDimension?: readonly AuthorEntry[] | null | undefined;
+  // Feature 310 — section-level gate for the three comments-metrics
+  // columns on the PR-detail rendering.  Default is ``false`` when absent
+  // (back-compat with callers that do not wire the capability state).
+  // When ``true`` the renderer emits thread / comment / unresolved
+  // counts per row + sort + threshold filter controls; when ``false``
+  // the DOM stays byte-identical to the pre-310 shape (SC-03).
+  readonly commentsMetricsAvailable?: boolean;
 }
 
 /**
@@ -133,18 +141,42 @@ function buildPrListSection(
       if (rawPrs.length === 0 || !webContext || capValue === undefined) {
         return makePrListSection({ contentState: "supported-empty" });
       }
-      const rows: PrListRow[] = rawPrs.map((pr) => ({
-        id: pr.id,
-        title: pr.title,
-        cycleTimeMinutes: pr.cycle_time,
-        url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
-      }));
+      const commentsMetricsAvailable =
+        options.commentsMetricsAvailable ?? false;
+      // Feature 310: when capability is on, pass the three optional
+      // comments-metrics fields straight through to the row without
+      // normalizing ``undefined`` to ``null`` — the renderer's partial
+      // check (``value === null || value === undefined``) handles both
+      // equivalently, so the extra ``??`` step would only add a
+      // partial-branch with no behavioral difference.  When capability is
+      // off, we skip attaching the triplet entirely so
+      // ``PrListRow.threadCount`` etc. stay absent (SC-03).
+      const rows: PrListRow[] = rawPrs.map((pr): PrListRow => {
+        if (!commentsMetricsAvailable) {
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          };
+        }
+        return {
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          threadCount: pr.thread_count,
+          commentCount: pr.comment_count,
+          activeThreadCount: pr.active_thread_count,
+        };
+      });
       return makePrListSection({
         contentState: "pr-list",
         rows,
         renderedCount: rows.length,
         actualFilteredCount: rollup.pr_count,
         capValue,
+        commentsMetricsAvailable,
       });
     }
   }
@@ -171,10 +203,83 @@ function buildPanelContent(
     "No repository-level activity for this week.",
   );
   const prList = buildPrListSection(rollup, options);
-  return makePanelContent(formatWeekTitle(rollup), subtitle, [
-    byAuthor,
-    byRepository,
-    prList,
+  // Feature 310 — week-level stat row (F6).  Strictly prepended before
+  // byAuthor / byRepository / prList so the existing relative ordering
+  // is byte-stable (lock #2).
+  //
+  // Gate: capability on AND the resolved pr-list state is ``"pr-list"``
+  // — NOT ``rawPrs.length > 0`` alone.  When the active filter set
+  // produces ``team-inline`` or ``reviewer-inline``, the PR-detail
+  // section renders a "Clear the filter" gated message; when it
+  // produces ``supported-empty`` (e.g. missing ``webContext``) the
+  // section renders an empty-state message.  Emitting a stat row
+  // above any of those states would claim week totals with no
+  // corresponding row list visible to back them up (the exact bug the
+  // Codex stop-time review surfaced on commit 2).
+  //
+  // Sums are derived from ``prList.rows`` — the exact typed slice
+  // that feeds the rendered rows (lock #4 — same slice as rows, no
+  // ``rollup`` aggregate fields read).  ``prList.rows`` is a narrowed
+  // non-null ``readonly PrListRow[]`` on the ``"pr-list"`` branch of
+  // the ``PrListSection`` discriminated union, which keeps the stat-
+  // row derivation free of defensive null-coalescing fallbacks on the
+  // array itself.
+  const sections: PanelSection[] = [];
+  const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+  if (commentsMetricsAvailable && prList.contentState === "pr-list") {
+    sections.push(buildCommentsStatRow(prList.rows));
+  }
+  sections.push(byAuthor, byRepository, prList);
+  return makePanelContent(formatWeekTitle(rollup), subtitle, sections);
+}
+
+/**
+ * Build the week-level comments-metrics stat row (F6).
+ *
+ * Input is the ``PrListSectionWithRows.rows`` slice — the exact typed
+ * ``readonly PrListRow[]`` the renderer attaches to the `<ol>`.  Using
+ * this slice (rather than re-reading ``rollup.prs``) keeps the stat-
+ * row's derivation mechanically identical to what the user sees in the
+ * row list below, and removes any need for defensive null-coalescing
+ * on the array itself.
+ *
+ * Locks honoured:
+ *   - #4 slice-only: every value read here is on ``row.threadCount``,
+ *     ``row.commentCount``, ``row.activeThreadCount`` for ``row`` in
+ *     ``rows``.  No ``rollup.by_author`` / ``rollup.by_repository`` /
+ *     ``rollup.pr_count`` access — sums always equal the per-row sum
+ *     even when the chart-level aggregate disagrees.
+ *   - #5 partial accounting: partial rows are NEVER excluded from the
+ *     iteration (lock #4 "never excluded from count logic"); they
+ *     contribute 0 to each numeric sum (lock #4 "partial contributes
+ *     0") and increment the partial counter that drives the
+ *     ``(+N partial)`` annotation.  The annotation appears iff
+ *     ``partialCount > 0``.
+ */
+function buildCommentsStatRow(rows: readonly PrListRow[]): PanelSection {
+  let threadsSum = 0;
+  let commentsSum = 0;
+  let unresolvedSum = 0;
+  let partialCount = 0;
+  for (const row of rows) {
+    // ``?? 0`` makes partial rows (``null`` per INV-10) and any
+    // theoretically-absent field contribute 0 to the running sum.
+    threadsSum += row.threadCount ?? 0;
+    commentsSum += row.commentCount ?? 0;
+    unresolvedSum += row.activeThreadCount ?? 0;
+    // Per INV-08, the producer guarantees threadCount === null implies
+    // the whole triplet is null; checking threadCount alone is
+    // sufficient to identify a partial row.
+    if (row.threadCount === null) partialCount += 1;
+  }
+  const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+  return makeStatRow([
+    { label: "Threads", value: `${threadsSum}${partialSuffix}` },
+    { label: "Comments", value: `${commentsSum}${partialSuffix}` },
+    {
+      label: "Unresolved threads",
+      value: `${unresolvedSum}${partialSuffix}`,
+    },
   ]);
 }
 

@@ -47,6 +47,18 @@ ARTIFACT_ROOT = Path(
 ARTIFACT_DATA_DIR = ARTIFACT_ROOT / "data"
 ARTIFACT_REPORT_DIR = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA_DIR = ARTIFACT_ROOT / "metadata"
+
+# Feature 310 (R-08): capability-off demo-variant artifact root.  The
+# canonical capability-on artifact lives at ``ARTIFACT_ROOT`` above;
+# this sibling root hosts the same generated data with the three
+# comments-metrics keys stripped at the serialization layer.  Both
+# variants are byte-identical except for the five gated keys —
+# ``tests/integration/test_demo_variants_byte_identity.py`` enforces
+# the contract.
+VARIANT_OFF_ARTIFACT_ROOT = (
+    REPO_ROOT / "artifacts" / "demo-enterprise-comments-off"
+).resolve()
+VARIANT_OFF_DATA_DIR = VARIANT_OFF_ARTIFACT_ROOT / "data"
 DOCS_DATA_DIR = REPO_ROOT / "docs" / "data"
 DOCS_DIR = REPO_ROOT / "docs"
 DOCS_INDEX = REPO_ROOT / "docs" / "index.html"
@@ -185,11 +197,29 @@ def assert_inputs_clean(
         )
 
 
-def run_generator(script_name: str, output_root: Path) -> None:
-    """Run a demo generator against the canonical output root."""
+def run_generator(
+    script_name: str,
+    output_root: Path,
+    *,
+    extra_args: Sequence[str] = (),
+) -> None:
+    """Run a demo generator against the canonical output root.
+
+    Feature 310 extends the signature with ``extra_args`` so
+    ``build-demo-dataset.py`` can pass ``--comments-metrics=false`` to
+    ``generate-demo-data.py`` when producing the capability-off variant
+    (R-08).  Default keeps the canonical path unchanged.
+    """
     script_path = REPO_ROOT / "scripts" / script_name
+    command: list[str] = [
+        sys.executable,
+        str(script_path),
+        "--output-root",
+        str(output_root),
+    ]
+    command.extend(extra_args)
     result = subprocess.run(
-        [sys.executable, str(script_path), "--output-root", str(output_root)],
+        command,
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -200,6 +230,35 @@ def run_generator(script_name: str, output_root: Path) -> None:
             f"{script_name} failed with exit code {result.returncode}\n"
             f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
+
+
+def build_variant_off_artifact() -> None:
+    """Produce ``artifacts/demo-enterprise-comments-off/`` (Feature 310 R-08).
+
+    Runs the canonical generator steps against
+    ``VARIANT_OFF_DATA_DIR`` with ``--comments-metrics=false`` passed
+    only to ``generate-demo-data.py`` (the other generators don't know
+    the flag and don't emit any of the five gated keys).  Does NOT
+    promote or stamp this variant onto ``docs/data/`` — the variant-
+    off tree exists exclusively for the SC-03 DOM baseline test and
+    for the R-08 byte-identity integration test; the canonical
+    variant-on artifact remains the docs/data/ source of truth.
+    """
+    print(f"[demo-build] building variant-off artifact at {VARIANT_OFF_ARTIFACT_ROOT}")
+    _remove_tree(VARIANT_OFF_DATA_DIR)
+    VARIANT_OFF_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for script_name in GENERATOR_STEPS:
+        print(f"[demo-build] running {script_name} (variant-off)")
+        if script_name == "generate-demo-data.py":
+            run_generator(
+                script_name,
+                VARIANT_OFF_DATA_DIR,
+                extra_args=("--comments-metrics", "false"),
+            )
+            ensure_demo_data_complete(VARIANT_OFF_DATA_DIR)
+        else:
+            run_generator(script_name, VARIANT_OFF_DATA_DIR)
+    stamp_canonical_manifest_provenance(VARIANT_OFF_DATA_DIR)
 
 
 def run_repo_command(command: list[str], *, cwd: Path = REPO_ROOT) -> None:
@@ -1348,6 +1407,13 @@ def main(argv: list[str] | None = None) -> int:
             if script_name == "generate-demo-data.py":
                 ensure_demo_data_complete(ARTIFACT_DATA_DIR)
         stamp_canonical_manifest_provenance(ARTIFACT_DATA_DIR)
+        # Feature 310 R-08: produce the capability-off demo variant
+        # immediately after the canonical capability-on build so both
+        # trees are regenerated in the same invocation with matching
+        # seed state.  This variant never promotes to docs/data/; it
+        # exists only as a fixture for the SC-03 baseline DOM test and
+        # the R-08 byte-identity integration test.
+        build_variant_off_artifact()
         active_mode = CANONICAL_COMMITTED_DEMO_MODE
 
     validate_manifest_addressability(ARTIFACT_DATA_DIR)

@@ -1536,430 +1536,613 @@
   "pr_count": 61,
   "prs": [
     {
+      "active_thread_count": 7,
       "author_id": "5e8051b8-312f-5897-b10a-7137ec37d442",
+      "comment_count": 14,
       "cycle_time": 103807.49,
       "id": 202146058,
       "repository_id": "android-app",
+      "thread_count": 7,
       "title": "update-feat"
     },
     {
+      "active_thread_count": null,
       "author_id": "ed15254c-8741-5f52-a86a-763e430d271e",
+      "comment_count": null,
       "cycle_time": 38237.525,
       "id": 202146046,
       "repository_id": "notification-service",
+      "thread_count": null,
       "title": "feat-feat-reviews-refactor-setup"
     },
     {
+      "active_thread_count": 7,
       "author_id": "e7df4671-04e7-5ad1-8d32-4e1923c91065",
+      "comment_count": 16,
       "cycle_time": 29725.128,
       "id": 202146038,
       "repository_id": "stream-processor",
+      "thread_count": 8,
       "title": "update-code-disable-prod-ai-review"
     },
     {
+      "active_thread_count": 2,
       "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "comment_count": 16,
       "cycle_time": 9583.782,
       "id": 202146025,
       "repository_id": "auth-service",
+      "thread_count": 4,
       "title": "ci-ai-blank-fixci-deployment-refactor"
     },
     {
+      "active_thread_count": 1,
       "author_id": "f8de20c9-af06-518c-8697-881b5334bd67",
+      "comment_count": 5,
       "cycle_time": 3553.912,
       "id": 202146003,
       "repository_id": "ios-app",
+      "thread_count": 1,
       "title": "job-update-baseline-ci"
     },
     {
+      "active_thread_count": 9,
       "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+      "comment_count": 36,
       "cycle_time": 2602.817,
       "id": 202146048,
       "repository_id": "etl-jobs",
+      "thread_count": 9,
       "title": "setup-repo-deployment-update-fixci"
     },
     {
+      "active_thread_count": 3,
       "author_id": "9c653f8c-83a0-58b2-9832-4bacbfb73690",
+      "comment_count": 20,
       "cycle_time": 2095.255,
       "id": 202146039,
       "repository_id": "feature-store",
+      "thread_count": 10,
       "title": "fixci-nodejs"
     },
     {
+      "active_thread_count": 1,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "comment_count": 4,
       "cycle_time": 1534.471,
       "id": 202146005,
       "repository_id": "etl-jobs",
+      "thread_count": 1,
       "title": "gaps-feat-disable-prod-semantic-release"
     },
     {
+      "active_thread_count": null,
       "author_id": "3281ab9d-1db0-551b-9810-33c4a8d872c4",
+      "comment_count": null,
       "cycle_time": 1052.09,
       "id": 202146034,
       "repository_id": "gateway-core",
+      "thread_count": null,
       "title": "repo-standards"
     },
     {
+      "active_thread_count": 0,
       "author_id": "59cb7d66-58a2-59e7-942f-4da2b915d6c9",
+      "comment_count": 6,
       "cycle_time": 737.732,
       "id": 202146015,
       "repository_id": "model-training",
+      "thread_count": 2,
       "title": "verified-semantic-release-tests-step"
     },
     {
+      "active_thread_count": 2,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "comment_count": 4,
       "cycle_time": 575.965,
       "id": 202146049,
       "repository_id": "model-training",
+      "thread_count": 2,
       "title": "add-standards"
     },
     {
+      "active_thread_count": 9,
       "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "comment_count": 56,
       "cycle_time": 509.753,
       "id": 202146044,
       "repository_id": "ios-app",
+      "thread_count": 14,
       "title": "fixci-feat-fix-review-hardening-review"
     },
     {
+      "active_thread_count": 1,
       "author_id": "b7ad1ee1-902d-532c-9b80-0eda227e722c",
+      "comment_count": 25,
       "cycle_time": 407.25,
       "id": 202146004,
       "repository_id": "ios-app",
+      "thread_count": 5,
       "title": "code-setup-hardening-feat-update-add"
     },
     {
+      "active_thread_count": 1,
       "author_id": "a778cba4-5127-5c45-85de-1da27ad6b478",
+      "comment_count": 5,
       "cycle_time": 263.805,
       "id": 202146043,
       "repository_id": "gateway-core",
+      "thread_count": 1,
       "title": "update-hardening"
     },
     {
+      "active_thread_count": 2,
       "author_id": "40d81568-152f-54d0-98c8-ef321164926e",
+      "comment_count": 18,
       "cycle_time": 245.273,
       "id": 202146001,
       "repository_id": "react-shell",
+      "thread_count": 9,
       "title": "deployment-feat"
     },
     {
+      "active_thread_count": 0,
       "author_id": "d62a08f1-da5c-55b2-a473-9fd58a52ca91",
+      "comment_count": 12,
       "cycle_time": 202.783,
       "id": 202146057,
       "repository_id": "user-service",
+      "thread_count": 3,
       "title": "free-code-marker-semantic-release-hardening-prod"
     },
     {
+      "active_thread_count": 4,
       "author_id": "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6",
+      "comment_count": 16,
       "cycle_time": 142.751,
       "id": 202146056,
       "repository_id": "data-warehouse",
+      "thread_count": 4,
       "title": "prod-fixci-remaining-semantic-release-nodejs"
     },
     {
+      "active_thread_count": 15,
       "author_id": "9db53b28-1eff-5152-b583-0a83a16b67b6",
+      "comment_count": 45,
       "cycle_time": 123.854,
       "id": 202146053,
       "repository_id": "model-training",
+      "thread_count": 15,
       "title": "review-disable-fixci-standards-review"
     },
     {
+      "active_thread_count": 8,
       "author_id": "fa599eb4-03b8-5d2d-aeee-5cfc436e496d",
+      "comment_count": 55,
       "cycle_time": 119.13,
       "id": 202146045,
       "repository_id": "etl-jobs",
+      "thread_count": 11,
       "title": "fix-hardening-nextstepsmd-repo-stability-standards"
     },
     {
+      "active_thread_count": 2,
       "author_id": "7a983fd7-ee82-530f-851a-70785c8fe4a5",
+      "comment_count": 8,
       "cycle_time": 93.336,
       "id": 202146019,
       "repository_id": "model-training",
+      "thread_count": 4,
       "title": "ci-during"
     },
     {
+      "active_thread_count": 0,
       "author_id": "4237b7e6-65bf-5f6f-831e-efba9e5e326b",
+      "comment_count": 20,
       "cycle_time": 69.917,
       "id": 202146014,
       "repository_id": "inference-service",
+      "thread_count": 4,
       "title": "prod-hooks-add"
     },
     {
+      "active_thread_count": 2,
       "author_id": "a778cba4-5127-5c45-85de-1da27ad6b478",
+      "comment_count": 25,
       "cycle_time": 55.638,
       "id": 202146022,
       "repository_id": "model-training",
+      "thread_count": 5,
       "title": "ai-review"
     },
     {
+      "active_thread_count": 0,
       "author_id": "a778cba4-5127-5c45-85de-1da27ad6b478",
+      "comment_count": 3,
       "cycle_time": 44.578,
       "id": 202146009,
       "repository_id": "stream-processor",
+      "thread_count": 0,
       "title": "tests-blank-self-hosted"
     },
     {
+      "active_thread_count": 11,
       "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "comment_count": 70,
       "cycle_time": 34.732,
       "id": 202146011,
       "repository_id": "auth-service",
+      "thread_count": 14,
       "title": "baseline-semantic-release"
     },
     {
+      "active_thread_count": 8,
       "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
+      "comment_count": 60,
       "cycle_time": 28.584,
       "id": 202146024,
       "repository_id": "ios-app",
+      "thread_count": 12,
       "title": "disable-ci"
     },
     {
+      "active_thread_count": 0,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+      "comment_count": 20,
       "cycle_time": 27.158,
       "id": 202146021,
       "repository_id": "user-service",
+      "thread_count": 10,
       "title": "devex-gaps-prod-ai-blank"
     },
     {
+      "active_thread_count": 6,
       "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+      "comment_count": 30,
       "cycle_time": 25.804,
       "id": 202146030,
       "repository_id": "gateway-core",
+      "thread_count": 10,
       "title": "tests-nodejs"
     },
     {
+      "active_thread_count": 0,
       "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+      "comment_count": 5,
       "cycle_time": 20.186,
       "id": 202146002,
       "repository_id": "user-service",
+      "thread_count": 1,
       "title": "add-devex-setup"
     },
     {
+      "active_thread_count": 1,
       "author_id": "4237b7e6-65bf-5f6f-831e-efba9e5e326b",
+      "comment_count": 8,
       "cycle_time": 18.982,
       "id": 202146035,
       "repository_id": "model-training",
+      "thread_count": 2,
       "title": "playwright-feat-standards-complete"
     },
     {
+      "active_thread_count": 3,
       "author_id": "40d81568-152f-54d0-98c8-ef321164926e",
+      "comment_count": 28,
       "cycle_time": 18.642,
       "id": 202146027,
       "repository_id": "stream-processor",
+      "thread_count": 14,
       "title": "review-build-semantic-release-self-hosted-fixci"
     },
     {
+      "active_thread_count": 1,
       "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
+      "comment_count": 6,
       "cycle_time": 13.885,
       "id": 202146050,
       "repository_id": "auth-service",
+      "thread_count": 2,
       "title": "semantic-release-ai-fixci-gaps"
     },
     {
+      "active_thread_count": 9,
       "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
+      "comment_count": 75,
       "cycle_time": 12.211,
       "id": 202146013,
       "repository_id": "feature-store",
+      "thread_count": 15,
       "title": "hardening-fixci-shared"
     },
     {
+      "active_thread_count": 0,
       "author_id": "429e1343-3733-55c1-af54-d9a82f37935c",
+      "comment_count": 1,
       "cycle_time": 11.866,
       "id": 202146032,
       "repository_id": "etl-jobs",
+      "thread_count": 0,
       "title": "disable-setup-feat"
     },
     {
+      "active_thread_count": 9,
       "author_id": "226d1176-ffc5-542e-9f0d-8e5dd565f48c",
+      "comment_count": 44,
       "cycle_time": 7.095,
       "id": 202146055,
       "repository_id": "auth-service",
+      "thread_count": 11,
       "title": "step-shared-playwright-workspace-stability-feat"
     },
     {
+      "active_thread_count": 6,
       "author_id": "d62a08f1-da5c-55b2-a473-9fd58a52ca91",
+      "comment_count": 30,
       "cycle_time": 7.083,
       "id": 202146020,
       "repository_id": "model-training",
+      "thread_count": 10,
       "title": "transitions-review-hardening"
     },
     {
+      "active_thread_count": 0,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "comment_count": 25,
       "cycle_time": 6.789,
       "id": 202146023,
       "repository_id": "react-shell",
+      "thread_count": 5,
       "title": "update-semantic-release-tests"
     },
     {
+      "active_thread_count": null,
       "author_id": "655c7e03-2cc4-5976-84fb-c22130b784b3",
+      "comment_count": null,
       "cycle_time": 5.408,
       "id": 202146052,
       "repository_id": "feature-store",
+      "thread_count": null,
       "title": "better-docs"
     },
     {
+      "active_thread_count": 1,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "comment_count": 25,
       "cycle_time": 5.245,
       "id": 202146041,
       "repository_id": "model-training",
+      "thread_count": 5,
       "title": "gaps-fixci"
     },
     {
+      "active_thread_count": 1,
       "author_id": "a778cba4-5127-5c45-85de-1da27ad6b478",
+      "comment_count": 4,
       "cycle_time": 5.048,
       "id": 202146016,
       "repository_id": "model-training",
+      "thread_count": 2,
       "title": "shared-deployment-better-blank-during-during"
     },
     {
+      "active_thread_count": 2,
       "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "comment_count": 36,
       "cycle_time": 4.088,
       "id": 202146040,
       "repository_id": "data-warehouse",
+      "thread_count": 9,
       "title": "feat-update-release-feat-disable"
     },
     {
+      "active_thread_count": 3,
       "author_id": "b1238244-1dff-5232-aae6-73ad452a75a0",
+      "comment_count": 24,
       "cycle_time": 3.142,
       "id": 202146051,
       "repository_id": "user-service",
+      "thread_count": 12,
       "title": "setup-ci"
     },
     {
+      "active_thread_count": 5,
       "author_id": "edd8ead8-cc32-5e8a-9f64-d88206710636",
+      "comment_count": 30,
       "cycle_time": 3.109,
       "id": 202146006,
       "repository_id": "user-service",
+      "thread_count": 10,
       "title": "repo-hardening-hardening-remaining-ci-code"
     },
     {
+      "active_thread_count": 6,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+      "comment_count": 45,
       "cycle_time": 2.547,
       "id": 202146047,
       "repository_id": "etl-jobs",
+      "thread_count": 15,
       "title": "release-complete"
     },
     {
+      "active_thread_count": 7,
       "author_id": "fa599eb4-03b8-5d2d-aeee-5cfc436e496d",
+      "comment_count": 21,
       "cycle_time": 2.412,
       "id": 202146029,
       "repository_id": "dashboard-api",
+      "thread_count": 7,
       "title": "step-ai"
     },
     {
+      "active_thread_count": 7,
       "author_id": "3281ab9d-1db0-551b-9810-33c4a8d872c4",
+      "comment_count": 32,
       "cycle_time": 2.156,
       "id": 202146028,
       "repository_id": "model-training",
+      "thread_count": 8,
       "title": "prod-feat-verified-shared-repo"
     },
     {
+      "active_thread_count": 5,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+      "comment_count": 70,
       "cycle_time": 2.022,
       "id": 202146000,
       "repository_id": "model-training",
+      "thread_count": 14,
       "title": "config-add"
     },
     {
+      "active_thread_count": 6,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+      "comment_count": 52,
       "cycle_time": 1.812,
       "id": 202146012,
       "repository_id": "model-training",
+      "thread_count": 13,
       "title": "verified-ci-setup-metal-feat"
     },
     {
+      "active_thread_count": 1,
       "author_id": "429e1343-3733-55c1-af54-d9a82f37935c",
+      "comment_count": 10,
       "cycle_time": 1.477,
       "id": 202146017,
       "repository_id": "model-training",
+      "thread_count": 2,
       "title": "disable-verified-compatibility-add-fix"
     },
     {
+      "active_thread_count": 4,
       "author_id": "59cb7d66-58a2-59e7-942f-4da2b915d6c9",
+      "comment_count": 10,
       "cycle_time": 1.083,
       "id": 202146059,
       "repository_id": "data-warehouse",
+      "thread_count": 5,
       "title": "baseline-ci-fix"
     },
     {
+      "active_thread_count": 0,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
+      "comment_count": 52,
       "cycle_time": 0.785,
       "id": 202146036,
       "repository_id": "feature-store",
+      "thread_count": 13,
       "title": "add-better-update-nextstepsmd-update-nextstepsmd"
     },
     {
+      "active_thread_count": 7,
       "author_id": "9b064573-dab2-5837-b361-f50b8235b324",
+      "comment_count": 24,
       "cycle_time": 0.623,
       "id": 202146026,
       "repository_id": "user-service",
+      "thread_count": 12,
       "title": "update-verified-alignment"
     },
     {
+      "active_thread_count": 7,
       "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+      "comment_count": 21,
       "cycle_time": 0.446,
       "id": 202146060,
       "repository_id": "user-service",
+      "thread_count": 7,
       "title": "hardening-setup"
     },
     {
+      "active_thread_count": 0,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
+      "comment_count": 2,
       "cycle_time": 0.243,
       "id": 202146008,
       "repository_id": "dashboard-api",
+      "thread_count": 0,
       "title": "tests-review"
     },
     {
+      "active_thread_count": 0,
       "author_id": "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6",
+      "comment_count": 4,
       "cycle_time": 0.073,
       "id": 202146031,
       "repository_id": "user-service",
+      "thread_count": 2,
       "title": "ci-prod"
     },
     {
+      "active_thread_count": 5,
       "author_id": "5e8051b8-312f-5897-b10a-7137ec37d442",
+      "comment_count": 25,
       "cycle_time": 0.069,
       "id": 202146010,
       "repository_id": "user-service",
+      "thread_count": 5,
       "title": "build-alignment-workspace-setup-complete"
     },
     {
+      "active_thread_count": 6,
       "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+      "comment_count": 26,
       "cycle_time": 0.051,
       "id": 202146054,
       "repository_id": "design-system",
+      "thread_count": 13,
       "title": "review-deployment-update-ai"
     },
     {
+      "active_thread_count": 5,
       "author_id": "4237b7e6-65bf-5f6f-831e-efba9e5e326b",
+      "comment_count": 27,
       "cycle_time": 0.032,
       "id": 202146033,
       "repository_id": "user-service",
+      "thread_count": 9,
       "title": "ci-review-self-hosted-hardening"
     },
     {
+      "active_thread_count": 2,
       "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+      "comment_count": 27,
       "cycle_time": 0.03,
       "id": 202146018,
       "repository_id": "android-app",
+      "thread_count": 9,
       "title": "hooks-free-deployment-fix-ci-free"
     },
     {
+      "active_thread_count": 4,
       "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+      "comment_count": 30,
       "cycle_time": 0.003,
       "id": 202146007,
       "repository_id": "user-service",
+      "thread_count": 15,
       "title": "fix-disable-feat-fixci"
     },
     {
+      "active_thread_count": 2,
       "author_id": "321f42a1-e6c8-5a9f-a514-989fefce50a2",
+      "comment_count": 40,
       "cycle_time": 0.002,
       "id": 202146037,
       "repository_id": "gateway-core",
+      "thread_count": 10,
       "title": "code-fix-deployment-add-nextstepsmd-standards"
     },
     {
+      "active_thread_count": 0,
       "author_id": "5e8051b8-312f-5897-b10a-7137ec37d442",
+      "comment_count": 2,
       "cycle_time": 0.001,
       "id": 202146042,
       "repository_id": "auth-service",
+      "thread_count": 1,
       "title": "playwright-self-hosted-fixci"
     }
   ],

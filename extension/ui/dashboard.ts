@@ -1099,6 +1099,15 @@ async function refreshMetrics(): Promise<void> {
             ? { collectionUri: currentCollectionUri }
             : undefined,
           authorsDimension: currentDimensions?.authors,
+          // Feature 310: gate the three comments-metrics columns on the
+          // single-source-of-truth ``DatasetCapabilityState``
+          // (``commentsMetricsAvailable`` is normalized at
+          // ``dataset-loader.ts::getCapabilityState`` — same value the
+          // dashboard's comments-coverage banner reads at line 2334).
+          // Default ``false`` when the loader has not produced a state
+          // yet (first render / dataset-less bootstrap).
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
         }),
       );
     }

@@ -29,8 +29,17 @@ import pytest
 REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 GENERATE_DATA_SCRIPT: Final[Path] = REPO_ROOT / "scripts" / "generate-demo-data.py"
 
-_PR_RECORD_KEYS: Final[frozenset[str]] = frozenset(
+_PR_RECORD_REQUIRED_KEYS: Final[frozenset[str]] = frozenset(
     {"id", "title", "author_id", "repository_id", "cycle_time"}
+)
+# Feature 310 extends the synthetic PR record with three
+# comments-metrics keys.  They arrive together or not at all
+# (INV-08); non-partial rows emit integer values, partial rows emit
+# ``None``.  The shape contract below accepts either the 5-field
+# legacy shape OR the 8-field extended shape and enforces INV-08 on
+# the extended one.
+_PR_RECORD_COMMENTS_KEYS: Final[frozenset[str]] = frozenset(
+    {"thread_count", "comment_count", "active_thread_count"}
 )
 
 
@@ -58,17 +67,47 @@ def _default_authors(count: int = 12) -> list[str]:
 
 def test_prs_conform_to_pr_record_shape(generate_demo_data: ModuleType) -> None:
     pr_record_rng = random.Random(4242)
+    comments_metrics_rng = random.Random(5555)
     records = generate_demo_data.generate_pr_records(
         "2025-W10",
         _default_repos(5),
         _default_authors(),
         pr_record_rng,
+        comments_metrics_rng,
     )
     assert records, "generator must return at least one record on non-empty input"
     for record in records:
-        assert set(record.keys()) == _PR_RECORD_KEYS, (
-            f"unexpected PrRecord key set: {sorted(record.keys())}"
+        keys = set(record.keys())
+        # The record MUST carry at least the 5 presence-required fields;
+        # it MAY additionally carry the 3 comments-metrics fields
+        # (Feature 310) — but atomically, all-three or none.
+        assert _PR_RECORD_REQUIRED_KEYS.issubset(keys), (
+            f"missing required PrRecord keys: {sorted(_PR_RECORD_REQUIRED_KEYS - keys)}"
         )
+        extra = keys - _PR_RECORD_REQUIRED_KEYS
+        if extra:
+            assert extra == _PR_RECORD_COMMENTS_KEYS, (
+                f"unexpected extra PrRecord keys: {sorted(extra)}; expected "
+                f"either no extras or the Feature 310 triplet "
+                f"{sorted(_PR_RECORD_COMMENTS_KEYS)}"
+            )
+            # INV-08: the three must land together — asserted by the set
+            # equality above — and each MUST be either None (partial
+            # sentinel) or a non-negative integer (covered count).
+            for field in _PR_RECORD_COMMENTS_KEYS:
+                value = record[field]
+                assert value is None or (isinstance(value, int) and value >= 0), (
+                    f"PrRecord[{field!r}] MUST be None or non-negative int; "
+                    f"got {value!r}"
+                )
+            # INV-09: active_thread_count <= thread_count when both numeric.
+            thread_count = record["thread_count"]
+            active_thread_count = record["active_thread_count"]
+            if isinstance(thread_count, int) and isinstance(active_thread_count, int):
+                assert active_thread_count <= thread_count, (
+                    f"INV-09 violated: active_thread_count "
+                    f"({active_thread_count}) > thread_count ({thread_count})"
+                )
         assert isinstance(record["id"], int)
         assert isinstance(record["title"], str)
         assert record["title"], "title must be non-empty"
@@ -262,35 +301,55 @@ def test_committed_rollup_bytes_survive_round_trip() -> None:
 
 
 def test_rng_isolation(generate_demo_data: ModuleType) -> None:
-    """Helper must consume only the passed-in pr_record_rng (no shared RNG dip).
+    """Helper must consume only the explicitly-passed RNG streams.
 
-    Consumes from one pr_record_rng BEFORE calling the helper, then calls with
-    a fresh seed-matched instance, and compares with a control run. Any hidden
-    dependency on module-level RNG would surface as drifted output.
+    Consumes from a fresh ``pr_record_rng`` + ``comments_metrics_rng``
+    pair, then calls with seed-matched fresh instances and compares with
+    a control run.  Any hidden dependency on a module-level RNG would
+    surface as drifted output.
+
+    Feature 310 extended the helper with ``comments_metrics_rng``.
+    Both streams are tested for isolation from the shared ``RNG`` and
+    from each other — so perturbing either module-level global MUST
+    NOT change the output as long as the helper receives fresh
+    seed-matched inputs.
     """
-    control_rng = random.Random(2000 + 42)
+    control_pr_rng = random.Random(2000 + 42)
+    control_comments_rng = random.Random(3000 + 42)
     control_records = generate_demo_data.generate_pr_records(
         "2025-W13",
         _default_repos(15),
         _default_authors(),
-        control_rng,
+        control_pr_rng,
+        control_comments_rng,
     )
 
-    perturbed_rng = random.Random(2000 + 42)
-    # Perturb the shared/module-level RNG before invoking the helper; if the
-    # helper dips into it, the resulting titles/cycle-times will differ.
+    perturbed_pr_rng = random.Random(2000 + 42)
+    perturbed_comments_rng = random.Random(3000 + 42)
+    # Perturb the shared/module-level RNGs before invoking the helper;
+    # if the helper dips into any of them, the result will drift.
     shared_rng = getattr(generate_demo_data, "RNG", random.Random(0))
     for _ in range(64):
         shared_rng.random()
+    module_pr_rng = getattr(generate_demo_data, "pr_record_rng", random.Random(0))
+    for _ in range(32):
+        module_pr_rng.random()
+    module_comments_rng = getattr(
+        generate_demo_data, "comments_metrics_rng", random.Random(0)
+    )
+    for _ in range(48):
+        module_comments_rng.random()
 
     perturbed_records = generate_demo_data.generate_pr_records(
         "2025-W13",
         _default_repos(15),
         _default_authors(),
-        perturbed_rng,
+        perturbed_pr_rng,
+        perturbed_comments_rng,
     )
 
     assert perturbed_records == control_records, (
-        "generator's output drifted when the shared RNG was perturbed — "
-        "helper must consume only the passed pr_record_rng"
+        "generator's output drifted when the shared / module RNGs were "
+        "perturbed — helper must consume only the explicitly-passed "
+        "pr_record_rng + comments_metrics_rng streams"
     )

@@ -66,9 +66,26 @@ export interface ReviewerBreakdownEntry {
 /**
  * Individual PR record element of the weekly rollup `prs` array (feature 060).
  *
- * Exactly five fields per the locked PR-record contract (FR-001, data-model §1,
- * specs/060-throughput-pr-drilldown/contracts/pr-record.md). Expansion requires
- * a fresh scoping round — do not add fields opportunistically.
+ * The five presence-required fields are locked by feature 060
+ * (FR-001, data-model §1, specs/060-throughput-pr-drilldown/contracts/pr-record.md).
+ * Feature 310 extends the contract with three presence-optional comments-metrics
+ * fields (`thread_count` / `comment_count` / `active_thread_count`); the
+ * authoritative declaration for the extended shape is
+ * specs/310-comments-visualization/contracts/pr-record-comments-fields.md §1.
+ *
+ * Presence semantics:
+ *   - The five feature-060 fields are always emitted on every PrRecord.
+ *   - The three feature-310 fields are emitted together (all three or none)
+ *     per INV-08, gated at emission time by
+ *     `capabilities.comments_metrics`.  Each is `?: number | null`: absent
+ *     entirely when the capability is off, a number when covered, or `null`
+ *     when the per-PR `comments_extracted_at` is NULL (partial coverage
+ *     sentinel per INV-10 / FR-3-05).
+ *
+ * Expansion requires a fresh scoping round — do not add fields
+ * opportunistically.  Drift between this interface, the Python `PrRecord`
+ * TypedDict, `PR_RECORD_REQUIRED_FIELDS`, and the 310 §1 table is detected
+ * by `scripts/check_pr_record_schema_parity.py`.
  */
 export interface PrRecord {
   id: number;
@@ -76,6 +93,9 @@ export interface PrRecord {
   author_id: string;
   repository_id: string;
   cycle_time: number;
+  thread_count?: number | null;
+  comment_count?: number | null;
+  active_thread_count?: number | null;
 }
 
 /**
@@ -480,6 +500,99 @@ function validatePrRecordArray(
           `expected number, got ${getTypeName(pr.cycle_time)}`,
         ),
       );
+    }
+    // Feature 310 — comments-metrics triplet validation.  All three fields
+    // are presence-optional (absent entirely when capabilities.comments_metrics
+    // is off) and value-nullable (null = per-PR coverage-partial sentinel).
+    // The validator is permissive: every violation below surfaces as a warning
+    // with a path and a specific message — it never rejects the element.
+    // Runtime enforcement of the same invariants on production builds lives in
+    // tests/unit/test_aggregators_pr_records_comments.py (producer) and
+    // extension/tests/schema/pr-record-comments-fields.test.ts (consumer).
+    //
+    // Static field-by-field access mirrors the feature-060 pattern above;
+    // dynamic key access (``pr[field]``) trips eslint security rules and
+    // would add no brevity to three cases.
+    const threadCount = pr.thread_count;
+    const commentCount = pr.comment_count;
+    const activeThreadCount = pr.active_thread_count;
+    if (
+      threadCount !== undefined &&
+      threadCount !== null &&
+      !isNumber(threadCount)
+    ) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "thread_count"),
+          `expected number or null, got ${getTypeName(threadCount)}`,
+        ),
+      );
+    }
+    if (
+      commentCount !== undefined &&
+      commentCount !== null &&
+      !isNumber(commentCount)
+    ) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "comment_count"),
+          `expected number or null, got ${getTypeName(commentCount)}`,
+        ),
+      );
+    }
+    if (
+      activeThreadCount !== undefined &&
+      activeThreadCount !== null &&
+      !isNumber(activeThreadCount)
+    ) {
+      warnings.push(
+        createWarning(
+          buildPath(prPath, "active_thread_count"),
+          `expected number or null, got ${getTypeName(activeThreadCount)}`,
+        ),
+      );
+    }
+    // INV-08 atomicity: all three fields present together, or all absent.
+    const presentCount =
+      (threadCount !== undefined ? 1 : 0) +
+      (commentCount !== undefined ? 1 : 0) +
+      (activeThreadCount !== undefined ? 1 : 0);
+    if (presentCount !== 0 && presentCount !== 3) {
+      warnings.push(
+        createWarning(
+          prPath,
+          `comments-metrics atomicity violated (INV-08): expected all three of thread_count / comment_count / active_thread_count to be present together, or all absent; got ${presentCount} of 3 present`,
+        ),
+      );
+    }
+    // INV-10 coverage-partial consistency: when all three are present, they
+    // must be all numeric or all null.  Mixed null/numeric is a producer bug.
+    if (presentCount === 3) {
+      const nullCount =
+        (threadCount === null ? 1 : 0) +
+        (commentCount === null ? 1 : 0) +
+        (activeThreadCount === null ? 1 : 0);
+      if (nullCount !== 0 && nullCount !== 3) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `comments-metrics coverage-partial consistency violated (INV-10): expected thread_count / comment_count / active_thread_count to be all numeric or all null; got ${nullCount} of 3 null`,
+          ),
+        );
+      }
+      // INV-09 ordering: active_thread_count <= thread_count when both numeric.
+      if (
+        isNumber(threadCount) &&
+        isNumber(activeThreadCount) &&
+        activeThreadCount > threadCount
+      ) {
+        warnings.push(
+          createWarning(
+            prPath,
+            `comments-metrics ordering violated (INV-09): active_thread_count (${activeThreadCount}) MUST NOT exceed thread_count (${threadCount})`,
+          ),
+        );
+      }
     }
   }
 

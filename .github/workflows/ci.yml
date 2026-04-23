@@ -570,6 +570,9 @@ jobs:
       - name: Verify Ruff Version Consistency
         run: python scripts/check_tool_versions.py
 
+      - name: PR-record schema parity (Feature 310, QG-49)
+        run: python scripts/check_pr_record_schema_parity.py
+
       - name: Run pre-commit checks
         run: |
           pip install pre-commit
