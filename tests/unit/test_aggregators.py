@@ -26,6 +26,7 @@ from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.aggregators import (
     AggregateGenerator,
+    DatasetManifest,
     _NumpySafeEncoder,
 )
 from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION
@@ -2620,6 +2621,23 @@ class TestPerformanceGate:
     # macos-latest + Python 3.12, 2026-03-25).
     # The platform multipliers account for I/O and pandas groupby differences.
     # Configurable via PERF_THRESHOLD_SECONDS env var for ad-hoc tuning.
+    #
+    # Contract (see #316): on Windows the assertion is two-part after a
+    # discarded warm-up run:
+    #   (1) median of N timed runs ≤ PERF_THRESHOLD_SECONDS  — catches
+    #       a sustained regression (the whole distribution shifts).
+    #   (2) worst of N timed runs ≤ _WINDOWS_OUTLIER_CEILING  — catches an
+    #       intermittent regression (≥1 run blows the threshold even if
+    #       the median absorbs it).
+    # The outlier ceiling is 1.5× the median threshold, which is outside
+    # any measured tail-event variance (observed max 17s under 2-gate
+    # synthetic load, well below the 100s Windows ceiling) but tight
+    # enough that a genuine ~1.5× slowdown still fails the gate.
+    # The local pre-push chain produces concurrent-gate contention that
+    # caused single-sample tail spikes to trip the single-sample form of
+    # this gate despite medians sitting well below threshold. Linux /
+    # macOS keep the single-sample contract — their CI environments don't
+    # show the same tail-event pattern.
     _BASE_THRESHOLD = 45
     _PLATFORM_MULTIPLIERS = {"win32": 1.5, "darwin": 2.0}
     _PLATFORM_MULTIPLIER = _PLATFORM_MULTIPLIERS.get(sys.platform, 1.0)
@@ -2629,6 +2647,8 @@ class TestPerformanceGate:
             str(int(_BASE_THRESHOLD * _PLATFORM_MULTIPLIER)),
         )
     )
+    _WINDOWS_MEDIAN_OF_N = 3  # timed runs; 1 additional warm-up is discarded
+    _WINDOWS_OUTLIER_CEILING = int(_PERF_THRESHOLD_SECONDS * 1.5)
 
     @pytest.fixture
     def stress_db(self, tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
@@ -2738,28 +2758,61 @@ class TestPerformanceGate:
     def test_pipeline_overhead_under_30_seconds(
         self, stress_db: tuple[DatabaseManager, Path], tmp_path: Path
     ) -> None:
-        """SC-007 HARD GATE: generate_all() must complete in < 30 seconds.
+        """SC-007 HARD GATE: generate_all() must complete under budget.
 
-        This test generates the full pipeline output for a stress dataset
-        of 50 teams x 100 repos x 260 weeks and asserts the total wall-clock
-        time is under 30 seconds. If this test fails, the build MUST fail.
+        Generates the full pipeline output for a stress dataset of 50 teams
+        x 100 repos x 260 weeks and asserts the wall-clock is under the
+        platform-specific threshold. Failure must fail the build.
+
+        Windows uses a two-part contract after a discarded warm-up (see
+        #316): median-of-N ≤ threshold catches sustained regressions while
+        worst-of-N ≤ outlier ceiling (1.5× threshold) catches intermittent
+        regressions the median would otherwise absorb. Other platforms
+        keep the single-sample contract.
         """
         db, _ = stress_db
-        output_dir = tmp_path / "perf_output"
 
-        generator = AggregateGenerator(db, output_dir, run_id="perf-test")
+        def run_and_time(run_idx: int) -> tuple[float, DatasetManifest]:
+            # Fresh output_dir per run so we only time generate_all() and
+            # don't depend on overwrite semantics.
+            out = tmp_path / f"perf_output_{run_idx}"
+            generator = AggregateGenerator(db, out, run_id="perf-test")
+            t0 = time.monotonic()
+            result = generator.generate_all()
+            return time.monotonic() - t0, result
 
-        start_time = time.monotonic()
-        manifest = generator.generate_all()
-        elapsed = time.monotonic() - start_time
+        if sys.platform == "win32":
+            # 1 warm-up (discarded) + _WINDOWS_MEDIAN_OF_N timed runs.
+            run_and_time(0)
+            timed = [run_and_time(i + 1) for i in range(self._WINDOWS_MEDIAN_OF_N)]
+            timings = sorted(t for t, _ in timed)
+            elapsed = timings[len(timings) // 2]  # median (odd N)
+            worst = timings[-1]
+            manifest = timed[-1][1]
+            contract = f"median of {self._WINDOWS_MEDIAN_OF_N} (after warm-up)"
+            # Outlier ceiling: catches an intermittent regression that
+            # would otherwise be absorbed by the median assertion below.
+            assert worst <= self._WINDOWS_OUTLIER_CEILING, (
+                f"SC-007 PERFORMANCE GATE FAILED: worst of "
+                f"{self._WINDOWS_MEDIAN_OF_N} runs took {worst:.2f}s, "
+                f"exceeding the {self._WINDOWS_OUTLIER_CEILING}s outlier "
+                f"ceiling (1.5× the {self._PERF_THRESHOLD_SECONDS}s median "
+                f"threshold). Runs: {[f'{t:.2f}s' for t in timings]}. "
+                f"A single run this far above the typical median indicates "
+                f"a regression too severe to attribute to machine contention."
+            )
+        else:
+            elapsed, manifest = run_and_time(0)
+            contract = "single run"
 
         # HARD GATE: fail the build if exceeded (inclusive — exactly at threshold is OK)
         assert elapsed <= self._PERF_THRESHOLD_SECONDS, (
-            f"SC-007 PERFORMANCE GATE FAILED: pipeline took {elapsed:.2f}s, "
-            f"which exceeds the {self._PERF_THRESHOLD_SECONDS}s threshold. "
-            f"Generated {len(manifest.aggregate_index.weekly_rollups)} weekly "
-            f"rollups. The _generate_team_repo_slice() groupby pipeline must "
-            f"be optimized to meet the enterprise-scale performance budget."
+            f"SC-007 PERFORMANCE GATE FAILED: pipeline {contract} took "
+            f"{elapsed:.2f}s, which exceeds the {self._PERF_THRESHOLD_SECONDS}s "
+            f"threshold. Generated "
+            f"{len(manifest.aggregate_index.weekly_rollups)} weekly rollups. "
+            f"The _generate_team_repo_slice() groupby pipeline must be "
+            f"optimized to meet the enterprise-scale performance budget."
         )
 
         # Verify the pipeline actually produced cross-dimensional data
@@ -3312,7 +3365,14 @@ class TestConsistencyWarningLogging:
 
         import logging
 
-        with caplog.at_level(logging.WARNING):
+        # Scope capture to the aggregator logger directly so we don't depend
+        # on root-logger propagation — under concurrent pytest load the
+        # un-scoped at_level form can race with caplog's handler attach and
+        # drop the record.
+        with caplog.at_level(
+            logging.WARNING,
+            logger="ado_git_repo_insights.transform.aggregators",
+        ):
             generator = AggregateGenerator(db, output_dir)
             generator.generate_all()  # Must NOT raise
 

@@ -20,7 +20,13 @@ ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
 ARTIFACT_DATA = ARTIFACT_ROOT / "data"
 ARTIFACT_REPORT = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA = ARTIFACT_ROOT / "metadata"
-TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
+# Per-process scratch root (see #316). Parallel pytest processes must not
+# share this path — doing so lets the module-level _SCRATCH_COUNTER in two
+# processes converge on the same {prefix}-NNNN name, exposing a TOCTOU
+# race in make_scratch_dir() between exists() and mkdir(exist_ok=False),
+# and also lets one process's atexit rmtree delete another's in-flight
+# subtree. Scoping to pid isolates both concerns; cleanup stays local.
+TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work" / f"pid-{os.getpid()}"
 _SCRATCH_COUNTER = count()
 
 
@@ -236,6 +242,107 @@ def run_demo_validate_only_with_promote() -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
     )
+
+
+class TestScratchRootIsProcessPrivate:
+    """Regression for #316: concurrent pytest processes must not share the
+    scratch-root namespace.
+
+    The reproduced flake had two independent failure modes, both resolved
+    by keeping TEST_TMP_ROOT per-process:
+      * TOCTOU race at make_scratch_dir mkdir(exist_ok=False) when two
+        processes' module-level _SCRATCH_COUNTERs converged on the same
+        {prefix}-NNNN name.
+      * atexit rmtree of TEST_TMP_ROOT in one process deleting another
+        still-running process's in-flight subtree.
+
+    The assertion here locks the isolation contract, not the specific
+    discriminator mechanism — the test passes for any scheme that makes
+    TEST_TMP_ROOT unique per process.
+    """
+
+    def test_distinct_processes_get_distinct_scratch_roots(self) -> None:
+        """Two fresh Python processes loading this module must resolve
+        TEST_TMP_ROOT to different paths."""
+        emitter = (
+            f"import importlib.util\n"
+            f"spec = importlib.util.spec_from_file_location("
+            f"'tdpp', {str(Path(__file__))!r})\n"
+            f"assert spec is not None and spec.loader is not None\n"
+            f"mod = importlib.util.module_from_spec(spec)\n"
+            f"spec.loader.exec_module(mod)\n"
+            f"print(str(mod.TEST_TMP_ROOT))\n"
+        )
+        roots: list[str] = []
+        for _ in range(2):
+            result = subprocess.run(
+                [sys.executable, "-c", emitter],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert result.returncode == 0, (
+                f"child failed to load module: rc={result.returncode} "
+                f"stderr={result.stderr}"
+            )
+            roots.append(result.stdout.strip())
+        assert len(set(roots)) == len(roots), (
+            f"Distinct processes must resolve to distinct TEST_TMP_ROOTs; "
+            f"got duplicates in {roots}"
+        )
+        assert str(TEST_TMP_ROOT) not in roots, (
+            f"Child processes must not collide with parent; parent "
+            f"{TEST_TMP_ROOT} appeared in child outputs {roots}"
+        )
+
+    def test_peer_atexit_cleanup_preserves_this_subtree(self) -> None:
+        """Regression for #316 Test 4: a peer process's atexit cleanup
+        must not delete this process's scratch subtree.
+
+        The reproduced failure was a mid-sequence write
+        (FileNotFoundError on
+        ``artifact-root-NNNN/data/aggregates/weekly_rollups/YYYY-WNN.json``)
+        caused by a sibling pytest process's
+        ``atexit → shutil.rmtree(TEST_TMP_ROOT)`` firing while the in-
+        flight demo-build subprocess was still writing to that subtree.
+        The static distinct-roots test above locks path resolution at
+        module load; this one locks the cleanup lifecycle across
+        concurrent processes.
+        """
+        my_scratch = make_scratch_dir("atexit-isolation")
+        canary = my_scratch / "canary.txt"
+        canary.write_text("alive", encoding="utf-8")
+
+        emitter = (
+            f"import importlib.util\n"
+            f"spec = importlib.util.spec_from_file_location("
+            f"'tdpp', {str(Path(__file__))!r})\n"
+            f"assert spec is not None and spec.loader is not None\n"
+            f"mod = importlib.util.module_from_spec(spec)\n"
+            f"spec.loader.exec_module(mod)\n"
+            # Peer allocates its own scratch dir so its full lifecycle
+            # (including atexit rmtree of its TEST_TMP_ROOT) runs.
+            f"peer_dir = mod.make_scratch_dir('atexit-isolation-peer')\n"
+            f"(peer_dir / 'peer-canary.txt').write_text('peer', encoding='utf-8')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", emitter],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"peer subprocess failed: rc={result.returncode} stderr={result.stderr}"
+        )
+
+        assert canary.exists(), (
+            f"Peer process's atexit cleanup deleted parent's scratch "
+            f"subtree (regression for #316 Test 4). Peer stderr: "
+            f"{result.stderr}"
+        )
+        assert canary.read_text(encoding="utf-8") == "alive", (
+            "Canary file contents were modified by peer process cleanup"
+        )
 
 
 class TestCanonicalArtifactRoot:
