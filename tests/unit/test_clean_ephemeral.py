@@ -908,27 +908,122 @@ class TestExecutePlan:
         assert result.results[0].bytes_freed > 0
         assert not report.absolute_path.exists()
 
-    def test_pid_guard_mode_deferred(self, tmp_path: Path) -> None:
-        # subtree-with-live-pid-guard entries must be DEFERRED at Step 2
-        # (R7 sweep lives in Step 3). They must not delete children, must
-        # not contribute bytes_freed, and must not tip dry-run into
-        # exit-2 "would delete" territory.
+    def test_pid_guard_sweeps_non_pid_children(self, tmp_path: Path) -> None:
+        # Contract: under subtree-with-live-pid-guard, non-pid-* children
+        # (e.g. rule-disable-invariants/, allowlist-orphan/) must sweep
+        # normally at Step 2. Deferring the whole subtree would leave
+        # this junk permanently unsweepable.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        non_pid_a = root / "rule-disable-invariants"
+        non_pid_a.mkdir()
+        (non_pid_a / "payload.txt").write_text("junk-a", encoding="utf-8")
+        non_pid_b = root / "allowlist-orphan"
+        non_pid_b.mkdir()
+        (non_pid_b / "payload.txt").write_text("junk-b", encoding="utf-8")
         report = _synthetic_entry_report(
             tmp_path,
-            eid="pid-parent",
+            eid="tmp-test-work",
             rel="scratch",
             mode="subtree-with-live-pid-guard",
-            size_bytes=99,
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=False)
+        assert result.results[0].action is ce.Action.DELETED
+        assert result.results[0].bytes_freed > 0
+        assert not non_pid_a.exists()
+        assert not non_pid_b.exists()
+        # Parent directory stays — Step 3 owns the final cleanup
+        # once pid-* children (if any) retire.
+        assert root.exists()
+
+    def test_pid_guard_defers_pid_children(self, tmp_path: Path) -> None:
+        # pid-* children must be preserved at Step 2 (R7 sweep lives in
+        # Step 3). Aggregate action is DEFERRED when no non-pid children
+        # exist; `note` surfaces the deferred count.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        pid_child = root / "pid-99999"
+        pid_child.mkdir()
+        (pid_child / "in_flight.txt").write_text("live", encoding="utf-8")
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
         )
         yes_result = ce.execute_plan([report], dry_run=False)
         assert yes_result.results[0].action is ce.Action.DEFERRED
         assert yes_result.results[0].bytes_freed == 0
-        assert yes_result.results[0].note is not None
-        # Path must be untouched.
-        assert report.absolute_path.exists()
+        note = yes_result.results[0].note
+        assert note is not None
+        assert "pid-*" in note
+        assert pid_child.exists()
+        # Dry-run must not tip into exit-2 "would delete" on
+        # deferred-only subtrees.
         dry_result = ce.execute_plan([report], dry_run=True)
         assert dry_result.would_delete_count == 0
         assert dry_result.deferred_count == 1
+
+    def test_pid_guard_mixed_sweeps_non_pid_defers_pid(self, tmp_path: Path) -> None:
+        # Realistic scenario: tmp_test_work/ contains a mix of stale
+        # non-pid subdirs (sweepable) and live pid-* subdirs (deferred).
+        # Non-pid must be swept, pid-* preserved, DELETED with note.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        stale = root / "rule-disable-invariants"
+        stale.mkdir()
+        (stale / "stale.txt").write_text("old", encoding="utf-8")
+        live = root / "pid-99999"
+        live.mkdir()
+        (live / "live.txt").write_text("in_flight", encoding="utf-8")
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=False)
+        entry = result.results[0]
+        assert entry.action is ce.Action.DELETED
+        assert entry.bytes_freed > 0
+        assert entry.note is not None
+        assert "pid-*" in entry.note
+        assert not stale.exists()
+        assert live.exists()
+
+    def test_pid_guard_dry_run_previews_only_non_pid(self, tmp_path: Path) -> None:
+        # Dry-run bytes_freed must reflect only the non-pid children that
+        # would actually sweep under --yes; pid-* children are deferred
+        # and contribute nothing to the would-delete total.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        sweepable = root / "allowlist-orphan"
+        sweepable.mkdir()
+        (sweepable / "payload.bin").write_bytes(b"x" * 200)
+        pid_child = root / "pid-99999"
+        pid_child.mkdir()
+        (pid_child / "big.bin").write_bytes(b"y" * 5000)
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        dry_result = ce.execute_plan([report], dry_run=True)
+        entry = dry_result.results[0]
+        assert entry.action is ce.Action.WOULD_DELETE
+        # Only the 200-byte sweepable child counts; the 5000-byte pid-*
+        # child is deferred and excluded from the preview total.
+        assert entry.bytes_freed == 200
+        assert entry.note is not None
+        assert "pid-*" in entry.note
+        # Dry-run must not touch the filesystem.
+        assert sweepable.exists()
+        assert pid_child.exists()
 
     def test_aggregates_partial_failure_without_early_exit(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import errno
+import fnmatch
 import json
 import shutil
 import stat
@@ -617,6 +618,137 @@ def rmtree_resilient(path: Path) -> DeleteResult:
     )
 
 
+def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteResult:
+    """Partial-sweep handler for `subtree-with-live-pid-guard` mode.
+
+    Step 2 semantics: immediate children are split by the entry's
+    pid_child_pattern.
+      * Non-matching children (e.g. `rule-disable-invariants/`,
+        `allowlist-orphan/`) are swept normally via rmtree_resilient.
+      * Matching children (`pid-*`) are DEFERRED to Step 3, where the
+        R7 conjunctive live-pid check (pid-alive + mtime-vs-boot)
+        decides which are safe to remove.
+
+    The parent directory itself is NOT unlinked — pid-* children may
+    still be live, and Step 3 owns the end-of-cycle cleanup once the
+    R7 sweep retires them. The aggregate action reflects the strongest
+    outcome across children; the `note` field surfaces the deferred
+    count so callers can see that Step 3 is still owed work.
+    """
+    entry = report.entry
+    pattern = entry.get("pid_child_pattern")
+    if not isinstance(pattern, str) or not pattern:
+        # Registry validator catches this; defensive fallback keeps
+        # the delete loop from raising on a malformed entry.
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.ERROR,
+            retries=0,
+            bytes_freed=0,
+            error="pid_child_pattern missing on subtree-with-live-pid-guard entry",
+            note=None,
+        )
+    if not report.exists:
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.NOOP_MISSING,
+            retries=0,
+            bytes_freed=0,
+            error=None,
+            note=None,
+        )
+    try:
+        children = sorted(report.absolute_path.iterdir(), key=lambda c: c.name)
+    except OSError as exc:
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.ERROR,
+            retries=0,
+            bytes_freed=0,
+            error=f"{type(exc).__name__}: {exc}",
+            note=None,
+        )
+
+    pid_children: list[Path] = []
+    sweepable_children: list[Path] = []
+    for child in children:
+        if fnmatch.fnmatch(child.name, pattern):
+            pid_children.append(child)
+        else:
+            sweepable_children.append(child)
+
+    deferred_note: str | None = None
+    if pid_children:
+        deferred_note = f"{len(pid_children)} pid-* child(ren) deferred to Step 3"
+
+    if dry_run:
+        if not sweepable_children:
+            return DeleteResult(
+                path=report.absolute_path,
+                action=Action.DEFERRED if pid_children else Action.NOOP_MISSING,
+                retries=0,
+                bytes_freed=0,
+                error=None,
+                note=deferred_note,
+            )
+        preview_bytes = sum(_directory_size_bytes(c) for c in sweepable_children)
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.WOULD_DELETE,
+            retries=0,
+            bytes_freed=preview_bytes,
+            error=None,
+            note=deferred_note,
+        )
+
+    # --yes path: sweep each non-pid child, never short-circuit
+    # (G-PARTIAL applies inside a single entry too).
+    total_bytes = 0
+    max_retries = 0
+    error_messages: list[str] = []
+    deleted_any = False
+    for child in sweepable_children:
+        child_result = rmtree_resilient(child)
+        max_retries = max(max_retries, child_result.retries)
+        if child_result.action is Action.DELETED:
+            deleted_any = True
+            total_bytes += child_result.bytes_freed
+        elif child_result.action is Action.ERROR:
+            error_messages.append(
+                f"{child.name}: {child_result.error or 'unknown error'}"
+            )
+
+    if error_messages:
+        combined = "; ".join(error_messages)
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.ERROR,
+            retries=max_retries,
+            bytes_freed=total_bytes,
+            error=combined,
+            note=deferred_note,
+        )
+    if deleted_any:
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.DELETED,
+            retries=max_retries,
+            bytes_freed=total_bytes,
+            error=None,
+            note=deferred_note,
+        )
+    # Nothing swept: either all children are pid-* (deferred) or the
+    # directory is empty.
+    return DeleteResult(
+        path=report.absolute_path,
+        action=Action.DEFERRED if pid_children else Action.NOOP_MISSING,
+        retries=0,
+        bytes_freed=0,
+        error=None,
+        note=deferred_note,
+    )
+
+
 def execute_plan(
     entry_reports: list[EntryReport],
     *,
@@ -625,28 +757,15 @@ def execute_plan(
     """Apply the plan (or simulate it). G-PARTIAL: collect all, never
     early-exit on failure.
 
-    `subtree-with-live-pid-guard` mode is DEFERRED — the R7 conjunctive
-    sweep (pid-alive + mtime-vs-boot-time) lives in Step 3 and requires
-    psutil. Until then such entries are reported with action=DEFERRED
-    and contribute nothing to bytes freed or to the "would delete"
-    count, so they cannot tip dry-run into exit 2 by themselves.
+    `subtree-with-live-pid-guard` entries are handled by
+    `_sweep_pid_guarded_subtree`, which sweeps non-pid children
+    normally and defers pid-* children to Step 3 — the registry
+    contract is a per-child distinction, not a whole-subtree defer.
     """
     results: list[DeleteResult] = []
     for report in entry_reports:
         if report.entry["mode"] == "subtree-with-live-pid-guard":
-            results.append(
-                DeleteResult(
-                    path=report.absolute_path,
-                    action=Action.DEFERRED,
-                    retries=0,
-                    bytes_freed=0,
-                    error=None,
-                    note=(
-                        "subtree-with-live-pid-guard requires the R7 "
-                        "conjunctive sweep (Step 3 / psutil)"
-                    ),
-                )
-            )
+            results.append(_sweep_pid_guarded_subtree(report, dry_run=dry_run))
             continue
         if not report.exists:
             results.append(
