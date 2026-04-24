@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 101,
+  "total_call_sites": 105,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -162,6 +162,14 @@
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/clean_ephemeral.py",
+      "line": 318,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
     },
     {
       "file": "scripts/env_guard.py",
@@ -630,6 +638,30 @@
     {
       "file": "tests/unit/test_ci_parity_drift.py",
       "line": 753,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 574,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 588,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 600,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

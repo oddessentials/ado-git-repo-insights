@@ -164,6 +164,7 @@ module = [
     "check_test_floor_contract",
     "check_threshold_changes",
     "check_tool_versions",
+    "clean_ephemeral",
     "csv_diff",
     "demo_generation_common",
     "demo_shell",
