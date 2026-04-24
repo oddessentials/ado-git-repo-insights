@@ -1159,6 +1159,26 @@ def validate_plan(
 # Emission: human + JSON.
 
 
+def _registry_path_for_json(registry_path: Path, repo_root: Path) -> str:
+    """Render `registry_path` for JSON output: repo-relative POSIX when
+    the registry sits under `repo_root`, otherwise the absolute POSIX
+    path.
+
+    The `--registry` CLI flag is a documented diagnostic / test
+    override that may point outside the repo root. Without this
+    fallback, `Path.relative_to()` raises ValueError on out-of-repo
+    paths, which would propagate as an unhandled exception during
+    JSON rendering — bypassing the cleaner's exit-code contract and
+    producing a stack trace instead of a structured report.
+    Mirrors the same try/except pattern used by `_entry_to_jsonable`.
+    """
+    resolved = registry_path.resolve()
+    try:
+        return resolved.relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
 def _entry_to_jsonable(
     report: EntryReport,
     repo_root: Path,
@@ -1216,9 +1236,7 @@ def plan_report_to_json(
             REPORT_SCHEMA_V1 if delete_report is None else REPORT_SCHEMA_V2
         ),
         "repo_root": plan.repo_root.resolve().as_posix(),
-        "registry_path": plan.registry_path.resolve()
-        .relative_to(plan.repo_root.resolve())
-        .as_posix(),
+        "registry_path": _registry_path_for_json(plan.registry_path, plan.repo_root),
         "entries": [
             _entry_to_jsonable(r, plan.repo_root, delete_by_id.get(r.entry["id"]))
             for r in plan.entries

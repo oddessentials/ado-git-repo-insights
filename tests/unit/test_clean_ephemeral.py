@@ -477,38 +477,60 @@ class TestModeFilesystemMatch:
         ), errors
 
     def test_subtree_mode_rejects_file_at_path(self) -> None:
-        # extension/test-results.xml is a real file. Pointing a subtree
-        # entry at it must be flagged.
-        entry = self._probe_entry(
-            "probe-subtree-at-file", "extension/test-results.xml", "subtree"
-        )
+        # Create a TEST-OWNED file inside the repo (in tmp_test_work/,
+        # which is gitignored) so the test does not depend on
+        # workspace state. The earlier version pointed at
+        # extension/test-results.xml — a jest-junit artifact that does
+        # not exist on a fresh CI checkout, so this test failed
+        # whenever pytest ran before any extension test had been
+        # executed. Using an explicitly owned scratch file makes the
+        # test deterministic on every OS and every clone state.
         repo_root = ce.discover_repo_root()
-        reports, errors = ce.validate_plan(repo_root, [entry])
-        assert len(reports) == 1
-        assert reports[0].exists is True
-        assert any(
-            "Mode mismatch" in e
-            and "probe-subtree-at-file" in e
-            and "not a directory" in e
-            for e in errors
-        ), errors
+        probe_dir = repo_root / "tmp_test_work" / f"mode-fs-test-{os.getpid()}-subtree"
+        probe_dir.mkdir(parents=True, exist_ok=True)
+        probe_file = probe_dir / "probe.txt"
+        probe_file.write_text("probe", encoding="utf-8")
+        try:
+            rel_path = probe_file.relative_to(repo_root).as_posix()
+            entry = self._probe_entry("probe-subtree-at-file", rel_path, "subtree")
+            reports, errors = ce.validate_plan(repo_root, [entry])
+            assert len(reports) == 1
+            assert reports[0].exists is True
+            assert any(
+                "Mode mismatch" in e
+                and "probe-subtree-at-file" in e
+                and "not a directory" in e
+                for e in errors
+            ), errors
+        finally:
+            shutil.rmtree(probe_dir, ignore_errors=True)
 
     def test_pid_guard_mode_rejects_file_at_path(self) -> None:
-        # Same invariant holds for subtree-with-live-pid-guard.
-        entry: ce.RegistryEntry = {
-            "id": "probe-pid-guard-at-file",
-            "path": "extension/test-results.xml",
-            "mode": "subtree-with-live-pid-guard",
-            "category": "root",
-            "owner": "t",
-            "purpose": "t",
-            "pid_child_pattern": "pid-*",
-        }
+        # Same invariant holds for subtree-with-live-pid-guard, with
+        # the same test-owned-file pattern (no dependency on workspace
+        # artifacts that may or may not exist on a fresh CI checkout).
         repo_root = ce.discover_repo_root()
-        reports, errors = ce.validate_plan(repo_root, [entry])
-        assert any(
-            "Mode mismatch" in e and "probe-pid-guard-at-file" in e for e in errors
-        ), errors
+        probe_dir = repo_root / "tmp_test_work" / f"mode-fs-test-{os.getpid()}-pidguard"
+        probe_dir.mkdir(parents=True, exist_ok=True)
+        probe_file = probe_dir / "probe.txt"
+        probe_file.write_text("probe", encoding="utf-8")
+        try:
+            rel_path = probe_file.relative_to(repo_root).as_posix()
+            entry: ce.RegistryEntry = {
+                "id": "probe-pid-guard-at-file",
+                "path": rel_path,
+                "mode": "subtree-with-live-pid-guard",
+                "category": "root",
+                "owner": "t",
+                "purpose": "t",
+                "pid_child_pattern": "pid-*",
+            }
+            reports, errors = ce.validate_plan(repo_root, [entry])
+            assert any(
+                "Mode mismatch" in e and "probe-pid-guard-at-file" in e for e in errors
+            ), errors
+        finally:
+            shutil.rmtree(probe_dir, ignore_errors=True)
 
     def test_mode_check_skipped_when_path_missing(self) -> None:
         # G-EXIST interaction: a missing path must not trigger a mode
@@ -597,6 +619,65 @@ class TestJsonOutputDeterminism:
         # used the same key order.
         resorted = json.dumps(parsed, indent=2, sort_keys=True) + "\n"
         assert blob == resorted
+
+    def test_json_handles_out_of_repo_registry_path(self, tmp_path: Path) -> None:
+        """Regression for Codex P2 (PR #329): when --registry points to
+        a file outside the repo root (a documented diagnostic / test
+        override), JSON rendering must NOT raise ValueError on
+        Path.relative_to(). It must fall back to an absolute POSIX
+        path so the structured report is still produced and the
+        cleaner's exit-code contract is preserved.
+        """
+        # Compose a synthetic registry living OUTSIDE repo_root.
+        external_registry = tmp_path / "external-registry.json"
+        external_registry.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "targets": [
+                        {
+                            "id": "probe",
+                            "path": "tmp_test_work",
+                            "mode": "subtree",
+                            "category": "root",
+                            "owner": "t",
+                            "purpose": "t",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        repo_root = ce.discover_repo_root()
+        registry = ce.load_registry(external_registry)
+        plan, resolutions = ce.build_plan(registry)
+        reports, errors = ce.validate_plan(repo_root, plan)
+        plan_report = ce.PlanReport(
+            repo_root=repo_root,
+            registry_path=external_registry,
+            entries=tuple(reports),
+            overlap_resolutions=tuple(resolutions),
+            errors=tuple(errors),
+        )
+        # Must NOT raise — Codex P2 was that this raised ValueError.
+        blob = ce.plan_report_to_json(plan_report)
+        parsed = json.loads(blob)
+        # When registry sits outside repo_root, the rendered path is
+        # the absolute POSIX of the resolved external file.
+        expected = external_registry.resolve().as_posix()
+        assert parsed["registry_path"] == expected, (
+            f"Out-of-repo registry must render as absolute POSIX path; "
+            f"got {parsed['registry_path']!r}, expected {expected!r}"
+        )
+        # And the structured report shape is preserved (not a stack
+        # trace masquerading as success).
+        assert parsed["schema_version"] in (
+            ce.REPORT_SCHEMA_V1,
+            ce.REPORT_SCHEMA_V2,
+        )
+        assert "entries" in parsed
+        assert "overlap_resolutions" in parsed
+        assert "errors" in parsed
 
 
 # ---------------------------------------------------------------------------
