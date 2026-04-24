@@ -1,3 +1,24 @@
+# [101.17.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.16.0...v101.17.0) (2026-04-24)
+
+
+### Bug Fixes
+
+* **#327:** inject venv bin dir into PATH for cleaner preflight CommandSpec ([0c7ddcc](https://github.com/oddessentials/ado-git-repo-insights/commit/0c7ddcc87b97395a61f49727b3818b5fb89e3234)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** reject --id/--category union in cleaner CLI ([130f172](https://github.com/oddessentials/ado-git-repo-insights/commit/130f172978515ce8c0e094f3e6bb370527d2d856)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** separate EXIT_SETUP (2) from EXIT_DRY_RUN_PENDING (3) to prevent preflight masking ([06e20e0](https://github.com/oddessentials/ado-git-repo-insights/commit/06e20e050d50078ddc914439ec4a366cdda3affa)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** sweep empty existing pid-guard roots as WOULD_DELETE/DELETED ([498768f](https://github.com/oddessentials/ado-git-repo-insights/commit/498768f8d6cf7a2d5a9dea66a3331e78c1f88a2b)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** sweep non-pid children under pid-guard mode (step 2) ([829ddfa](https://github.com/oddessentials/ado-git-repo-insights/commit/829ddfa36bf08ede00a89fbfb7ec2613bd9df7d0)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** test-owned mode-mismatch fixture + registry_path JSON fallback ([6ebb68c](https://github.com/oddessentials/ado-git-repo-insights/commit/6ebb68c9db2de42885c594a68f6eed59275cdb17)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327) [#329](https://github.com/oddessentials/ado-git-repo-insights/issues/329)
+
+
+### Features
+
+* **#327:** add delete engine, --dry-run/--yes, schema v2 (step 2) ([8bd242c](https://github.com/oddessentials/ado-git-repo-insights/commit/8bd242c05135307367d5c10c9515c649588c354d)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** add ephemeral-cleaner-smoke CI job (step 5) ([81453e0](https://github.com/oddessentials/ado-git-repo-insights/commit/81453e0308ab697da6d06a3e82420429aa4700ee)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** add ephemeral-cleanup registry and validator (step 1) ([3b6dd94](https://github.com/oddessentials/ado-git-repo-insights/commit/3b6dd94ef2ed1293eb088181f805dc846493c777)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327) [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** add pnpm clean delegators (step 4) ([42258c7](https://github.com/oddessentials/ado-git-repo-insights/commit/42258c7cf7c676cc362169ce03700677f2545067)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327)
+* **#327:** add R7 conjunctive sweep + session fixture (step 3) ([1f399de](https://github.com/oddessentials/ado-git-repo-insights/commit/1f399de0672aa7b5704b9187fb6953b27ca8d606)), closes [#327](https://github.com/oddessentials/ado-git-repo-insights/issues/327) [#328](https://github.com/oddessentials/ado-git-repo-insights/issues/328)
+
 # [101.16.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.15.0...v101.16.0) (2026-04-23)
 
 
