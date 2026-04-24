@@ -994,6 +994,54 @@ class TestExecutePlan:
         assert not stale.exists()
         assert live.exists()
 
+    def test_pid_guard_empty_existing_root_yes_rmdir(self, tmp_path: Path) -> None:
+        # Stop-review regression: an existing-but-empty pid-guard root
+        # has no pid-* children to protect and no sweepable children to
+        # process. It must NOT be misreported as NOOP_MISSING (the path
+        # exists). Under --yes, the empty directory is unlinked like a
+        # normal empty subtree.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        assert root.exists()
+        assert list(root.iterdir()) == []
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=False)
+        entry = result.results[0]
+        assert entry.action is ce.Action.DELETED
+        assert entry.bytes_freed == 0
+        assert result.noop_missing_count == 0  # NOT missing
+        assert not root.exists()
+
+    def test_pid_guard_empty_existing_root_dry_run_previews_as_would_delete(
+        self, tmp_path: Path
+    ) -> None:
+        # Same regression under dry-run: empty existing root is
+        # WOULD_DELETE (bytes=0), never NOOP_MISSING. Dry-run must not
+        # touch the filesystem.
+        root = tmp_path / "scratch"
+        root.mkdir()
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=True)
+        entry = result.results[0]
+        assert entry.action is ce.Action.WOULD_DELETE
+        assert entry.bytes_freed == 0
+        assert result.noop_missing_count == 0
+        assert result.would_delete_count == 1
+        # Dry-run must not touch the filesystem.
+        assert root.exists()
+
     def test_pid_guard_dry_run_previews_only_non_pid(self, tmp_path: Path) -> None:
         # Dry-run bytes_freed must reflect only the non-pid children that
         # would actually sweep under --yes; pid-* children are deferred

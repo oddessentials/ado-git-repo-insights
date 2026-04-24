@@ -669,6 +669,41 @@ def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteR
             note=None,
         )
 
+    # Empty existing root: no pid-* children to protect and no
+    # sweepable children to process. Treat as a normal empty subtree
+    # — rmdir under --yes, preview under dry-run. Reporting this as
+    # NOOP_MISSING would lie about filesystem state (the directory
+    # exists, it is just empty).
+    if not children:
+        if dry_run:
+            return DeleteResult(
+                path=report.absolute_path,
+                action=Action.WOULD_DELETE,
+                retries=0,
+                bytes_freed=0,
+                error=None,
+                note=None,
+            )
+        try:
+            report.absolute_path.rmdir()
+        except OSError as exc:
+            return DeleteResult(
+                path=report.absolute_path,
+                action=Action.ERROR,
+                retries=0,
+                bytes_freed=0,
+                error=f"{type(exc).__name__}: {exc}",
+                note=None,
+            )
+        return DeleteResult(
+            path=report.absolute_path,
+            action=Action.DELETED,
+            retries=0,
+            bytes_freed=0,
+            error=None,
+            note=None,
+        )
+
     pid_children: list[Path] = []
     sweepable_children: list[Path] = []
     for child in children:
