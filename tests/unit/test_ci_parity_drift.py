@@ -1614,3 +1614,235 @@ class TestCleanEphemeralParity:
                     f"{pkg_path.name}.scripts.{name} inlines cleanup logic: "
                     f"{body!r}. Delegate to scripts/clean_ephemeral.py instead."
                 )
+
+
+class TestEphemeralCleanerSmokeJob:
+    """Locks the `ephemeral-cleaner-smoke` CI job for issue #327.
+
+    This job is the Tier 2 blocking CI gate that validates the full
+    local=CI cleaner parity on every supported OS. These parity tests
+    fail if the job structure drifts from what the review directive
+    required: pnpm-only invocation, schema-based JSON assertions,
+    long-path seed, deterministic step order, and the
+    {ubuntu, windows, macos} matrix.
+    """
+
+    _JOB = "ephemeral-cleaner-smoke"
+    _EXPECTED_MATRIX: frozenset[str] = frozenset(
+        {"ubuntu-latest", "windows-latest", "macos-latest"}
+    )
+
+    def _job(self) -> dict[str, object]:
+        jobs = _load_ci_jobs()
+        assert self._JOB in jobs, (
+            f"CI job {self._JOB!r} missing from ci.yml. Expected Tier 2 "
+            "smoke job per #327 step 5."
+        )
+        result = jobs[self._JOB]
+        assert isinstance(result, dict)
+        return result
+
+    def _all_run_blocks(self) -> str:
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        lines: list[str] = []
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            run_block = step.get("run")
+            if isinstance(run_block, str):
+                lines.append(run_block)
+        return "\n".join(lines)
+
+    def test_matrix_is_exactly_three_supported_oses(self) -> None:
+        job = self._job()
+        strategy = job.get("strategy")
+        assert isinstance(strategy, dict)
+        matrix = strategy.get("matrix")
+        assert isinstance(matrix, dict)
+        os_list = matrix.get("os")
+        assert isinstance(os_list, list)
+        assert frozenset(os_list) == self._EXPECTED_MATRIX, (
+            f"CI smoke matrix must be {sorted(self._EXPECTED_MATRIX)!r}; "
+            f"got {os_list!r}"
+        )
+
+    def test_invokes_cleaner_only_via_pnpm(self) -> None:
+        """Critical guard: the CI job must reach the cleaner through
+        pnpm wrappers ONLY, never via a direct python invocation.
+        Locks the wrapper-only invariant all the way through CI.
+        """
+        all_run = self._all_run_blocks()
+        # Forbidden: any direct invocation of the cleaner script.
+        forbidden = (
+            "python scripts/clean_ephemeral",
+            "python ../scripts/clean_ephemeral",
+            "python3 scripts/clean_ephemeral",
+            ".venv/Scripts/python scripts/clean_ephemeral",
+        )
+        for needle in forbidden:
+            assert needle not in all_run, (
+                f"CI job {self._JOB!r} contains forbidden direct invocation "
+                f"{needle!r}; must use pnpm clean / pnpm clean:dry only."
+            )
+        # Required: both pnpm wrappers must appear.
+        assert "pnpm run clean:dry" in all_run, (
+            "CI job must invoke pnpm run clean:dry at least once"
+        )
+        # `pnpm run clean ` (with trailing space/flag) distinguishes from
+        # pnpm run clean:dry.
+        assert "pnpm run clean --json" in all_run or "pnpm run clean\n" in all_run, (
+            "CI job must invoke pnpm run clean (apply) at least once"
+        )
+
+    def test_assertions_are_schema_based_json(self) -> None:
+        """Assertions must parse --json output and check schema fields,
+        not string-match banner text. Locks the review directive that
+        CI assertions be deterministic and schema-based.
+        """
+        all_run = self._all_run_blocks()
+        # Required: --json flag passed to cleaner via pnpm.
+        assert "--json" in all_run, (
+            "CI job must request --json output from the cleaner for "
+            "schema-based assertions"
+        )
+        # Required: json.loads parsing in the verification steps.
+        assert "json.loads" in all_run, "CI job must parse JSON emission via json.loads"
+        # Required: schema-field assertions (would_delete_count,
+        # deleted_count, total_bytes_freed, error_count).
+        for field in (
+            "would_delete_count",
+            "deleted_count",
+            "total_bytes_freed",
+            "error_count",
+        ):
+            assert field in all_run, f"CI smoke must assert on schema field {field!r}"
+        # Required: schema_version lock.
+        assert "schema_version" in all_run, (
+            "CI smoke must assert schema_version to lock the REPORT schema"
+        )
+
+    def test_step_order_matches_review_directive(self) -> None:
+        """Seed -> dry-run-with-work -> apply -> verify swept -> final
+        dry-run (idempotency) -> tracked-file refusal. The refusal step
+        MUST come after the successful clean per the review.
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        step_names: list[str] = []
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name")
+            if isinstance(name, str):
+                step_names.append(name)
+
+        def index_of(fragment: str) -> int:
+            for i, name in enumerate(step_names):
+                if fragment.lower() in name.lower():
+                    return i
+            raise AssertionError(
+                f"CI step containing {fragment!r} not found; got {step_names!r}"
+            )
+
+        seed_i = index_of("seed")
+        dry_work_i = index_of("dry-run with work")
+        apply_i = index_of("apply")
+        verify_i = index_of("verify")
+        final_dry_i = index_of("final dry-run")
+        refusal_i = index_of("refusal")
+        order = [
+            ("seed", seed_i),
+            ("dry-run with work", dry_work_i),
+            ("apply", apply_i),
+            ("verify swept", verify_i),
+            ("final dry-run", final_dry_i),
+            ("refusal", refusal_i),
+        ]
+        indices = [idx for _, idx in order]
+        assert indices == sorted(indices), (
+            f"CI smoke step order violates review directive "
+            f"(refusal must follow successful clean, final dry-run must "
+            f"precede refusal as idempotency lock). Got: {order!r}"
+        )
+
+    def test_includes_long_path_seed_for_windows(self) -> None:
+        """Windows long-path (>260 char) handling must be exercised
+        deterministically — not assumed to work because the code handles
+        it. A nested for-loop seed builds a path well past 260 chars so
+        rmtree_resilient's long-path branch runs at least once per CI
+        invocation.
+        """
+        all_run = self._all_run_blocks()
+        # Sentinel constant in the seed step — unique enough to match.
+        assert "long-path-probe" in all_run, (
+            "CI smoke must seed a >260-char nested tree under a "
+            "registered target to exercise Windows long-path handling"
+        )
+        assert "for i in 1 2 3 4 5 6 7 8 9 10" in all_run, (
+            "Long-path seed loop missing from CI smoke job"
+        )
+
+    def test_tracked_file_refusal_exercises_non_zero_exit(self) -> None:
+        """Refusal step must assert non-zero exit from pnpm clean when a
+        tracked file lives under a registered target, AND the sentinel
+        must remain on disk (INV-B must never silently succeed).
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        refusal_run = ""
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name", "")
+            if isinstance(name, str) and "refusal" in name.lower():
+                run = step.get("run")
+                if isinstance(run, str):
+                    refusal_run = run
+                    break
+        assert refusal_run, "Refusal step not found in CI smoke job"
+        # Sentinel is git-added so INV-B sees it.
+        assert "git add -f" in refusal_run, (
+            "Refusal step must force-stage the sentinel so git ls-files "
+            "surfaces it for INV-B"
+        )
+        # Non-zero exit assertion.
+        assert '"$EXIT" -eq 0' in refusal_run, (
+            "Refusal step must assert pnpm clean exit code is non-zero"
+        )
+        # Sentinel still exists on disk after refusal.
+        assert "sentinel.txt" in refusal_run, (
+            "Refusal step must reference the sentinel file it planted"
+        )
+        assert "! -f" in refusal_run, (
+            "Refusal step must assert sentinel file still exists on disk"
+        )
+
+    def test_final_dry_run_locks_idempotency(self) -> None:
+        """Final dry-run step must assert exit 0 AND would_delete_count
+        == 0 AND total_bytes_freed == 0. Locks idempotency across CI
+        environments — the invariant the review directive called out.
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        final_run = ""
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name", "")
+            if isinstance(name, str) and "final dry-run" in name.lower():
+                run = step.get("run")
+                if isinstance(run, str):
+                    final_run = run
+                    break
+        assert final_run, "Final dry-run step not found in CI smoke job"
+        assert '"$EXIT" -ne 0' in final_run, (
+            "Final dry-run must fail the step if exit code is non-zero "
+            "(idempotency broken)"
+        )
+        assert 'would_delete_count"] == 0' in final_run, (
+            "Final dry-run must assert would_delete_count == 0 (empty effective plan)"
+        )
+        assert 'total_bytes_freed"] == 0' in final_run, (
+            "Final dry-run must assert total_bytes_freed == 0"
+        )
