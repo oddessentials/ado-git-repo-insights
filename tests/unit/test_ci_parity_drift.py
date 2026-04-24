@@ -1538,3 +1538,79 @@ class TestVsixGateParity:
         assert env.get("VSIX_REQUIRED") == "true", (
             f"CI VSIX inspection step must set VSIX_REQUIRED=true. Got env={env!r}"
         )
+
+
+class TestCleanEphemeralParity:
+    """Locks the pnpm `clean` wrappers for issue #327.
+
+    Every wrapper is a one-line delegation to
+    `scripts/clean_ephemeral.py` — no inline cleanup logic in
+    `package.json`, no flags that diverge between root and extension
+    callers, and no alternate code paths. The authoritative cleaner
+    lives in one script with one registry; wrappers exist only so
+    humans and CI can say `pnpm clean` / `pnpm --dir extension clean`.
+    """
+
+    _ROOT_PKG = REPO_ROOT / "package.json"
+    _EXT_PKG = REPO_ROOT / "extension" / "package.json"
+
+    def test_root_clean_script_is_exact(self) -> None:
+        pkg = json.loads(self._ROOT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean", "")
+        assert script == "python scripts/clean_ephemeral.py --yes", (
+            f"Root `clean` script must delegate to the authoritative cleaner "
+            f"with --yes; got {script!r}. No inline logic, no flag drift."
+        )
+
+    def test_root_clean_dry_script_is_exact(self) -> None:
+        pkg = json.loads(self._ROOT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean:dry", "")
+        assert script == "python scripts/clean_ephemeral.py --dry-run", (
+            f"Root `clean:dry` script must delegate to the authoritative "
+            f"cleaner with --dry-run; got {script!r}."
+        )
+
+    def test_extension_clean_script_is_exact(self) -> None:
+        pkg = json.loads(self._EXT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean", "")
+        assert script == (
+            "python ../scripts/clean_ephemeral.py --yes --category extension"
+        ), (
+            f"Extension `clean` script must delegate with "
+            f"--category extension; got {script!r}."
+        )
+
+    def test_extension_clean_ui_script_is_exact(self) -> None:
+        pkg = json.loads(self._EXT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean:ui", "")
+        assert script == (
+            "python ../scripts/clean_ephemeral.py --yes --id extension-dist-ui"
+        ), (
+            f"Extension `clean:ui` script must target the "
+            f"extension-dist-ui registry entry; got {script!r}."
+        )
+
+    def test_no_inline_cleanup_logic_in_package_json_clean_scripts(self) -> None:
+        """Negative invariant: `clean*` scripts must not inline rmtree /
+        rmdir / fs.rmSync / shutil logic. Policy lives in
+        scripts/clean_ephemeral.py; wrappers delegate. `clean:tasks`
+        (extension) is OUT OF SCOPE — it is a staging-teardown inverse
+        of `stage:tasks`, not ephemeral sweep.
+        """
+        forbidden = ("rmtree", "rmSync", "rmdir", "shutil", "recursive:true")
+        for pkg_path in (self._ROOT_PKG, self._EXT_PKG):
+            pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
+            scripts = pkg.get("scripts", {})
+            for name, body in scripts.items():
+                if not name.startswith("clean"):
+                    continue
+                if name == "clean:tasks":
+                    # Explicitly out of scope: staging teardown, not
+                    # ephemeral sweep. Tolerated as a node script.
+                    continue
+                assert not isinstance(body, str) or all(
+                    token not in body for token in forbidden
+                ), (
+                    f"{pkg_path.name}.scripts.{name} inlines cleanup logic: "
+                    f"{body!r}. Delegate to scripts/clean_ephemeral.py instead."
+                )
