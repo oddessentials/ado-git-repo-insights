@@ -9,6 +9,13 @@ truth — a drift between them would make the ratchet-bump gate's
 Linux/macOS. The shared constant is enforced by
 ``tests/unit/test_platform_conditional_collection.py``.
 
+The R7 session-scope sweep of ``tmp_test_work/pid-*`` lives in
+``tests/demo/conftest.py`` — scoped to the directory whose tests
+actually create pid-* scratch. Keeping the psutil-backed sweep out
+of the root conftest preserves the `test-base-no-ml` CI job, which
+runs ``pytest tests/unit/...`` against a base-only install (no
+``[dev]`` extras, no psutil) and must stay fast + dep-light.
+
 The documented local entrypoint (scripts/run_pytest.py) isolates coverage via
 ``COVERAGE_FILE`` before pytest starts. Plain local pytest runs intentionally
 use pytest's default basetemp handling because overriding basetemp inside the

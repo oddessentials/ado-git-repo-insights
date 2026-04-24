@@ -1344,6 +1344,199 @@ jobs:
           fi
           echo "[OK] Hook entrypoint test passed on ${{ matrix.os }}"
 
+  # Ephemeral-cleanup smoke (issue #327 step 5). Tier 2 blocking CI job
+  # that exercises the pnpm wrappers end-to-end on all three supported
+  # OSes. The job invokes the cleaner ONLY via `pnpm clean` /
+  # `pnpm clean:dry` (never `python scripts/clean_ephemeral.py` directly)
+  # so it proves the exact invocation humans use. Assertions are
+  # schema-based: each step parses the JSON emission and asserts on
+  # named fields (deleted_count, would_delete_count, total_bytes_freed,
+  # error_count) rather than string-matching banner text.
+  #
+  # Step order (review-directed):
+  #   1. seed ephemeral content under registered paths, including a
+  #      >260-char nested tree to exercise Windows long-path handling
+  #   2. pnpm clean:dry with work pending  ->  exit 3 (EXIT_DRY_RUN_PENDING),
+  #      would_delete > 0. Distinct from EXIT_SETUP (2) so preflight
+  #      can whitelist this code without masking real failures.
+  #   3. pnpm clean                        ->  exit 0, deleted > 0
+  #   4. verify swept paths no longer exist
+  #   5. pnpm clean:dry final              ->  exit 0, plan empty
+  #      (idempotency lock across CI environments)
+  #   6. plant tracked sentinel, pnpm clean refuses  ->  non-zero exit,
+  #      sentinel intact
+  ephemeral-cleaner-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dev dependencies (psutil, pytest, ...)
+        run: pip install -e .[dev]
+
+      - uses: ./.github/actions/setup-pnpm
+
+      - name: Install root pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git identity for tracked-sentinel test
+        shell: bash
+        run: |
+          git config user.name "CI Ephemeral Cleaner Smoke"
+          git config user.email "ci-ephemeral-cleaner-smoke@example.com"
+
+      - name: Seed ephemeral content across registered paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/pytest/cache
+          echo "seed" > .tmp/pytest/cache/seed.txt
+          mkdir -p run_artifacts
+          echo "seed" > run_artifacts/summary.json
+          mkdir -p extension/coverage
+          echo "seed" > extension/coverage/lcov.info
+          # >260-char nested tree exercises rmtree_resilient's long-path
+          # handling on Windows (GitHub-hosted runners enable long-path
+          # support by default).
+          LONG=.tmp/long-path-probe
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            LONG="$LONG/seg${i}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          done
+          mkdir -p "$LONG"
+          echo "long" > "$LONG/leaf.txt"
+
+      - name: 'Dry-run with work: exit 3 (EXIT_DRY_RUN_PENDING) + would_delete > 0'
+        shell: bash
+        run: |
+          set +e
+          pnpm run clean:dry --json > dryrun_work.out 2>&1
+          EXIT=$?
+          set -e
+          if [ "$EXIT" -ne 3 ]; then
+            echo "::error::Expected exit 3 (EXIT_DRY_RUN_PENDING) from dry-run with work, got $EXIT"
+            cat dryrun_work.out
+            exit 1
+          fi
+          python - <<'PY'
+          import json, pathlib
+          text = pathlib.Path("dryrun_work.out").read_text(encoding="utf-8")
+          start = text.index("{")
+          end = text.rindex("}") + 1
+          payload = json.loads(text[start:end])
+          assert payload["schema_version"] == 2, payload
+          summary = payload["summary"]
+          assert summary["would_delete_count"] > 0, summary
+          assert summary["total_bytes_freed"] > 0, summary
+          assert summary["error_count"] == 0, summary
+          assert summary["deleted_count"] == 0, summary
+          print("[OK] dry-run-with-work:", summary)
+          PY
+
+      - name: 'Apply: pnpm clean -> exit 0 + deleted_count > 0'
+        shell: bash
+        run: |
+          set +e
+          pnpm run clean --json > apply.out 2>&1
+          EXIT=$?
+          set -e
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Expected exit 0 from pnpm clean, got $EXIT"
+            cat apply.out
+            exit 1
+          fi
+          python - <<'PY'
+          import json, pathlib
+          text = pathlib.Path("apply.out").read_text(encoding="utf-8")
+          start = text.index("{")
+          end = text.rindex("}") + 1
+          payload = json.loads(text[start:end])
+          assert payload["schema_version"] == 2, payload
+          summary = payload["summary"]
+          assert summary["deleted_count"] > 0, summary
+          assert summary["total_bytes_freed"] > 0, summary
+          assert summary["error_count"] == 0, summary
+          assert summary["would_delete_count"] == 0, summary
+          print("[OK] apply:", summary)
+          PY
+
+      - name: 'Verify: swept paths are gone'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in .tmp run_artifacts extension/coverage; do
+            if [ -e "$p" ]; then
+              echo "::error::$p still exists after pnpm clean"
+              ls -la "$p" || true
+              exit 1
+            fi
+          done
+          echo "[OK] all swept paths gone"
+
+      - name: 'Final dry-run: idempotency lock (exit 0 + empty plan)'
+        shell: bash
+        run: |
+          set +e
+          pnpm run clean:dry --json > final.out 2>&1
+          EXIT=$?
+          set -e
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Idempotency broken: final dry-run exited $EXIT (expected 0)"
+            cat final.out
+            exit 1
+          fi
+          python - <<'PY'
+          import json, pathlib
+          text = pathlib.Path("final.out").read_text(encoding="utf-8")
+          start = text.index("{")
+          end = text.rindex("}") + 1
+          payload = json.loads(text[start:end])
+          summary = payload["summary"]
+          assert summary["would_delete_count"] == 0, summary
+          assert summary["total_bytes_freed"] == 0, summary
+          assert summary["deleted_count"] == 0, summary
+          assert summary["error_count"] == 0, summary
+          print("[OK] final dry-run is idempotent no-op:", summary)
+          PY
+
+      - name: 'Refusal: tracked sentinel under registered target -> pnpm clean refuses'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run_artifacts/tracked-probe
+          echo "intentional tracked sentinel for CI smoke" > run_artifacts/tracked-probe/sentinel.txt
+          # Force-add (path is gitignored under `run_artifacts/`); staging
+          # alone is enough to trigger INV-B because `git ls-files` lists
+          # staged-but-uncommitted files.
+          git add -f run_artifacts/tracked-probe/sentinel.txt
+          set +e
+          pnpm run clean --json > refusal.out 2>&1
+          EXIT=$?
+          set -e
+          if [ "$EXIT" -eq 0 ]; then
+            echo "::error::cleaner did NOT refuse with a tracked file present"
+            cat refusal.out
+            exit 1
+          fi
+          # Sentinel must still exist on disk (INV-B refusal must not
+          # touch any path).
+          if [ ! -f run_artifacts/tracked-probe/sentinel.txt ]; then
+            echo "::error::sentinel was removed even though cleaner refused"
+            exit 1
+          fi
+          echo "[OK] cleaner refused tracked-file delete with exit $EXIT"
+          # Unstage + remove so the workspace is clean.
+          git rm -f --cached run_artifacts/tracked-probe/sentinel.txt
+          rm -rf run_artifacts
+
   # FR-034: Fresh-clone verification - proves deterministic builds without cache
   # FR-011: Also serves as Python-free test isolation enforcement
   fresh-clone-verify:

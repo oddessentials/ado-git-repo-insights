@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 101,
+  "total_call_sites": 114,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -164,6 +164,14 @@
       "safety": "unsafe-non-literal-command"
     },
     {
+      "file": "scripts/clean_ephemeral.py",
+      "line": 358,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
       "file": "scripts/env_guard.py",
       "line": 41,
       "code": "result = subprocess.run(",
@@ -301,7 +309,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 186,
+      "line": 233,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -309,7 +317,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 195,
+      "line": 242,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +325,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 204,
+      "line": 251,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +333,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 220,
+      "line": 267,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -333,7 +341,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 237,
+      "line": 284,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +349,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 278,
+      "line": 325,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -349,8 +357,32 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 328,
+      "line": 375,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 431,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 489,
+      "code": "proc_a = subprocess.Popen(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 495,
+      "code": "proc_b = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -630,6 +662,78 @@
     {
       "file": "tests/unit/test_ci_parity_drift.py",
       "line": 753,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 608,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 622,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 634,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 654,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 924,
+      "code": "proc = subprocess.Popen(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1417,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1579,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1585,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1624,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

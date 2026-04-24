@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "id": "artifacts-demo-enterprise",
+      "path": "artifacts/demo-enterprise",
+      "mode": "subtree",
+      "category": "demo",
+      "owner": "scripts/build-demo-dataset.py",
+      "purpose": "Enterprise demo dataset scratch build outputs. Tracked promoted mirror lives in docs/data/, not here; this entire tree is ephemeral."
+    },
+    {
+      "id": "dot-tmp",
+      "path": ".tmp",
+      "mode": "subtree",
+      "category": "root",
+      "owner": "pytest (cache_dir), run_pytest.py coverage fallback, ad-hoc scratch",
+      "purpose": "Persistent pytest cache (pyproject.toml addopts.cache_dir), bare-pytest coverage fallback (tool.coverage.run.data_file), and developer scratch such as .tmp/flake-316/."
+    },
+    {
+      "id": "extension-coverage",
+      "path": "extension/coverage",
+      "mode": "subtree",
+      "category": "extension",
+      "owner": "Jest --coverage (test:coverage, test:ci)",
+      "purpose": "Jest coverage reports (lcov.info, lcov-report/)."
+    },
+    {
+      "id": "extension-dist",
+      "path": "extension/dist",
+      "mode": "subtree",
+      "category": "extension",
+      "owner": "extension build:tsc + build:ui",
+      "purpose": "Extension build outputs: CJS emission from tsc and IIFE UI bundles from esbuild."
+    },
+    {
+      "id": "extension-dist-ui",
+      "path": "extension/dist/ui",
+      "mode": "subtree",
+      "category": "extension",
+      "owner": "extension build:ui (esbuild)",
+      "purpose": "UI IIFE bundles only. Fine-grained target for the existing pnpm clean:ui wrapper; dedup rule keeps extension-dist as the parent when both are selected."
+    },
+    {
+      "id": "extension-playwright-report",
+      "path": "extension/playwright-report",
+      "mode": "subtree",
+      "category": "extension",
+      "owner": "Playwright test:smoke",
+      "purpose": "Playwright HTML report output."
+    },
+    {
+      "id": "extension-test-artifacts",
+      "path": "extension/test-artifacts",
+      "mode": "subtree",
+      "category": "extension",
+      "owner": "Playwright test:smoke",
+      "purpose": "Playwright artifacts (screenshots, videos, traces)."
+    },
+    {
+      "id": "extension-test-results-xml",
+      "path": "extension/test-results.xml",
+      "mode": "file",
+      "category": "extension",
+      "owner": "jest-junit reporter (test:coverage, test:ci)",
+      "purpose": "Jest JUnit output consumed by scripts/check_ratchet_bump.py and CI validate-test-results.py."
+    },
+    {
+      "id": "pytest-tmp-run",
+      "path": ".pytest-tmp-run",
+      "mode": "subtree",
+      "category": "root",
+      "owner": "pytest (tmp_path_retention_policy runs)",
+      "purpose": "Retained pytest tmp directories from prior runs."
+    },
+    {
+      "id": "run-artifacts",
+      "path": "run_artifacts",
+      "mode": "subtree",
+      "category": "cli",
+      "owner": "ado-insights extract (src/ado_git_repo_insights/utils/run_summary.py, logging_config.py)",
+      "purpose": "Default output directory for CLI extraction runs (run summary JSON + logs)."
+    },
+    {
+      "id": "scripts-dist",
+      "path": "scripts/dist",
+      "mode": "subtree",
+      "category": "root",
+      "owner": "compiled helper output",
+      "purpose": "Compiled script output directory (gitignored per line 128)."
+    },
+    {
+      "id": "tmp-playwright-smoke",
+      "path": "tmp_playwright_smoke",
+      "mode": "subtree",
+      "category": "root",
+      "owner": "Playwright smoke test infra",
+      "purpose": "Scratch space for Playwright smoke runs invoked outside extension/."
+    },
+    {
+      "id": "tmp-root",
+      "path": "tmp",
+      "mode": "subtree",
+      "category": "root",
+      "owner": "ad-hoc scratch",
+      "purpose": "Repo-root tmp/ only. Deliberately not **/tmp/ — nested tmp/ dirs are not swept to avoid surprising deletes."
+    },
+    {
+      "id": "tmp-test-work",
+      "path": "tmp_test_work",
+      "mode": "subtree-with-live-pid-guard",
+      "category": "root",
+      "owner": "multiple test modules: tests/demo/test_demo_parity_pipeline.py (pid-NNNN/), tests/demo/test_regen_byte_stability.py, tests/demo/test_regeneration.py, tests/integration/test_demo_variants_byte_identity.py, tests/unit/test_rule_disable_invariants.py, tests/unit/test_check_no_any_types.py, tests/unit/test_synthetic_dataset.py",
+      "purpose": "Per-test scratch using multiple conventions. Non-pid children are swept normally; children matching pid_child_pattern go through the R7 conjunctive live-pid guard.",
+      "pid_child_pattern": "pid-*"
+    }
+  ]
+}

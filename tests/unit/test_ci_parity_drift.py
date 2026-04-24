@@ -1538,3 +1538,423 @@ class TestVsixGateParity:
         assert env.get("VSIX_REQUIRED") == "true", (
             f"CI VSIX inspection step must set VSIX_REQUIRED=true. Got env={env!r}"
         )
+
+
+class TestCleanEphemeralParity:
+    """Locks the pnpm `clean` wrappers for issue #327.
+
+    Every wrapper is a one-line delegation to
+    `scripts/clean_ephemeral.py` — no inline cleanup logic in
+    `package.json`, no flags that diverge between root and extension
+    callers, and no alternate code paths. The authoritative cleaner
+    lives in one script with one registry; wrappers exist only so
+    humans and CI can say `pnpm clean` / `pnpm --dir extension clean`.
+    """
+
+    _ROOT_PKG = REPO_ROOT / "package.json"
+    _EXT_PKG = REPO_ROOT / "extension" / "package.json"
+
+    def test_root_clean_script_is_exact(self) -> None:
+        pkg = json.loads(self._ROOT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean", "")
+        assert script == "python scripts/clean_ephemeral.py --yes", (
+            f"Root `clean` script must delegate to the authoritative cleaner "
+            f"with --yes; got {script!r}. No inline logic, no flag drift."
+        )
+
+    def test_root_clean_dry_script_is_exact(self) -> None:
+        pkg = json.loads(self._ROOT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean:dry", "")
+        assert script == "python scripts/clean_ephemeral.py --dry-run", (
+            f"Root `clean:dry` script must delegate to the authoritative "
+            f"cleaner with --dry-run; got {script!r}."
+        )
+
+    def test_extension_clean_script_is_exact(self) -> None:
+        pkg = json.loads(self._EXT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean", "")
+        assert script == (
+            "python ../scripts/clean_ephemeral.py --yes --category extension"
+        ), (
+            f"Extension `clean` script must delegate with "
+            f"--category extension; got {script!r}."
+        )
+
+    def test_extension_clean_ui_script_is_exact(self) -> None:
+        pkg = json.loads(self._EXT_PKG.read_text(encoding="utf-8"))
+        script = pkg.get("scripts", {}).get("clean:ui", "")
+        assert script == (
+            "python ../scripts/clean_ephemeral.py --yes --id extension-dist-ui"
+        ), (
+            f"Extension `clean:ui` script must target the "
+            f"extension-dist-ui registry entry; got {script!r}."
+        )
+
+    def test_preflight_includes_ephemeral_cleaner_dry_run(self) -> None:
+        """QG-35 / QG-37 closure: preflight MUST invoke the cleaner via
+        the same pnpm wrapper CI uses. Locks the wrapper choice (no
+        direct python) and the exit-code allowlist (0, 3) so a future
+        "cleanup" of the spec cannot silently make preflight either
+        fail on legitimate scratch (exit 3) or whitelist a real setup
+        failure (exit 2 must remain a gate failure).
+        """
+        preflight = _normalized_preflight_commands()
+        spec_name = "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)"
+        assert spec_name in preflight, (
+            f"Preflight CommandSpec {spec_name!r} missing. QG-35 requires "
+            f"every CI gate to have an automated local equivalent. Got: "
+            f"{sorted(preflight.keys())!r}"
+        )
+        assert preflight[spec_name] == "__PNPM__ run clean:dry", (
+            f"Preflight invocation must be the pnpm wrapper "
+            f"`pnpm run clean:dry`; got {preflight[spec_name]!r}. Direct "
+            "python invocation in preflight would diverge from the CI "
+            "smoke job's pnpm-only rule."
+        )
+        # Lock the CommandSpec object's allowed_exit_codes — only the
+        # informational EXIT_DRY_RUN_PENDING (3) joins the default
+        # success code (0). EXIT_SETUP (2) MUST NOT be whitelisted here:
+        # widening to include 2 would mask real cleaner setup failures
+        # (registry missing, not in repo, registry unparseable) as
+        # success. Stop-time review #327 caught this earlier; the test
+        # here pins the fix.
+        module = _load_preflight_module()
+        commands = module.build_commands(None)
+        matches = [s for s in commands if s.name == spec_name]
+        assert len(matches) == 1, (
+            f"Expected exactly one preflight CommandSpec named {spec_name!r}, "
+            f"found {len(matches)}"
+        )
+        spec = matches[0]
+        assert spec.allowed_exit_codes == (0, 3), (
+            f"Preflight ephemeral-cleaner spec must whitelist exit codes "
+            f"(0, 3): 0 = empty plan, 3 = EXIT_DRY_RUN_PENDING (plan has "
+            f"work). Exit 2 = EXIT_SETUP MUST NOT be whitelisted (would "
+            f"mask real failures). Got allowed_exit_codes="
+            f"{spec.allowed_exit_codes!r}."
+        )
+        assert 2 not in spec.allowed_exit_codes, (
+            "EXIT_SETUP (2) MUST NOT be whitelisted in the preflight "
+            "ephemeral-cleaner spec — it represents real failures "
+            "(registry missing, not in repo) that must surface as gate "
+            "failures, not be masked as success."
+        )
+        assert spec.cwd == module.REPO_ROOT, (
+            "Preflight ephemeral-cleaner spec must run from REPO_ROOT so "
+            f"the pnpm wrapper resolves to root package.json; got cwd={spec.cwd}"
+        )
+        # Lock the PATH injection: the husky pre-push hook execs the
+        # venv's python directly without activating the venv, so PATH
+        # inherited by `pnpm run clean:dry` would otherwise omit the
+        # venv bin dir and the cleaner's hard-fail psutil import would
+        # trip. Without this PATH prepend the gate would fail-open into
+        # exit 1 (which the (0, 3) allowlist correctly rejects), but
+        # local UX would be broken for every developer who has not
+        # pre-activated the venv. The parity test pins the fix.
+        assert spec.extra_env is not None, (
+            "Preflight ephemeral-cleaner spec must inject venv bin dir "
+            "into PATH via extra_env so the pnpm subprocess can resolve "
+            "the right python (with dev deps installed)."
+        )
+        assert "PATH" in spec.extra_env, (
+            f"Preflight ephemeral-cleaner spec extra_env must inject "
+            f"PATH; got keys={list(spec.extra_env.keys())!r}"
+        )
+        assert ".venv" in spec.extra_env["PATH"], (
+            f"Preflight ephemeral-cleaner spec extra_env PATH must "
+            f"prepend the project venv bin dir; got "
+            f"{spec.extra_env['PATH']!r}"
+        )
+
+    def test_only_cleaner_spec_uses_non_default_allowed_exit_codes(self) -> None:
+        """Meta-guard: the `allowed_exit_codes` field on `CommandSpec`
+        was added solely to whitelist the cleaner's
+        `EXIT_DRY_RUN_PENDING` (3). Any future gate widening its
+        allowlist would risk masking real failures the same way the
+        original `(0, 2)` whitelist masked `EXIT_SETUP` (caught by stop-
+        time review). This test asserts that ONLY the documented
+        ephemeral cleaner spec uses a non-default value, and that its
+        value is exactly `(0, 3)`.
+        """
+        module = _load_preflight_module()
+        commands = module.build_commands(None)
+        cleaner_spec_name = "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)"
+        violations: list[tuple[str, tuple[int, ...]]] = []
+        cleaner_seen = False
+        for spec in commands:
+            if spec.name == cleaner_spec_name:
+                cleaner_seen = True
+                assert spec.allowed_exit_codes == (0, 3), (
+                    f"Cleaner spec must use exactly allowed_exit_codes="
+                    f"(0, 3); got {spec.allowed_exit_codes!r}"
+                )
+                continue
+            if spec.allowed_exit_codes != (0,):
+                violations.append((spec.name, spec.allowed_exit_codes))
+        assert cleaner_seen, (
+            f"Cleaner CommandSpec {cleaner_spec_name!r} not found in "
+            "preflight; meta-guard cannot verify isolation"
+        )
+        assert not violations, (
+            "Only the ephemeral cleaner spec may use non-default "
+            "allowed_exit_codes. Other specs widening their allowlist "
+            "would risk silently masking gate failures the way "
+            f"EXIT_SETUP would be. Found: {violations!r}"
+        )
+
+    def test_no_inline_cleanup_logic_in_package_json_clean_scripts(self) -> None:
+        """Negative invariant: `clean*` scripts must not inline rmtree /
+        rmdir / fs.rmSync / shutil logic. Policy lives in
+        scripts/clean_ephemeral.py; wrappers delegate. `clean:tasks`
+        (extension) is OUT OF SCOPE — it is a staging-teardown inverse
+        of `stage:tasks`, not ephemeral sweep.
+        """
+        forbidden = ("rmtree", "rmSync", "rmdir", "shutil", "recursive:true")
+        for pkg_path in (self._ROOT_PKG, self._EXT_PKG):
+            pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
+            scripts = pkg.get("scripts", {})
+            for name, body in scripts.items():
+                if not name.startswith("clean"):
+                    continue
+                if name == "clean:tasks":
+                    # Explicitly out of scope: staging teardown, not
+                    # ephemeral sweep. Tolerated as a node script.
+                    continue
+                assert not isinstance(body, str) or all(
+                    token not in body for token in forbidden
+                ), (
+                    f"{pkg_path.name}.scripts.{name} inlines cleanup logic: "
+                    f"{body!r}. Delegate to scripts/clean_ephemeral.py instead."
+                )
+
+
+class TestEphemeralCleanerSmokeJob:
+    """Locks the `ephemeral-cleaner-smoke` CI job for issue #327.
+
+    This job is the Tier 2 blocking CI gate that validates the full
+    local=CI cleaner parity on every supported OS. These parity tests
+    fail if the job structure drifts from what the review directive
+    required: pnpm-only invocation, schema-based JSON assertions,
+    long-path seed, deterministic step order, and the
+    {ubuntu, windows, macos} matrix.
+    """
+
+    _JOB = "ephemeral-cleaner-smoke"
+    _EXPECTED_MATRIX: frozenset[str] = frozenset(
+        {"ubuntu-latest", "windows-latest", "macos-latest"}
+    )
+
+    def _job(self) -> dict[str, object]:
+        jobs = _load_ci_jobs()
+        assert self._JOB in jobs, (
+            f"CI job {self._JOB!r} missing from ci.yml. Expected Tier 2 "
+            "smoke job per #327 step 5."
+        )
+        result = jobs[self._JOB]
+        assert isinstance(result, dict)
+        return result
+
+    def _all_run_blocks(self) -> str:
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        lines: list[str] = []
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            run_block = step.get("run")
+            if isinstance(run_block, str):
+                lines.append(run_block)
+        return "\n".join(lines)
+
+    def test_matrix_is_exactly_three_supported_oses(self) -> None:
+        job = self._job()
+        strategy = job.get("strategy")
+        assert isinstance(strategy, dict)
+        matrix = strategy.get("matrix")
+        assert isinstance(matrix, dict)
+        os_list = matrix.get("os")
+        assert isinstance(os_list, list)
+        assert frozenset(os_list) == self._EXPECTED_MATRIX, (
+            f"CI smoke matrix must be {sorted(self._EXPECTED_MATRIX)!r}; "
+            f"got {os_list!r}"
+        )
+
+    def test_invokes_cleaner_only_via_pnpm(self) -> None:
+        """Critical guard: the CI job must reach the cleaner through
+        pnpm wrappers ONLY, never via a direct python invocation.
+        Locks the wrapper-only invariant all the way through CI.
+        """
+        all_run = self._all_run_blocks()
+        # Forbidden: any direct invocation of the cleaner script.
+        forbidden = (
+            "python scripts/clean_ephemeral",
+            "python ../scripts/clean_ephemeral",
+            "python3 scripts/clean_ephemeral",
+            ".venv/Scripts/python scripts/clean_ephemeral",
+        )
+        for needle in forbidden:
+            assert needle not in all_run, (
+                f"CI job {self._JOB!r} contains forbidden direct invocation "
+                f"{needle!r}; must use pnpm clean / pnpm clean:dry only."
+            )
+        # Required: both pnpm wrappers must appear.
+        assert "pnpm run clean:dry" in all_run, (
+            "CI job must invoke pnpm run clean:dry at least once"
+        )
+        # `pnpm run clean ` (with trailing space/flag) distinguishes from
+        # pnpm run clean:dry.
+        assert "pnpm run clean --json" in all_run or "pnpm run clean\n" in all_run, (
+            "CI job must invoke pnpm run clean (apply) at least once"
+        )
+
+    def test_assertions_are_schema_based_json(self) -> None:
+        """Assertions must parse --json output and check schema fields,
+        not string-match banner text. Locks the review directive that
+        CI assertions be deterministic and schema-based.
+        """
+        all_run = self._all_run_blocks()
+        # Required: --json flag passed to cleaner via pnpm.
+        assert "--json" in all_run, (
+            "CI job must request --json output from the cleaner for "
+            "schema-based assertions"
+        )
+        # Required: json.loads parsing in the verification steps.
+        assert "json.loads" in all_run, "CI job must parse JSON emission via json.loads"
+        # Required: schema-field assertions (would_delete_count,
+        # deleted_count, total_bytes_freed, error_count).
+        for field in (
+            "would_delete_count",
+            "deleted_count",
+            "total_bytes_freed",
+            "error_count",
+        ):
+            assert field in all_run, f"CI smoke must assert on schema field {field!r}"
+        # Required: schema_version lock.
+        assert "schema_version" in all_run, (
+            "CI smoke must assert schema_version to lock the REPORT schema"
+        )
+
+    def test_step_order_matches_review_directive(self) -> None:
+        """Seed -> dry-run-with-work -> apply -> verify swept -> final
+        dry-run (idempotency) -> tracked-file refusal. The refusal step
+        MUST come after the successful clean per the review.
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        step_names: list[str] = []
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name")
+            if isinstance(name, str):
+                step_names.append(name)
+
+        def index_of(fragment: str) -> int:
+            for i, name in enumerate(step_names):
+                if fragment.lower() in name.lower():
+                    return i
+            raise AssertionError(
+                f"CI step containing {fragment!r} not found; got {step_names!r}"
+            )
+
+        seed_i = index_of("seed")
+        dry_work_i = index_of("dry-run with work")
+        apply_i = index_of("apply")
+        verify_i = index_of("verify")
+        final_dry_i = index_of("final dry-run")
+        refusal_i = index_of("refusal")
+        order = [
+            ("seed", seed_i),
+            ("dry-run with work", dry_work_i),
+            ("apply", apply_i),
+            ("verify swept", verify_i),
+            ("final dry-run", final_dry_i),
+            ("refusal", refusal_i),
+        ]
+        indices = [idx for _, idx in order]
+        assert indices == sorted(indices), (
+            f"CI smoke step order violates review directive "
+            f"(refusal must follow successful clean, final dry-run must "
+            f"precede refusal as idempotency lock). Got: {order!r}"
+        )
+
+    def test_includes_long_path_seed_for_windows(self) -> None:
+        """Windows long-path (>260 char) handling must be exercised
+        deterministically — not assumed to work because the code handles
+        it. A nested for-loop seed builds a path well past 260 chars so
+        rmtree_resilient's long-path branch runs at least once per CI
+        invocation.
+        """
+        all_run = self._all_run_blocks()
+        # Sentinel constant in the seed step — unique enough to match.
+        assert "long-path-probe" in all_run, (
+            "CI smoke must seed a >260-char nested tree under a "
+            "registered target to exercise Windows long-path handling"
+        )
+        assert "for i in 1 2 3 4 5 6 7 8 9 10" in all_run, (
+            "Long-path seed loop missing from CI smoke job"
+        )
+
+    def test_tracked_file_refusal_exercises_non_zero_exit(self) -> None:
+        """Refusal step must assert non-zero exit from pnpm clean when a
+        tracked file lives under a registered target, AND the sentinel
+        must remain on disk (INV-B must never silently succeed).
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        refusal_run = ""
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name", "")
+            if isinstance(name, str) and "refusal" in name.lower():
+                run = step.get("run")
+                if isinstance(run, str):
+                    refusal_run = run
+                    break
+        assert refusal_run, "Refusal step not found in CI smoke job"
+        # Sentinel is git-added so INV-B sees it.
+        assert "git add -f" in refusal_run, (
+            "Refusal step must force-stage the sentinel so git ls-files "
+            "surfaces it for INV-B"
+        )
+        # Non-zero exit assertion.
+        assert '"$EXIT" -eq 0' in refusal_run, (
+            "Refusal step must assert pnpm clean exit code is non-zero"
+        )
+        # Sentinel still exists on disk after refusal.
+        assert "sentinel.txt" in refusal_run, (
+            "Refusal step must reference the sentinel file it planted"
+        )
+        assert "! -f" in refusal_run, (
+            "Refusal step must assert sentinel file still exists on disk"
+        )
+
+    def test_final_dry_run_locks_idempotency(self) -> None:
+        """Final dry-run step must assert exit 0 AND would_delete_count
+        == 0 AND total_bytes_freed == 0. Locks idempotency across CI
+        environments — the invariant the review directive called out.
+        """
+        job = self._job()
+        steps_raw = job.get("steps", [])
+        assert isinstance(steps_raw, list)
+        final_run = ""
+        for step in steps_raw:
+            assert isinstance(step, dict)
+            name = step.get("name", "")
+            if isinstance(name, str) and "final dry-run" in name.lower():
+                run = step.get("run")
+                if isinstance(run, str):
+                    final_run = run
+                    break
+        assert final_run, "Final dry-run step not found in CI smoke job"
+        assert '"$EXIT" -ne 0' in final_run, (
+            "Final dry-run must fail the step if exit code is non-zero "
+            "(idempotency broken)"
+        )
+        assert 'would_delete_count"] == 0' in final_run, (
+            "Final dry-run must assert would_delete_count == 0 (empty effective plan)"
+        )
+        assert 'total_bytes_freed"] == 0' in final_run, (
+            "Final dry-run must assert total_bytes_freed == 0"
+        )

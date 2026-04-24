@@ -21,6 +21,8 @@
     "prepare": "husky",
     "release:preflight": "node scripts/stamp-extension-version.cjs 0.0.0 --dry-run",
     "test:ci": "python scripts/run_pr_preflight.py",
+    "clean": "python scripts/clean_ephemeral.py --yes",
+    "clean:dry": "python scripts/clean_ephemeral.py --dry-run",
     "standards:ts": "repo-standards typescript-js",
     "standards:py": "repo-standards python"
   },

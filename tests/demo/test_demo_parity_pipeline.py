@@ -23,11 +23,65 @@ ARTIFACT_METADATA = ARTIFACT_ROOT / "metadata"
 # Per-process scratch root (see #316). Parallel pytest processes must not
 # share this path — doing so lets the module-level _SCRATCH_COUNTER in two
 # processes converge on the same {prefix}-NNNN name, exposing a TOCTOU
-# race in make_scratch_dir() between exists() and mkdir(exist_ok=False),
-# and also lets one process's atexit rmtree delete another's in-flight
-# subtree. Scoping to pid isolates both concerns; cleanup stays local.
+# race in make_scratch_dir() between exists() and mkdir(exist_ok=False).
+# Scoping to pid isolates that concern.
+#
+# Cleanup is a dual mechanism (#327 step 3):
+#   1. Module-level atexit (below) — fires on THIS process's normal exit,
+#      including subprocess peers that import the module directly (those
+#      peers do not load pytest conftest so the session fixture does not
+#      reach them). Without this, peer scratch would accumulate for the
+#      rest of the boot because R7's mtime-vs-boot-time guard defers
+#      same-boot dead-pid scratch.
+#   2. Session-scope fixture in tests/demo/conftest.py — runs R7 at
+#      session start to reclaim stale CROSS-BOOT scratch that survived
+#      a reboot, and removes the parent session's own scratch on
+#      normal pytest exit.
+# The two mechanisms are complementary: atexit handles peer coverage,
+# the fixture handles cross-boot recovery.
 TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work" / f"pid-{os.getpid()}"
 _SCRATCH_COUNTER = count()
+
+
+def _cleanup_test_tmp_root() -> None:
+    """Best-effort cleanup of THIS process's scratch root on exit.
+
+    Fires for every process that imports this module — including peer
+    subprocesses spawned by tests — because atexit registration is
+    module-level. See TEST_TMP_ROOT comment above for why the session
+    fixture alone is not sufficient.
+
+    Safety: the target path MUST be the pid-scoped subtree for the
+    current process. The guard below refuses to touch any other path
+    so a mutated TEST_TMP_ROOT cannot accidentally wipe a sibling
+    process's scratch or the tmp_test_work parent itself.
+
+    Error handling (per #327 step 3 review): idempotent on
+    FileNotFoundError (the scratch may already be gone after a prior
+    invocation, a sibling, or the session fixture teardown); any
+    other OSError surfaces on stderr so failures are visible rather
+    than masked by a blanket ignore_errors=True.
+    """
+    expected_root = REPO_ROOT / "tmp_test_work" / f"pid-{os.getpid()}"
+    if TEST_TMP_ROOT != expected_root:
+        sys.stderr.write(
+            f"[atexit] refusing to clean unexpected TEST_TMP_ROOT="
+            f"{TEST_TMP_ROOT} (expected {expected_root})\n"
+        )
+        return
+    try:
+        shutil.rmtree(TEST_TMP_ROOT)
+    except FileNotFoundError:
+        # Idempotent: path is already gone (prior invocation, sibling,
+        # or the session-scope R7 fixture). No further action needed.
+        return
+    except OSError as exc:
+        sys.stderr.write(
+            f"[atexit] failed to clean {TEST_TMP_ROOT}: {type(exc).__name__}: {exc}\n"
+        )
+
+
+atexit.register(_cleanup_test_tmp_root)
 
 
 def _load_demo_generation_common():
@@ -54,14 +108,6 @@ COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
     _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
 )
 _IS_BASELINE_PYTHON = sys.version_info[:2] == COMMITTED_DEMO_BASELINE_PYTHON
-
-
-def _cleanup_test_tmp_root() -> None:
-    """Best-effort cleanup for repo-local scratch directories created by tests."""
-    shutil.rmtree(TEST_TMP_ROOT, ignore_errors=True)
-
-
-atexit.register(_cleanup_test_tmp_root)
 
 
 _ROOT = "ARTIFACT_ROOT"
@@ -343,6 +389,138 @@ class TestScratchRootIsProcessPrivate:
         assert canary.read_text(encoding="utf-8") == "alive", (
             "Canary file contents were modified by peer process cleanup"
         )
+
+    def test_peer_subprocess_atexit_cleans_own_scratch(self) -> None:
+        """Regression for #327 step 3 stop-review: a peer subprocess
+        that imports this module must clean its own
+        ``tmp_test_work/pid-{peer_pid}/`` on normal exit via the
+        module-level ``atexit`` hook AND must not touch any sibling
+        subtree (parent's pid-root or another peer's pid-root).
+
+        Peer subprocesses do NOT load pytest conftest, so the
+        session-scope fixture in ``tests/demo/conftest.py`` never
+        reaches them. And R7's mtime-vs-boot-time guard intentionally
+        defers same-boot dead-pid scratch. Without the module-level
+        atexit registration, peer scratch would accumulate for the
+        rest of the boot.
+
+        The parent creates its own pid-scoped scratch with a canary
+        before spawning the peer. After the peer exits, the peer's
+        pid-root must be gone AND the parent's scratch must still be
+        present with the canary intact.
+        """
+        # Parent-side sibling canary: proves the peer's atexit only
+        # removes its own pid-{peer_pid}/ subtree, never the parent's.
+        parent_scratch = make_scratch_dir("peer-atexit-sibling-guard")
+        parent_canary = parent_scratch / "canary.txt"
+        parent_canary.write_text("parent-alive", encoding="utf-8")
+
+        emitter = (
+            "import importlib.util\n"
+            "spec = importlib.util.spec_from_file_location("
+            f"'tdpp', {str(Path(__file__))!r})\n"
+            "assert spec is not None and spec.loader is not None\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(mod)\n"
+            "peer_dir = mod.make_scratch_dir('peer-atexit-cleans-own')\n"
+            "(peer_dir / 'payload.txt').write_text('ephemeral', encoding='utf-8')\n"
+            # Emit the peer's TEST_TMP_ROOT so the parent can check it.
+            "print(str(mod.TEST_TMP_ROOT))\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", emitter],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"peer subprocess failed: rc={result.returncode} stderr={result.stderr}"
+        )
+        peer_tmp_root = Path(result.stdout.strip())
+        assert peer_tmp_root != TEST_TMP_ROOT, (
+            "Peer TEST_TMP_ROOT must differ from parent's (pid scoping)"
+        )
+        # atexit should have fired on peer exit and removed the whole
+        # pid-{peer_pid}/ tree. If it did not, same-boot peer scratch
+        # has leaked — exactly the regression #327 step 3 stop-review
+        # caught.
+        assert not peer_tmp_root.exists(), (
+            f"Peer subprocess scratch {peer_tmp_root} leaked after exit. "
+            "Module-level atexit hook is missing or failed."
+        )
+        # Sibling-intact assertion (per #327 step 3 review): the peer
+        # must only delete its OWN pid-* subtree. Parent's scratch and
+        # canary must be intact.
+        assert parent_scratch.exists(), (
+            f"Peer atexit deleted parent's sibling scratch: {parent_scratch}"
+        )
+        assert parent_canary.read_text(encoding="utf-8") == "parent-alive", (
+            "Parent's canary contents mutated by peer atexit"
+        )
+
+    def test_two_concurrent_peers_clean_only_their_own(self) -> None:
+        """Regression for #327 step 3 review: two peer subprocesses
+        spawned concurrently must each clean ONLY their own pid-*
+        scratch. Neither peer's atexit may touch the other peer's
+        subtree or the parent's scratch. Locks the per-pid isolation
+        contract across simultaneously running peers, not just
+        sequential ones.
+        """
+        parent_scratch = make_scratch_dir("parent-concurrent-peers")
+        parent_canary = parent_scratch / "canary.txt"
+        parent_canary.write_text("parent-alive", encoding="utf-8")
+
+        emitter = (
+            "import importlib.util\n"
+            "spec = importlib.util.spec_from_file_location("
+            f"'tdpp', {str(Path(__file__))!r})\n"
+            "assert spec is not None and spec.loader is not None\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(mod)\n"
+            "peer_dir = mod.make_scratch_dir('concurrent-peer')\n"
+            "(peer_dir / 'payload.txt').write_text('ephemeral', encoding='utf-8')\n"
+            "print(str(mod.TEST_TMP_ROOT))\n"
+        )
+        # Spawn both peers and let them run in parallel. Popen.communicate()
+        # waits for each to exit — atexit must have fired by the time we
+        # inspect the filesystem below.
+        proc_a = subprocess.Popen(
+            [sys.executable, "-c", emitter],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        proc_b = subprocess.Popen(
+            [sys.executable, "-c", emitter],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out_a, err_a = proc_a.communicate(timeout=30)
+        out_b, err_b = proc_b.communicate(timeout=30)
+        assert proc_a.returncode == 0, f"peer A failed: {err_a}"
+        assert proc_b.returncode == 0, f"peer B failed: {err_b}"
+        peer_a_root = Path(out_a.strip())
+        peer_b_root = Path(out_b.strip())
+        assert peer_a_root != peer_b_root, (
+            f"distinct pids must resolve to distinct roots; got "
+            f"{peer_a_root} and {peer_b_root}"
+        )
+        assert peer_a_root != TEST_TMP_ROOT
+        assert peer_b_root != TEST_TMP_ROOT
+        # Each peer cleaned only its own pid-scoped scratch.
+        assert not peer_a_root.exists(), (
+            f"peer A scratch leaked after exit: {peer_a_root}"
+        )
+        assert not peer_b_root.exists(), (
+            f"peer B scratch leaked after exit: {peer_b_root}"
+        )
+        # Parent's sibling scratch remains untouched despite both
+        # peers having fired atexit in parallel.
+        assert parent_scratch.exists(), (
+            f"concurrent peers deleted parent scratch: {parent_scratch}"
+        )
+        assert parent_canary.read_text(encoding="utf-8") == "parent-alive"
 
 
 class TestCanonicalArtifactRoot:
