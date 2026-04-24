@@ -30,6 +30,7 @@ import argparse
 import errno
 import fnmatch
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -39,6 +40,22 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Final, Literal, TextIO, TypedDict, cast
+
+# G-PSUTIL: psutil is required for R7 conjunctive sweep (Step 3). If the
+# dev extra is missing, fail hard at import with an actionable message;
+# do NOT fall back to silent skip or degraded stdlib-only behaviour.
+# The R7 rule depends on `psutil.pid_exists` (cross-OS liveness) and
+# `psutil.boot_time` (pid-reuse discriminator), both of which have no
+# portable pure-stdlib equivalents.
+try:
+    import psutil
+except ImportError as _psutil_exc:  # pragma: no cover - exercised by missing-dep tests
+    raise ImportError(
+        "psutil is required for clean_ephemeral.py (R7 pid-lifecycle "
+        "sweep added in issue #327 step 3). Install via "
+        "`uv sync --extra dev` or `pip install -e .[dev]` and retry. "
+        f"Original ImportError: {_psutil_exc}"
+    ) from _psutil_exc
 
 # REGISTRY_SCHEMA_VERSION pins the shape of scripts/ephemeral_registry.json.
 # Bump when registry field names/types change; unrelated to the JSON
@@ -618,22 +635,114 @@ def rmtree_resilient(path: Path) -> DeleteResult:
     )
 
 
+def _parse_pid_from_child_name(child: Path) -> int | None:
+    """Parse the trailing integer from a pid-guard child name.
+
+    Names must look like `<prefix>-<integer>` — typically `pid-<N>` —
+    and the integer portion must parse. Anything else (symlinks,
+    partial writes, files named `pid-xyz`) returns None.
+    """
+    name = child.name
+    # Split on the rightmost '-' so multi-segment prefixes still parse.
+    if "-" not in name:
+        return None
+    _, _, tail = name.rpartition("-")
+    if not tail.isdigit():
+        return None
+    try:
+        return int(tail)
+    except ValueError:
+        return None
+
+
+def _pid_child_eligible_for_sweep(
+    child: Path, *, boot_time: float, self_pid: int
+) -> tuple[bool, str]:
+    """R7 conjunctive rule: a pid-* child is eligible for sweep iff
+    ALL of the following hold:
+
+      1. The pid parses to an integer AND is not the current process.
+         Self-preservation protects this session's in-flight scratch.
+      2. `psutil.pid_exists(pid)` is False. A live pid means the
+         scratch may still be in use by a sibling pytest worker.
+      3. The child's mtime predates `psutil.boot_time()`. This
+         discriminates between "pid died cleanly last cycle" (safe to
+         reclaim) and "pid was reused after a reboot and the scratch
+         happens to share a number" (unsafe — scratch is recent).
+
+    Returns `(eligible, reason)` where `reason` is empty when eligible
+    and a short human-readable diagnostic when not.
+    """
+    pid = _parse_pid_from_child_name(child)
+    if pid is None:
+        return (False, f"name {child.name!r} does not parse to pid-<int>")
+    if pid == self_pid:
+        return (False, f"pid {pid} is this process (self-preservation)")
+    if psutil.pid_exists(pid):
+        return (False, f"pid {pid} is alive on the system")
+    try:
+        mtime = child.stat().st_mtime
+    except OSError as exc:
+        return (False, f"stat failed: {type(exc).__name__}: {exc}")
+    if mtime >= boot_time:
+        return (
+            False,
+            f"mtime {mtime:.1f} >= boot_time {boot_time:.1f} (pid-reuse guard)",
+        )
+    return (True, "")
+
+
+def sweep_stale_pid_children(root: Path, *, pid_child_pattern: str) -> list[Path]:
+    """R7-sweep pid-* children under `root`. Public API for session-scope
+    fixtures that need crash-resilient cleanup without invoking the full
+    cleaner CLI.
+
+    Only immediate children whose names match `pid_child_pattern` are
+    considered. Each is passed through `_pid_child_eligible_for_sweep`;
+    eligible children are removed via `rmtree_resilient`. Ineligible
+    children are left untouched. No exception propagates — this function
+    is called from fixtures that cannot afford to fail the session.
+
+    Returns the list of child paths that were successfully removed.
+    """
+    if not root.exists() or not root.is_dir():
+        return []
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return []
+    self_pid = os.getpid()
+    boot_time = psutil.boot_time()
+    swept: list[Path] = []
+    for child in children:
+        if not fnmatch.fnmatch(child.name, pid_child_pattern):
+            continue
+        eligible, _reason = _pid_child_eligible_for_sweep(
+            child, boot_time=boot_time, self_pid=self_pid
+        )
+        if not eligible:
+            continue
+        result = rmtree_resilient(child)
+        if result.action is Action.DELETED:
+            swept.append(child)
+    return swept
+
+
 def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteResult:
     """Partial-sweep handler for `subtree-with-live-pid-guard` mode.
 
-    Step 2 semantics: immediate children are split by the entry's
-    pid_child_pattern.
+    Children are partitioned by the entry's pid_child_pattern:
       * Non-matching children (e.g. `rule-disable-invariants/`,
         `allowlist-orphan/`) are swept normally via rmtree_resilient.
-      * Matching children (`pid-*`) are DEFERRED to Step 3, where the
-        R7 conjunctive live-pid check (pid-alive + mtime-vs-boot)
-        decides which are safe to remove.
+      * Matching children (`pid-*`) go through the R7 conjunctive rule
+        in `_pid_child_eligible_for_sweep`. Eligible children are
+        swept together with the non-matching set; ineligible children
+        are left untouched and surface in the `note` field.
 
-    The parent directory itself is NOT unlinked — pid-* children may
-    still be live, and Step 3 owns the end-of-cycle cleanup once the
-    R7 sweep retires them. The aggregate action reflects the strongest
-    outcome across children; the `note` field surfaces the deferred
-    count so callers can see that Step 3 is still owed work.
+    The parent directory itself is NOT unlinked when ANY pid-* children
+    remain (eligible or not, eligible get removed so can't "remain"; we
+    mean: when ineligible pid-* children stay behind). Empty roots are
+    handled by the separate empty-dir branch above.
     """
     entry = report.entry
     pattern = entry.get("pid_child_pattern")
@@ -705,28 +814,51 @@ def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteR
         )
 
     pid_children: list[Path] = []
-    sweepable_children: list[Path] = []
+    non_pid_children: list[Path] = []
     for child in children:
         if fnmatch.fnmatch(child.name, pattern):
             pid_children.append(child)
         else:
-            sweepable_children.append(child)
+            non_pid_children.append(child)
+
+    # R7 partition: eligible pid-* children join the sweep set;
+    # ineligible stay behind and drive the deferred_note.
+    self_pid = os.getpid()
+    boot_time = psutil.boot_time()
+    r7_eligible: list[Path] = []
+    r7_ineligible: list[tuple[Path, str]] = []
+    for pid_child in pid_children:
+        eligible, reason = _pid_child_eligible_for_sweep(
+            pid_child, boot_time=boot_time, self_pid=self_pid
+        )
+        if eligible:
+            r7_eligible.append(pid_child)
+        else:
+            r7_ineligible.append((pid_child, reason))
 
     deferred_note: str | None = None
-    if pid_children:
-        deferred_note = f"{len(pid_children)} pid-* child(ren) deferred to Step 3"
+    if r7_ineligible:
+        shown = "; ".join(
+            f"{path.name} ({reason})" for path, reason in r7_ineligible[:3]
+        )
+        suffix = f" (+{len(r7_ineligible) - 3} more)" if len(r7_ineligible) > 3 else ""
+        deferred_note = (
+            f"{len(r7_ineligible)} pid-* child(ren) protected by R7: {shown}{suffix}"
+        )
+
+    sweep_targets = non_pid_children + r7_eligible
 
     if dry_run:
-        if not sweepable_children:
+        if not sweep_targets:
             return DeleteResult(
                 path=report.absolute_path,
-                action=Action.DEFERRED if pid_children else Action.NOOP_MISSING,
+                action=Action.DEFERRED if r7_ineligible else Action.NOOP_MISSING,
                 retries=0,
                 bytes_freed=0,
                 error=None,
                 note=deferred_note,
             )
-        preview_bytes = sum(_directory_size_bytes(c) for c in sweepable_children)
+        preview_bytes = sum(_directory_size_bytes(c) for c in sweep_targets)
         return DeleteResult(
             path=report.absolute_path,
             action=Action.WOULD_DELETE,
@@ -736,13 +868,13 @@ def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteR
             note=deferred_note,
         )
 
-    # --yes path: sweep each non-pid child, never short-circuit
+    # --yes path: sweep each eligible child, never short-circuit
     # (G-PARTIAL applies inside a single entry too).
     total_bytes = 0
     max_retries = 0
     error_messages: list[str] = []
     deleted_any = False
-    for child in sweepable_children:
+    for child in sweep_targets:
         child_result = rmtree_resilient(child)
         max_retries = max(max_retries, child_result.retries)
         if child_result.action is Action.DELETED:
@@ -772,11 +904,12 @@ def _sweep_pid_guarded_subtree(report: EntryReport, *, dry_run: bool) -> DeleteR
             error=None,
             note=deferred_note,
         )
-    # Nothing swept: either all children are pid-* (deferred) or the
-    # directory is empty.
+    # Nothing swept: either all pid-* children were ineligible (deferred)
+    # or — impossible here because the empty-dir branch caught that case —
+    # the directory was empty.
     return DeleteResult(
         path=report.absolute_path,
-        action=Action.DEFERRED if pid_children else Action.NOOP_MISSING,
+        action=Action.DEFERRED if r7_ineligible else Action.NOOP_MISSING,
         retries=0,
         bytes_freed=0,
         error=None,

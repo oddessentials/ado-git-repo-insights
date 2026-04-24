@@ -20,9 +20,11 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import psutil
 import pytest
 
 if TYPE_CHECKING:
@@ -878,6 +880,324 @@ def _synthetic_entry_report(
         tracked_files=(),
         size_bytes=actual_size,
     )
+
+
+# ---------------------------------------------------------------------------
+# Step 3: R7 conjunctive live-pid sweep (psutil-backed).
+
+
+def _unused_pid_candidate() -> int:
+    """Pick a pid that is not currently alive on the system.
+
+    Tests that control `psutil.pid_exists` via monkeypatch do not need
+    this helper; tests that exercise real psutil pass the returned pid
+    as a well-formed pid-<N> directory name. Searching a wide range
+    gives deterministic behaviour on Windows (where pid-reuse is high)
+    without depending on a specific magic number.
+    """
+    for candidate in range(900_000, 1_000_000):
+        if not psutil.pid_exists(candidate):
+            return candidate
+    raise RuntimeError("Could not find an unused pid in 900_000..1_000_000")
+
+
+class TestR7PidChildEligibility:
+    """Per-branch coverage for `_pid_child_eligible_for_sweep`.
+
+    R7 is a conjunctive rule. Each of the four branches must be
+    independently proven so a regression in any one surfaces as a
+    failing assertion rather than as silent mis-sweeping.
+    """
+
+    def test_self_pid_is_never_eligible(self, tmp_path: Path) -> None:
+        self_dir = tmp_path / f"pid-{os.getpid()}"
+        self_dir.mkdir()
+        eligible, reason = ce._pid_child_eligible_for_sweep(
+            self_dir, boot_time=psutil.boot_time(), self_pid=os.getpid()
+        )
+        assert eligible is False
+        assert "self" in reason.lower() or "this process" in reason.lower()
+
+    def test_live_sibling_pid_is_not_eligible(self, tmp_path: Path) -> None:
+        # Spawn a short-lived sibling that stays alive for the test.
+        # psutil.pid_exists must return True for it; R7 rule 2 defers.
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+        )
+        try:
+            sibling_dir = tmp_path / f"pid-{proc.pid}"
+            sibling_dir.mkdir()
+            # Poll briefly for the subprocess to register as alive; on
+            # Windows there can be a microsecond lag between spawn and
+            # pid_exists returning True.
+            for _ in range(20):
+                if psutil.pid_exists(proc.pid):
+                    break
+                time.sleep(0.05)
+            eligible, reason = ce._pid_child_eligible_for_sweep(
+                sibling_dir,
+                boot_time=psutil.boot_time(),
+                self_pid=os.getpid(),
+            )
+            assert eligible is False, reason
+            assert "alive" in reason.lower()
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+
+    def test_absent_pid_post_boot_mtime_is_not_eligible(self, tmp_path: Path) -> None:
+        # Pid-reuse guard: a synthetic pid dir whose mtime is AFTER the
+        # system boot time cannot be reclaimed even if the pid is dead,
+        # because a live process with a reused pid may have created it.
+        stale = tmp_path / f"pid-{_unused_pid_candidate()}"
+        stale.mkdir()
+        now = time.time()
+        # Force post-boot mtime by claiming boot happened 1 hour ago.
+        simulated_boot = now - 3600.0
+        eligible, reason = ce._pid_child_eligible_for_sweep(
+            stale, boot_time=simulated_boot, self_pid=os.getpid()
+        )
+        assert eligible is False
+        assert "boot" in reason.lower() or "mtime" in reason.lower()
+
+    def test_absent_pid_pre_boot_mtime_is_eligible(self, tmp_path: Path) -> None:
+        # All three conditions hold: pid parses and is not self, pid is
+        # not alive, and mtime predates boot time (i.e. scratch
+        # survived a reboot). Eligible for sweep.
+        stale = tmp_path / f"pid-{_unused_pid_candidate()}"
+        stale.mkdir()
+        # Backdate mtime to 2 hours ago; claim boot happened 1 hour ago.
+        two_hours_ago = time.time() - 7200.0
+        os.utime(stale, (two_hours_ago, two_hours_ago))
+        simulated_boot = time.time() - 3600.0
+        eligible, reason = ce._pid_child_eligible_for_sweep(
+            stale, boot_time=simulated_boot, self_pid=os.getpid()
+        )
+        assert eligible is True, reason
+        assert reason == ""
+
+    def test_unparseable_child_name_is_not_eligible(self, tmp_path: Path) -> None:
+        # Names that do not parse as pid-<int> must fail-closed —
+        # parsing failures translate to "not eligible" so the sweep
+        # never removes something it cannot reason about.
+        weird = tmp_path / "pid-notanumber"
+        weird.mkdir()
+        eligible, reason = ce._pid_child_eligible_for_sweep(
+            weird, boot_time=psutil.boot_time(), self_pid=os.getpid()
+        )
+        assert eligible is False
+        assert "parse" in reason.lower() or "pid-<int>" in reason
+
+
+class TestSweepStalePidChildren:
+    """`sweep_stale_pid_children` is the public entry point consumed by
+    the session-scope fixture. It must remove only R7-eligible children
+    and leave everything else untouched, including non-pid-* siblings
+    and ineligible pid-* siblings.
+    """
+
+    def test_removes_eligible_and_preserves_ineligible(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = tmp_path / "tmp_test_work"
+        root.mkdir()
+        # Self pid (R7 rule 1 preserves)
+        self_dir = root / f"pid-{os.getpid()}"
+        self_dir.mkdir()
+        (self_dir / "in_flight.txt").write_text("live", encoding="utf-8")
+        # Live sibling pid: fake by monkey-patching pid_exists for a
+        # specific number.
+        live_sibling_pid = _unused_pid_candidate()
+        live_dir = root / f"pid-{live_sibling_pid}"
+        live_dir.mkdir()
+        # Eligible stale pid (absent + pre-boot mtime)
+        eligible_pid = _unused_pid_candidate() - 1
+        eligible_dir = root / f"pid-{eligible_pid}"
+        eligible_dir.mkdir()
+        (eligible_dir / "ancient.txt").write_text("ancient", encoding="utf-8")
+        two_hours_ago = time.time() - 7200.0
+        os.utime(eligible_dir, (two_hours_ago, two_hours_ago))
+        # Non-pid child (not matched by pattern)
+        non_pid = root / "rule-disable-invariants"
+        non_pid.mkdir()
+        (non_pid / "x.txt").write_text("x", encoding="utf-8")
+
+        real_pid_exists = psutil.pid_exists
+
+        def fake_pid_exists(pid: int) -> bool:
+            if pid == live_sibling_pid:
+                return True
+            return bool(real_pid_exists(pid))
+
+        monkeypatch.setattr(psutil, "pid_exists", fake_pid_exists)
+        monkeypatch.setattr(psutil, "boot_time", lambda: time.time() - 3600.0)
+
+        swept = ce.sweep_stale_pid_children(root, pid_child_pattern="pid-*")
+        assert eligible_dir in swept
+        assert not eligible_dir.exists()
+        assert self_dir.exists(), "self pid scratch must be preserved"
+        assert live_dir.exists(), "live-sibling pid scratch must be preserved"
+        assert non_pid.exists(), (
+            "sweep must not touch non-pid-* children (they belong to their "
+            "own test lifecycles)"
+        )
+
+    def test_missing_root_is_noop(self, tmp_path: Path) -> None:
+        swept = ce.sweep_stale_pid_children(
+            tmp_path / "does-not-exist", pid_child_pattern="pid-*"
+        )
+        assert swept == []
+
+    def test_non_directory_root_is_noop(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "not-a-dir"
+        file_path.write_text("x", encoding="utf-8")
+        swept = ce.sweep_stale_pid_children(file_path, pid_child_pattern="pid-*")
+        assert swept == []
+
+    def test_sweep_is_idempotent_on_already_cleaned_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression for #327 step 3 review: sweep_stale_pid_children
+        tolerates repeat invocation. First call removes eligible
+        children; the second call finds nothing to do, returns [],
+        and produces no error. This lets atexit and the session
+        fixture run back-to-back without tripping over each other.
+        """
+        root = tmp_path / "tmp_test_work"
+        root.mkdir()
+        eligible_pid = _unused_pid_candidate()
+        eligible_dir = root / f"pid-{eligible_pid}"
+        eligible_dir.mkdir()
+        # Pre-boot mtime so R7 rule 3 allows sweep.
+        two_hours_ago = time.time() - 7200.0
+        os.utime(eligible_dir, (two_hours_ago, two_hours_ago))
+        monkeypatch.setattr(psutil, "boot_time", lambda: time.time() - 3600.0)
+
+        first = ce.sweep_stale_pid_children(root, pid_child_pattern="pid-*")
+        second = ce.sweep_stale_pid_children(root, pid_child_pattern="pid-*")
+
+        assert eligible_dir in first
+        assert second == []
+        assert not eligible_dir.exists()
+
+
+class TestR7InPidGuardedSubtree:
+    """Integrates R7 into `_sweep_pid_guarded_subtree` end-to-end:
+    eligible pid-* children get swept alongside non-pid children;
+    ineligible pid-* children stay and surface in the `note` field.
+    """
+
+    def test_yes_sweeps_eligible_pid_child_alongside_non_pid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = tmp_path / "scratch"
+        root.mkdir()
+        # Non-pid child: sweepable
+        non_pid = root / "rule-disable-invariants"
+        non_pid.mkdir()
+        (non_pid / "data.txt").write_text("junk", encoding="utf-8")
+        # R7-eligible pid-* child: absent pid, pre-boot mtime
+        eligible_pid = _unused_pid_candidate()
+        eligible_dir = root / f"pid-{eligible_pid}"
+        eligible_dir.mkdir()
+        two_hours_ago = time.time() - 7200.0
+        os.utime(eligible_dir, (two_hours_ago, two_hours_ago))
+        # Simulate boot 1 hour ago — mtime (2h) < boot (1h), eligible
+        monkeypatch.setattr(psutil, "boot_time", lambda: time.time() - 3600.0)
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=False)
+        entry = result.results[0]
+        assert entry.action is ce.Action.DELETED
+        assert not non_pid.exists()
+        assert not eligible_dir.exists()
+        # No ineligible pid-* children, so no deferred note.
+        assert entry.note is None
+
+    def test_yes_defers_live_sibling_pid_child(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = tmp_path / "scratch"
+        root.mkdir()
+        # R7-ineligible pid-* child: pid is "alive"
+        live_pid = _unused_pid_candidate()
+        live_dir = root / f"pid-{live_pid}"
+        live_dir.mkdir()
+        # Backdate mtime so only pid_exists is the blocker.
+        two_hours_ago = time.time() - 7200.0
+        os.utime(live_dir, (two_hours_ago, two_hours_ago))
+        real_pid_exists = psutil.pid_exists
+
+        def fake_pid_exists(pid: int) -> bool:
+            if pid == live_pid:
+                return True
+            return bool(real_pid_exists(pid))
+
+        monkeypatch.setattr(psutil, "pid_exists", fake_pid_exists)
+        monkeypatch.setattr(psutil, "boot_time", lambda: time.time() - 3600.0)
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=False)
+        entry = result.results[0]
+        assert entry.action is ce.Action.DEFERRED
+        assert live_dir.exists()
+        assert entry.note is not None
+        assert "protected by R7" in entry.note
+        assert "alive" in entry.note.lower()
+
+    def test_dry_run_preview_includes_only_eligible_pid_children(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = tmp_path / "scratch"
+        root.mkdir()
+        # Eligible pid-* child (counts toward preview)
+        eligible_pid = _unused_pid_candidate()
+        eligible_dir = root / f"pid-{eligible_pid}"
+        eligible_dir.mkdir()
+        (eligible_dir / "payload.bin").write_bytes(b"e" * 100)
+        two_hours_ago = time.time() - 7200.0
+        os.utime(eligible_dir, (two_hours_ago, two_hours_ago))
+        # Ineligible pid-* child (live sibling — excluded from preview)
+        live_pid = _unused_pid_candidate() - 1
+        live_dir = root / f"pid-{live_pid}"
+        live_dir.mkdir()
+        (live_dir / "big.bin").write_bytes(b"L" * 9999)
+        os.utime(live_dir, (two_hours_ago, two_hours_ago))
+        real_pid_exists = psutil.pid_exists
+
+        def fake_pid_exists(pid: int) -> bool:
+            if pid == live_pid:
+                return True
+            return bool(real_pid_exists(pid))
+
+        monkeypatch.setattr(psutil, "pid_exists", fake_pid_exists)
+        monkeypatch.setattr(psutil, "boot_time", lambda: time.time() - 3600.0)
+        report = _synthetic_entry_report(
+            tmp_path,
+            eid="tmp-test-work",
+            rel="scratch",
+            mode="subtree-with-live-pid-guard",
+            create=False,
+        )
+        result = ce.execute_plan([report], dry_run=True)
+        entry = result.results[0]
+        assert entry.action is ce.Action.WOULD_DELETE
+        assert entry.bytes_freed == 100  # only the eligible dir's payload
+        assert entry.note is not None
+        assert "protected by R7" in entry.note
+        # Dry-run must not touch the filesystem.
+        assert eligible_dir.exists()
+        assert live_dir.exists()
 
 
 class TestExecutePlan:

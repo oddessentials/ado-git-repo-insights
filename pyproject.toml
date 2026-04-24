@@ -41,6 +41,7 @@ dev = [
     "jsonschema>=4.0",
     "defusedxml==0.7.1",  # Safe XML parsing for CI scripts
     "build>=1.0",  # Python package build validation in preflight
+    "psutil>=5.9",  # pid_exists + boot_time for R7 conjunctive sweep (#327)
 ]
 ml = [
     "prophet>=1.1.0",
@@ -127,6 +128,7 @@ module = [
     "prophet",
     "openai",
     "defusedxml.*",
+    "psutil",
 ]
 ignore_missing_imports = true
 
