@@ -289,6 +289,37 @@ real coverage floor.)
 
 ---
 
+## Cleaning Ephemeral State
+
+Repo-local ephemeral directories (pytest cache, demo scratch,
+`tmp_test_work/pid-*/`, extension coverage and build outputs, and so on)
+are managed by a single authoritative cleaner. The pnpm wrappers are the
+primary entry points:
+
+```bash
+pnpm clean:dry    # preview what would be swept
+pnpm clean        # apply the sweep
+```
+
+Both are thin delegators; the underlying command is
+`python scripts/clean_ephemeral.py` and the registry of eligible paths
+lives at `scripts/ephemeral_registry.json`.
+
+**Exit codes** (contract, enforced by the `ephemeral-cleaner-smoke` CI
+job on ubuntu / windows / macos):
+
+- `0` — nothing to do OR sweep succeeded
+- `2` — dry-run found work pending
+- non-zero (other) — setup failure, or a delete was refused (e.g. a
+  tracked file lives under a registered target)
+
+For same-boot peer-subprocess scratch in the demo suite, an atexit
+hook in `tests/demo/test_demo_parity_pipeline.py` complements the
+session-scope R7 fixture in `tests/demo/conftest.py`; see the module
+docstrings for the dual-cleanup rationale.
+
+---
+
 ## Writing Tests
 
 ### Naming Conventions
