@@ -166,6 +166,9 @@ describe("capability-on path — three columns per row (INV-08)", () => {
   });
 
   it("renders a header row with 3 sort buttons and a separate filter row with 3 inputs", () => {
+    // Two rows so the C5 controls-visibility guard (rowElements.length > 1)
+    // permits the header + filter to render.  Single-row suppression is
+    // covered by its own test below.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -175,9 +178,15 @@ describe("capability-on path — three columns per row (INV-08)", () => {
           commentCount: 1,
           activeThreadCount: 0,
         }),
+        buildRow({
+          id: 2,
+          threadCount: 2,
+          commentCount: 4,
+          activeThreadCount: 1,
+        }),
       ],
-      renderedCount: 1,
-      actualFilteredCount: 1,
+      renderedCount: 2,
+      actualFilteredCount: 2,
       capValue: 500,
       commentsMetricsAvailable: true,
     });
@@ -208,6 +217,175 @@ describe("capability-on path — three columns per row (INV-08)", () => {
       "comments",
       "unresolved",
     ]);
+  });
+});
+
+describe("issue #330 / C5 — controls-visibility guard on trivial lists", () => {
+  it("suppresses header + filter when the capability-on list has a single row", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 5,
+          commentCount: 17,
+          activeThreadCount: 2,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    // Header + filter must be absent — not just hidden — on a trivial
+    // list.  The <ol> modifier class stays intact so the single row
+    // still picks up tabular / muted-partial styling.
+    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
+    const list = root.querySelector<HTMLOListElement>(
+      "ol.detail-panel-pr-list",
+    );
+    expect(list).not.toBeNull();
+    expect(
+      list!.classList.contains("detail-panel-pr-list--with-comments"),
+    ).toBe(true);
+    // The single row itself still carries the three comments-metric spans.
+    const row = listRows(root)[0]!;
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      expect(metricSpan(row, axis)).not.toBeNull();
+    }
+  });
+
+  it("emits header + filter when the capability-on list has two or more rows", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 5,
+          commentCount: 17,
+          activeThreadCount: 2,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+});
+
+describe("issue #330 / C1 — truncation badge slice-scope disclosure", () => {
+  it("capability-on truncated week appends the slice-scope disclosure sentence", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 3,
+          commentCount: 9,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 2,
+          commentCount: 5,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 743,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const badge = root.querySelector<HTMLElement>(
+      ".truncation-indicator.truncation-badge",
+    );
+    expect(badge).not.toBeNull();
+    const text = badge!.textContent ?? "";
+    // Count literals stay in place — loose substring checks match the
+    // pre-existing throughput-drilldown truncation test style.
+    expect(text).toContain("2");
+    expect(text).toContain("743");
+    expect(text).toContain("500");
+    expect(text).toContain("by cycle time");
+    // New in #330 — the disclosure sentence is appended.
+    expect(text).toContain("Sort and filter operate within this slice.");
+  });
+
+  it("capability-off truncated week preserves the pre-#330 badge literal (SC-03 byte-identity)", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+      renderedCount: 2,
+      actualFilteredCount: 743,
+      capValue: 500,
+      commentsMetricsAvailable: false,
+    });
+    const root = openWithPrListSection(section);
+    const badge = root.querySelector<HTMLElement>(
+      ".truncation-indicator.truncation-badge",
+    );
+    expect(badge).not.toBeNull();
+    // Capability-off MUST render the exact pre-310 / pre-#330 literal so
+    // the committed byte-identical baseline stays valid.  If this
+    // assertion ever flips, the disclosure has leaked off the
+    // capability-on path.
+    expect(badge!.textContent).toBe(
+      "Showing 2 of 743 matching PRs (top 500 by cycle time)",
+    );
+  });
+});
+
+describe("issue #330 / C4 — 3-digit metric rendering", () => {
+  it("renders 3-digit counts in all three comments-metric columns without partial state", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 900,
+          threadCount: 999,
+          commentCount: 999,
+          activeThreadCount: 999,
+        }),
+        buildRow({
+          id: 901,
+          threadCount: 123,
+          commentCount: 456,
+          activeThreadCount: 789,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const rows = listRows(root);
+    expect(rows).toHaveLength(2);
+    expect(rowPartial(rows[0]!)).toBe(false);
+    expect(metricSpan(rows[0]!, "threads").textContent).toBe("999");
+    expect(metricSpan(rows[0]!, "comments").textContent).toBe("999");
+    expect(metricSpan(rows[0]!, "unresolved").textContent).toBe("999");
+    expect(metricSpan(rows[1]!, "threads").textContent).toBe("123");
+    expect(metricSpan(rows[1]!, "comments").textContent).toBe("456");
+    expect(metricSpan(rows[1]!, "unresolved").textContent).toBe("789");
+    // The row-level data attributes the sort + filter machinery reads
+    // must round-trip the full 3-digit values.
+    expect(rows[0]!.getAttribute("data-threads")).toBe("999");
+    expect(rows[0]!.getAttribute("data-comments")).toBe("999");
+    expect(rows[0]!.getAttribute("data-unresolved")).toBe("999");
   });
 });
 
@@ -593,6 +771,8 @@ describe("INV-09 ordering assertion across rendered rows", () => {
 
 describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
   it("emits a header row with 5 columnheader cells on capability-on", () => {
+    // Two rows so the C5 controls-visibility guard permits the header
+    // to render; see the dedicated single-row suppression test below.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -602,9 +782,15 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
           commentCount: 1,
           activeThreadCount: 0,
         }),
+        buildRow({
+          id: 2,
+          threadCount: 2,
+          commentCount: 4,
+          activeThreadCount: 1,
+        }),
       ],
-      renderedCount: 1,
-      actualFilteredCount: 1,
+      renderedCount: 2,
+      actualFilteredCount: 2,
       capValue: 500,
       commentsMetricsAvailable: true,
     });
@@ -658,7 +844,8 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     // disambiguation the F8 rename was meant to convey is preserved
     // via the hover ``title`` and the screen-reader ``aria-label``.
     // Locks the three-surface contract: visible textContent, hover
-    // title, SR aria-label.
+    // title, SR aria-label.  Two rows so the C5 controls-visibility
+    // guard permits the sort buttons to render.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -668,9 +855,15 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
           commentCount: 0,
           activeThreadCount: 0,
         }),
+        buildRow({
+          id: 2,
+          threadCount: 1,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
       ],
-      renderedCount: 1,
-      actualFilteredCount: 1,
+      renderedCount: 2,
+      actualFilteredCount: 2,
       capValue: 500,
       commentsMetricsAvailable: true,
     });

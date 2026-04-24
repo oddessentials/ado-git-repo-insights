@@ -3387,6 +3387,39 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-weight: 600;
 }
 
+/* Issue #330 / C4 — responsive fallback for the comments-metrics grid.
+ *
+ * Scoped strictly to the capability-on-only classes emitted by
+ * renderPrListSection when commentsMetricsAvailable===true
+ * (.detail-panel-pr-list-header and .detail-panel-pr-list--with-comments).
+ * Capability-off DOM still has no comments-metrics header or numeric
+ * columns at all, so this block is unreachable on that path — SC-03 /
+ * INV-01 byte-identity is preserved by construction.
+ *
+ * The panel is `min(420px, 90vw)`; it only begins narrowing once the
+ * viewport is narrow enough that 90vw falls below 420px, which is
+ * where the desktop 5ch / 6ch / 9ch columns start crowding the
+ * PR-link track.  The breakpoint used below matches the project-wide
+ * MOBILE_BREAKPOINT constant (see
+ * extension/ui/modules/shared/constants.ts), so the narrow-viewport
+ * treatment here co-varies with the rest of the dashboard's mobile
+ * pass.
+ */
+@media (max-width: 480px) {
+    .detail-panel-pr-list-header,
+    .detail-panel-pr-list--with-comments .detail-panel-pr-row {
+        grid-template-columns: minmax(0, 1fr) auto 4ch 5ch 7ch;
+        column-gap: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .detail-panel-pr-list-header {
+        font-size: 11px;
+        letter-spacing: 0;
+    }
+}
+
 /* Highlight on the source chart element whose click opened the panel. */
 .is-drilldown-active {
     outline: 2px solid var(--primary);
