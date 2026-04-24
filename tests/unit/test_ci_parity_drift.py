@@ -1643,6 +1643,28 @@ class TestCleanEphemeralParity:
             "Preflight ephemeral-cleaner spec must run from REPO_ROOT so "
             f"the pnpm wrapper resolves to root package.json; got cwd={spec.cwd}"
         )
+        # Lock the PATH injection: the husky pre-push hook execs the
+        # venv's python directly without activating the venv, so PATH
+        # inherited by `pnpm run clean:dry` would otherwise omit the
+        # venv bin dir and the cleaner's hard-fail psutil import would
+        # trip. Without this PATH prepend the gate would fail-open into
+        # exit 1 (which the (0, 3) allowlist correctly rejects), but
+        # local UX would be broken for every developer who has not
+        # pre-activated the venv. The parity test pins the fix.
+        assert spec.extra_env is not None, (
+            "Preflight ephemeral-cleaner spec must inject venv bin dir "
+            "into PATH via extra_env so the pnpm subprocess can resolve "
+            "the right python (with dev deps installed)."
+        )
+        assert "PATH" in spec.extra_env, (
+            f"Preflight ephemeral-cleaner spec extra_env must inject "
+            f"PATH; got keys={list(spec.extra_env.keys())!r}"
+        )
+        assert ".venv" in spec.extra_env["PATH"], (
+            f"Preflight ephemeral-cleaner spec extra_env PATH must "
+            f"prepend the project venv bin dir; got "
+            f"{spec.extra_env['PATH']!r}"
+        )
 
     def test_only_cleaner_spec_uses_non_default_allowed_exit_codes(self) -> None:
         """Meta-guard: the `allowed_exit_codes` field on `CommandSpec`

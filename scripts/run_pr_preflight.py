@@ -119,6 +119,30 @@ def smoke_report_dir() -> Path:
     return PREFLIGHT_ROOT / "playwright" / "report"
 
 
+def _cleaner_venv_path_env() -> dict[str, str]:
+    """Prepend the project venv's Python bin directory to PATH for the
+    ephemeral-cleaner pnpm CommandSpec (issue #327 / QG-35).
+
+    The husky pre-push hook execs ``.venv/Scripts/python.exe`` directly
+    to launch this preflight script, which means the inherited PATH
+    does NOT include the venv's bin dir (no `activate` ran). When the
+    ephemeral-cleaner CommandSpec invokes ``pnpm run clean:dry``, the
+    pnpm subprocess resolves ``python`` from PATH — and a bare PATH
+    would land on a system interpreter without psutil, tripping the
+    cleaner's hard-fail import guard. Prepending the venv bin dir is
+    a localized fix: it affects only this CommandSpec (set via
+    ``extra_env=``) and does not perturb any other preflight subprocess.
+
+    On CI the venv directory does not exist; PATH resolution silently
+    skips the missing entry and falls through to setup-python's
+    interpreter, which already has dev deps installed via
+    ``pip install -e .[dev]``.
+    """
+    venv_bin_dir = REPO_ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin")
+    current_path = os.environ.get("PATH", "")
+    return {"PATH": f"{venv_bin_dir}{os.pathsep}{current_path}"}
+
+
 def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | None:
     baseline_path = PREFLIGHT_ROOT / "baseline" / "main-suppression-baseline.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
@@ -370,11 +394,26 @@ def build_commands(
         # cleaner setup failures surface as preflight failures rather
         # than being masked. Exit 1 (validation error) and other codes
         # likewise surface as gate failures.
+        #
+        # PATH injection: `pnpm run clean:dry` invokes `python …` which
+        # resolves via PATH inside the pnpm subprocess. The husky
+        # pre-push hook execs `.venv/Scripts/python.exe` directly to
+        # launch THIS preflight script, but it does not activate the
+        # venv, so the inherited PATH does not include the venv's
+        # Scripts dir — bare `python` would land on a system interpreter
+        # without psutil and the cleaner's hard-fail import guard would
+        # fire. Prepending the venv bin dir to PATH for this single
+        # CommandSpec restores the contract without affecting other
+        # gates. CI is unaffected: GitHub-hosted runners install dev
+        # deps into setup-python's interpreter, which is already on
+        # PATH; the prepended `.venv/Scripts` path simply does not
+        # exist there and is silently ignored by PATH resolution.
         CommandSpec(
             "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)",
             (PNPM_SENTINEL, "run", "clean:dry"),
             cwd=REPO_ROOT,
             allowed_exit_codes=(0, 3),
+            extra_env=_cleaner_venv_path_env(),
         ),
         CommandSpec(
             "Python package build check",
