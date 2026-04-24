@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 106,
+  "total_call_sites": 110,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -165,7 +165,7 @@
     },
     {
       "file": "scripts/clean_ephemeral.py",
-      "line": 318,
+      "line": 340,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -645,7 +645,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 597,
+      "line": 606,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -653,7 +653,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 611,
+      "line": 620,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -661,7 +661,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 623,
+      "line": 632,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -669,7 +669,39 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 643,
+      "line": 652,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 972,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1138,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1144,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_clean_ephemeral.py",
+      "line": 1183,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

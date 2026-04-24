@@ -27,14 +27,35 @@ Operational guards implemented at Step 1:
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import shutil
+import stat
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Final, Literal, TypedDict, cast
+from typing import Final, Literal, TextIO, TypedDict, cast
 
-SCHEMA_VERSION: Final = 1
+# REGISTRY_SCHEMA_VERSION pins the shape of scripts/ephemeral_registry.json.
+# Bump when registry field names/types change; unrelated to the JSON
+# report emitted by this script.
+REGISTRY_SCHEMA_VERSION: Final = 1
+
+# REPORT_SCHEMA_V1 / REPORT_SCHEMA_V2 pin the shape of this script's JSON
+# emission. v1 is the Step-1 validate-only format. v2 is emitted ONLY when
+# --dry-run or --yes produces action fields (per-entry `action`, `retries`,
+# `bytes_freed`, `delete_error`, `note` + top-level `summary`). Validate-only
+# runs continue to emit v1 so Step-1 consumers are not broken by schema drift.
+# Lock tests in the test suite fail if either shape gains a field without
+# bumping the corresponding constant.
+REPORT_SCHEMA_V1: Final = 1
+REPORT_SCHEMA_V2: Final = 2
+
+MAX_DELETE_RETRIES: Final = 5
+DELETE_BACKOFF_SECONDS: Final = (0.1, 0.2, 0.4, 0.8, 1.6)
 
 
 Mode = Literal["subtree", "subtree-with-live-pid-guard", "file"]
@@ -277,9 +298,10 @@ def load_registry(registry_path: Path) -> Registry:
     if not isinstance(parsed, dict):
         raise ValidationError("Registry top-level must be a JSON object")
     version_raw = parsed.get("schema_version")
-    if version_raw != SCHEMA_VERSION:
+    if version_raw != REGISTRY_SCHEMA_VERSION:
         raise ValidationError(
-            f"Registry schema_version {version_raw!r} != expected {SCHEMA_VERSION}."
+            f"Registry schema_version {version_raw!r} != expected "
+            f"{REGISTRY_SCHEMA_VERSION}."
         )
     targets_raw = parsed.get("targets")
     if not isinstance(targets_raw, list) or not targets_raw:
@@ -307,7 +329,7 @@ def load_registry(registry_path: Path) -> Registry:
         seen_paths.add(entry["path"])
         entries.append(entry)
         previous_id = entry["id"]
-    return {"schema_version": SCHEMA_VERSION, "targets": entries}
+    return {"schema_version": REGISTRY_SCHEMA_VERSION, "targets": entries}
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +390,11 @@ def tracked_files_under(repo_root: Path, entry: RegistryEntry) -> tuple[str, ...
 
 def _directory_size_bytes(path: Path) -> int:
     total = 0
+    if path.is_symlink():
+        # Symlinks are never followed for sizing — we delete the link,
+        # never the target. Return 0 so a link doesn't look like it's
+        # freeing the linked target's bytes.
+        return 0
     if path.is_file():
         try:
             return path.stat().st_size
@@ -382,10 +409,271 @@ def _directory_size_bytes(path: Path) -> int:
             if sub.is_file():
                 total += sub.stat().st_size
         except OSError:
-            # Surfaced to caller elsewhere; Step 2 introduces full error
-            # accounting for delete-path I/O.
+            # Unreadable descendants are reported through the delete
+            # path's per-entry error accounting (G-PARTIAL); sizing
+            # continues so the summary remains useful.
             continue
     return total
+
+
+# ---------------------------------------------------------------------------
+# Delete primitives: rmtree_resilient + execute_plan.
+#
+# G-RETRY: Windows file locks and transient permission failures are
+# retried up to MAX_DELETE_RETRIES with bounded exponential backoff.
+# Per-path retry counts surface in the JSON report.
+#
+# G-PARTIAL: execute_plan accumulates DeleteResult per entry and never
+# early-exits on failure. The caller inspects DeletionReport and chooses
+# a single exit code from the aggregate.
+
+
+class Action(StrEnum):
+    """Outcome for a single plan entry under dry-run or --yes.
+
+    StrEnum so the JSON emission is stable and human-readable without
+    a separate serialiser branch.
+    """
+
+    WOULD_DELETE = "would_delete"
+    DELETED = "deleted"
+    NOOP_MISSING = "noop_missing"
+    DEFERRED = "deferred"
+    ERROR = "error"
+
+
+@dataclass(frozen=True)
+class DeleteResult:
+    """Per-entry outcome. `retries` is 0 when the first attempt succeeded."""
+
+    path: Path
+    action: Action
+    retries: int
+    bytes_freed: int
+    error: str | None
+    note: str | None
+
+
+@dataclass(frozen=True)
+class DeletionReport:
+    """Aggregate across all plan entries after execute_plan."""
+
+    results: tuple[DeleteResult, ...]
+
+    @property
+    def deleted_count(self) -> int:
+        return sum(1 for r in self.results if r.action is Action.DELETED)
+
+    @property
+    def would_delete_count(self) -> int:
+        return sum(1 for r in self.results if r.action is Action.WOULD_DELETE)
+
+    @property
+    def noop_missing_count(self) -> int:
+        return sum(1 for r in self.results if r.action is Action.NOOP_MISSING)
+
+    @property
+    def deferred_count(self) -> int:
+        return sum(1 for r in self.results if r.action is Action.DEFERRED)
+
+    @property
+    def error_count(self) -> int:
+        return sum(1 for r in self.results if r.action is Action.ERROR)
+
+    @property
+    def total_bytes_freed(self) -> int:
+        return sum(r.bytes_freed for r in self.results)
+
+
+def _is_transient_delete_error(exc: BaseException) -> bool:
+    """True for OS errors worth retrying (locks, sharing violations)."""
+    if not isinstance(exc, OSError):
+        return False
+    if sys.platform == "win32":
+        winerror = getattr(exc, "winerror", None)
+        # 5 = Access denied, 32 = Sharing violation, 145 = Dir not empty
+        # (can be transient during concurrent descends). Keep the set
+        # narrow; false positives cause misleading retry counts.
+        if winerror in (5, 32, 145):
+            return True
+    return exc.errno in (errno.EACCES, errno.EBUSY, errno.EPERM)
+
+
+def _onexc_chmod_retry(func: object, path: object, exc: BaseException) -> None:
+    """shutil.rmtree onexc handler: clear read-only bit and retry once.
+
+    Windows marks git pack files, node-gyp artifacts, and Playwright
+    browser binaries read-only; a direct unlink then raises
+    PermissionError even though the user owns the file. Clearing
+    S_IWRITE via chmod(0o200 | existing) and re-invoking `func(path)`
+    is the standard remediation.
+    """
+    if not isinstance(exc, OSError):
+        return
+    target = Path(path) if isinstance(path, (str, Path)) else None
+    if target is None:
+        return
+    try:
+        target.chmod(stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        # chmod itself failed — outer retry loop will surface the original
+        # error. We deliberately do NOT swallow it silently; the rmtree
+        # call will re-raise.
+        return
+    if callable(func):
+        try:
+            func(path)
+        except OSError:
+            # Re-raise path: let the outer retry loop handle it.
+            return
+
+
+def _delete_one(path: Path) -> None:
+    """Delete a single filesystem item.
+
+    Symlinks are unlinked without following. Files get a one-shot
+    chmod-retry for the Windows read-only attribute. Directories go
+    through shutil.rmtree with the onexc chmod handler so pack files
+    and other read-only leaves are unblocked in-tree. May raise
+    OSError; the caller owns the retry-budget policy.
+    """
+    if path.is_symlink():
+        path.unlink()
+    elif path.is_file():
+        try:
+            path.unlink()
+        except PermissionError:
+            # Windows marks git pack files and similar artifacts
+            # read-only; clearing S_IWRITE and retrying once inline
+            # handles the common case without widening the retry
+            # budget.
+            path.chmod(stat.S_IWRITE | stat.S_IREAD)
+            path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path, onexc=_onexc_chmod_retry)
+    else:
+        # Device nodes, sockets, etc. — unlink is the safest primitive.
+        path.unlink()
+
+
+def rmtree_resilient(path: Path) -> DeleteResult:
+    """Delete `path` (symlink, file, or directory tree) with bounded retry.
+
+    G-EXIST: a missing path returns NOOP_MISSING with zero bytes, not
+    an error.
+
+    Symlinks are unlinked (never followed); a symlink to a directory
+    does NOT recurse into the target.
+
+    Windows read-only attributes are cleared via the onexc handler.
+    Transient lock/sharing errors are retried up to
+    MAX_DELETE_RETRIES with DELETE_BACKOFF_SECONDS exponential backoff.
+    On exhaustion returns an ERROR result carrying the final exception
+    message and the retry count actually used.
+    """
+    if not path.exists() and not path.is_symlink():
+        return DeleteResult(
+            path=path,
+            action=Action.NOOP_MISSING,
+            retries=0,
+            bytes_freed=0,
+            error=None,
+            note=None,
+        )
+    bytes_before = _directory_size_bytes(path)
+    last_error: str | None = None
+    for attempt in range(MAX_DELETE_RETRIES + 1):
+        try:
+            _delete_one(path)
+        except OSError as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            if attempt < MAX_DELETE_RETRIES and _is_transient_delete_error(exc):
+                time.sleep(DELETE_BACKOFF_SECONDS[attempt])
+                continue
+            return DeleteResult(
+                path=path,
+                action=Action.ERROR,
+                retries=attempt,
+                bytes_freed=0,
+                error=last_error,
+                note=None,
+            )
+        return DeleteResult(
+            path=path,
+            action=Action.DELETED,
+            retries=attempt,
+            bytes_freed=bytes_before,
+            error=None,
+            note=None,
+        )
+    # Unreachable: the loop always returns. Kept for type-checker safety.
+    return DeleteResult(
+        path=path,
+        action=Action.ERROR,
+        retries=MAX_DELETE_RETRIES,
+        bytes_freed=0,
+        error=last_error or "exhausted retry budget",
+        note=None,
+    )
+
+
+def execute_plan(
+    entry_reports: list[EntryReport],
+    *,
+    dry_run: bool,
+) -> DeletionReport:
+    """Apply the plan (or simulate it). G-PARTIAL: collect all, never
+    early-exit on failure.
+
+    `subtree-with-live-pid-guard` mode is DEFERRED — the R7 conjunctive
+    sweep (pid-alive + mtime-vs-boot-time) lives in Step 3 and requires
+    psutil. Until then such entries are reported with action=DEFERRED
+    and contribute nothing to bytes freed or to the "would delete"
+    count, so they cannot tip dry-run into exit 2 by themselves.
+    """
+    results: list[DeleteResult] = []
+    for report in entry_reports:
+        if report.entry["mode"] == "subtree-with-live-pid-guard":
+            results.append(
+                DeleteResult(
+                    path=report.absolute_path,
+                    action=Action.DEFERRED,
+                    retries=0,
+                    bytes_freed=0,
+                    error=None,
+                    note=(
+                        "subtree-with-live-pid-guard requires the R7 "
+                        "conjunctive sweep (Step 3 / psutil)"
+                    ),
+                )
+            )
+            continue
+        if not report.exists:
+            results.append(
+                DeleteResult(
+                    path=report.absolute_path,
+                    action=Action.NOOP_MISSING,
+                    retries=0,
+                    bytes_freed=0,
+                    error=None,
+                    note=None,
+                )
+            )
+            continue
+        if dry_run:
+            results.append(
+                DeleteResult(
+                    path=report.absolute_path,
+                    action=Action.WOULD_DELETE,
+                    retries=0,
+                    bytes_freed=report.size_bytes,
+                    error=None,
+                    note=None,
+                )
+            )
+            continue
+        results.append(rmtree_resilient(report.absolute_path))
+    return DeletionReport(results=tuple(results))
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +866,11 @@ def validate_plan(
 # Emission: human + JSON.
 
 
-def _entry_to_jsonable(report: EntryReport, repo_root: Path) -> dict[str, object]:
+def _entry_to_jsonable(
+    report: EntryReport,
+    repo_root: Path,
+    delete_result: DeleteResult | None,
+) -> dict[str, object]:
     try:
         rel = report.absolute_path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
@@ -595,27 +887,69 @@ def _entry_to_jsonable(report: EntryReport, repo_root: Path) -> dict[str, object
     }
     if "pid_child_pattern" in report.entry:
         out["pid_child_pattern"] = report.entry["pid_child_pattern"]
+    if delete_result is not None:
+        out["action"] = delete_result.action.value
+        out["retries"] = delete_result.retries
+        out["bytes_freed"] = delete_result.bytes_freed
+        out["delete_error"] = delete_result.error
+        out["note"] = delete_result.note
     return out
 
 
-def plan_report_to_json(plan: PlanReport) -> str:
+def _summary_block(delete_report: DeletionReport) -> dict[str, object]:
+    return {
+        "deleted_count": delete_report.deleted_count,
+        "would_delete_count": delete_report.would_delete_count,
+        "noop_missing_count": delete_report.noop_missing_count,
+        "deferred_count": delete_report.deferred_count,
+        "error_count": delete_report.error_count,
+        "total_bytes_freed": delete_report.total_bytes_freed,
+    }
+
+
+def plan_report_to_json(
+    plan: PlanReport, delete_report: DeletionReport | None = None
+) -> str:
+    delete_by_id: dict[str, DeleteResult] = {}
+    if delete_report is not None:
+        # Exactly one DeleteResult per plan entry; zip with strict=True
+        # so a length mismatch surfaces immediately.
+        for entry_report, result in zip(
+            plan.entries, delete_report.results, strict=True
+        ):
+            delete_by_id[entry_report.entry["id"]] = result
     payload: dict[str, object] = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": (
+            REPORT_SCHEMA_V1 if delete_report is None else REPORT_SCHEMA_V2
+        ),
         "repo_root": plan.repo_root.resolve().as_posix(),
         "registry_path": plan.registry_path.resolve()
         .relative_to(plan.repo_root.resolve())
         .as_posix(),
-        "entries": [_entry_to_jsonable(r, plan.repo_root) for r in plan.entries],
+        "entries": [
+            _entry_to_jsonable(r, plan.repo_root, delete_by_id.get(r.entry["id"]))
+            for r in plan.entries
+        ],
         "overlap_resolutions": [
             {"dropped": dropped, "parent": parent}
             for dropped, parent in plan.overlap_resolutions
         ],
         "errors": list(plan.errors),
     }
+    if delete_report is not None:
+        payload["summary"] = _summary_block(delete_report)
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def plan_report_to_text(plan: PlanReport) -> str:
+def plan_report_to_text(
+    plan: PlanReport, delete_report: DeletionReport | None = None
+) -> str:
+    delete_by_id: dict[str, DeleteResult] = {}
+    if delete_report is not None:
+        for entry_report, result in zip(
+            plan.entries, delete_report.results, strict=True
+        ):
+            delete_by_id[entry_report.entry["id"]] = result
     lines: list[str] = []
     lines.append(f"Repo root    : {plan.repo_root}")
     lines.append(f"Registry     : {plan.registry_path}")
@@ -625,24 +959,60 @@ def plan_report_to_text(plan: PlanReport) -> str:
         for dropped, parent in plan.overlap_resolutions:
             lines.append(f"  - dropped {dropped!r} (parent {parent!r})")
     lines.append("")
-    header = f"{'id':<32}  {'cat':<10}  {'mode':<32}  {'exists':<7}  {'ignored':<7}  {'tracked':<7}  {'bytes':>12}"
+    if delete_report is None:
+        header = (
+            f"{'id':<32}  {'cat':<10}  {'mode':<32}  "
+            f"{'exists':<7}  {'ignored':<7}  {'tracked':<7}  {'bytes':>12}"
+        )
+    else:
+        header = (
+            f"{'id':<32}  {'cat':<10}  {'action':<15}  "
+            f"{'retries':>7}  {'bytes_freed':>12}"
+        )
     lines.append(header)
     lines.append("-" * len(header))
     for report in plan.entries:
-        lines.append(
-            f"{report.entry['id']:<32}  "
-            f"{report.entry['category']:<10}  "
-            f"{report.entry['mode']:<32}  "
-            f"{('yes' if report.exists else 'no'):<7}  "
-            f"{('yes' if report.gitignored else 'NO'):<7}  "
-            f"{('NO' if report.tracked_files else 'ok'):<7}  "
-            f"{report.size_bytes:>12,}"
-        )
+        if delete_report is None:
+            lines.append(
+                f"{report.entry['id']:<32}  "
+                f"{report.entry['category']:<10}  "
+                f"{report.entry['mode']:<32}  "
+                f"{('yes' if report.exists else 'no'):<7}  "
+                f"{('yes' if report.gitignored else 'NO'):<7}  "
+                f"{('NO' if report.tracked_files else 'ok'):<7}  "
+                f"{report.size_bytes:>12,}"
+            )
+        else:
+            result = delete_by_id[report.entry["id"]]
+            lines.append(
+                f"{report.entry['id']:<32}  "
+                f"{report.entry['category']:<10}  "
+                f"{result.action.value:<15}  "
+                f"{result.retries:>7}  "
+                f"{result.bytes_freed:>12,}"
+            )
     if plan.errors:
         lines.append("")
         lines.append("ERRORS:")
         for err in plan.errors:
             lines.append(f"  - {err}")
+    if delete_report is not None:
+        lines.append("")
+        summary = _summary_block(delete_report)
+        lines.append(
+            "Summary: "
+            f"deleted={summary['deleted_count']}, "
+            f"would_delete={summary['would_delete_count']}, "
+            f"noop_missing={summary['noop_missing_count']}, "
+            f"deferred={summary['deferred_count']}, "
+            f"errors={summary['error_count']}, "
+            f"bytes_freed={summary['total_bytes_freed']:,}"
+        )
+        # Surface per-entry delete errors beneath the table for human
+        # readers. JSON carries them in the entry's `delete_error` key.
+        for result in delete_report.results:
+            if result.action is Action.ERROR and result.error is not None:
+                lines.append(f"  ERROR {result.path}: {result.error}")
     return "\n".join(lines) + "\n"
 
 
@@ -653,9 +1023,10 @@ def plan_report_to_text(plan: PlanReport) -> str:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Validate the ephemeral-cleanup registry and report each "
-            "entry's invariants. Delete logic is introduced in later "
-            "steps of issue #327."
+            "Validate and (optionally) clean ephemeral directories "
+            "registered in scripts/ephemeral_registry.json. Default "
+            "run is validate-only; --dry-run previews deletes; --yes "
+            "applies them."
         ),
     )
     # --id and --category are mutually exclusive: combining them would
@@ -681,16 +1052,123 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Mutually exclusive with --id."
         ),
     )
+    # --dry-run and --yes are mutually exclusive: one previews, the
+    # other applies. Without either, the script runs validate-only.
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Preview deletes without touching the filesystem. Exits 2 "
+            "if any entry would be deleted; 0 if the effective plan "
+            "is empty."
+        ),
+    )
+    action_group.add_argument(
+        "--yes",
+        action="store_true",
+        help=(
+            "Apply deletes. Idempotent: a second run after success "
+            "exits 0 with zero deleted and zero bytes freed."
+        ),
+    )
     parser.add_argument(
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON summary.",
+    )
+    parser.add_argument(
+        "--registry",
+        type=Path,
+        default=None,
+        help=(
+            "Override the registry file (diagnostic/test use). Defaults "
+            "to scripts/ephemeral_registry.json under the detected "
+            "repository root."
+        ),
     )
     return parser.parse_args(argv)
 
 
 def _default_registry_path(repo_root: Path) -> Path:
     return repo_root / "scripts" / "ephemeral_registry.json"
+
+
+def run_with_resolved_inputs(
+    repo_root: Path,
+    registry_path: Path,
+    args: argparse.Namespace,
+    *,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    """Testable core: callers supply resolved repo_root + registry_path.
+
+    `stdout` / `stderr` default to `sys.stdout` / `sys.stderr`. Tests
+    inject `io.StringIO()` to capture emission without a subprocess.
+    """
+    out: TextIO = stdout if stdout is not None else sys.stdout
+    err: TextIO = stderr if stderr is not None else sys.stderr
+
+    def _emit_err(prefix: str, message: str) -> None:
+        print(f"[{prefix}] {message}", file=err)
+
+    try:
+        registry = load_registry(registry_path)
+    except SetupError as exc:
+        _emit_err("SETUP", str(exc))
+        return EXIT_SETUP
+    except ValidationError as exc:
+        _emit_err("VALIDATION", str(exc))
+        return EXIT_VALIDATION
+
+    ids = frozenset(args.id) if args.id else None
+    categories = frozenset(args.category) if args.category else None
+    try:
+        plan, resolutions = build_plan(registry, ids=ids, categories=categories)
+    except ValidationError as exc:
+        _emit_err("VALIDATION", str(exc))
+        return EXIT_VALIDATION
+
+    entry_reports, validation_errors = validate_plan(repo_root, plan)
+    plan_report = PlanReport(
+        repo_root=repo_root,
+        registry_path=registry_path,
+        entries=tuple(entry_reports),
+        overlap_resolutions=tuple(resolutions),
+        errors=tuple(validation_errors),
+    )
+
+    delete_report: DeletionReport | None = None
+    action_requested = bool(args.dry_run or args.yes)
+    # Only run delete/simulate when registry is clean. A broken registry
+    # must never produce a plan that then acts; surface validation
+    # errors and exit so humans can fix the contract first.
+    if action_requested and not validation_errors:
+        delete_report = execute_plan(entry_reports, dry_run=bool(args.dry_run))
+
+    text: str
+    if args.json:
+        text = plan_report_to_json(plan_report, delete_report)
+    else:
+        text = plan_report_to_text(plan_report, delete_report)
+    out.write(text)
+
+    # Exit-code semantics (G-EXIST + idempotency preserved):
+    # - validation errors: always EXIT_VALIDATION
+    # - validate-only (no action): EXIT_OK
+    # - --dry-run: EXIT_OK when nothing would delete; EXIT_SETUP (2)
+    #   when at least one entry would be deleted
+    # - --yes: EXIT_OK on full success including idempotent no-op;
+    #   EXIT_VALIDATION if any entry failed to delete
+    if validation_errors:
+        return EXIT_VALIDATION
+    if delete_report is None:
+        return EXIT_OK
+    if args.dry_run:
+        return EXIT_SETUP if delete_report.would_delete_count > 0 else EXIT_OK
+    # args.yes
+    return EXIT_VALIDATION if delete_report.error_count > 0 else EXIT_OK
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -700,35 +1178,8 @@ def run(argv: list[str] | None = None) -> int:
     except SetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
-    registry_path = _default_registry_path(repo_root)
-    try:
-        registry = load_registry(registry_path)
-    except SetupError as exc:
-        print(f"[SETUP] {exc}", file=sys.stderr)
-        return EXIT_SETUP
-    except ValidationError as exc:
-        print(f"[VALIDATION] {exc}", file=sys.stderr)
-        return EXIT_VALIDATION
-    ids = frozenset(args.id) if args.id else None
-    categories = frozenset(args.category) if args.category else None
-    try:
-        plan, resolutions = build_plan(registry, ids=ids, categories=categories)
-    except ValidationError as exc:
-        print(f"[VALIDATION] {exc}", file=sys.stderr)
-        return EXIT_VALIDATION
-    reports, errors = validate_plan(repo_root, plan)
-    plan_report = PlanReport(
-        repo_root=repo_root,
-        registry_path=registry_path,
-        entries=tuple(reports),
-        overlap_resolutions=tuple(resolutions),
-        errors=tuple(errors),
-    )
-    if args.json:
-        sys.stdout.write(plan_report_to_json(plan_report))
-    else:
-        sys.stdout.write(plan_report_to_text(plan_report))
-    return EXIT_VALIDATION if errors else EXIT_OK
+    registry_path: Path = args.registry or _default_registry_path(repo_root)
+    return run_with_resolved_inputs(repo_root, registry_path, args)
 
 
 def main() -> int:
