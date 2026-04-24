@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 100,
+  "total_call_sites": 101,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -342,6 +342,14 @@
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
       "line": 278,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 328,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

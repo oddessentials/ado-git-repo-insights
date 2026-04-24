@@ -295,6 +295,55 @@ class TestScratchRootIsProcessPrivate:
             f"{TEST_TMP_ROOT} appeared in child outputs {roots}"
         )
 
+    def test_peer_atexit_cleanup_preserves_this_subtree(self) -> None:
+        """Regression for #316 Test 4: a peer process's atexit cleanup
+        must not delete this process's scratch subtree.
+
+        The reproduced failure was a mid-sequence write
+        (FileNotFoundError on
+        ``artifact-root-NNNN/data/aggregates/weekly_rollups/YYYY-WNN.json``)
+        caused by a sibling pytest process's
+        ``atexit → shutil.rmtree(TEST_TMP_ROOT)`` firing while the in-
+        flight demo-build subprocess was still writing to that subtree.
+        The static distinct-roots test above locks path resolution at
+        module load; this one locks the cleanup lifecycle across
+        concurrent processes.
+        """
+        my_scratch = make_scratch_dir("atexit-isolation")
+        canary = my_scratch / "canary.txt"
+        canary.write_text("alive", encoding="utf-8")
+
+        emitter = (
+            f"import importlib.util\n"
+            f"spec = importlib.util.spec_from_file_location("
+            f"'tdpp', {str(Path(__file__))!r})\n"
+            f"assert spec is not None and spec.loader is not None\n"
+            f"mod = importlib.util.module_from_spec(spec)\n"
+            f"spec.loader.exec_module(mod)\n"
+            # Peer allocates its own scratch dir so its full lifecycle
+            # (including atexit rmtree of its TEST_TMP_ROOT) runs.
+            f"peer_dir = mod.make_scratch_dir('atexit-isolation-peer')\n"
+            f"(peer_dir / 'peer-canary.txt').write_text('peer', encoding='utf-8')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", emitter],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"peer subprocess failed: rc={result.returncode} stderr={result.stderr}"
+        )
+
+        assert canary.exists(), (
+            f"Peer process's atexit cleanup deleted parent's scratch "
+            f"subtree (regression for #316 Test 4). Peer stderr: "
+            f"{result.stderr}"
+        )
+        assert canary.read_text(encoding="utf-8") == "alive", (
+            "Canary file contents were modified by peer process cleanup"
+        )
+
 
 class TestCanonicalArtifactRoot:
     """Canonical build output is generated under artifacts/demo-enterprise."""
