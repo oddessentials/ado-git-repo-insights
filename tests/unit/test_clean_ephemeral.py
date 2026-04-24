@@ -344,6 +344,29 @@ class TestBuildPlan:
         with pytest.raises(ce.ValidationError, match="Unknown --id"):
             ce.build_plan(registry, ids=frozenset({"does-not-exist"}))
 
+    def test_refuses_union_of_id_and_category(self) -> None:
+        # Programmatic safety guard: passing both dimensions is a scope
+        # broadener via union semantics. The function-level API must
+        # refuse it even if a caller bypasses argparse.
+        registry = ce.load_registry(REAL_REGISTRY_PATH)
+        with pytest.raises(ce.ValidationError, match="mutually exclusive"):
+            ce.build_plan(
+                registry,
+                ids=frozenset({"run-artifacts"}),
+                categories=frozenset({"extension"}),
+            )
+
+    def test_filter_registry_refuses_union_directly(self) -> None:
+        # Same guard at filter_registry to prevent indirect callers
+        # (e.g. future helpers) from constructing broadened plans.
+        registry = ce.load_registry(REAL_REGISTRY_PATH)
+        with pytest.raises(ce.ValidationError, match="mutually exclusive"):
+            ce.filter_registry(
+                registry,
+                ids=frozenset({"run-artifacts"}),
+                categories=frozenset({"extension"}),
+            )
+
     def test_sort_plan_sorts_by_id_ascending(self) -> None:
         entries: list[ce.RegistryEntry] = [
             {
@@ -612,3 +635,27 @@ class TestCliExitCodes:
         payload = json.loads(result.stdout)
         assert payload["schema_version"] == 1
         assert isinstance(payload["entries"], list)
+
+    def test_cli_rejects_both_id_and_category(self) -> None:
+        # argparse mutual-exclusion layer: the CLI must refuse the
+        # combination before any validation runs. Exit 2 is argparse's
+        # standard for usage errors.
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "clean_ephemeral.py"),
+                "--id",
+                "run-artifacts",
+                "--category",
+                "extension",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, (
+            f"CLI must refuse --id + --category union; got stdout "
+            f"{result.stdout!r} stderr {result.stderr!r}"
+        )
+        assert "not allowed" in result.stderr or "argument" in result.stderr

@@ -433,23 +433,41 @@ def sort_plan(entries: list[RegistryEntry]) -> list[RegistryEntry]:
 # Planning + validation pipeline.
 
 
+def _reject_union_filters(
+    ids: frozenset[str] | None, categories: frozenset[str] | None
+) -> None:
+    """Refuse filter combinations that would broaden cleaner scope.
+
+    A cleaner CLI must never widen its selection beyond what the caller
+    explicitly named. Passing `--id X --category extension` would
+    produce the UNION (X plus every extension entry), which is strictly
+    broader than either filter alone. We refuse the combination at
+    both the CLI layer (argparse mutual-exclusion) and the programmatic
+    API so indirect callers cannot sidestep the safety rule.
+    """
+    if ids is not None and categories is not None:
+        raise ValidationError(
+            "--id and --category are mutually exclusive: combining them "
+            "would broaden cleaner scope via union semantics. Pass only "
+            "one filter dimension at a time."
+        )
+
+
 def filter_registry(
     registry: Registry,
     *,
     ids: frozenset[str] | None = None,
     categories: frozenset[str] | None = None,
 ) -> list[RegistryEntry]:
+    _reject_union_filters(ids, categories)
     targets = registry["targets"]
     if ids is None and categories is None:
         return list(targets)
-    selected: list[RegistryEntry] = []
-    for entry in targets:
-        if ids is not None and entry["id"] in ids:
-            selected.append(entry)
-            continue
-        if categories is not None and entry["category"] in categories:
-            selected.append(entry)
-    return selected
+    if ids is not None:
+        return [entry for entry in targets if entry["id"] in ids]
+    # categories is not None (both-None and both-set handled above).
+    assert categories is not None
+    return [entry for entry in targets if entry["category"] in categories]
 
 
 def build_plan(
@@ -458,6 +476,7 @@ def build_plan(
     ids: frozenset[str] | None = None,
     categories: frozenset[str] | None = None,
 ) -> tuple[list[RegistryEntry], list[tuple[str, str]]]:
+    _reject_union_filters(ids, categories)
     selected = filter_registry(registry, ids=ids, categories=categories)
     if ids is not None:
         unknown = ids - {e["id"] for e in registry["targets"]}
@@ -639,18 +658,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "steps of issue #327."
         ),
     )
-    parser.add_argument(
+    # --id and --category are mutually exclusive: combining them would
+    # widen cleaner scope via union semantics. Within one dimension the
+    # flag is repeatable (explicit enumeration is always safe).
+    filter_group = parser.add_mutually_exclusive_group()
+    filter_group.add_argument(
         "--id",
         action="append",
         default=[],
-        help="Limit the plan to the given registry id(s). Repeatable.",
+        help=(
+            "Limit the plan to the given registry id(s). Repeatable. "
+            "Mutually exclusive with --category."
+        ),
     )
-    parser.add_argument(
+    filter_group.add_argument(
         "--category",
         action="append",
         default=[],
         choices=sorted(_VALID_CATEGORIES),
-        help="Limit the plan to the given category(ies). Repeatable.",
+        help=(
+            "Limit the plan to the given category(ies). Repeatable. "
+            "Mutually exclusive with --id."
+        ),
     )
     parser.add_argument(
         "--json",
