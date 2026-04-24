@@ -309,9 +309,13 @@ lives at `scripts/ephemeral_registry.json`.
 job on ubuntu / windows / macos):
 
 - `0` — nothing to do OR sweep succeeded
-- `2` — dry-run found work pending
-- non-zero (other) — setup failure, or a delete was refused (e.g. a
-  tracked file lives under a registered target)
+- `3` — dry-run found work pending (`EXIT_DRY_RUN_PENDING`,
+  informational)
+- `2` — setup failure (registry missing, not in a git repo, registry
+  unparseable). Distinct from `3` so preflight whitelisting
+  "work pending" never masks real failures.
+- `1` — validation failure or a delete was refused (e.g. a tracked
+  file lives under a registered target)
 
 For same-boot peer-subprocess scratch in the demo suite, an atexit
 hook in `tests/demo/test_demo_parity_pipeline.py` complements the

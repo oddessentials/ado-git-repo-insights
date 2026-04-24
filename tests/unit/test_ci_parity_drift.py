@@ -1590,6 +1590,96 @@ class TestCleanEphemeralParity:
             f"extension-dist-ui registry entry; got {script!r}."
         )
 
+    def test_preflight_includes_ephemeral_cleaner_dry_run(self) -> None:
+        """QG-35 / QG-37 closure: preflight MUST invoke the cleaner via
+        the same pnpm wrapper CI uses. Locks the wrapper choice (no
+        direct python) and the exit-code allowlist (0, 3) so a future
+        "cleanup" of the spec cannot silently make preflight either
+        fail on legitimate scratch (exit 3) or whitelist a real setup
+        failure (exit 2 must remain a gate failure).
+        """
+        preflight = _normalized_preflight_commands()
+        spec_name = "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)"
+        assert spec_name in preflight, (
+            f"Preflight CommandSpec {spec_name!r} missing. QG-35 requires "
+            f"every CI gate to have an automated local equivalent. Got: "
+            f"{sorted(preflight.keys())!r}"
+        )
+        assert preflight[spec_name] == "__PNPM__ run clean:dry", (
+            f"Preflight invocation must be the pnpm wrapper "
+            f"`pnpm run clean:dry`; got {preflight[spec_name]!r}. Direct "
+            "python invocation in preflight would diverge from the CI "
+            "smoke job's pnpm-only rule."
+        )
+        # Lock the CommandSpec object's allowed_exit_codes — only the
+        # informational EXIT_DRY_RUN_PENDING (3) joins the default
+        # success code (0). EXIT_SETUP (2) MUST NOT be whitelisted here:
+        # widening to include 2 would mask real cleaner setup failures
+        # (registry missing, not in repo, registry unparseable) as
+        # success. Stop-time review #327 caught this earlier; the test
+        # here pins the fix.
+        module = _load_preflight_module()
+        commands = module.build_commands(None)
+        matches = [s for s in commands if s.name == spec_name]
+        assert len(matches) == 1, (
+            f"Expected exactly one preflight CommandSpec named {spec_name!r}, "
+            f"found {len(matches)}"
+        )
+        spec = matches[0]
+        assert spec.allowed_exit_codes == (0, 3), (
+            f"Preflight ephemeral-cleaner spec must whitelist exit codes "
+            f"(0, 3): 0 = empty plan, 3 = EXIT_DRY_RUN_PENDING (plan has "
+            f"work). Exit 2 = EXIT_SETUP MUST NOT be whitelisted (would "
+            f"mask real failures). Got allowed_exit_codes="
+            f"{spec.allowed_exit_codes!r}."
+        )
+        assert 2 not in spec.allowed_exit_codes, (
+            "EXIT_SETUP (2) MUST NOT be whitelisted in the preflight "
+            "ephemeral-cleaner spec — it represents real failures "
+            "(registry missing, not in repo) that must surface as gate "
+            "failures, not be masked as success."
+        )
+        assert spec.cwd == module.REPO_ROOT, (
+            "Preflight ephemeral-cleaner spec must run from REPO_ROOT so "
+            f"the pnpm wrapper resolves to root package.json; got cwd={spec.cwd}"
+        )
+
+    def test_only_cleaner_spec_uses_non_default_allowed_exit_codes(self) -> None:
+        """Meta-guard: the `allowed_exit_codes` field on `CommandSpec`
+        was added solely to whitelist the cleaner's
+        `EXIT_DRY_RUN_PENDING` (3). Any future gate widening its
+        allowlist would risk masking real failures the same way the
+        original `(0, 2)` whitelist masked `EXIT_SETUP` (caught by stop-
+        time review). This test asserts that ONLY the documented
+        ephemeral cleaner spec uses a non-default value, and that its
+        value is exactly `(0, 3)`.
+        """
+        module = _load_preflight_module()
+        commands = module.build_commands(None)
+        cleaner_spec_name = "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)"
+        violations: list[tuple[str, tuple[int, ...]]] = []
+        cleaner_seen = False
+        for spec in commands:
+            if spec.name == cleaner_spec_name:
+                cleaner_seen = True
+                assert spec.allowed_exit_codes == (0, 3), (
+                    f"Cleaner spec must use exactly allowed_exit_codes="
+                    f"(0, 3); got {spec.allowed_exit_codes!r}"
+                )
+                continue
+            if spec.allowed_exit_codes != (0,):
+                violations.append((spec.name, spec.allowed_exit_codes))
+        assert cleaner_seen, (
+            f"Cleaner CommandSpec {cleaner_spec_name!r} not found in "
+            "preflight; meta-guard cannot verify isolation"
+        )
+        assert not violations, (
+            "Only the ephemeral cleaner spec may use non-default "
+            "allowed_exit_codes. Other specs widening their allowlist "
+            "would risk silently masking gate failures the way "
+            f"EXIT_SETUP would be. Found: {violations!r}"
+        )
+
     def test_no_inline_cleanup_logic_in_package_json_clean_scripts(self) -> None:
         """Negative invariant: `clean*` scripts must not inline rmtree /
         rmdir / fs.rmSync / shutil logic. Policy lives in

@@ -29,7 +29,7 @@ tests/
 python scripts/run_pytest.py              # Python tests (coverage-safe launcher)
 cd extension && pnpm test                 # Extension tests
 python scripts/run_pr_preflight.py        # Authoritative local PR gate
-pnpm clean:dry                            # Preview ephemeral sweep (exit 0=empty, 2=work pending)
+pnpm clean:dry                            # Preview ephemeral sweep (exit 0=empty, 3=work pending, 2=setup error)
 pnpm clean                                # Apply ephemeral sweep (delegates to scripts/clean_ephemeral.py)
 ```
 

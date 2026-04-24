@@ -126,12 +126,18 @@ class PlanReport:
 
 
 # --- Exit codes -------------------------------------------------------------
-# 0: all checks passed
-# 1: validation failure (schema, gitignore, tracked files, containment)
+# 0: all checks passed (validate-only succeeded; --yes apply succeeded;
+#    --dry-run found nothing to delete; --yes second-run idempotent no-op)
+# 1: validation failure (schema, gitignore, tracked files, containment,
+#    or --yes encountered a delete error)
 # 2: setup failure (not in git repo, registry missing, registry unreadable)
+# 3: dry-run informational — plan has work pending. Distinct from EXIT_SETUP
+#    so callers (notably scripts/run_pr_preflight.py) can whitelist
+#    "plan has work" without simultaneously masking real setup failures.
 EXIT_OK: Final = 0
 EXIT_VALIDATION: Final = 1
 EXIT_SETUP: Final = 2
+EXIT_DRY_RUN_PENDING: Final = 3
 
 
 class ValidationError(Exception):
@@ -1442,18 +1448,21 @@ def run_with_resolved_inputs(
     out.write(text)
 
     # Exit-code semantics (G-EXIST + idempotency preserved):
-    # - validation errors: always EXIT_VALIDATION
-    # - validate-only (no action): EXIT_OK
-    # - --dry-run: EXIT_OK when nothing would delete; EXIT_SETUP (2)
-    #   when at least one entry would be deleted
+    # - validation errors: always EXIT_VALIDATION (1)
+    # - validate-only (no action): EXIT_OK (0)
+    # - --dry-run: EXIT_OK when nothing would delete; EXIT_DRY_RUN_PENDING
+    #   (3) when at least one entry would be deleted. EXIT_SETUP (2) is
+    #   reserved for real setup failures (registry missing, not in repo)
+    #   so preflight callers can whitelist "plan has work" without
+    #   simultaneously masking infrastructure breakage.
     # - --yes: EXIT_OK on full success including idempotent no-op;
-    #   EXIT_VALIDATION if any entry failed to delete
+    #   EXIT_VALIDATION if any entry failed to delete.
     if validation_errors:
         return EXIT_VALIDATION
     if delete_report is None:
         return EXIT_OK
     if args.dry_run:
-        return EXIT_SETUP if delete_report.would_delete_count > 0 else EXIT_OK
+        return EXIT_DRY_RUN_PENDING if delete_report.would_delete_count > 0 else EXIT_OK
     # args.yes
     return EXIT_VALIDATION if delete_report.error_count > 0 else EXIT_OK
 

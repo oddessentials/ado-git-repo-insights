@@ -1356,7 +1356,9 @@ jobs:
   # Step order (review-directed):
   #   1. seed ephemeral content under registered paths, including a
   #      >260-char nested tree to exercise Windows long-path handling
-  #   2. pnpm clean:dry with work pending  ->  exit 2, would_delete > 0
+  #   2. pnpm clean:dry with work pending  ->  exit 3 (EXIT_DRY_RUN_PENDING),
+  #      would_delete > 0. Distinct from EXIT_SETUP (2) so preflight
+  #      can whitelist this code without masking real failures.
   #   3. pnpm clean                        ->  exit 0, deleted > 0
   #   4. verify swept paths no longer exist
   #   5. pnpm clean:dry final              ->  exit 0, plan empty
@@ -1412,15 +1414,15 @@ jobs:
           mkdir -p "$LONG"
           echo "long" > "$LONG/leaf.txt"
 
-      - name: 'Dry-run with work: exit 2 + would_delete > 0'
+      - name: 'Dry-run with work: exit 3 (EXIT_DRY_RUN_PENDING) + would_delete > 0'
         shell: bash
         run: |
           set +e
           pnpm run clean:dry --json > dryrun_work.out 2>&1
           EXIT=$?
           set -e
-          if [ "$EXIT" -ne 2 ]; then
-            echo "::error::Expected exit 2 from dry-run with work, got $EXIT"
+          if [ "$EXIT" -ne 3 ]; then
+            echo "::error::Expected exit 3 (EXIT_DRY_RUN_PENDING) from dry-run with work, got $EXIT"
             cat dryrun_work.out
             exit 1
           fi

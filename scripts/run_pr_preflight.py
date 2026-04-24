@@ -74,6 +74,12 @@ class CommandSpec:
     cwd: Path = REPO_ROOT
     extra_env: dict[str, str] | None = None
     show_output_on_success: bool = False
+    # Exit codes that count as "passed" for this spec. Default is {0}.
+    # Widen ONLY when the underlying tool uses a non-zero code to signal
+    # an informational (non-error) outcome — e.g. the ephemeral cleaner's
+    # dry-run exits 2 when work is pending, which is the expected state
+    # on a live developer workspace and must not fail preflight.
+    allowed_exit_codes: tuple[int, ...] = (0,)
 
 
 @dataclass(frozen=True)
@@ -352,6 +358,23 @@ def build_commands(
                 "scripts/generate_cli_reference.py",
                 "--check",
             ),
+        ),
+        # Issue #327 / QG-35: locally validate the ephemeral-cleanup
+        # discovery + planning + wrapper + schema chain. Invoked via the
+        # pnpm wrapper so preflight exercises the same entry point as
+        # the CI smoke job. NON-DESTRUCTIVE: dry-run only — never deletes
+        # developer state. Exit 3 (EXIT_DRY_RUN_PENDING — plan has work
+        # pending) is accepted because that is the expected steady-state
+        # on a live workspace. Exit 2 (EXIT_SETUP — registry missing,
+        # not in repo, etc.) is intentionally NOT whitelisted so real
+        # cleaner setup failures surface as preflight failures rather
+        # than being masked. Exit 1 (validation error) and other codes
+        # likewise surface as gate failures.
+        CommandSpec(
+            "Ephemeral cleaner dry-run (pnpm wrapper + schema lock)",
+            (PNPM_SENTINEL, "run", "clean:dry"),
+            cwd=REPO_ROOT,
+            allowed_exit_codes=(0, 3),
         ),
         CommandSpec(
             "Python package build check",
@@ -682,8 +705,13 @@ def emit_output(prefix: str, text: str) -> None:
     safe_print(text.rstrip())
 
 
-def require_success(result: CommandResult, *, step_name: str) -> None:
-    if result.returncode == 0:
+def require_success(
+    result: CommandResult,
+    *,
+    step_name: str,
+    allowed_exit_codes: tuple[int, ...] = (0,),
+) -> None:
+    if result.returncode in allowed_exit_codes:
         return
     safe_print(f"\n[GATE] {step_name} failed (exit code {result.returncode})")
     safe_print(f"  Command: {render_command(result.command)}")
@@ -885,7 +913,11 @@ def run_command(
         safe_print(f"$ {render_command(command)}")
         safe_print(f"cwd: {spec.cwd}")
     result = run_subprocess(command, cwd=spec.cwd, env=env)
-    require_success(result, step_name=spec.name)
+    require_success(
+        result,
+        step_name=spec.name,
+        allowed_exit_codes=spec.allowed_exit_codes,
+    )
     if verbose or spec.show_output_on_success:
         emit_output("stdout", result.stdout)
         emit_output("stderr", result.stderr)

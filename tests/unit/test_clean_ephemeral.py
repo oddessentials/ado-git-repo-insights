@@ -1484,8 +1484,14 @@ class TestRunExitCodes:
         )
         assert rc == 0, stdout.getvalue()
 
-    def test_dry_run_with_work_exits_two(self, tmp_path: Path) -> None:
-        # Requirement: --dry-run exits 2 only when it would delete.
+    def test_dry_run_with_work_exits_pending_distinct_from_setup(
+        self, tmp_path: Path
+    ) -> None:
+        # Requirement: --dry-run signals "plan has work" via
+        # EXIT_DRY_RUN_PENDING (3), distinct from EXIT_SETUP (2). The
+        # split exists so preflight callers can whitelist "plan has
+        # work" without simultaneously masking real setup failures
+        # (registry missing, not in repo, etc.).
         repo = _fake_repo(tmp_path)
         (repo / "scratch").mkdir()
         (repo / "scratch" / "leaf.txt").write_text("keep", encoding="utf-8")
@@ -1505,9 +1511,28 @@ class TestRunExitCodes:
         rc = ce.run_with_resolved_inputs(
             repo, registry_path, _argv_namespace(dry_run=True), stdout=stdout
         )
-        assert rc == 2, stdout.getvalue()
+        assert rc == ce.EXIT_DRY_RUN_PENDING, stdout.getvalue()
+        # And critically: must NOT collide with EXIT_SETUP.
+        assert rc != ce.EXIT_SETUP
         # G-EXIST: dry-run does not touch the filesystem.
         assert (repo / "scratch" / "leaf.txt").exists()
+
+    def test_setup_failure_exits_distinct_from_dry_run_pending(
+        self, tmp_path: Path
+    ) -> None:
+        # Stop-review regression (#327): a real setup failure (registry
+        # file missing) must surface as EXIT_SETUP (2), NOT as the same
+        # code dry-run-pending uses. Otherwise preflight's
+        # allowed_exit_codes whitelist would mask infrastructure
+        # breakage as success.
+        repo = _fake_repo(tmp_path)
+        absent_registry = repo / "definitely-not-a-file.json"
+        stdout = io.StringIO()
+        rc = ce.run_with_resolved_inputs(
+            repo, absent_registry, _argv_namespace(dry_run=True), stdout=stdout
+        )
+        assert rc == ce.EXIT_SETUP
+        assert rc != ce.EXIT_DRY_RUN_PENDING
 
     def test_yes_deletes_and_exits_zero(self, tmp_path: Path) -> None:
         repo = _fake_repo(tmp_path)
