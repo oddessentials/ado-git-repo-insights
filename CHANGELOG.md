@@ -1,3 +1,18 @@
+# [101.18.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.2...v101.18.0) (2026-04-25)
+
+
+### Bug Fixes
+
+* **drilldown:** cancel deferred outside-click listener on alternate dismiss paths ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B2) ([ee27bb9](https://github.com/oddessentials/ado-git-repo-insights/commit/ee27bb92958fcef4e2cdd02c37b33f25e04592b2)), closes [#343](https://github.com/oddessentials/ado-git-repo-insights/issues/343)
+* **drilldown:** clear deferred outside-click listener on retarget-in-place re-open ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B2) ([cc9725c](https://github.com/oddessentials/ado-git-repo-insights/commit/cc9725ccc436ffc294ae3a190ef9203159b4091c))
+
+
+### Features
+
+* **drilldown:** announce sort direction changes ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B1) ([50aab3a](https://github.com/oddessentials/ado-git-repo-insights/commit/50aab3ab0d20b7c325e1ff9ad06b3a5a1bfef560)), closes [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331)
+* **drilldown:** disclose C1 inclusion rules via info icon ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B2) ([01b3e51](https://github.com/oddessentials/ado-git-repo-insights/commit/01b3e5126e0aa2659c45114c72516560f748b5b8)), closes [#341](https://github.com/oddessentials/ado-git-repo-insights/issues/341) [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331)
+* **drilldown:** summarise filter visibility + partial sweep ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B3) ([5351c0a](https://github.com/oddessentials/ado-git-repo-insights/commit/5351c0a1e4ebcf9d1b31436d2e441f186122c07f)), closes [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331) [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331)
+
 ## [101.17.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.1...v101.17.2) (2026-04-25)
 
 
