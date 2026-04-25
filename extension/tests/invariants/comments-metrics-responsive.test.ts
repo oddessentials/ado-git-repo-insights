@@ -130,7 +130,7 @@ describe("issue #330 / C4 — comments-metrics grid CSS contract (desktop + narr
     // proportionally for narrow viewports; all three sites move in
     // lockstep.
     const desktopTemplatePattern =
-      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+4\.5rem\s+5\.5rem\s+7rem/;
+      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3\.5rem\s+4\.25rem\s+5rem/;
 
     // Desktop header rule.
     const headerBody = findTopLevelRuleBody(
