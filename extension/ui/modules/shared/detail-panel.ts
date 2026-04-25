@@ -99,6 +99,33 @@ export interface PrListRow {
 }
 
 /**
+ * Coverage-partial discriminator for a {@link PrListRow}.
+ *
+ * Returns ``true`` when the row carries no comments-metrics data — either:
+ *
+ *   - ``null``: covered PR with ``comments_extracted_at IS NULL`` (INV-10
+ *     coverage-partial sentinel — the documented producer state).
+ *   - ``undefined``: capability-off-passthrough leak.  Per the producer
+ *     comment in throughput-drilldown.ts (``installThroughputDrilldown``,
+ *     "supported" branch) the consumer is the contract enforcer for
+ *     partial detection — the producer hands ``pr.thread_count`` straight
+ *     through without normalising ``undefined`` to ``null``.  Every
+ *     consumer site (renderer + stat-row aggregate) MUST honour both
+ *     shapes identically or partial-state UI surfaces drift apart (issue
+ *     #342 review finding: ``buildCommentsStatRow`` previously counted
+ *     only ``=== null`` and rendered ``0`` on slices where the per-row
+ *     panel showed ``———`` and the coverage notice said "none of these
+ *     PRs have comment data yet").
+ *
+ * Per INV-08 (triplet atomicity — all three values arrive together or
+ * not at all) ``threadCount`` alone is a sufficient discriminator; no
+ * cross-field check is required.
+ */
+export function isPartialPrRow(row: PrListRow): boolean {
+  return row.threadCount === null || row.threadCount === undefined;
+}
+
+/**
  * Feature 060: stable PR-detail container on the throughput drill-down panel.
  *
  * The single section MUST render across four content states without being
@@ -821,15 +848,14 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       // state up front so the truncation-badge disclosure (below),
       // the coverage notice (further below), and the header/filter
       // emit gate all read from the same single source of truth.
-      // Per INV-08 (drill-down field atomicity) a row's three fields
-      // are partial together or numeric together; ``threadCount``
-      // alone is a sufficient discriminator.  ``undefined`` covers
-      // the theoretical capability-off-passthrough leak; ``null`` is
-      // the spec-defined coverage-partial sentinel (INV-10).
+      // ``isPartialPrRow`` (defined above) is the shared discriminator
+      // used by every consumer — including ``buildCommentsStatRow``
+      // in throughput-drilldown.ts — so all surfaces stay aligned on
+      // both ``null`` (INV-10 coverage-partial sentinel) and
+      // ``undefined`` (capability-off-passthrough leak) shapes
+      // (issue #342 review finding).
       const partialRowCount = commentsMetricsAvailable
-        ? rows.filter(
-            (r) => r.threadCount === null || r.threadCount === undefined,
-          ).length
+        ? rows.filter(isPartialPrRow).length
         : 0;
       const allRowsPartial =
         partialRowCount > 0 && partialRowCount === rows.length;
@@ -910,17 +936,15 @@ function renderPrListSection(section: PrListSection): HTMLElement {
             ["comments", "comments", row.commentCount],
             ["unresolved", "unresolved", row.activeThreadCount],
           ];
-          // A row is partial when EVERY field is absent (undefined —
-          // capability-off-passthrough row that leaked through) or
-          // coverage-partial (``null`` — covered PR with
-          // ``comments_extracted_at IS NULL``).  Both shapes render as
-          // ``—`` per-span; the row-level ``data-partial`` attribute lets
+          // A partial row carries no comments-metrics data — either the
+          // ``null`` coverage-partial sentinel (INV-10) or ``undefined``
+          // capability-off-passthrough leak.  ``isPartialPrRow`` is the
+          // shared discriminator (see definition above); per INV-08
+          // triplet atomicity, ``threadCount`` alone is sufficient and
+          // a non-partial row is guaranteed to have numeric spans on
+          // every axis.  The row-level ``data-partial`` attribute lets
           // tests assert the row-scoped partial state in one check.
-          // The producer guarantees all-three or none-three (INV-08), so
-          // a non-``allPartial`` row will always have numeric spans.
-          const allPartial = triplet.every(
-            ([, , value]) => value === null || value === undefined,
-          );
+          const allPartial = isPartialPrRow(row);
           if (allPartial) {
             li.setAttribute("data-partial", "true");
           }

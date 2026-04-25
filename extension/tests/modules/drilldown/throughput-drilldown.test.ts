@@ -1848,6 +1848,64 @@ describe("throughput-drilldown", () => {
         ]);
       });
 
+      it("issue #342 review finding: undefined comment metrics are counted as partial in the stat row (matches renderer + coverage notice)", () => {
+        // Codex P2 review finding (2026-04-25): the producer at
+        // installThroughputDrilldown's "supported" branch passes
+        // ``pr.thread_count`` / ``comment_count`` /
+        // ``active_thread_count`` straight through without normalising
+        // ``undefined`` to ``null``, on the explicit promise that
+        // every consumer (renderer + stat row) handles both shapes
+        // identically.  The renderer ``renderPrListSection`` honours
+        // that promise; ``buildCommentsStatRow`` previously did not
+        // — it tested ``=== null`` only, so a slice of all-
+        // ``undefined`` rows rendered coverage-pending dashes per
+        // row AND an all-partial coverage notice ("none of these
+        // PRs have comment data yet") AND ``Threads: 0 | Comments:
+        // 0 | Unresolved: 0`` on the stat row.  That's the same
+        // visual signature as a true-zero week — exactly the A1
+        // contradiction the partial-state honesty fix was meant to
+        // eliminate.
+        //
+        // Locks the corrected contract: an all-``undefined`` slice
+        // renders the same ``Pending (N)`` literal on the stat row
+        // as an all-``null`` slice, since both shapes are partial.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              // Fields intentionally OMITTED — produces row.threadCount
+              // === undefined, the capability-off-passthrough leak shape
+              // the producer comment expects every consumer to honour.
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statValues()).toEqual([
+          "Pending (2)",
+          "Pending (2)",
+          "Pending (2)",
+        ]);
+      });
+
       it("derives sums ONLY from rollup.prs even when rollup.pr_count / by_author / by_repository disagree (lock #4 slice-only guard)", () => {
         // Setup a rollup whose chart-level aggregate fields are
         // intentionally inconsistent with the per-row sums.  Any

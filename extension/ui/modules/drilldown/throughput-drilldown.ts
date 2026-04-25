@@ -32,6 +32,7 @@ import { createEmptyFilterState, type FilterState } from "../filters";
 import { dismissAllTooltips } from "../tooltip-manager";
 import {
   makeBreakdownTable,
+  isPartialPrRow,
   makeEmptyState,
   makePanelContent,
   makePrListSection,
@@ -262,15 +263,23 @@ function buildCommentsStatRow(rows: readonly PrListRow[]): PanelSection {
   let unresolvedSum = 0;
   let partialCount = 0;
   for (const row of rows) {
-    // ``?? 0`` makes partial rows (``null`` per INV-10) and any
-    // theoretically-absent field contribute 0 to the running sum.
+    // ``?? 0`` makes partial rows (``null`` per INV-10, ``undefined``
+    // for capability-off-passthrough leaks) and any theoretically-
+    // absent field contribute 0 to the running sum.
     threadsSum += row.threadCount ?? 0;
     commentsSum += row.commentCount ?? 0;
     unresolvedSum += row.activeThreadCount ?? 0;
-    // Per INV-08, the producer guarantees threadCount === null implies
-    // the whole triplet is null; checking threadCount alone is
-    // sufficient to identify a partial row.
-    if (row.threadCount === null) partialCount += 1;
+    // ``isPartialPrRow`` is the shared discriminator used by every
+    // consumer surface (per-row dashes, coverage notice, header
+    // suppression).  Issue #342 review finding: this used to test
+    // ``=== null`` only — a slice of all-``undefined`` rows would
+    // therefore render coverage-pending dashes per row + an all-
+    // partial coverage notice + ``Threads: 0 | Comments: 0 |
+    // Unresolved: 0`` on the stat row, undermining the A1 / INV-10
+    // partial-state honesty contract.  Routing through the helper
+    // keeps every surface aligned on both ``null`` and ``undefined``
+    // shapes.
+    if (isPartialPrRow(row)) partialCount += 1;
   }
   // Issue #331 / A1: distinguish "all-partial week" from "true zero
   // week" on the stat row.  Under the prior implementation, a week

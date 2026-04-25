@@ -4042,6 +4042,9 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/detail-panel.ts
+  function isPartialPrRow(row) {
+    return row.threadCount === null || row.threadCount === void 0;
+  }
   function makePanelContent(title, subtitle, sections) {
     if (title.length === 0) {
       throw new TypeError("PanelContent.title MUST be non-empty");
@@ -4418,9 +4421,7 @@ var PRInsightsDashboard = (() => {
           capValue,
           commentsMetricsAvailable
         } = section;
-        const partialRowCount = commentsMetricsAvailable ? rows.filter(
-          (r2) => r2.threadCount === null || r2.threadCount === void 0
-        ).length : 0;
+        const partialRowCount = commentsMetricsAvailable ? rows.filter(isPartialPrRow).length : 0;
         const allRowsPartial = partialRowCount > 0 && partialRowCount === rows.length;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
@@ -4456,9 +4457,7 @@ var PRInsightsDashboard = (() => {
               ["comments", "comments", row.commentCount],
               ["unresolved", "unresolved", row.activeThreadCount]
             ];
-            const allPartial = triplet.every(
-              ([, , value]) => value === null || value === void 0
-            );
+            const allPartial = isPartialPrRow(row);
             if (allPartial) {
               li.setAttribute("data-partial", "true");
             }
@@ -8849,7 +8848,7 @@ var PRInsightsDashboard = (() => {
       threadsSum += row.threadCount ?? 0;
       commentsSum += row.commentCount ?? 0;
       unresolvedSum += row.activeThreadCount ?? 0;
-      if (row.threadCount === null) partialCount += 1;
+      if (isPartialPrRow(row)) partialCount += 1;
     }
     const allRowsPartial = partialCount > 0 && partialCount === rows.length;
     function statValue(numericTotal) {
