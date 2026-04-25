@@ -64,6 +64,20 @@ var PRInsightsSettings = (() => {
   // ../ui/modules/drilldown/lifecycle-signals.ts
   var COMPARISON_TOGGLED_EVENT = "drilldown:comparison-toggled";
 
+  // ../ui/modules/tooltip-manager.ts
+  var scrollDismissController = null;
+  function releaseScrollDismissListener() {
+    scrollDismissController?.abort();
+    scrollDismissController = null;
+  }
+  function dismissAllTooltips() {
+    const chartTooltip = document.querySelector(".chart-tooltip");
+    if (chartTooltip) chartTooltip.remove();
+    const infoTooltip = document.querySelector(".info-tooltip");
+    if (infoTooltip) infoTooltip.remove();
+    releaseScrollDismissListener();
+  }
+
   // ../ui/modules/shared/detail-panel.ts
   var panelEls = null;
   var panelState = "closed";
@@ -78,6 +92,16 @@ var PRInsightsSettings = (() => {
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
   }
+  var outsideClickAbort = null;
+  var outsideClickFrame = null;
+  function clearOutsideClickListener() {
+    outsideClickAbort?.abort();
+    outsideClickAbort = null;
+    if (outsideClickFrame !== null) {
+      cancelAnimationFrame(outsideClickFrame);
+      outsideClickFrame = null;
+    }
+  }
   function isDetailPanelOpen() {
     return panelState === "opening" || panelState === "open";
   }
@@ -86,6 +110,8 @@ var PRInsightsSettings = (() => {
     panelState = "closing";
     openScopedController?.abort();
     openScopedController = null;
+    dismissAllTooltips();
+    clearOutsideClickListener();
     const trigger = activeContext?.triggerElement ?? null;
     if (focusTrapController) {
       if (trigger && trigger.isConnected) {

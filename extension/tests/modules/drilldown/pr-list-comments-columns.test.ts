@@ -1,3 +1,16 @@
+// jsdom lacks PointerEvent — polyfill matches the shape used by
+// extension/tests/modules/charts/summary-cards-info.test.ts so the
+// pointerenter / pointerleave listeners on the #332 / B2 info icon
+// fire predictably.
+if (typeof PointerEvent === "undefined") {
+  (globalThis as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+      }
+    };
+}
+
 /**
  * Feature 310 consumer-side rendering tests: per-PR comments-metrics columns
  * on the throughput drill-down PR-detail list.
@@ -1540,5 +1553,857 @@ describe("header-driven sort cycle (F3 + F4)", () => {
     expect(ids.slice(0, 2)).toEqual([12, 10]);
     // Partials at the end, in stable (any) order among themselves.
     expect(new Set(ids.slice(2))).toEqual(new Set([11, 13]));
+  });
+});
+
+describe("issue #332 / B1 — sort SR-live announcer", () => {
+  // Locks the contract: when sort buttons render (capability-on, >1
+  // row, !all-partial), a polite ``role=status`` live region inside
+  // the header announces the new direction on every click.  Suppressed-
+  // controls states (capability-off, capability-on single-row,
+  // capability-on all-partial) do NOT mount the announcer.
+  function announcerSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 2,
+          commentCount: 5,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 7,
+          commentCount: 3,
+          activeThreadCount: 2,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 20,
+          activeThreadCount: 5,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function clickHeader(root: HTMLElement, key: string): void {
+    const button = root.querySelector<HTMLButtonElement>(
+      `.detail-panel-pr-list-header button[data-sort-key="${key}"]`,
+    );
+    if (button === null) {
+      throw new Error(`header sort button ${key} not found`);
+    }
+    button.dispatchEvent(new Event("click", { bubbles: true }));
+  }
+
+  function getAnnouncer(root: HTMLElement): HTMLElement {
+    const el = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-sort-announcer",
+    );
+    if (el === null) throw new Error("sort announcer not rendered");
+    return el;
+  }
+
+  it("mounts an empty role=status aria-live=polite announcer inside the header on cap-on >1-row !all-partial", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    expect(announcer.getAttribute("role")).toBe("status");
+    expect(announcer.getAttribute("aria-live")).toBe("polite");
+    expect(announcer.classList.contains("visually-hidden")).toBe(true);
+    // Empty before any sort interaction — no startup announcement.
+    expect(announcer.textContent).toBe("");
+    // Lives inside the header so its lifecycle is bound to the
+    // header that owns the sort buttons (panel re-render rebuilds
+    // both together).
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(header!.contains(announcer)).toBe(true);
+  });
+
+  it("does NOT mount the announcer in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const announcer = root.querySelector(
+        ".detail-panel-pr-list-sort-announcer",
+      );
+      expect({ state: name, announcer }).toEqual({
+        state: name,
+        announcer: null,
+      });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("announces 'Sorted by {axis}, descending.' / '...ascending.' / 'Sort cleared.' across the cycle", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, descending.");
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, ascending.");
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sort cleared.");
+  });
+
+  it("announces the new axis when sort switches between columns (single-active-sort copy)", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, descending.");
+    clickHeader(root, "comments");
+    expect(announcer.textContent).toBe("Sorted by comments, descending.");
+  });
+
+  it("uses the full disambiguated phrase 'unresolved threads' for the unresolved axis (F8 contract carry-forward)", () => {
+    // The unresolved column's visible header text is the short
+    // ``Unresolved`` (track-fit), but the sort announcement reuses
+    // ``axis.label`` so SR users hear the full disambiguating phrase
+    // — same form the column-header ``aria-label`` already uses.
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    clickHeader(root, "unresolved");
+    expect(announcer.textContent).toBe(
+      "Sorted by unresolved threads, descending.",
+    );
+  });
+});
+
+describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls label", () => {
+  // Locks the contract: when the threshold filter renders (capability-
+  // on, >1 row, !all-partial), exactly one ``.info-icon-btn`` mounts
+  // inside the filter group; pointerenter shows an info tooltip with
+  // the C1 inclusion-rule disclosure; pointerleave dismisses; click
+  // toggles for touch / keyboard.  Suppressed-controls states emit
+  // no icon (the filter itself is absent).
+  const C1_TOOLTIP_TEXT =
+    "Counts apply Feature 310's inclusion rules. Threads include " +
+    "unknown-status threads but exclude deleted ones. Comments include " +
+    "system events; deleted comments are excluded. Unresolved counts " +
+    "only threads still in active status. Comments by users missing " +
+    "from the user table are still counted.";
+
+  function iconSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 1,
+          commentCount: 1,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 2,
+          commentCount: 4,
+          activeThreadCount: 1,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function getIcon(root: HTMLElement): HTMLElement {
+    const icon = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (icon === null)
+      throw new Error("comments-metrics info icon not rendered");
+    // Tooltip positioning reads getBoundingClientRect; provide a
+    // stable rect for jsdom (matches the summary-cards-info pattern).
+    icon.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    return icon;
+  }
+
+  afterEach(() => {
+    document
+      .querySelectorAll(".info-tooltip, .chart-tooltip")
+      .forEach((el) => el.remove());
+  });
+
+  it("mounts exactly one info-icon-btn inside the filter group with type=button + aria-label + ⓘ glyph", () => {
+    const root = openWithPrListSection(iconSection());
+    const filter = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter",
+    );
+    expect(filter).not.toBeNull();
+    const icons = filter!.querySelectorAll(".info-icon-btn");
+    expect(icons).toHaveLength(1);
+    const icon = icons[0]!;
+    expect(icon.tagName).toBe("BUTTON");
+    expect(icon.getAttribute("type")).toBe("button");
+    expect(icon.getAttribute("aria-label")).toBe("About these counts");
+    expect(icon.getAttribute("data-info-tooltip")).toBe("comments-metrics-c1");
+    expect(icon.textContent).toBe("ℹ");
+  });
+
+  it("does NOT mount the info icon in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const icon = root.querySelector(".info-icon-btn");
+      expect({ state: name, icon }).toEqual({ state: name, icon: null });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("pointerenter shows an info tooltip carrying the exact C1 disclosure text", () => {
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip!.textContent).toBe(C1_TOOLTIP_TEXT);
+  });
+
+  it("pointerleave dismisses the open info tooltip", () => {
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("click toggles the info tooltip — first click shows, second click dismisses (touch / keyboard path)", () => {
+    // Exercises BOTH arms of the click-handler ``existing !== null``
+    // check: first click hits the ``null`` arm (no tooltip → show);
+    // second click hits the non-null arm (tooltip exists → dismiss).
+    // Required for partial-branch ratchet coverage.  The two clicks
+    // run synchronously so the rAF-deferred ``dismissOnce`` listener
+    // never attaches; the second click is dismissed by the icon's
+    // own handler via the ``existing !== null`` arm.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const opened = document.querySelector(".info-tooltip");
+    expect(opened).not.toBeNull();
+    expect(opened!.textContent).toBe(C1_TOOLTIP_TEXT);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("clicks outside the icon dismiss an open tooltip via the rAF-deferred document listener (Codex stop-time review)", async () => {
+    // Locks the outside-click dismiss path the initial #332 / B2 pass
+    // missed: a click-shown tooltip persisted indefinitely on outside-
+    // click.  The rAF defer makes the listener inert for the click
+    // that opened the tooltip; we explicitly yield to ``rAF`` here so
+    // the listener is attached before the next dispatch.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("dismissing the panel removes any open info tooltip (Codex stop-time review)", () => {
+    // Locks the panel-teardown contract the initial #332 / B2 pass
+    // missed: ``showInfoTooltip`` mounts the tooltip on
+    // ``document.body``, not the panel itself, so a tooltip opened
+    // before panel close persisted as an orphan.  ``dismissDetailPanel``
+    // now calls ``dismissAllTooltips`` so closing the panel for ANY
+    // reason (escape / outside-click / explicit close / filters
+    // changed / tab changed / comparison toggled) drops the tooltip.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    dismissDetailPanel("explicit-close-button");
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------
+  // Codex PR #343 P2 follow-up: the deferred outside-click dismiss
+  // listener must be cancelled when an alternate dismiss path runs
+  // (pointerleave / second icon click / panel close) BEFORE OR AFTER
+  // the rAF callback fires.  Without canceling both phases (pending
+  // ``rAF`` id + attached AbortController), the next document click
+  // dismisses any tooltip in the DOM — including a chart tooltip the
+  // user just opened on another surface (mutual-exclusivity contract
+  // in ``tooltip-manager.ts``).  The chart-tooltip survival assertion
+  // is the right behavioral proof: if the deferred listener leaked,
+  // the body-click below would dismiss it.
+  // ---------------------------------------------------------------------
+
+  function mountChartTooltipFixture(): void {
+    const tip = document.createElement("div");
+    tip.className = "chart-tooltip";
+    tip.textContent = "chart fixture";
+    document.body.appendChild(tip);
+  }
+
+  it("PRE-rAF pointerleave cancels the pending outside-click frame (chart tooltip survives subsequent body click)", () => {
+    // The rAF callback hasn't fired yet (no ``await`` after the
+    // click), so the AbortController is still null and there's
+    // nothing for ``signal.abort`` to act on — only the pending
+    // ``cancelAnimationFrame`` path can save us here.  This is the
+    // gap the abort-only fix would have left open.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("PRE-rAF panel close cancels the pending outside-click frame (chart tooltip survives across panel re-render)", () => {
+    // Worst-case lifecycle: panel closes BEFORE rAF fires.  Without
+    // the frame cancel, the rAF would still execute later, attach a
+    // document-level listener, and dismiss whatever tooltip the user
+    // opens next on the dashboard.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    dismissDetailPanel("explicit-close-button");
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("POST-rAF pointerleave aborts the attached outside-click listener (chart tooltip survives subsequent body click)", async () => {
+    // ``await rAF`` first so the listener IS attached; this exercises
+    // the abort path on the controller (the frame is already null
+    // after the rAF callback ran), proving the abort branch doesn't
+    // leak when the cancel branch is the no-op.  Together with the
+    // two pre-rAF tests above, both arms of every conditional in
+    // ``clearOutsideClickListener`` are covered.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("PRE-rAF retarget-in-place re-open clears the deferred outside-click frame (chart tooltip survives)", () => {
+    // Codex PR #343 P2 follow-up #2: retarget-in-place (cycle-time
+    // P50↔P90, throughput week-to-week, etc.) is a documented load-
+    // bearing path that re-renders the panel WITHOUT going through
+    // ``dismissDetailPanel``.  The old icon's bound listeners are GC'd
+    // but the document-level deferred listener / pending rAF survive.
+    // Without the openDetailPanel cleanup, the next click would
+    // dismiss whatever tooltip the new content shows.
+    //
+    // Pre-rAF case: rAF callback hasn't fired, so only the
+    // ``cancelAnimationFrame`` branch saves us.
+    const sectionA = iconSection();
+    const sectionB = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 99,
+          threadCount: 9,
+          commentCount: 9,
+          activeThreadCount: 4,
+        }),
+        buildRow({
+          id: 100,
+          threadCount: 1,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    openWithPrListSection(sectionA);
+    const root = document.querySelector<HTMLElement>(".detail-panel");
+    if (root === null) throw new Error("detail-panel not rendered");
+    const iconA = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (iconA === null) throw new Error("icon A not rendered");
+    iconA.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    iconA.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    // Retarget-in-place re-render BEFORE rAF fires.
+    openWithPrListSection(sectionB);
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("POST-rAF retarget-in-place re-open aborts the attached outside-click listener (chart tooltip survives)", async () => {
+    // Mirror of the pre-rAF retarget test but with the rAF awaited so
+    // the listener IS attached at the time of the in-place re-open.
+    // Hits the controller-abort branch on the openDetailPanel cleanup
+    // path that the prior abort-only proposal would have covered, but
+    // confirms the combined abort+cancelAnimationFrame design covers
+    // it equally.
+    const sectionA = iconSection();
+    const sectionB = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 99,
+          threadCount: 9,
+          commentCount: 9,
+          activeThreadCount: 4,
+        }),
+        buildRow({
+          id: 100,
+          threadCount: 1,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    openWithPrListSection(sectionA);
+    const root = document.querySelector<HTMLElement>(".detail-panel");
+    if (root === null) throw new Error("detail-panel not rendered");
+    const iconA = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (iconA === null) throw new Error("icon A not rendered");
+    iconA.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    iconA.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    // Retarget-in-place re-render AFTER rAF fires; doc listener is
+    // attached at this point and must be aborted by the openDetailPanel
+    // cleanup, otherwise the next body click clobbers the chart tooltip.
+    openWithPrListSection(sectionB);
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+});
+
+describe("issue #332 / B3 — filter feedback summary", () => {
+  // Locks the contract: when the threshold filter renders, a polite
+  // ``role=status`` paragraph mounts as a sibling of the filter group
+  // (between filter and ``<ol>``) and reports "Showing all N PRs." /
+  // "Showing X of Y PRs." / "...P partial row(s) hidden by filter."
+  // depending on filter activity and slice partial-row count.
+  function getSummary(root: HTMLElement): HTMLElement {
+    const el = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter-summary",
+    );
+    if (el === null) throw new Error("filter feedback summary not rendered");
+    return el;
+  }
+
+  function setFilter(root: HTMLElement, key: string, value: string): void {
+    const input = root.querySelector<HTMLInputElement>(
+      `input[data-filter-key="${key}"]`,
+    );
+    if (input === null) throw new Error(`filter input ${key} not found`);
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function noPartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 4,
+          threadCount: 7,
+          commentCount: 4,
+          activeThreadCount: 2,
+        }),
+      ],
+      renderedCount: 4,
+      actualFilteredCount: 4,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function multiPartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 4,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 5,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 5,
+      actualFilteredCount: 5,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function singlePartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  it("mounts a role=status aria-live=polite summary between the filter and the list with the no-filter copy", () => {
+    const root = openWithPrListSection(noPartialSection());
+    const summary = getSummary(root);
+    expect(summary.tagName).toBe("P");
+    expect(summary.getAttribute("role")).toBe("status");
+    expect(summary.getAttribute("aria-live")).toBe("polite");
+    expect(summary.textContent).toBe("Showing all 4 PRs.");
+    // DOM order: filter group → summary → <ol>.  Reading / SR walk
+    // sequence is filter → state → list.
+    const wrapper = summary.parentElement!;
+    const children = Array.from(wrapper.children);
+    const filterIdx = children.findIndex((c) =>
+      c.classList.contains("detail-panel-pr-list-filter"),
+    );
+    const summaryIdx = children.indexOf(summary);
+    const listIdx = children.findIndex((c) =>
+      c.classList.contains("detail-panel-pr-list"),
+    );
+    expect(filterIdx).toBeGreaterThan(-1);
+    expect(summaryIdx).toBe(filterIdx + 1);
+    expect(listIdx).toBe(summaryIdx + 1);
+  });
+
+  it("does NOT mount the summary in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const summary = root.querySelector(
+        ".detail-panel-pr-list-filter-summary",
+      );
+      expect({ state: name, summary }).toEqual({ state: name, summary: null });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("active threshold on a no-partials slice → 'Showing X of Y PRs.'", () => {
+    const root = openWithPrListSection(noPartialSection());
+    setFilter(root, "threads", "3");
+    // Numeric rows passing threads >= 3: ids 2 (3), 3 (5), 4 (7).
+    expect(getSummary(root).textContent).toBe("Showing 3 of 4 PRs.");
+  });
+
+  it("clearing the filter on a slice with partial rows reverts to 'Showing all N PRs.'", () => {
+    // Crosses the active → inactive transition, exercising the
+    // ``!hasActiveThreshold`` true arm AFTER ``applyFilters`` has run
+    // (initial state hits it via ``formatFilterSummary`` directly).
+    // The partial rows in the slice exercise the
+    // ``!child.hasAttribute("data-partial")`` false arm of the
+    // visible-numeric counter on the cleared-filter pass.
+    const root = openWithPrListSection(multiPartialSection());
+    setFilter(root, "threads", "3");
+    expect(getSummary(root).textContent).toContain("Showing");
+    setFilter(root, "threads", "");
+    expect(getSummary(root).textContent).toBe("Showing all 5 PRs.");
+  });
+
+  it("active threshold on a slice with multiple partial rows → '...P partial rows hidden by filter.' (plural)", () => {
+    const root = openWithPrListSection(multiPartialSection());
+    setFilter(root, "threads", "3");
+    // Numeric rows passing threads >= 3: ids 2 (3), 3 (5).
+    // Numeric total = 3 (ids 1, 2, 3); partial rows = 2 (ids 4, 5).
+    expect(getSummary(root).textContent).toBe(
+      "Showing 2 of 3 PRs. 2 partial rows hidden by filter.",
+    );
+  });
+
+  it("active threshold on a slice with exactly one partial row → 'partial row' (singular)", () => {
+    const root = openWithPrListSection(singlePartialSection());
+    setFilter(root, "threads", "1");
+    // Numeric rows passing threads >= 1: id 2 (3).
+    // Numeric total = 2 (ids 1, 2); partial = 1 (id 3).
+    expect(getSummary(root).textContent).toBe(
+      "Showing 1 of 2 PRs. 1 partial row hidden by filter.",
+    );
   });
 });

@@ -34,6 +34,7 @@ import {
   type ComparisonToggledEvent,
   type TabChangedEvent,
 } from "../drilldown/lifecycle-signals";
+import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -309,6 +310,33 @@ let comparisonActive = false;
     comparisonActive = e.detail.enabled;
   };
   window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+}
+
+// Issue #332 / B2 (Codex PR #343 P2 follow-up): module-scope trackers
+// for the deferred outside-click dismiss the C1 info-icon arms when
+// the user clicks (touch / keyboard show path).  Two pieces of state
+// because the listener is armed across two phases — a pending rAF and
+// (after the rAF fires) an attached document-level click listener —
+// and an alternate dismiss path (pointerleave, second icon click,
+// ``dismissDetailPanel``) can interrupt EITHER phase.  Without
+// cancelling BOTH:
+//
+//   - Pre-rAF interrupt with abort-only cleanup: nothing to abort
+//     yet; the rAF still fires later and attaches the stale listener.
+//   - Post-rAF interrupt with frame-cancel-only cleanup: nothing
+//     pending to cancel; the already-attached listener leaks.
+//
+// ``clearOutsideClickListener`` collapses both phases.
+let outsideClickAbort: AbortController | null = null;
+let outsideClickFrame: number | null = null;
+
+function clearOutsideClickListener(): void {
+  outsideClickAbort?.abort();
+  outsideClickAbort = null;
+  if (outsideClickFrame !== null) {
+    cancelAnimationFrame(outsideClickFrame);
+    outsideClickFrame = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -657,6 +685,18 @@ function buildPrListHeader(
   // partial-branch debt.
   const records: SortHeaderRecord[] = [];
 
+  // Issue #332 / B1: SR-live announcer for sort direction changes.
+  // Created up front so the per-axis click closure (built only in the
+  // ``withSortButtons`` branch below) captures it as a non-nullable
+  // local — appended only when sort buttons are wired so suppressed-
+  // controls states (capability-on single-row #330/C5; capability-on
+  // all-partial #331/C2) don't carry an empty live region.
+  const sortAnnouncer = createElement("div", {
+    role: "status",
+    "aria-live": "polite",
+    class: "visually-hidden detail-panel-pr-list-sort-announcer",
+  });
+
   for (const axis of COMMENTS_METRICS_AXES) {
     const cellAttrs: Record<string, string> = {
       class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
@@ -736,7 +776,32 @@ function buildPrListHeader(
       record.state = nextDirection;
       record.cell.setAttribute("aria-sort", nextDirection);
       applySort(list, axis.dataAttr, nextDirection, originalOrder);
+
+      // Issue #332 / B1: announce the new sort state to assistive
+      // tech.  Two-step ``"" → message`` so the polite live region
+      // sees a real mutation even on back-to-back identical
+      // announcements (matches the loading-state.ts dashboard-banner
+      // pattern).  ``axis.label`` is the full disambiguated phrase
+      // ("Threads" / "Comments" / "Unresolved threads") so SR users
+      // hear the same form the column-header ``aria-label`` already
+      // uses.
+      sortAnnouncer.textContent = "";
+      sortAnnouncer.textContent =
+        nextDirection === "none"
+          ? "Sort cleared."
+          : `Sorted by ${axis.label.toLowerCase()}, ${nextDirection}.`;
     });
+  }
+
+  // Issue #332 / B1: append the SR-live announcer only when sort
+  // buttons are wired.  The capability-on suppressed-controls states
+  // reach this function but never wire a click closure, so an empty
+  // live region in those states would be DOM noise without an
+  // announcement source.  Both arms of this gate are exercised by the
+  // existing capability-on tests (multi-row → true; single-row /
+  // all-partial → false).
+  if (withSortButtons) {
+    header.appendChild(sortAnnouncer);
   }
 
   return header;
@@ -757,6 +822,83 @@ function advanceSortDirection(current: SortDirection): SortDirection {
 }
 
 /**
+ * Issue #332 / B2: condensed C1 inclusion-rule disclosure surfaced via
+ * a single info tooltip on the controls bar.  Authoritative source is
+ * ``specs/310-comments-visualization/spec.md`` "Shared inclusion-rule
+ * contract (C1)" — this string distills those rules per axis without
+ * re-declaring them.  One icon (not three per-axis) so the disclosure
+ * adds zero pixels to the columnheader tracks (Linux DejaVu header-fit
+ * contract from #341 / #330 stays intact).
+ */
+const COMMENTS_METRICS_C1_TOOLTIP =
+  "Counts apply Feature 310's inclusion rules. Threads include " +
+  "unknown-status threads but exclude deleted ones. Comments include " +
+  "system events; deleted comments are excluded. Unresolved counts " +
+  "only threads still in active status. Comments by users missing " +
+  "from the user table are still counted.";
+
+/**
+ * Slice-level metadata the filter feedback summary (#332 / B3) needs
+ * to derive its copy.  All three counts are pre-computed by
+ * ``renderPrListSection`` from the ``rows`` array and the existing
+ * ``partialRowCount`` it already tracks for the coverage notice; this
+ * struct just wires them through to ``applyFilters`` without giving
+ * the filter logic a dependency on the full row list.
+ */
+interface FilterSummaryContext {
+  /** Total rows in the slice (numeric + partial). */
+  readonly totalRows: number;
+  /** Numeric rows in the slice (denominator for "X of Y"). */
+  readonly numericTotal: number;
+  /** Partial-sentinel rows in the slice — hidden whenever any
+   *  threshold is active per FR-3-05. */
+  readonly partialRowCount: number;
+}
+
+/**
+ * Issue #332 / B3: the threshold filter's slice-level feedback
+ * summary.  ``filterGroup`` and ``summary`` are returned together so
+ * the caller can mount them as siblings between the header and the
+ * ``<ol>`` (summary AFTER the filter row).  The summary is its own
+ * polite live region — distinct from the sort announcer (#332 / B1)
+ * because the two surface different events (sort direction vs filter
+ * visibility); SR engines queue back-to-back polite announcements so
+ * mutual exclusivity isn't required.
+ */
+interface FilterControls {
+  readonly filterGroup: HTMLElement;
+  readonly summary: HTMLElement;
+}
+
+/**
+ * Format the filter-feedback summary copy (#332 / B3).
+ *
+ * Three branches, all signed off:
+ *   - No threshold active → ``Showing all {totalRows} PRs.``
+ *   - Threshold active, no partials in slice → ``Showing {visibleNumeric} of {numericTotal} PRs.``
+ *   - Threshold active, partials in slice → adds
+ *     ``{partialRowCount} partial row(s) hidden by filter.`` on the
+ *     same line (singular when ``partialRowCount === 1``).
+ */
+function formatFilterSummary(
+  context: FilterSummaryContext,
+  hasActiveThreshold: boolean,
+  visibleNumeric: number,
+): string {
+  if (!hasActiveThreshold) {
+    return `Showing all ${context.totalRows} PRs.`;
+  }
+  if (context.partialRowCount === 0) {
+    return `Showing ${visibleNumeric} of ${context.numericTotal} PRs.`;
+  }
+  const noun = context.partialRowCount === 1 ? "row" : "rows";
+  return (
+    `Showing ${visibleNumeric} of ${context.numericTotal} PRs. ` +
+    `${context.partialRowCount} partial ${noun} hidden by filter.`
+  );
+}
+
+/**
  * Build the comments-metrics threshold filter bar (FR-3-03 / FR-4-02).
  *
  * Three numeric inputs that compose with AND semantics via
@@ -765,8 +907,20 @@ function advanceSortDirection(current: SortDirection): SortDirection {
  * ``COMMENTS_METRICS_AXES.label`` so the F8 rename ("Unresolved" →
  * "Unresolved threads") propagates consistently to the visible label
  * text and the input's ``aria-label``.
+ *
+ * Issue #332 / B2: a single info-icon adjacent to the "Min:" label
+ * surfaces the C1 inclusion-rule contract via the shared
+ * ``showInfoTooltip`` primitive (same pattern as ``summary-cards``).
+ *
+ * Issue #332 / B3: returns a ``summary`` element alongside the filter
+ * group — a polite live region whose copy reflects how many PRs are
+ * shown, how many are hidden by the threshold, and how many partial
+ * rows were swept by FR-3-05's any-threshold-hides-partials rule.
  */
-function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
+function buildCommentsMetricsFilter(
+  list: HTMLOListElement,
+  context: FilterSummaryContext,
+): FilterControls {
   const filterGroup = createElement("div", {
     class: "detail-panel-pr-list-filter",
     role: "group",
@@ -779,6 +933,67 @@ function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
       "Min:",
     ),
   );
+  // Issue #332 / B2: info icon for the C1 inclusion-rule disclosure.
+  // Hover (pointerenter / pointerleave) drives the desktop path; click
+  // shows + arms a one-shot document-level dismiss for touch / keyboard
+  // activation, mirroring ``attachInfoIcons`` in summary-cards.ts:690.
+  // Without the document-level listener a click-shown tooltip persists
+  // on outside-click (Codex stop-time review on the initial #332 / B2
+  // pass caught this).  ``event.stopPropagation()`` keeps the icon's
+  // own click from triggering the same listener it just armed; the
+  // ``requestAnimationFrame`` defer keeps the listener inert for the
+  // exact click that opened the tooltip; ``dismissOnce`` removes
+  // itself after firing so no listener leaks across opens.
+  const infoIcon = createElement("button", {
+    type: "button",
+    class: "info-icon-btn",
+    "data-info-tooltip": "comments-metrics-c1",
+    "aria-label": "About these counts",
+  });
+  appendText(infoIcon, "ℹ");
+  infoIcon.addEventListener("pointerenter", () => {
+    showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+  });
+  infoIcon.addEventListener("pointerleave", () => {
+    dismissAllTooltips();
+    clearOutsideClickListener();
+  });
+  infoIcon.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (document.querySelector(".info-tooltip") !== null) {
+      dismissAllTooltips();
+      clearOutsideClickListener();
+      return;
+    }
+    showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+    // Win-last semantics: if a prior click already armed a frame or
+    // listener that hasn't been cleaned up by an alternate path, drop
+    // it before scheduling the new one so we never have two armed
+    // dismiss paths racing each other.
+    clearOutsideClickListener();
+    outsideClickFrame = requestAnimationFrame(() => {
+      outsideClickFrame = null;
+      outsideClickAbort = new AbortController();
+      document.addEventListener(
+        "click",
+        () => {
+          dismissAllTooltips();
+          clearOutsideClickListener();
+        },
+        { signal: outsideClickAbort.signal, once: true },
+      );
+    });
+  });
+  filterGroup.appendChild(infoIcon);
+  // Issue #332 / B3: feedback summary mounted as a sibling of the
+  // filter group; built here so it shares a closure with
+  // ``filterDescriptors`` and the per-input ``applyFilters`` call.
+  const summary = createElement("p", {
+    class: "detail-panel-pr-list-filter-summary",
+    role: "status",
+    "aria-live": "polite",
+  });
+  appendText(summary, formatFilterSummary(context, false, 0));
   const filterDescriptors: FilterDescriptor[] = [];
   for (const axis of COMMENTS_METRICS_AXES) {
     const label = createElement("label", {
@@ -794,13 +1009,13 @@ function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
     });
     const descriptor: FilterDescriptor = { input, dataAttr: axis.dataAttr };
     input.addEventListener("input", () =>
-      applyFilters(list, filterDescriptors),
+      applyFilters(list, filterDescriptors, summary, context),
     );
     label.appendChild(input);
     filterGroup.appendChild(label);
     filterDescriptors.push(descriptor);
   }
-  return filterGroup;
+  return { filterGroup, summary };
 }
 
 /** One filter input + its data attribute, paired at build time. */
@@ -857,6 +1072,8 @@ function applySort(
 function applyFilters(
   list: HTMLOListElement,
   descriptors: readonly FilterDescriptor[],
+  summary: HTMLElement,
+  context: FilterSummaryContext,
 ): void {
   const thresholds: Array<readonly [string, number]> = [];
   for (const desc of descriptors) {
@@ -872,6 +1089,8 @@ function applyFilters(
     if (parsed < 0) continue;
     thresholds.push([desc.dataAttr, parsed]);
   }
+  const hasActiveThreshold = thresholds.length > 0;
+  let visibleNumeric = 0;
   for (const child of list.querySelectorAll<HTMLLIElement>("li")) {
     let hidden = false;
     for (const [dataAttr, threshold] of thresholds) {
@@ -891,8 +1110,26 @@ function applyFilters(
       child.setAttribute("hidden", "");
     } else {
       child.removeAttribute("hidden");
+      // Issue #332 / B3: count visible NUMERIC rows (partial rows
+      // are excluded under FR-3-05 the moment any threshold is active,
+      // so they cannot reach this branch when ``hasActiveThreshold``;
+      // when no threshold is active they ARE visible but we suppress
+      // the "X of Y" copy in that path so visibleNumeric is unused).
+      if (!child.hasAttribute("data-partial")) {
+        visibleNumeric++;
+      }
     }
   }
+  // Issue #332 / B3: refresh the live summary.  Two-step "" → text so
+  // the polite region announces every transition (matches the sort
+  // announcer #332/B1 + loading-state.ts dashboard-banner pattern).
+  const nextText = formatFilterSummary(
+    context,
+    hasActiveThreshold,
+    visibleNumeric,
+  );
+  summary.textContent = "";
+  summary.textContent = nextText;
 }
 
 /**
@@ -1172,7 +1409,19 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         }),
       );
       if (sortRowElements !== null) {
-        wrapper.appendChild(buildCommentsMetricsFilter(list));
+        // Issue #332 / B3: filter group + feedback summary mount as
+        // siblings of the wrapper, summary AFTER the filter row so
+        // the natural reading / SR-walk order is filter → summary →
+        // list.  Slice metadata derived from the same
+        // ``partialRowCount`` already used by the coverage notice
+        // (#331 / C2 + C3) above.
+        const filterControls = buildCommentsMetricsFilter(list, {
+          totalRows: rows.length,
+          numericTotal: rows.length - partialRowCount,
+          partialRowCount,
+        });
+        wrapper.appendChild(filterControls.filterGroup);
+        wrapper.appendChild(filterControls.summary);
       }
       for (const li of rowElements) {
         list.appendChild(li);
@@ -1379,6 +1628,20 @@ export function openDetailPanel(context: DrillDownContext): void {
   const wasOpen = isDetailPanelOpen();
   activeContext = context;
 
+  if (wasOpen) {
+    // Issue #332 / B2 (Codex PR #343 P2 follow-up): retarget-in-place
+    // (cycle-time P50↔P90 swap, throughput week-to-week, etc.)
+    // replaces the panel's DOM via ``renderContent`` below WITHOUT
+    // going through ``dismissDetailPanel``.  The old C1 info-icon's
+    // element-bound listeners are GC'd with the detached DOM, but
+    // the deferred document-level dismiss listener (or its pending
+    // ``rAF``) survives — Codex stop-time review flagged this as the
+    // path the prior fix missed.  Drop both the tooltip and the
+    // listener so the new render starts from a clean tooltip lifecycle.
+    dismissAllTooltips();
+    clearOutsideClickListener();
+  }
+
   if (!wasOpen) {
     // Install the open-scoped controller BEFORE render + is-open so
     // applyTopOffset's ResizeObserver teardown can piggyback on the
@@ -1413,6 +1676,26 @@ export function dismissDetailPanel(reason: DismissReason): void {
   // renderContent / sectionsRoot children to verify the FR-005 invariant.
   openScopedController?.abort();
   openScopedController = null;
+
+  // Issue #332 / B2: any open info tooltip needs to dismiss when the
+  // panel closes — ``showInfoTooltip`` mounts the tooltip on
+  // ``document.body`` (so it can position-fixed against the viewport),
+  // not as a panel descendant, so the tooltip would otherwise persist
+  // as an orphan after the panel detaches.  Codex stop-time review
+  // caught this on the initial #332 / B2 pass.  Also covers any chart
+  // tooltip that happens to be open against another surface; both are
+  // managed by the same ``dismissAllTooltips`` primitive (mutual
+  // exclusivity contract in ``tooltip-manager.ts``).
+  //
+  // Codex PR #343 P2 follow-up: the deferred outside-click listener
+  // armed by the C1 info-icon click handler must be cancelled here
+  // too — the dismissAllTooltips above only removes tooltip DOM, not
+  // the document-level dismiss listener.  Without this, a panel
+  // closed before the user clicks anywhere leaves a stale listener
+  // that fires on the next dashboard click and clobbers any chart
+  // tooltip the user just opened.
+  dismissAllTooltips();
+  clearOutsideClickListener();
 
   // Focus restoration — target is the context.triggerElement captured on open
   // (FR-008). Fall back to focus-trap's recorded return if somehow unavailable.

@@ -4041,6 +4041,72 @@ var PRInsightsDashboard = (() => {
     );
   }
 
+  // ../ui/modules/tooltip-manager.ts
+  var scrollDismissController = null;
+  function ensureScrollDismissListener() {
+    if (scrollDismissController) return;
+    scrollDismissController = new AbortController();
+    const { signal } = scrollDismissController;
+    const dismiss = () => dismissAllTooltips();
+    window.addEventListener("scroll", dismiss, { signal, passive: true });
+    window.addEventListener("resize", dismiss, { signal, passive: true });
+  }
+  function releaseScrollDismissListener() {
+    scrollDismissController?.abort();
+    scrollDismissController = null;
+  }
+  function dismissAllTooltips() {
+    const chartTooltip = document.querySelector(".chart-tooltip");
+    if (chartTooltip) chartTooltip.remove();
+    const infoTooltip = document.querySelector(".info-tooltip");
+    if (infoTooltip) infoTooltip.remove();
+    releaseScrollDismissListener();
+  }
+  function positionTooltip(tooltip, targetRect) {
+    tooltip.style.visibility = "hidden";
+    tooltip.style.position = "fixed";
+    document.body.appendChild(tooltip);
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 8;
+    let top = targetRect.top - tooltipRect.height - gap;
+    if (top < 0) {
+      top = targetRect.bottom + gap;
+    }
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = window.innerHeight - tooltipRect.height - 4;
+    }
+    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+    if (left < 4) {
+      left = 4;
+    }
+    if (left + tooltipRect.width > window.innerWidth - 4) {
+      left = window.innerWidth - tooltipRect.width - 4;
+    }
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.visibility = "";
+  }
+  function showChartTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "chart-tooltip";
+    renderTrustedHtml(tooltip, content);
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+  function showInfoTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "info-tooltip";
+    tooltip.textContent = content;
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+
   // ../ui/modules/shared/detail-panel.ts
   function isPartialPrRow(row) {
     return row.threadCount === null || row.threadCount === void 0;
@@ -4099,6 +4165,16 @@ var PRInsightsDashboard = (() => {
       comparisonActive = e2.detail.enabled;
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
+  }
+  var outsideClickAbort = null;
+  var outsideClickFrame = null;
+  function clearOutsideClickListener() {
+    outsideClickAbort?.abort();
+    outsideClickAbort = null;
+    if (outsideClickFrame !== null) {
+      cancelAnimationFrame(outsideClickFrame);
+      outsideClickFrame = null;
+    }
   }
   function ensurePanelEls() {
     if (panelEls && !panelEls.root.isConnected) {
@@ -4281,6 +4357,11 @@ var PRInsightsDashboard = (() => {
     );
     if (!commentsMetricsAvailable) return header;
     const records = [];
+    const sortAnnouncer = createElement("div", {
+      role: "status",
+      "aria-live": "polite",
+      class: "visually-hidden detail-panel-pr-list-sort-announcer"
+    });
     for (const axis of COMMENTS_METRICS_AXES) {
       const cellAttrs = {
         class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
@@ -4324,7 +4405,12 @@ var PRInsightsDashboard = (() => {
         record.state = nextDirection;
         record.cell.setAttribute("aria-sort", nextDirection);
         applySort(list, axis.dataAttr, nextDirection, originalOrder);
+        sortAnnouncer.textContent = "";
+        sortAnnouncer.textContent = nextDirection === "none" ? "Sort cleared." : `Sorted by ${axis.label.toLowerCase()}, ${nextDirection}.`;
       });
+    }
+    if (withSortButtons) {
+      header.appendChild(sortAnnouncer);
     }
     return header;
   }
@@ -4333,7 +4419,18 @@ var PRInsightsDashboard = (() => {
     if (current === "descending") return "ascending";
     return "none";
   }
-  function buildCommentsMetricsFilter(list) {
+  var COMMENTS_METRICS_C1_TOOLTIP = "Counts apply Feature 310's inclusion rules. Threads include unknown-status threads but exclude deleted ones. Comments include system events; deleted comments are excluded. Unresolved counts only threads still in active status. Comments by users missing from the user table are still counted.";
+  function formatFilterSummary(context, hasActiveThreshold, visibleNumeric) {
+    if (!hasActiveThreshold) {
+      return `Showing all ${context.totalRows} PRs.`;
+    }
+    if (context.partialRowCount === 0) {
+      return `Showing ${visibleNumeric} of ${context.numericTotal} PRs.`;
+    }
+    const noun = context.partialRowCount === 1 ? "row" : "rows";
+    return `Showing ${visibleNumeric} of ${context.numericTotal} PRs. ${context.partialRowCount} partial ${noun} hidden by filter.`;
+  }
+  function buildCommentsMetricsFilter(list, context) {
     const filterGroup = createElement("div", {
       class: "detail-panel-pr-list-filter",
       role: "group",
@@ -4346,6 +4443,49 @@ var PRInsightsDashboard = (() => {
         "Min:"
       )
     );
+    const infoIcon = createElement("button", {
+      type: "button",
+      class: "info-icon-btn",
+      "data-info-tooltip": "comments-metrics-c1",
+      "aria-label": "About these counts"
+    });
+    appendText(infoIcon, "\u2139");
+    infoIcon.addEventListener("pointerenter", () => {
+      showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+    });
+    infoIcon.addEventListener("pointerleave", () => {
+      dismissAllTooltips();
+      clearOutsideClickListener();
+    });
+    infoIcon.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (document.querySelector(".info-tooltip") !== null) {
+        dismissAllTooltips();
+        clearOutsideClickListener();
+        return;
+      }
+      showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+      clearOutsideClickListener();
+      outsideClickFrame = requestAnimationFrame(() => {
+        outsideClickFrame = null;
+        outsideClickAbort = new AbortController();
+        document.addEventListener(
+          "click",
+          () => {
+            dismissAllTooltips();
+            clearOutsideClickListener();
+          },
+          { signal: outsideClickAbort.signal, once: true }
+        );
+      });
+    });
+    filterGroup.appendChild(infoIcon);
+    const summary = createElement("p", {
+      class: "detail-panel-pr-list-filter-summary",
+      role: "status",
+      "aria-live": "polite"
+    });
+    appendText(summary, formatFilterSummary(context, false, 0));
     const filterDescriptors = [];
     for (const axis of COMMENTS_METRICS_AXES) {
       const label = createElement("label", {
@@ -4362,13 +4502,13 @@ var PRInsightsDashboard = (() => {
       const descriptor = { input, dataAttr: axis.dataAttr };
       input.addEventListener(
         "input",
-        () => applyFilters(list, filterDescriptors)
+        () => applyFilters(list, filterDescriptors, summary, context)
       );
       label.appendChild(input);
       filterGroup.appendChild(label);
       filterDescriptors.push(descriptor);
     }
-    return filterGroup;
+    return { filterGroup, summary };
   }
   function applySort(list, dataAttr, direction, originalOrder) {
     if (direction === "none") {
@@ -4388,7 +4528,7 @@ var PRInsightsDashboard = (() => {
     });
     for (const item of items) list.appendChild(item);
   }
-  function applyFilters(list, descriptors) {
+  function applyFilters(list, descriptors, summary, context) {
     const thresholds = [];
     for (const desc of descriptors) {
       const raw = desc.input.value.trim();
@@ -4397,6 +4537,8 @@ var PRInsightsDashboard = (() => {
       if (parsed < 0) continue;
       thresholds.push([desc.dataAttr, parsed]);
     }
+    const hasActiveThreshold = thresholds.length > 0;
+    let visibleNumeric = 0;
     for (const child of list.querySelectorAll("li")) {
       let hidden = false;
       for (const [dataAttr, threshold] of thresholds) {
@@ -4414,8 +4556,18 @@ var PRInsightsDashboard = (() => {
         child.setAttribute("hidden", "");
       } else {
         child.removeAttribute("hidden");
+        if (!child.hasAttribute("data-partial")) {
+          visibleNumeric++;
+        }
       }
     }
+    const nextText = formatFilterSummary(
+      context,
+      hasActiveThreshold,
+      visibleNumeric
+    );
+    summary.textContent = "";
+    summary.textContent = nextText;
   }
   function renderPrListSection(section) {
     const wrapper = createElement("section", {
@@ -4522,7 +4674,13 @@ var PRInsightsDashboard = (() => {
           })
         );
         if (sortRowElements !== null) {
-          wrapper.appendChild(buildCommentsMetricsFilter(list));
+          const filterControls = buildCommentsMetricsFilter(list, {
+            totalRows: rows.length,
+            numericTotal: rows.length - partialRowCount,
+            partialRowCount
+          });
+          wrapper.appendChild(filterControls.filterGroup);
+          wrapper.appendChild(filterControls.summary);
         }
         for (const li of rowElements) {
           list.appendChild(li);
@@ -4679,6 +4837,10 @@ var PRInsightsDashboard = (() => {
     const els = ensurePanelEls();
     const wasOpen = isDetailPanelOpen();
     activeContext = context;
+    if (wasOpen) {
+      dismissAllTooltips();
+      clearOutsideClickListener();
+    }
     if (!wasOpen) {
       openScopedController = installOpenScopedListeners(els);
       applyTopOffset(els.root, openScopedController.signal);
@@ -4696,6 +4858,8 @@ var PRInsightsDashboard = (() => {
     panelState = "closing";
     openScopedController?.abort();
     openScopedController = null;
+    dismissAllTooltips();
+    clearOutsideClickListener();
     const trigger = activeContext?.triggerElement ?? null;
     if (focusTrapController) {
       if (trigger && trigger.isConnected) {
@@ -6786,72 +6950,6 @@ var PRInsightsDashboard = (() => {
         }
         break;
     }
-  }
-
-  // ../ui/modules/tooltip-manager.ts
-  var scrollDismissController = null;
-  function ensureScrollDismissListener() {
-    if (scrollDismissController) return;
-    scrollDismissController = new AbortController();
-    const { signal } = scrollDismissController;
-    const dismiss = () => dismissAllTooltips();
-    window.addEventListener("scroll", dismiss, { signal, passive: true });
-    window.addEventListener("resize", dismiss, { signal, passive: true });
-  }
-  function releaseScrollDismissListener() {
-    scrollDismissController?.abort();
-    scrollDismissController = null;
-  }
-  function dismissAllTooltips() {
-    const chartTooltip = document.querySelector(".chart-tooltip");
-    if (chartTooltip) chartTooltip.remove();
-    const infoTooltip = document.querySelector(".info-tooltip");
-    if (infoTooltip) infoTooltip.remove();
-    releaseScrollDismissListener();
-  }
-  function positionTooltip(tooltip, targetRect) {
-    tooltip.style.visibility = "hidden";
-    tooltip.style.position = "fixed";
-    document.body.appendChild(tooltip);
-    const tooltipRect = tooltip.getBoundingClientRect();
-    const gap = 8;
-    let top = targetRect.top - tooltipRect.height - gap;
-    if (top < 0) {
-      top = targetRect.bottom + gap;
-    }
-    if (top + tooltipRect.height > window.innerHeight) {
-      top = window.innerHeight - tooltipRect.height - 4;
-    }
-    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
-    if (left < 4) {
-      left = 4;
-    }
-    if (left + tooltipRect.width > window.innerWidth - 4) {
-      left = window.innerWidth - tooltipRect.width - 4;
-    }
-    tooltip.style.top = `${top}px`;
-    tooltip.style.left = `${left}px`;
-    tooltip.style.visibility = "";
-  }
-  function showChartTooltip(target, content) {
-    dismissAllTooltips();
-    const tooltip = document.createElement("div");
-    tooltip.className = "chart-tooltip";
-    renderTrustedHtml(tooltip, content);
-    tooltip.style.position = "fixed";
-    const rect = target.getBoundingClientRect();
-    positionTooltip(tooltip, rect);
-    ensureScrollDismissListener();
-  }
-  function showInfoTooltip(target, content) {
-    dismissAllTooltips();
-    const tooltip = document.createElement("div");
-    tooltip.className = "info-tooltip";
-    tooltip.textContent = content;
-    tooltip.style.position = "fixed";
-    const rect = target.getBoundingClientRect();
-    positionTooltip(tooltip, rect);
-    ensureScrollDismissListener();
   }
 
   // ../ui/modules/charts.ts
