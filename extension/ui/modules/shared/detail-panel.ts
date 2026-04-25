@@ -657,6 +657,18 @@ function buildPrListHeader(
   // partial-branch debt.
   const records: SortHeaderRecord[] = [];
 
+  // Issue #332 / B1: SR-live announcer for sort direction changes.
+  // Created up front so the per-axis click closure (built only in the
+  // ``withSortButtons`` branch below) captures it as a non-nullable
+  // local — appended only when sort buttons are wired so suppressed-
+  // controls states (capability-on single-row #330/C5; capability-on
+  // all-partial #331/C2) don't carry an empty live region.
+  const sortAnnouncer = createElement("div", {
+    role: "status",
+    "aria-live": "polite",
+    class: "visually-hidden detail-panel-pr-list-sort-announcer",
+  });
+
   for (const axis of COMMENTS_METRICS_AXES) {
     const cellAttrs: Record<string, string> = {
       class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
@@ -736,7 +748,32 @@ function buildPrListHeader(
       record.state = nextDirection;
       record.cell.setAttribute("aria-sort", nextDirection);
       applySort(list, axis.dataAttr, nextDirection, originalOrder);
+
+      // Issue #332 / B1: announce the new sort state to assistive
+      // tech.  Two-step ``"" → message`` so the polite live region
+      // sees a real mutation even on back-to-back identical
+      // announcements (matches the loading-state.ts dashboard-banner
+      // pattern).  ``axis.label`` is the full disambiguated phrase
+      // ("Threads" / "Comments" / "Unresolved threads") so SR users
+      // hear the same form the column-header ``aria-label`` already
+      // uses.
+      sortAnnouncer.textContent = "";
+      sortAnnouncer.textContent =
+        nextDirection === "none"
+          ? "Sort cleared."
+          : `Sorted by ${axis.label.toLowerCase()}, ${nextDirection}.`;
     });
+  }
+
+  // Issue #332 / B1: append the SR-live announcer only when sort
+  // buttons are wired.  The capability-on suppressed-controls states
+  // reach this function but never wire a click closure, so an empty
+  // live region in those states would be DOM noise without an
+  // announcement source.  Both arms of this gate are exercised by the
+  // existing capability-on tests (multi-row → true; single-row /
+  // all-partial → false).
+  if (withSortButtons) {
+    header.appendChild(sortAnnouncer);
   }
 
   return header;

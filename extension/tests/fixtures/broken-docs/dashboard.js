@@ -4281,6 +4281,11 @@ var PRInsightsDashboard = (() => {
     );
     if (!commentsMetricsAvailable) return header;
     const records = [];
+    const sortAnnouncer = createElement("div", {
+      role: "status",
+      "aria-live": "polite",
+      class: "visually-hidden detail-panel-pr-list-sort-announcer"
+    });
     for (const axis of COMMENTS_METRICS_AXES) {
       const cellAttrs = {
         class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
@@ -4324,7 +4329,12 @@ var PRInsightsDashboard = (() => {
         record.state = nextDirection;
         record.cell.setAttribute("aria-sort", nextDirection);
         applySort(list, axis.dataAttr, nextDirection, originalOrder);
+        sortAnnouncer.textContent = "";
+        sortAnnouncer.textContent = nextDirection === "none" ? "Sort cleared." : `Sorted by ${axis.label.toLowerCase()}, ${nextDirection}.`;
       });
+    }
+    if (withSortButtons) {
+      header.appendChild(sortAnnouncer);
     }
     return header;
   }

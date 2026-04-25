@@ -1542,3 +1542,182 @@ describe("header-driven sort cycle (F3 + F4)", () => {
     expect(new Set(ids.slice(2))).toEqual(new Set([11, 13]));
   });
 });
+
+describe("issue #332 / B1 — sort SR-live announcer", () => {
+  // Locks the contract: when sort buttons render (capability-on, >1
+  // row, !all-partial), a polite ``role=status`` live region inside
+  // the header announces the new direction on every click.  Suppressed-
+  // controls states (capability-off, capability-on single-row,
+  // capability-on all-partial) do NOT mount the announcer.
+  function announcerSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 2,
+          commentCount: 5,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 7,
+          commentCount: 3,
+          activeThreadCount: 2,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 20,
+          activeThreadCount: 5,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function clickHeader(root: HTMLElement, key: string): void {
+    const button = root.querySelector<HTMLButtonElement>(
+      `.detail-panel-pr-list-header button[data-sort-key="${key}"]`,
+    );
+    if (button === null) {
+      throw new Error(`header sort button ${key} not found`);
+    }
+    button.dispatchEvent(new Event("click", { bubbles: true }));
+  }
+
+  function getAnnouncer(root: HTMLElement): HTMLElement {
+    const el = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-sort-announcer",
+    );
+    if (el === null) throw new Error("sort announcer not rendered");
+    return el;
+  }
+
+  it("mounts an empty role=status aria-live=polite announcer inside the header on cap-on >1-row !all-partial", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    expect(announcer.getAttribute("role")).toBe("status");
+    expect(announcer.getAttribute("aria-live")).toBe("polite");
+    expect(announcer.classList.contains("visually-hidden")).toBe(true);
+    // Empty before any sort interaction — no startup announcement.
+    expect(announcer.textContent).toBe("");
+    // Lives inside the header so its lifecycle is bound to the
+    // header that owns the sort buttons (panel re-render rebuilds
+    // both together).
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(header!.contains(announcer)).toBe(true);
+  });
+
+  it("does NOT mount the announcer in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const announcer = root.querySelector(
+        ".detail-panel-pr-list-sort-announcer",
+      );
+      expect({ state: name, announcer }).toEqual({
+        state: name,
+        announcer: null,
+      });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("announces 'Sorted by {axis}, descending.' / '...ascending.' / 'Sort cleared.' across the cycle", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, descending.");
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, ascending.");
+
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sort cleared.");
+  });
+
+  it("announces the new axis when sort switches between columns (single-active-sort copy)", () => {
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    clickHeader(root, "threads");
+    expect(announcer.textContent).toBe("Sorted by threads, descending.");
+    clickHeader(root, "comments");
+    expect(announcer.textContent).toBe("Sorted by comments, descending.");
+  });
+
+  it("uses the full disambiguated phrase 'unresolved threads' for the unresolved axis (F8 contract carry-forward)", () => {
+    // The unresolved column's visible header text is the short
+    // ``Unresolved`` (track-fit), but the sort announcement reuses
+    // ``axis.label`` so SR users hear the full disambiguating phrase
+    // — same form the column-header ``aria-label`` already uses.
+    const root = openWithPrListSection(announcerSection());
+    const announcer = getAnnouncer(root);
+    clickHeader(root, "unresolved");
+    expect(announcer.textContent).toBe(
+      "Sorted by unresolved threads, descending.",
+    );
+  });
+});
