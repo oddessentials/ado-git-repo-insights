@@ -4422,9 +4422,10 @@ var PRInsightsDashboard = (() => {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
           });
+          const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
           appendText(
             indicator,
-            `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`
+            commentsMetricsAvailable ? `${base}. Sort and filter operate within this slice.` : base
           );
           wrapper.appendChild(indicator);
         }
@@ -4473,7 +4474,7 @@ var PRInsightsDashboard = (() => {
           }
           rowElements.push(li);
         }
-        if (commentsMetricsAvailable) {
+        if (commentsMetricsAvailable && rowElements.length > 1) {
           wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
           wrapper.appendChild(buildCommentsMetricsFilter(list));
         }

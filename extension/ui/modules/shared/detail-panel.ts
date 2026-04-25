@@ -821,9 +821,20 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         const indicator = createElement("div", {
           class: "truncation-indicator truncation-badge",
         });
+        // Issue #330 / C1: when capability-on, disclose that the
+        // comments-metrics sort + filter operate within the cycle-
+        // time-ordered slice — otherwise SC-01 ("identify the most-
+        // discussed PR in two interactions") quietly breaks on
+        // truncated weeks where the top discussion volume lives
+        // outside the top-500-by-cycle-time window.  Capability-off
+        // has no such sort/filter surface, so the pre-310 literal is
+        // preserved byte-for-byte to keep SC-03 / INV-01 intact.
+        const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
         appendText(
           indicator,
-          `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`,
+          commentsMetricsAvailable
+            ? `${base}. Sort and filter operate within this slice.`
+            : base,
         );
         wrapper.appendChild(indicator);
       }
@@ -913,7 +924,15 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       // order is [header] → [filter] → [list].  The header closure
       // captures ``rowElements`` as the original-order snapshot for
       // the unsorted sort state (third click).
-      if (commentsMetricsAvailable) {
+      //
+      // Issue #330 / C5: additionally suppress emit when the list has
+      // one row or fewer — sort / filter are no-ops on a trivial list
+      // and the controls read as dead UI.  The per-row
+      // ``.comments-metric`` styling on the ``<ol>`` modifier class is
+      // intentionally left untouched so a single-row capability-on
+      // list still renders the three count spans with their usual
+      // tabular / muted-partial treatment.
+      if (commentsMetricsAvailable && rowElements.length > 1) {
         wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
         wrapper.appendChild(buildCommentsMetricsFilter(list));
       }

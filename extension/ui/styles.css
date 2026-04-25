@@ -3216,7 +3216,23 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 
 .detail-panel-pr-list-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto 5ch 6ch 9ch;
+    /* Header-driven track widths (issue #330 / C4 desktop fit).  The
+     * three numeric tracks are sized to fit the uppercase 12px / 600 /
+     * 0.02em-letter-spacing header-button content — at the prior
+     * 5ch / 6ch / 9ch values the proportional uppercase labels
+     * overflowed leftward into the column gap and visually crashed
+     * into their left-hand neighbours.  The rem values are also kept
+     * tight (not generously buffered) so the PR-title track retains
+     * usable width on the 420px panel (roughly 110px, ~13 chars +
+     * ellipsis, instead of ~45px under looser buffers).
+     *
+     * Tracks are in ``rem`` so header (12px) and row (13px) grids
+     * resolve to identical pixel widths and the count digits stay
+     * aligned to their column headers across font-size differences.
+     * The same template is mirrored verbatim on
+     * ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``
+     * below — keep them in lockstep. */
+    grid-template-columns: minmax(0, 1fr) auto 3.5rem 4.25rem 5rem;
     column-gap: 12px;
     align-items: baseline;
     padding: 8px 12px 6px;
@@ -3329,7 +3345,13 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 
 .detail-panel-pr-list--with-comments .detail-panel-pr-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto 5ch 6ch 9ch;
+    /* Mirrors .detail-panel-pr-list-header — header-driven rem widths
+     * keep counts aligned to their column headers (issue #330 / C4).
+     * Updates here MUST be propagated to the header rule above and to
+     * the @media (max-width: 480px) override below; the CSS contract
+     * test in extension/tests/invariants/comments-metrics-responsive.test.ts
+     * locks all three sites in lockstep. */
+    grid-template-columns: minmax(0, 1fr) auto 3.5rem 4.25rem 5rem;
     column-gap: 12px;
     align-items: baseline;
     padding: 6px 12px;
@@ -3385,6 +3407,45 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 
 .detail-panel-pr-list--with-comments .comments-metric--unresolved {
     font-weight: 600;
+}
+
+/* Issue #330 / C4 — responsive fallback for the comments-metrics grid.
+ *
+ * Scoped strictly to the capability-on-only classes emitted by
+ * renderPrListSection when commentsMetricsAvailable===true
+ * (.detail-panel-pr-list-header and .detail-panel-pr-list--with-comments).
+ * Capability-off DOM still has no comments-metrics header or numeric
+ * columns at all, so this block is unreachable on that path — SC-03 /
+ * INV-01 byte-identity is preserved by construction.
+ *
+ * The panel is `min(420px, 90vw)`; it only begins narrowing once the
+ * viewport is narrow enough that 90vw falls below 420px, which is
+ * where the desktop 5ch / 6ch / 9ch columns start crowding the
+ * PR-link track.  The breakpoint used below matches the project-wide
+ * MOBILE_BREAKPOINT constant (see
+ * extension/ui/modules/shared/constants.ts), so the narrow-viewport
+ * treatment here co-varies with the rest of the dashboard's mobile
+ * pass.
+ */
+@media (max-width: 480px) {
+    .detail-panel-pr-list-header,
+    .detail-panel-pr-list--with-comments .detail-panel-pr-row {
+        /* Narrow override stays header-driven (issue #330 / C4).  Values
+         * are proportional to the desktop template but sized against
+         * the smaller 11px / no-letter-spacing header font used here so
+         * the uppercase labels still fit without overflowing leftward
+         * into the column gap.  rem keeps header + row grids pixel-
+         * aligned across their different font sizes. */
+        grid-template-columns: minmax(0, 1fr) auto 3rem 3.5rem 4.5rem;
+        column-gap: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .detail-panel-pr-list-header {
+        font-size: 11px;
+        letter-spacing: 0;
+    }
 }
 
 /* Highlight on the source chart element whose click opened the panel. */
