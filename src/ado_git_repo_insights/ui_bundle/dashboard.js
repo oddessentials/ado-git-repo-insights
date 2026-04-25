@@ -4515,14 +4515,12 @@ var PRInsightsDashboard = (() => {
           wrapper.appendChild(notice);
         }
         const sortRowElements = commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial ? rowElements : null;
-        if (rowElements.length > 0) {
-          wrapper.appendChild(
-            buildPrListHeader(list, {
-              commentsMetricsAvailable,
-              sortRowElements
-            })
-          );
-        }
+        wrapper.appendChild(
+          buildPrListHeader(list, {
+            commentsMetricsAvailable,
+            sortRowElements
+          })
+        );
         if (sortRowElements !== null) {
           wrapper.appendChild(buildCommentsMetricsFilter(list));
         }

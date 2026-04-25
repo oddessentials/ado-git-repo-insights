@@ -1157,14 +1157,20 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial
           ? rowElements
           : null;
-      if (rowElements.length > 0) {
-        wrapper.appendChild(
-          buildPrListHeader(list, {
-            commentsMetricsAvailable,
-            sortRowElements,
-          }),
-        );
-      }
+      // Header always emits in the ``pr-list`` content state — the
+      // producer (``installThroughputDrilldown``'s "supported" branch)
+      // short-circuits to ``contentState: "supported-empty"`` whenever
+      // ``rawPrs.length === 0`` (throughput-drilldown.ts:142), so by
+      // the time we reach this branch ``rowElements.length`` is
+      // structurally > 0.  No defensive ``length > 0`` guard — the
+      // false arm would be dead code and trip the partial-branch
+      // ratchet (PR #342 caught this on push).
+      wrapper.appendChild(
+        buildPrListHeader(list, {
+          commentsMetricsAvailable,
+          sortRowElements,
+        }),
+      );
       if (sortRowElements !== null) {
         wrapper.appendChild(buildCommentsMetricsFilter(list));
       }
