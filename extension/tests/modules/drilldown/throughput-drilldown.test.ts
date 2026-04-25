@@ -1453,9 +1453,17 @@ describe("throughput-drilldown", () => {
       // ``.detail-panel-pr-list-controls`` container was removed as part
       // of the header-driven sort swap (lock #3); asserting its absence
       // here is a regression guard against any accidental reintroduction.
+      // Issue #342: when sort cells emit, the header carries the
+      // ``--with-comments`` modifier so CSS swaps to the 5-col grid.
+      const drilldownHeader = prSection!.querySelector<HTMLElement>(
+        ".detail-panel-pr-list-header",
+      );
+      expect(drilldownHeader).not.toBeNull();
       expect(
-        prSection!.querySelector(".detail-panel-pr-list-header"),
-      ).not.toBeNull();
+        drilldownHeader!.classList.contains(
+          "detail-panel-pr-list-header--with-comments",
+        ),
+      ).toBe(true);
       expect(
         prSection!.querySelector(".detail-panel-pr-list-filter"),
       ).not.toBeNull();

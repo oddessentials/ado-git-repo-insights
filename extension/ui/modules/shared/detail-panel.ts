@@ -494,7 +494,7 @@ const COMMENTS_METRICS_AXES: readonly {
    * the data column reserved for 1–3-digit counts.  The full form
    * is still surfaced to mouse + assistive-tech users via the
    * ``title`` and ``aria-label`` attributes set in
-   * ``buildCommentsMetricsHeader`` — sighted users lose nothing
+   * ``buildPrListHeader`` — sighted users lose nothing
    * meaningful; screen readers hear the disambiguated phrase the
    * F8 rename was meant to convey.
    */
@@ -534,35 +534,62 @@ function readMetricValue(li: HTMLLIElement, dataAttr: string): number | null {
 }
 
 /**
- * Build the comments-metrics column header row (FR-3-02 / FR-4-02 / F1 / F4).
+ * Build the PR-list column header row.
  *
- * Emits a grid row with five ``role="columnheader"`` cells above the PR
- * ``<ol>`` — two non-interactive labels (``PR``, ``Cycle``) followed by
- * three sort-triggering cells carrying a ``<button data-sort-key>``
- * each (``Threads``, ``Comments``, ``Unresolved threads``).  Clicking a
- * sort button cycles ``aria-sort`` ``none → descending → ascending →
- * none`` on the enclosing cell; clicking a different axis resets the
- * previously-active cell to ``none`` (single active sort axis at a
- * time).
+ * Always emits a grid row with two non-interactive ``role="columnheader"``
+ * cells (``PR``, ``Cycle``) — used by every state of the drill-down list,
+ * including capability-off, where it labels the cycle-time number that
+ * was previously a context-less duration beside the PR link (issue #342
+ * review finding; the SC-03 byte-identical pre-310 baseline preserved
+ * the missing label as an accidental shape, not a positive invariant).
  *
- * ``originalOrder`` is the snapshot of ``<li>`` elements in the
- * aggregator-default sequence — captured by ``renderPrListSection``
+ * When ``options.sortRowElements`` is non-null, the header gets the
+ * ``--with-comments`` modifier class and three additional sort-triggering
+ * columnheader cells carrying a ``<button data-sort-key>`` each
+ * (``Threads``, ``Comments``, ``Unresolved threads``) — FR-3-02 / FR-4-02
+ * / F1 / F4.  Clicking a sort button cycles ``aria-sort``
+ * ``none → descending → ascending → none`` on the enclosing cell;
+ * clicking a different axis resets the previously-active cell to
+ * ``none`` (single active sort axis at a time).
+ *
+ * ``options.sortRowElements`` is the snapshot of ``<li>`` elements in
+ * the aggregator-default sequence — captured by ``renderPrListSection``
  * before the rows are appended to ``list``.  The unsorted state (third
  * click on the active header) restores this sequence verbatim via
  * ``list.appendChild(item)`` on each element in order; ``appendChild``
  * moves rather than duplicates DOM nodes, so the restored DOM is
- * byte-stable across any sequence of interactions.
+ * byte-stable across any sequence of interactions.  ``null`` here means
+ * "skip sort cells" — capability-off, single-row capability-on (issue
+ * #330 / C5), or all-partial capability-on (issue #331 / C2).
  *
  * Partial-sentinel rows (``data-<key>`` absent) sort to the END
  * regardless of direction — matches FR-3-05's "partials are not
  * comparable" rule in the sort context as well as the filter context.
  */
-function buildCommentsMetricsHeader(
+function buildPrListHeader(
   list: HTMLOListElement,
-  originalOrder: readonly HTMLLIElement[],
+  options: { readonly sortRowElements: readonly HTMLLIElement[] | null },
 ): HTMLElement {
+  // Issue #342 review finding: capability-off used to render a bare
+  // <a> + <span class="cycle-time"> per row with NO header at all
+  // (SC-03 byte-identical to pre-310).  That preserved an unlabeled
+  // floating duration number beside every PR title — the cycle-time
+  // value sat next to the link with no column label, no row-level
+  // aria-label, and no visible context.  Feature 310 added a labeled
+  // header (``PR | Cycle | Threads | Comments | Unresolved``) on the
+  // capability-on path, which made the capability-off gap obvious by
+  // contrast.  The fix unifies both paths: this function ALWAYS emits
+  // the base ``PR | Cycle`` columnheaders so the cycle-time number is
+  // labeled in every state.  The three sort cells (Threads / Comments
+  // / Unresolved) and the ``--with-comments`` modifier class are
+  // additive and only emit when the caller passes
+  // ``sortRowElements`` non-null (i.e. capability-on AND >1 row AND
+  // not-all-partial — see ``renderPrListSection`` for the gate).
+  const withSort = options.sortRowElements !== null;
   const header = createElement("div", {
-    class: "detail-panel-pr-list-header",
+    class: withSort
+      ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments"
+      : "detail-panel-pr-list-header",
     role: "row",
   });
 
@@ -588,6 +615,15 @@ function buildCommentsMetricsHeader(
       "Cycle",
     ),
   );
+
+  if (!withSort) return header;
+
+  // Capability-on, multi-row, non-all-partial: append the three sort
+  // cells on the same header row.  The non-null assertion below
+  // narrows ``sortRowElements`` from ``readonly HTMLLIElement[] |
+  // null`` to ``readonly HTMLLIElement[]`` — already established by
+  // the ``withSort`` check above.
+  const originalOrder = options.sortRowElements as readonly HTMLLIElement[];
 
   // Collect per-axis cell + state into records.  Iterating records in
   // the click handler (instead of going through Maps keyed by axis key)
@@ -900,10 +936,11 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       });
       // Feature 310: build row `<li>` elements into an array BEFORE
       // appending to ``list``.  The array doubles as the original-order
-      // snapshot passed to ``buildCommentsMetricsHeader`` for
-      // unsorted-state restoration (third click on the active column
-      // header).  Capturing here (rather than sampling ``list.children``
-      // later) locks the snapshot to the aggregator-default sequence.
+      // snapshot passed to ``buildPrListHeader`` (via
+      // ``options.sortRowElements``) for unsorted-state restoration
+      // (third click on the active column header).  Capturing here
+      // (rather than sampling ``list.children`` later) locks the
+      // snapshot to the aggregator-default sequence.
       const rowElements: HTMLLIElement[] = [];
       for (const row of rows) {
         const li = createElement("li", { class: "detail-panel-pr-row" });
@@ -1022,14 +1059,17 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         wrapper.appendChild(notice);
       }
 
-      // Feature 310: header + filter live only on the capability-on
-      // path — lock #9 ("no DOM emission when capability-off; absent, not
-      // hidden").  They are appended BEFORE the list so the rendered
-      // order is [coverage-notice?] → [header] → [filter] → [list].
-      // The header closure captures ``rowElements`` as the original-
-      // order snapshot for the unsorted sort state (third click).
+      // Issue #342 review finding: the base PR + Cycle header now ALWAYS
+      // emits when the slice has at least one row, so capability-off
+      // also gets a labeled header for its previously-bare cycle-time
+      // span.  The three SORT cells (Threads / Comments / Unresolved)
+      // and the threshold filter remain gated on the same three
+      // suppressions as before — see the ``sortRowElements`` ternary
+      // below — and the ``--with-comments`` modifier on the header
+      // element is added in lockstep with the sort cells so the
+      // header's grid template matches its actual cell count.
       //
-      // Emit gate composes three independent suppressions:
+      // Sort/filter emit gate composes three independent suppressions:
       //   - ``commentsMetricsAvailable``: capability-on only (lock #9 /
       //     SC-03 / INV-01).
       //   - ``rowElements.length > 1`` (issue #330 / C5): sort / filter
@@ -1043,12 +1083,14 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       //     coverage notice above explains the state, and the
       //     controls would read as dead UI exactly as in the single-
       //     row case.
-      if (
-        commentsMetricsAvailable &&
-        rowElements.length > 1 &&
-        !allRowsPartial
-      ) {
-        wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+      const sortRowElements: readonly HTMLLIElement[] | null =
+        commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial
+          ? rowElements
+          : null;
+      if (rowElements.length > 0) {
+        wrapper.appendChild(buildPrListHeader(list, { sortRowElements }));
+      }
+      if (sortRowElements !== null) {
         wrapper.appendChild(buildCommentsMetricsFilter(list));
       }
       for (const li of rowElements) {

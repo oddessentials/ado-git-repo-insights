@@ -99,8 +99,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("capability-off path — no new columns / controls", () => {
-  it("does not emit any comments-metric spans when commentsMetricsAvailable=false", () => {
+describe("capability-off path — no comments-metrics surface (post-#342 SC-03)", () => {
+  it("emits the shared PR | Cycle header with no comments-metrics surface (no sort buttons / filter / modifier classes / metric spans)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
@@ -110,14 +110,41 @@ describe("capability-off path — no new columns / controls", () => {
       commentsMetricsAvailable: false,
     });
     const root = openWithPrListSection(section);
+
+    // Issue #342 reframed SC-03: the shared ``PR | Cycle`` header is
+    // ALWAYS emitted (so capability-off labels its previously-bare
+    // cycle-time span), but it carries NO comments-metrics surface
+    // — no ``--with-comments`` modifier, no sort buttons, no filter,
+    // no metric spans, no coverage notice.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    const headerCells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(headerCells).toHaveLength(2);
+    expect(
+      headerCells[0]!.classList.contains(
+        "detail-panel-pr-list-header-cell--pr",
+      ),
+    ).toBe(true);
+    expect(
+      headerCells[1]!.classList.contains(
+        "detail-panel-pr-list-header-cell--cycle",
+      ),
+    ).toBe(true);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+
     expect(root.querySelectorAll(".comments-metric").length).toBe(0);
-    // Lock #9 — the new capability-on DOM (header row, filter bar, modifier
-    // class on the ol) MUST be absent, not hidden, on the capability-off
-    // path.  The pre-310 ``.detail-panel-pr-list-controls`` container also
-    // never reappears (old selector kept as a regression guard).
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     expect(root.querySelector(".detail-panel-pr-list-controls")).toBeNull();
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
     );
@@ -167,8 +194,9 @@ describe("capability-on path — three columns per row (INV-08)", () => {
 
   it("renders a header row with 3 sort buttons and a separate filter row with 3 inputs", () => {
     // Two rows so the C5 controls-visibility guard (rowElements.length > 1)
-    // permits the header + filter to render.  Single-row suppression is
-    // covered by its own test below.
+    // permits the sort cells + filter to render.  Single-row suppression
+    // (PR | Cycle header still emits, sort cells suppressed) is covered
+    // by its own test below.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -196,6 +224,13 @@ describe("capability-on path — three columns per row (INV-08)", () => {
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
+    // Issue #342: when sort cells emit the header carries the
+    // ``--with-comments`` modifier (mirrors the ``<ol>`` modifier
+    // pattern); CSS uses it to swap the 2-col base grid template
+    // for the 5-col extended template.
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
     const sortButtons = header!.querySelectorAll<HTMLButtonElement>(
       "button[data-sort-key]",
     );
@@ -221,7 +256,7 @@ describe("capability-on path — three columns per row (INV-08)", () => {
 });
 
 describe("issue #330 / C5 — controls-visibility guard on trivial lists", () => {
-  it("suppresses header + filter when the capability-on list has a single row", () => {
+  it("suppresses sort cells + filter when the capability-on list has a single row (shared PR | Cycle header still emits)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -238,10 +273,23 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
       commentsMetricsAvailable: true,
     });
     const root = openWithPrListSection(section);
-    // Header + filter must be absent — not just hidden — on a trivial
-    // list.  The <ol> modifier class stays intact so the single row
-    // still picks up tabular / muted-partial styling.
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    // Issue #342: the shared PR | Cycle header still emits — only the
+    // SORT CELLS and filter are suppressed on a trivial list.  The
+    // header element does NOT carry the ``--with-comments`` modifier
+    // when sort cells are absent, so its grid template stays at the
+    // 2-col base.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    expect(
+      header!.querySelectorAll<HTMLElement>('[role="columnheader"]'),
+    ).toHaveLength(2);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
@@ -405,11 +453,23 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
         "detail-panel-pr-list-coverage-notice--all-partial",
       ),
     ).toBe(true);
-    // C2: sort + filter MUST be absent on an all-partial slice —
-    // there are no numeric values to sort / threshold-filter, so
-    // the controls would read as dead UI.  The <ol> modifier class
-    // stays on so per-row metric span styling is unchanged.
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    // C2: sort cells + filter MUST be absent on an all-partial slice
+    // — there are no numeric values to sort / threshold-filter, so
+    // the controls would read as dead UI.  The shared PR | Cycle
+    // header still emits (issue #342), without the ``--with-comments``
+    // modifier; the <ol> modifier class stays on so per-row metric
+    // span styling is unchanged.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    expect(
+      header!.querySelectorAll<HTMLElement>('[role="columnheader"]'),
+    ).toHaveLength(2);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
@@ -1095,6 +1155,12 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
+    // Issue #342: capability-on multi-row + non-partial → header
+    // carries the ``--with-comments`` modifier so the CSS swaps to
+    // the 5-col grid template.
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
     const cells = header!.querySelectorAll<HTMLElement>(
       '[role="columnheader"]',
     );
@@ -1120,7 +1186,12 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     ).toBe(true);
   });
 
-  it("does NOT emit the header row on capability-off (absent, not hidden)", () => {
+  it("emits the shared 2-cell PR | Cycle header (no `--with-comments` modifier) on capability-off (issue #342)", () => {
+    // Pre-#342 contract was "no header at all on capability-off."
+    // Post-#342 the shared PR | Cycle header always emits so the
+    // cycle-time number is labeled — but the header carries no
+    // ``--with-comments`` modifier and no sort cells, so the
+    // capability-off DOM stays free of any comments-metrics surface.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [buildRow({ id: 1 })],
@@ -1130,7 +1201,24 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       commentsMetricsAvailable: false,
     });
     const root = openWithPrListSection(section);
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(2);
+    expect(
+      cells[0]!.classList.contains("detail-panel-pr-list-header-cell--pr"),
+    ).toBe(true);
+    expect(
+      cells[1]!.classList.contains("detail-panel-pr-list-header-cell--cycle"),
+    ).toBe(true);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
   });
 
   it("unresolved sort button shows 'Unresolved' visibly with full disambiguation via title + aria-label (F8 + header-fit)", () => {

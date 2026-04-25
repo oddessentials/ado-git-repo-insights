@@ -4252,9 +4252,10 @@ var PRInsightsDashboard = (() => {
     if (raw === null) return null;
     return Number.parseInt(raw, 10);
   }
-  function buildCommentsMetricsHeader(list, originalOrder) {
+  function buildPrListHeader(list, options) {
+    const withSort = options.sortRowElements !== null;
     const header = createElement("div", {
-      class: "detail-panel-pr-list-header",
+      class: withSort ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments" : "detail-panel-pr-list-header",
       role: "row"
     });
     header.appendChild(
@@ -4277,6 +4278,8 @@ var PRInsightsDashboard = (() => {
         "Cycle"
       )
     );
+    if (!withSort) return header;
+    const originalOrder = options.sortRowElements;
     const records = [];
     for (const axis of COMMENTS_METRICS_AXES) {
       const cell = createElement("div", {
@@ -4498,8 +4501,11 @@ var PRInsightsDashboard = (() => {
           );
           wrapper.appendChild(notice);
         }
-        if (commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial) {
-          wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+        const sortRowElements = commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial ? rowElements : null;
+        if (rowElements.length > 0) {
+          wrapper.appendChild(buildPrListHeader(list, { sortRowElements }));
+        }
+        if (sortRowElements !== null) {
           wrapper.appendChild(buildCommentsMetricsFilter(list));
         }
         for (const li of rowElements) {
