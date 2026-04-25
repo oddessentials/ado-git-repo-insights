@@ -219,6 +219,22 @@ describe("CSS Contract: z-index stacking (PR #302 P1.C)", () => {
     expect(zIndexOf(".comparison-advisory-toast")).toBe(1060);
   });
 
+  it("sets .info-tooltip z-index to 1055 — above .detail-panel, below .comparison-advisory-toast (#332/B2 follow-up)", () => {
+    // The C1 info icon introduced in #332/B2 lives inside the drill-
+    // down panel.  ``showInfoTooltip`` mounts the tooltip on
+    // ``document.body`` (sibling of the panel root), so sibling z-
+    // index decides paint order: the prior 150 was occluded behind
+    // the panel's 1050.  1055 sits above the panel but stays below
+    // the advisory toast (1060) so a "drill-down disabled" cue still
+    // wins on overlap with an info-icon tooltip.  Locks BOTH
+    // relationships explicitly so a future bump to either neighbour
+    // surfaces here as a contract failure.
+    const infoTooltip = zIndexOf(".info-tooltip");
+    expect(infoTooltip).toBe(1055);
+    expect(infoTooltip).toBeGreaterThan(zIndexOf(".detail-panel"));
+    expect(infoTooltip).toBeLessThan(zIndexOf(".comparison-advisory-toast"));
+  });
+
   it("stacks advisory-toast > detail-panel > pre-existing toast", () => {
     const toast = zIndexOf(".toast");
     const panel = zIndexOf(".detail-panel");
