@@ -1485,12 +1485,19 @@ describe("throughput-drilldown", () => {
         covered.querySelector(".comments-metric--unresolved")?.textContent,
       ).toBe("3");
       // Partial row — three "—" spans, row-level data-partial, and
-      // (post-#331 / A2) row-level aria-label="Coverage pending"
-      // with span-level aria-hidden so the SR announces partial
-      // state ONCE per row instead of three times.
+      // (post-#331 / A2 + Codex review) a visually-hidden
+      // "Coverage pending" child span that announces the partial
+      // state to SR ONCE per row WITHOUT overriding the listitem's
+      // accessible name (which would drop PR identity).  Per-span
+      // aria-hidden suppresses triple "dash" announcements.
       const partial = rows[1]!;
       expect(partial.getAttribute("data-partial")).toBe("true");
-      expect(partial.getAttribute("aria-label")).toBe("Coverage pending");
+      expect(partial.getAttribute("aria-label")).toBeNull();
+      const srNotes = partial.querySelectorAll<HTMLSpanElement>(
+        "span.visually-hidden",
+      );
+      expect(srNotes).toHaveLength(1);
+      expect(srNotes[0]!.textContent).toBe("Coverage pending");
       const partialSpans =
         partial.querySelectorAll<HTMLSpanElement>(".comments-metric");
       for (const span of partialSpans) {

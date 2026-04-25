@@ -4461,7 +4461,6 @@ var PRInsightsDashboard = (() => {
             );
             if (allPartial) {
               li.setAttribute("data-partial", "true");
-              li.setAttribute("aria-label", "Coverage pending");
             }
             for (const [key, cls, value] of triplet) {
               const span = createElement("span", {
@@ -4477,6 +4476,13 @@ var PRInsightsDashboard = (() => {
                 appendText(span, String(value));
               }
               li.appendChild(span);
+            }
+            if (allPartial) {
+              const srNote = createElement("span", {
+                class: "visually-hidden"
+              });
+              appendText(srNote, "Coverage pending");
+              li.appendChild(srNote);
             }
           }
           rowElements.push(li);

@@ -631,15 +631,21 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     }
   });
 
-  it("issue #331 / A2: announces 'Coverage pending' ONCE at the row level on a partial row", () => {
-    // Locks the A2 contract: exactly one accessible announcement of
-    // 'Coverage pending' per partial row, located on the <li>, with
-    // every metric span removed from the a11y tree via aria-hidden.
+  it("issue #331 / A2: announces 'Coverage pending' ONCE on a partial row WITHOUT overriding PR identity", () => {
+    // Locks the A2 contract (post Codex 2026-04-25 review): exactly
+    // one SR announcement of 'Coverage pending' per partial row,
+    // delivered via a visually-hidden child span — NOT via an
+    // ``aria-label`` on the <li> (which would override the
+    // listitem's accessible name and drop the PR link's text from
+    // list-traversal announcements).  Every metric span stays
+    // removed from the a11y tree via aria-hidden so the visually-
+    // hidden span is the single SR signal for the partial state.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
         buildRow({
           id: 100,
+          title: "fix: timeout in coverage backfill",
           threadCount: null,
           commentCount: null,
           activeThreadCount: null,
@@ -652,11 +658,26 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     });
     const root = openWithPrListSection(section);
     const row = listRows(root)[0]!;
-    expect(row.getAttribute("aria-label")).toBe("Coverage pending");
-    // Count reachable aria-labels under the row — the row-level one
-    // counts once; spans are aria-hidden so any aria-label they
-    // carried would not be announced.  This guard fails if a future
-    // change adds back per-span aria-labels (regressing A2).
+    // PR identity preserved — the listitem MUST NOT carry an
+    // ``aria-label`` (which would override the accessible name
+    // built from the link text below).  This guard fails if a
+    // future change moves the ``Coverage pending`` announcement
+    // back onto the <li>.
+    expect(row.getAttribute("aria-label")).toBeNull();
+    // Link text stays the listitem's primary accessible name.
+    const link = row.querySelector<HTMLAnchorElement>(".detail-panel-pr-link");
+    expect(link).not.toBeNull();
+    expect(link!.textContent).toContain("fix: timeout in coverage backfill");
+    // Coverage-pending announcement is delivered by exactly one
+    // visually-hidden child span inside the <li>.
+    const srNotes = row.querySelectorAll<HTMLSpanElement>(
+      "span.visually-hidden",
+    );
+    expect(srNotes).toHaveLength(1);
+    expect(srNotes[0]!.textContent).toBe("Coverage pending");
+    // Defense-in-depth: no reachable aria-label leaks anywhere
+    // under the row (locks the original A2 intent that "Coverage
+    // pending" is announced exactly once and not per metric span).
     const reachableLabels = Array.from(
       row.querySelectorAll<HTMLElement>(
         ":not([aria-hidden='true']) > [aria-label]",
@@ -665,11 +686,11 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     expect(reachableLabels).toHaveLength(0);
   });
 
-  it("issue #331 / A2: numeric (non-partial) row carries no row-level aria-label or span aria-hidden", () => {
-    // Negative pair — the A2 row-level aria-label and span aria-
-    // hidden treatment MUST NOT leak onto a numeric (non-partial)
-    // row.  A true-zero row still renders explicit ``0`` and stays
-    // fully reachable to assistive tech.
+  it("issue #331 / A2: numeric (non-partial) row carries no visually-hidden 'Coverage pending' note or span aria-hidden", () => {
+    // Negative pair — the A2 visually-hidden announcement and
+    // span aria-hidden treatment MUST NOT leak onto a numeric
+    // (non-partial) row.  A true-zero row still renders explicit
+    // ``0`` and stays fully reachable to assistive tech.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -688,6 +709,7 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     const root = openWithPrListSection(section);
     const row = listRows(root)[0]!;
     expect(row.getAttribute("aria-label")).toBeNull();
+    expect(row.querySelectorAll("span.visually-hidden")).toHaveLength(0);
     for (const axis of ["threads", "comments", "unresolved"] as const) {
       const span = metricSpan(row, axis);
       expect(span.getAttribute("aria-hidden")).toBeNull();

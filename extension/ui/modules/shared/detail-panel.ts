@@ -923,14 +923,6 @@ function renderPrListSection(section: PrListSection): HTMLElement {
           );
           if (allPartial) {
             li.setAttribute("data-partial", "true");
-            // Issue #331 / A2: announce coverage-pending ONCE at the
-            // row level rather than three times across the metric
-            // spans.  Each metric span gains ``aria-hidden="true"``
-            // below so the row-level aria-label is the single SR
-            // signal for the partial state on this PR (lock #4 —
-            // partial data must be SR-distinguishable, but exactly
-            // once per row, not per axis).
-            li.setAttribute("aria-label", "Coverage pending");
           }
           for (const [key, cls, value] of triplet) {
             const span = createElement("span", {
@@ -939,10 +931,11 @@ function renderPrListSection(section: PrListSection): HTMLElement {
             if (value === null || value === undefined) {
               span.setAttribute("data-partial", "true");
               // Issue #331 / A2: span is removed from the a11y tree
-              // because the row-level ``aria-label`` (set above when
-              // ``allPartial``) carries the announcement.  The visual
-              // ``—`` glyph + ``data-partial="true"`` keep the muted /
-              // italic CSS hooks intact for sighted users.
+              // — the visually-hidden sibling appended below
+              // (when ``allPartial``) carries the SR announcement
+              // exactly once per row.  The visual ``—`` glyph +
+              // ``data-partial="true"`` keep the muted / italic CSS
+              // hooks intact for sighted users.
               span.setAttribute("aria-hidden", "true");
               appendText(span, "—");
             } else {
@@ -951,6 +944,28 @@ function renderPrListSection(section: PrListSection): HTMLElement {
               appendText(span, String(value));
             }
             li.appendChild(span);
+          }
+          if (allPartial) {
+            // Issue #331 / A2 (Codex 2026-04-25 review remediation):
+            // emit the "Coverage pending" announcement via a
+            // visually-hidden child rather than ``aria-label`` on
+            // the <li>.  An aria-label on the listitem would
+            // OVERRIDE the accessible name computed from the row's
+            // contents — collapsing "PR #42 — fix: title, 1d 4h"
+            // navigation announcements down to just "Coverage
+            // pending" and dropping PR identity entirely.  The
+            // visually-hidden span is announced inline by SR
+            // during sequential row reading, additive to the link
+            // + cycle context rather than replacing them.  The
+            // ``.visually-hidden`` class (existing project
+            // primitive) absolute-positions the span so it does
+            // not consume a grid track in the row's 5-column grid
+            // layout.
+            const srNote = createElement("span", {
+              class: "visually-hidden",
+            });
+            appendText(srNote, "Coverage pending");
+            li.appendChild(srNote);
           }
         }
         rowElements.push(li);
