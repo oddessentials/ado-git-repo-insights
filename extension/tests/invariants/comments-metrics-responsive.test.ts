@@ -129,17 +129,24 @@ describe("issue #330 / C4 — comments-metrics grid CSS contract (desktop + narr
     // narrows the same three tracks proportionally for narrow viewports;
     // all three sites move in lockstep.
     //
-    // Current values (post-2026-04-25 #330 follow-up): the previous
-    // ``3.5rem 4.25rem 5rem`` template was sized to the label text
-    // alone, ignoring the button's ``::after`` sort indicator + gap
-    // overhead — Codex caught this when reviewing a meaningless
-    // runtime guard, and the corrected geometric guard
-    // (extension/tests/smoke/comments-metrics-header-fit.smoke.ts)
-    // exposed 8–14px overflow on every axis.  The fix slimmed the
-    // button overhead (gap: 0, indicator 0.5em) AND re-fit the
-    // tracks to the slimmed measurements with a real ≥5px buffer.
+    // Current values (post-2026-04-25 PR #342 Ubuntu-fallback widening):
+    // the prior ``3.5rem 4.25rem 5rem`` template was sized to the label
+    // text alone, ignoring the button's ``::after`` sort indicator + gap
+    // overhead — Codex caught this when reviewing a meaningless runtime
+    // guard, and the corrected geometric guard
+    // (extension/tests/smoke/comments-metrics-header-fit.smoke.ts) then
+    // exposed 8–14 px overflow on every axis at the slimmed widths.
+    // After re-fit on Windows Segoe UI ((4.25 / 5.125 / 5.625) rem), CI
+    // on Ubuntu surfaced a second gap: Linux Chromium falls back to
+    // DejaVu Sans / Liberation Sans, which renders "UNRESOLVED" ~1 px
+    // wider than Windows Segoe UI — putting the desktop button 0.86 px
+    // and narrow button 1.09 px past their cell rights.  The third
+    // track on each rule was widened by ~4 px (0.25 rem) to fit the
+    // wider Ubuntu-fallback rendering with a ≥3 px buffer.  See the
+    // CSS comments on .detail-panel-pr-list-header for the full
+    // cross-platform-fallback rationale.
     const desktopTemplatePattern =
-      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+4\.25rem\s+5\.125rem\s+5\.625rem/;
+      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+4\.25rem\s+5\.125rem\s+5\.875rem/;
 
     // Desktop header rule.
     const headerBody = findTopLevelRuleBody(
@@ -165,7 +172,7 @@ describe("issue #330 / C4 — comments-metrics grid CSS contract (desktop + narr
         body.includes(".detail-panel-pr-list-header") &&
         body.includes(".detail-panel-pr-list--with-comments") &&
         body.includes(".detail-panel-pr-row") &&
-        /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3\.75rem\s+4\.625rem\s+5rem/.test(
+        /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3\.75rem\s+4\.625rem\s+5\.25rem/.test(
           body,
         ),
     );

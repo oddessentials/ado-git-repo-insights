@@ -3229,10 +3229,20 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
      *      ``::after width: 0.5em``) so the indicator stays visually
      *      adjacent to its label and saves 7px per axis without any
      *      copy / casing change.
-     *   2. Re-fit the desktop tracks to the slimmed button widths
-     *      (60.13 / 75.05 / 83.03 measured at 12px / 600 / 0.02em on
-     *      Segoe UI; see comments-metrics-header-fit.smoke.ts) with a
-     *      ≥5px real buffer per axis.
+     *   2. Re-fit the desktop tracks to the WIDER of the two cross-
+     *      platform renderings, not just Windows Segoe UI:
+     *
+     *        Windows Segoe UI       (12px / 600 / 0.02em):
+     *          ~60.13 / 75.05 / 83.03 px
+     *        Ubuntu Chromium fallback (DejaVu Sans / Liberation Sans):
+     *          ~+1px on the longest label ("UNRESOLVED" ≈ 90.86 px)
+     *
+     *      The Playwright smoke runs on the CI Ubuntu runner and is
+     *      the binding contract enforcer (PR #342 caught the gap on
+     *      2026-04-25 when Windows-only sizing under-fit Linux fallback
+     *      glyph metrics by ~0.86 px on UNRESOLVED).  Current values
+     *      give ≥3 px buffer on Ubuntu fallback per axis, ≥5 px on
+     *      Windows Segoe UI.
      *
      * The Playwright runtime guard locks the geometric outcome
      * (button rect ⊆ cell rect ±0.5px); the CSS-text invariant
@@ -3245,7 +3255,7 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
      * The same template is mirrored verbatim on
      * ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``
      * below — keep them in lockstep. */
-    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.625rem;
+    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.875rem;
     column-gap: 12px;
     align-items: baseline;
     padding: 8px 12px 6px;
@@ -3375,14 +3385,18 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     /* Mirrors .detail-panel-pr-list-header — header-driven rem widths
      * keep counts aligned to their column headers (issue #330 / C4;
      * 2026-04-25 follow-up after Codex caught the ≥5px-buffer math
-     * was missing the button's sort indicator + gap overhead).
+     * was missing the button's sort indicator + gap overhead;
+     * follow-up widening on the same date after PR #342 caught a
+     * ~1px Linux-fallback gap that the Windows-only measurement
+     * had missed — see the desktop header rule above for the full
+     * cross-platform-fallback rationale).
      * Updates here MUST be propagated to the header rule above and to
      * the @media (max-width: 480px) override below; the CSS contract
      * test in extension/tests/invariants/comments-metrics-responsive.test.ts
      * locks all three sites in lockstep, and the Playwright runtime
      * guard in extension/tests/smoke/comments-metrics-header-fit.smoke.ts
      * locks the geometric outcome. */
-    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.625rem;
+    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.875rem;
     column-gap: 12px;
     align-items: baseline;
     padding: 6px 12px;
@@ -3492,13 +3506,23 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
         /* Narrow override stays header-driven (issue #330 / C4; #330
          * follow-up: refit after the same Codex 2026-04-25 review
          * surfaced the same overhead-math gap at the 11px override
-         * font as at the 12px desktop font).  Sized against measured
-         * slimmed button widths (53.58 / 67.03 / 73.91 at 11px / 600 /
-         * no-letter-spacing on Segoe UI; see
-         * comments-metrics-header-fit.smoke.ts) with a ≥5px buffer.
-         * rem keeps header + row grids pixel-aligned across their
-         * different font sizes. */
-        grid-template-columns: minmax(0, 1fr) auto 3.75rem 4.625rem 5rem;
+         * font as at the 12px desktop font; second-pass widening on
+         * 2026-04-25 after PR #342 caught Ubuntu Chromium fallback
+         * rendering "UNRESOLVED" ~1.09 px wider than Windows Segoe UI
+         * at this font size — same Linux-fallback drift as the desktop
+         * rule, locked by the same Playwright smoke).  Sized to fit
+         * the WIDER of the two renderings:
+         *
+         *   Windows Segoe UI       (11px / 600 / no-letter-spacing):
+         *     ~53.58 / 67.03 / 73.91 px
+         *   Ubuntu Chromium fallback (DejaVu Sans / Liberation Sans):
+         *     ~+1 px on UNRESOLVED (≈ 81.09 px)
+         *
+         * Current values give ≥3 px buffer on the binding Ubuntu
+         * fallback per axis (≥5 px on Windows Segoe UI).  rem keeps
+         * header + row grids pixel-aligned across their different
+         * font sizes. */
+        grid-template-columns: minmax(0, 1fr) auto 3.75rem 4.625rem 5.25rem;
         column-gap: 8px;
         padding-left: 10px;
         padding-right: 10px;
