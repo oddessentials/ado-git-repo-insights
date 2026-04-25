@@ -34,6 +34,7 @@ import {
   type ComparisonToggledEvent,
   type TabChangedEvent,
 } from "../drilldown/lifecycle-signals";
+import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -794,6 +795,22 @@ function advanceSortDirection(current: SortDirection): SortDirection {
 }
 
 /**
+ * Issue #332 / B2: condensed C1 inclusion-rule disclosure surfaced via
+ * a single info tooltip on the controls bar.  Authoritative source is
+ * ``specs/310-comments-visualization/spec.md`` "Shared inclusion-rule
+ * contract (C1)" — this string distills those rules per axis without
+ * re-declaring them.  One icon (not three per-axis) so the disclosure
+ * adds zero pixels to the columnheader tracks (Linux DejaVu header-fit
+ * contract from #341 / #330 stays intact).
+ */
+const COMMENTS_METRICS_C1_TOOLTIP =
+  "Counts apply Feature 310's inclusion rules. Threads include " +
+  "unknown-status threads but exclude deleted ones. Comments include " +
+  "system events; deleted comments are excluded. Unresolved counts " +
+  "only threads still in active status. Comments by users missing " +
+  "from the user table are still counted.";
+
+/**
  * Build the comments-metrics threshold filter bar (FR-3-03 / FR-4-02).
  *
  * Three numeric inputs that compose with AND semantics via
@@ -802,6 +819,10 @@ function advanceSortDirection(current: SortDirection): SortDirection {
  * ``COMMENTS_METRICS_AXES.label`` so the F8 rename ("Unresolved" →
  * "Unresolved threads") propagates consistently to the visible label
  * text and the input's ``aria-label``.
+ *
+ * Issue #332 / B2: a single info-icon adjacent to the "Min:" label
+ * surfaces the C1 inclusion-rule contract via the shared
+ * ``showInfoTooltip`` primitive (same pattern as ``summary-cards``).
  */
 function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
   const filterGroup = createElement("div", {
@@ -816,6 +837,46 @@ function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
       "Min:",
     ),
   );
+  // Issue #332 / B2: info icon for the C1 inclusion-rule disclosure.
+  // Hover (pointerenter / pointerleave) drives the desktop path; click
+  // shows + arms a one-shot document-level dismiss for touch / keyboard
+  // activation, mirroring ``attachInfoIcons`` in summary-cards.ts:690.
+  // Without the document-level listener a click-shown tooltip persists
+  // on outside-click (Codex stop-time review on the initial #332 / B2
+  // pass caught this).  ``event.stopPropagation()`` keeps the icon's
+  // own click from triggering the same listener it just armed; the
+  // ``requestAnimationFrame`` defer keeps the listener inert for the
+  // exact click that opened the tooltip; ``dismissOnce`` removes
+  // itself after firing so no listener leaks across opens.
+  const infoIcon = createElement("button", {
+    type: "button",
+    class: "info-icon-btn",
+    "data-info-tooltip": "comments-metrics-c1",
+    "aria-label": "About these counts",
+  });
+  appendText(infoIcon, "ℹ");
+  infoIcon.addEventListener("pointerenter", () => {
+    showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+  });
+  infoIcon.addEventListener("pointerleave", () => {
+    dismissAllTooltips();
+  });
+  infoIcon.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (document.querySelector(".info-tooltip") !== null) {
+      dismissAllTooltips();
+      return;
+    }
+    showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+    requestAnimationFrame(() => {
+      const dismissOnce = (): void => {
+        dismissAllTooltips();
+        document.removeEventListener("click", dismissOnce);
+      };
+      document.addEventListener("click", dismissOnce);
+    });
+  });
+  filterGroup.appendChild(infoIcon);
   const filterDescriptors: FilterDescriptor[] = [];
   for (const axis of COMMENTS_METRICS_AXES) {
     const label = createElement("label", {
@@ -1450,6 +1511,17 @@ export function dismissDetailPanel(reason: DismissReason): void {
   // renderContent / sectionsRoot children to verify the FR-005 invariant.
   openScopedController?.abort();
   openScopedController = null;
+
+  // Issue #332 / B2: any open info tooltip needs to dismiss when the
+  // panel closes — ``showInfoTooltip`` mounts the tooltip on
+  // ``document.body`` (so it can position-fixed against the viewport),
+  // not as a panel descendant, so the tooltip would otherwise persist
+  // as an orphan after the panel detaches.  Codex stop-time review
+  // caught this on the initial #332 / B2 pass.  Also covers any chart
+  // tooltip that happens to be open against another surface; both are
+  // managed by the same ``dismissAllTooltips`` primitive (mutual
+  // exclusivity contract in ``tooltip-manager.ts``).
+  dismissAllTooltips();
 
   // Focus restoration — target is the context.triggerElement captured on open
   // (FR-008). Fall back to focus-trap's recorded return if somehow unavailable.

@@ -4041,6 +4041,72 @@ var PRInsightsDashboard = (() => {
     );
   }
 
+  // ../ui/modules/tooltip-manager.ts
+  var scrollDismissController = null;
+  function ensureScrollDismissListener() {
+    if (scrollDismissController) return;
+    scrollDismissController = new AbortController();
+    const { signal } = scrollDismissController;
+    const dismiss = () => dismissAllTooltips();
+    window.addEventListener("scroll", dismiss, { signal, passive: true });
+    window.addEventListener("resize", dismiss, { signal, passive: true });
+  }
+  function releaseScrollDismissListener() {
+    scrollDismissController?.abort();
+    scrollDismissController = null;
+  }
+  function dismissAllTooltips() {
+    const chartTooltip = document.querySelector(".chart-tooltip");
+    if (chartTooltip) chartTooltip.remove();
+    const infoTooltip = document.querySelector(".info-tooltip");
+    if (infoTooltip) infoTooltip.remove();
+    releaseScrollDismissListener();
+  }
+  function positionTooltip(tooltip, targetRect) {
+    tooltip.style.visibility = "hidden";
+    tooltip.style.position = "fixed";
+    document.body.appendChild(tooltip);
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 8;
+    let top = targetRect.top - tooltipRect.height - gap;
+    if (top < 0) {
+      top = targetRect.bottom + gap;
+    }
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = window.innerHeight - tooltipRect.height - 4;
+    }
+    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+    if (left < 4) {
+      left = 4;
+    }
+    if (left + tooltipRect.width > window.innerWidth - 4) {
+      left = window.innerWidth - tooltipRect.width - 4;
+    }
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.visibility = "";
+  }
+  function showChartTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "chart-tooltip";
+    renderTrustedHtml(tooltip, content);
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+  function showInfoTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "info-tooltip";
+    tooltip.textContent = content;
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+
   // ../ui/modules/shared/detail-panel.ts
   function isPartialPrRow(row) {
     return row.threadCount === null || row.threadCount === void 0;
@@ -4343,6 +4409,7 @@ var PRInsightsDashboard = (() => {
     if (current === "descending") return "ascending";
     return "none";
   }
+  var COMMENTS_METRICS_C1_TOOLTIP = "Counts apply Feature 310's inclusion rules. Threads include unknown-status threads but exclude deleted ones. Comments include system events; deleted comments are excluded. Unresolved counts only threads still in active status. Comments by users missing from the user table are still counted.";
   function buildCommentsMetricsFilter(list) {
     const filterGroup = createElement("div", {
       class: "detail-panel-pr-list-filter",
@@ -4356,6 +4423,35 @@ var PRInsightsDashboard = (() => {
         "Min:"
       )
     );
+    const infoIcon = createElement("button", {
+      type: "button",
+      class: "info-icon-btn",
+      "data-info-tooltip": "comments-metrics-c1",
+      "aria-label": "About these counts"
+    });
+    appendText(infoIcon, "\u2139");
+    infoIcon.addEventListener("pointerenter", () => {
+      showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+    });
+    infoIcon.addEventListener("pointerleave", () => {
+      dismissAllTooltips();
+    });
+    infoIcon.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (document.querySelector(".info-tooltip") !== null) {
+        dismissAllTooltips();
+        return;
+      }
+      showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
+      requestAnimationFrame(() => {
+        const dismissOnce = () => {
+          dismissAllTooltips();
+          document.removeEventListener("click", dismissOnce);
+        };
+        document.addEventListener("click", dismissOnce);
+      });
+    });
+    filterGroup.appendChild(infoIcon);
     const filterDescriptors = [];
     for (const axis of COMMENTS_METRICS_AXES) {
       const label = createElement("label", {
@@ -4706,6 +4802,7 @@ var PRInsightsDashboard = (() => {
     panelState = "closing";
     openScopedController?.abort();
     openScopedController = null;
+    dismissAllTooltips();
     const trigger = activeContext?.triggerElement ?? null;
     if (focusTrapController) {
       if (trigger && trigger.isConnected) {
@@ -6796,72 +6893,6 @@ var PRInsightsDashboard = (() => {
         }
         break;
     }
-  }
-
-  // ../ui/modules/tooltip-manager.ts
-  var scrollDismissController = null;
-  function ensureScrollDismissListener() {
-    if (scrollDismissController) return;
-    scrollDismissController = new AbortController();
-    const { signal } = scrollDismissController;
-    const dismiss = () => dismissAllTooltips();
-    window.addEventListener("scroll", dismiss, { signal, passive: true });
-    window.addEventListener("resize", dismiss, { signal, passive: true });
-  }
-  function releaseScrollDismissListener() {
-    scrollDismissController?.abort();
-    scrollDismissController = null;
-  }
-  function dismissAllTooltips() {
-    const chartTooltip = document.querySelector(".chart-tooltip");
-    if (chartTooltip) chartTooltip.remove();
-    const infoTooltip = document.querySelector(".info-tooltip");
-    if (infoTooltip) infoTooltip.remove();
-    releaseScrollDismissListener();
-  }
-  function positionTooltip(tooltip, targetRect) {
-    tooltip.style.visibility = "hidden";
-    tooltip.style.position = "fixed";
-    document.body.appendChild(tooltip);
-    const tooltipRect = tooltip.getBoundingClientRect();
-    const gap = 8;
-    let top = targetRect.top - tooltipRect.height - gap;
-    if (top < 0) {
-      top = targetRect.bottom + gap;
-    }
-    if (top + tooltipRect.height > window.innerHeight) {
-      top = window.innerHeight - tooltipRect.height - 4;
-    }
-    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
-    if (left < 4) {
-      left = 4;
-    }
-    if (left + tooltipRect.width > window.innerWidth - 4) {
-      left = window.innerWidth - tooltipRect.width - 4;
-    }
-    tooltip.style.top = `${top}px`;
-    tooltip.style.left = `${left}px`;
-    tooltip.style.visibility = "";
-  }
-  function showChartTooltip(target, content) {
-    dismissAllTooltips();
-    const tooltip = document.createElement("div");
-    tooltip.className = "chart-tooltip";
-    renderTrustedHtml(tooltip, content);
-    tooltip.style.position = "fixed";
-    const rect = target.getBoundingClientRect();
-    positionTooltip(tooltip, rect);
-    ensureScrollDismissListener();
-  }
-  function showInfoTooltip(target, content) {
-    dismissAllTooltips();
-    const tooltip = document.createElement("div");
-    tooltip.className = "info-tooltip";
-    tooltip.textContent = content;
-    tooltip.style.position = "fixed";
-    const rect = target.getBoundingClientRect();
-    positionTooltip(tooltip, rect);
-    ensureScrollDismissListener();
   }
 
   // ../ui/modules/charts.ts

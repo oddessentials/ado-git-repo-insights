@@ -1,3 +1,16 @@
+// jsdom lacks PointerEvent — polyfill matches the shape used by
+// extension/tests/modules/charts/summary-cards-info.test.ts so the
+// pointerenter / pointerleave listeners on the #332 / B2 info icon
+// fire predictably.
+if (typeof PointerEvent === "undefined") {
+  (globalThis as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+      }
+    };
+}
+
 /**
  * Feature 310 consumer-side rendering tests: per-PR comments-metrics columns
  * on the throughput drill-down PR-detail list.
@@ -1719,5 +1732,222 @@ describe("issue #332 / B1 — sort SR-live announcer", () => {
     expect(announcer.textContent).toBe(
       "Sorted by unresolved threads, descending.",
     );
+  });
+});
+
+describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls label", () => {
+  // Locks the contract: when the threshold filter renders (capability-
+  // on, >1 row, !all-partial), exactly one ``.info-icon-btn`` mounts
+  // inside the filter group; pointerenter shows an info tooltip with
+  // the C1 inclusion-rule disclosure; pointerleave dismisses; click
+  // toggles for touch / keyboard.  Suppressed-controls states emit
+  // no icon (the filter itself is absent).
+  const C1_TOOLTIP_TEXT =
+    "Counts apply Feature 310's inclusion rules. Threads include " +
+    "unknown-status threads but exclude deleted ones. Comments include " +
+    "system events; deleted comments are excluded. Unresolved counts " +
+    "only threads still in active status. Comments by users missing " +
+    "from the user table are still counted.";
+
+  function iconSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 1,
+          commentCount: 1,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 2,
+          commentCount: 4,
+          activeThreadCount: 1,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function getIcon(root: HTMLElement): HTMLElement {
+    const icon = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (icon === null)
+      throw new Error("comments-metrics info icon not rendered");
+    // Tooltip positioning reads getBoundingClientRect; provide a
+    // stable rect for jsdom (matches the summary-cards-info pattern).
+    icon.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    return icon;
+  }
+
+  afterEach(() => {
+    document
+      .querySelectorAll(".info-tooltip, .chart-tooltip")
+      .forEach((el) => el.remove());
+  });
+
+  it("mounts exactly one info-icon-btn inside the filter group with type=button + aria-label + ⓘ glyph", () => {
+    const root = openWithPrListSection(iconSection());
+    const filter = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter",
+    );
+    expect(filter).not.toBeNull();
+    const icons = filter!.querySelectorAll(".info-icon-btn");
+    expect(icons).toHaveLength(1);
+    const icon = icons[0]!;
+    expect(icon.tagName).toBe("BUTTON");
+    expect(icon.getAttribute("type")).toBe("button");
+    expect(icon.getAttribute("aria-label")).toBe("About these counts");
+    expect(icon.getAttribute("data-info-tooltip")).toBe("comments-metrics-c1");
+    expect(icon.textContent).toBe("ℹ");
+  });
+
+  it("does NOT mount the info icon in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const icon = root.querySelector(".info-icon-btn");
+      expect({ state: name, icon }).toEqual({ state: name, icon: null });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("pointerenter shows an info tooltip carrying the exact C1 disclosure text", () => {
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip!.textContent).toBe(C1_TOOLTIP_TEXT);
+  });
+
+  it("pointerleave dismisses the open info tooltip", () => {
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("click toggles the info tooltip — first click shows, second click dismisses (touch / keyboard path)", () => {
+    // Exercises BOTH arms of the click-handler ``existing !== null``
+    // check: first click hits the ``null`` arm (no tooltip → show);
+    // second click hits the non-null arm (tooltip exists → dismiss).
+    // Required for partial-branch ratchet coverage.  The two clicks
+    // run synchronously so the rAF-deferred ``dismissOnce`` listener
+    // never attaches; the second click is dismissed by the icon's
+    // own handler via the ``existing !== null`` arm.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const opened = document.querySelector(".info-tooltip");
+    expect(opened).not.toBeNull();
+    expect(opened!.textContent).toBe(C1_TOOLTIP_TEXT);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("clicks outside the icon dismiss an open tooltip via the rAF-deferred document listener (Codex stop-time review)", async () => {
+    // Locks the outside-click dismiss path the initial #332 / B2 pass
+    // missed: a click-shown tooltip persisted indefinitely on outside-
+    // click.  The rAF defer makes the listener inert for the click
+    // that opened the tooltip; we explicitly yield to ``rAF`` here so
+    // the listener is attached before the next dispatch.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+  });
+
+  it("dismissing the panel removes any open info tooltip (Codex stop-time review)", () => {
+    // Locks the panel-teardown contract the initial #332 / B2 pass
+    // missed: ``showInfoTooltip`` mounts the tooltip on
+    // ``document.body``, not the panel itself, so a tooltip opened
+    // before panel close persisted as an orphan.  ``dismissDetailPanel``
+    // now calls ``dismissAllTooltips`` so closing the panel for ANY
+    // reason (escape / outside-click / explicit close / filters
+    // changed / tab changed / comparison toggled) drops the tooltip.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    dismissDetailPanel("explicit-close-button");
+    expect(document.querySelector(".info-tooltip")).toBeNull();
   });
 });
