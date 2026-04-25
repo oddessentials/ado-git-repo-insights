@@ -1950,6 +1950,77 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
     dismissDetailPanel("explicit-close-button");
     expect(document.querySelector(".info-tooltip")).toBeNull();
   });
+
+  // ---------------------------------------------------------------------
+  // Codex PR #343 P2 follow-up: the deferred outside-click dismiss
+  // listener must be cancelled when an alternate dismiss path runs
+  // (pointerleave / second icon click / panel close) BEFORE OR AFTER
+  // the rAF callback fires.  Without canceling both phases (pending
+  // ``rAF`` id + attached AbortController), the next document click
+  // dismisses any tooltip in the DOM — including a chart tooltip the
+  // user just opened on another surface (mutual-exclusivity contract
+  // in ``tooltip-manager.ts``).  The chart-tooltip survival assertion
+  // is the right behavioral proof: if the deferred listener leaked,
+  // the body-click below would dismiss it.
+  // ---------------------------------------------------------------------
+
+  function mountChartTooltipFixture(): void {
+    const tip = document.createElement("div");
+    tip.className = "chart-tooltip";
+    tip.textContent = "chart fixture";
+    document.body.appendChild(tip);
+  }
+
+  it("PRE-rAF pointerleave cancels the pending outside-click frame (chart tooltip survives subsequent body click)", () => {
+    // The rAF callback hasn't fired yet (no ``await`` after the
+    // click), so the AbortController is still null and there's
+    // nothing for ``signal.abort`` to act on — only the pending
+    // ``cancelAnimationFrame`` path can save us here.  This is the
+    // gap the abort-only fix would have left open.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("PRE-rAF panel close cancels the pending outside-click frame (chart tooltip survives across panel re-render)", () => {
+    // Worst-case lifecycle: panel closes BEFORE rAF fires.  Without
+    // the frame cancel, the rAF would still execute later, attach a
+    // document-level listener, and dismiss whatever tooltip the user
+    // opens next on the dashboard.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    dismissDetailPanel("explicit-close-button");
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("POST-rAF pointerleave aborts the attached outside-click listener (chart tooltip survives subsequent body click)", async () => {
+    // ``await rAF`` first so the listener IS attached; this exercises
+    // the abort path on the controller (the frame is already null
+    // after the rAF callback ran), proving the abort branch doesn't
+    // leak when the cancel branch is the no-op.  Together with the
+    // two pre-rAF tests above, both arms of every conditional in
+    // ``clearOutsideClickListener`` are covered.
+    const root = openWithPrListSection(iconSection());
+    const icon = getIcon(root);
+    icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    icon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
 });
 
 describe("issue #332 / B3 — filter feedback summary", () => {

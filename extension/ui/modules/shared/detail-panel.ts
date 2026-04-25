@@ -312,6 +312,33 @@ let comparisonActive = false;
   window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
 }
 
+// Issue #332 / B2 (Codex PR #343 P2 follow-up): module-scope trackers
+// for the deferred outside-click dismiss the C1 info-icon arms when
+// the user clicks (touch / keyboard show path).  Two pieces of state
+// because the listener is armed across two phases — a pending rAF and
+// (after the rAF fires) an attached document-level click listener —
+// and an alternate dismiss path (pointerleave, second icon click,
+// ``dismissDetailPanel``) can interrupt EITHER phase.  Without
+// cancelling BOTH:
+//
+//   - Pre-rAF interrupt with abort-only cleanup: nothing to abort
+//     yet; the rAF still fires later and attaches the stale listener.
+//   - Post-rAF interrupt with frame-cancel-only cleanup: nothing
+//     pending to cancel; the already-attached listener leaks.
+//
+// ``clearOutsideClickListener`` collapses both phases.
+let outsideClickAbort: AbortController | null = null;
+let outsideClickFrame: number | null = null;
+
+function clearOutsideClickListener(): void {
+  outsideClickAbort?.abort();
+  outsideClickAbort = null;
+  if (outsideClickFrame !== null) {
+    cancelAnimationFrame(outsideClickFrame);
+    outsideClickFrame = null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // DOM construction
 // ---------------------------------------------------------------------------
@@ -929,20 +956,32 @@ function buildCommentsMetricsFilter(
   });
   infoIcon.addEventListener("pointerleave", () => {
     dismissAllTooltips();
+    clearOutsideClickListener();
   });
   infoIcon.addEventListener("click", (event) => {
     event.stopPropagation();
     if (document.querySelector(".info-tooltip") !== null) {
       dismissAllTooltips();
+      clearOutsideClickListener();
       return;
     }
     showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
-    requestAnimationFrame(() => {
-      const dismissOnce = (): void => {
-        dismissAllTooltips();
-        document.removeEventListener("click", dismissOnce);
-      };
-      document.addEventListener("click", dismissOnce);
+    // Win-last semantics: if a prior click already armed a frame or
+    // listener that hasn't been cleaned up by an alternate path, drop
+    // it before scheduling the new one so we never have two armed
+    // dismiss paths racing each other.
+    clearOutsideClickListener();
+    outsideClickFrame = requestAnimationFrame(() => {
+      outsideClickFrame = null;
+      outsideClickAbort = new AbortController();
+      document.addEventListener(
+        "click",
+        () => {
+          dismissAllTooltips();
+          clearOutsideClickListener();
+        },
+        { signal: outsideClickAbort.signal, once: true },
+      );
     });
   });
   filterGroup.appendChild(infoIcon);
@@ -1633,7 +1672,16 @@ export function dismissDetailPanel(reason: DismissReason): void {
   // tooltip that happens to be open against another surface; both are
   // managed by the same ``dismissAllTooltips`` primitive (mutual
   // exclusivity contract in ``tooltip-manager.ts``).
+  //
+  // Codex PR #343 P2 follow-up: the deferred outside-click listener
+  // armed by the C1 info-icon click handler must be cancelled here
+  // too — the dismissAllTooltips above only removes tooltip DOM, not
+  // the document-level dismiss listener.  Without this, a panel
+  // closed before the user clicks anywhere leaves a stale listener
+  // that fires on the next dashboard click and clobbers any chart
+  // tooltip the user just opened.
   dismissAllTooltips();
+  clearOutsideClickListener();
 
   // Focus restoration — target is the context.triggerElement captured on open
   // (FR-008). Fall back to focus-trap's recorded return if somehow unavailable.

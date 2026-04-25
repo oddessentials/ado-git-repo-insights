@@ -92,6 +92,16 @@ var PRInsightsSettings = (() => {
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
   }
+  var outsideClickAbort = null;
+  var outsideClickFrame = null;
+  function clearOutsideClickListener() {
+    outsideClickAbort?.abort();
+    outsideClickAbort = null;
+    if (outsideClickFrame !== null) {
+      cancelAnimationFrame(outsideClickFrame);
+      outsideClickFrame = null;
+    }
+  }
   function isDetailPanelOpen() {
     return panelState === "opening" || panelState === "open";
   }
@@ -101,6 +111,7 @@ var PRInsightsSettings = (() => {
     openScopedController?.abort();
     openScopedController = null;
     dismissAllTooltips();
+    clearOutsideClickListener();
     const trigger = activeContext?.triggerElement ?? null;
     if (focusTrapController) {
       if (trigger && trigger.isConnected) {

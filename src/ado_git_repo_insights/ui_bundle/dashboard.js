@@ -4166,6 +4166,16 @@ var PRInsightsDashboard = (() => {
     };
     window.addEventListener(COMPARISON_TOGGLED_EVENT, lifetimeComparisonListener);
   }
+  var outsideClickAbort = null;
+  var outsideClickFrame = null;
+  function clearOutsideClickListener() {
+    outsideClickAbort?.abort();
+    outsideClickAbort = null;
+    if (outsideClickFrame !== null) {
+      cancelAnimationFrame(outsideClickFrame);
+      outsideClickFrame = null;
+    }
+  }
   function ensurePanelEls() {
     if (panelEls && !panelEls.root.isConnected) {
       panelEls = null;
@@ -4445,20 +4455,28 @@ var PRInsightsDashboard = (() => {
     });
     infoIcon.addEventListener("pointerleave", () => {
       dismissAllTooltips();
+      clearOutsideClickListener();
     });
     infoIcon.addEventListener("click", (event) => {
       event.stopPropagation();
       if (document.querySelector(".info-tooltip") !== null) {
         dismissAllTooltips();
+        clearOutsideClickListener();
         return;
       }
       showInfoTooltip(infoIcon, COMMENTS_METRICS_C1_TOOLTIP);
-      requestAnimationFrame(() => {
-        const dismissOnce = () => {
-          dismissAllTooltips();
-          document.removeEventListener("click", dismissOnce);
-        };
-        document.addEventListener("click", dismissOnce);
+      clearOutsideClickListener();
+      outsideClickFrame = requestAnimationFrame(() => {
+        outsideClickFrame = null;
+        outsideClickAbort = new AbortController();
+        document.addEventListener(
+          "click",
+          () => {
+            dismissAllTooltips();
+            clearOutsideClickListener();
+          },
+          { signal: outsideClickAbort.signal, once: true }
+        );
       });
     });
     filterGroup.appendChild(infoIcon);
@@ -4837,6 +4855,7 @@ var PRInsightsDashboard = (() => {
     openScopedController?.abort();
     openScopedController = null;
     dismissAllTooltips();
+    clearOutsideClickListener();
     const trigger = activeContext?.triggerElement ?? null;
     if (focusTrapController) {
       if (trigger && trigger.isConnected) {
