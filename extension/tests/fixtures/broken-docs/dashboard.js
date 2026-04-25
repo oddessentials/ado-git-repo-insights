@@ -4410,7 +4410,17 @@ var PRInsightsDashboard = (() => {
     return "none";
   }
   var COMMENTS_METRICS_C1_TOOLTIP = "Counts apply Feature 310's inclusion rules. Threads include unknown-status threads but exclude deleted ones. Comments include system events; deleted comments are excluded. Unresolved counts only threads still in active status. Comments by users missing from the user table are still counted.";
-  function buildCommentsMetricsFilter(list) {
+  function formatFilterSummary(context, hasActiveThreshold, visibleNumeric) {
+    if (!hasActiveThreshold) {
+      return `Showing all ${context.totalRows} PRs.`;
+    }
+    if (context.partialRowCount === 0) {
+      return `Showing ${visibleNumeric} of ${context.numericTotal} PRs.`;
+    }
+    const noun = context.partialRowCount === 1 ? "row" : "rows";
+    return `Showing ${visibleNumeric} of ${context.numericTotal} PRs. ${context.partialRowCount} partial ${noun} hidden by filter.`;
+  }
+  function buildCommentsMetricsFilter(list, context) {
     const filterGroup = createElement("div", {
       class: "detail-panel-pr-list-filter",
       role: "group",
@@ -4452,6 +4462,12 @@ var PRInsightsDashboard = (() => {
       });
     });
     filterGroup.appendChild(infoIcon);
+    const summary = createElement("p", {
+      class: "detail-panel-pr-list-filter-summary",
+      role: "status",
+      "aria-live": "polite"
+    });
+    appendText(summary, formatFilterSummary(context, false, 0));
     const filterDescriptors = [];
     for (const axis of COMMENTS_METRICS_AXES) {
       const label = createElement("label", {
@@ -4468,13 +4484,13 @@ var PRInsightsDashboard = (() => {
       const descriptor = { input, dataAttr: axis.dataAttr };
       input.addEventListener(
         "input",
-        () => applyFilters(list, filterDescriptors)
+        () => applyFilters(list, filterDescriptors, summary, context)
       );
       label.appendChild(input);
       filterGroup.appendChild(label);
       filterDescriptors.push(descriptor);
     }
-    return filterGroup;
+    return { filterGroup, summary };
   }
   function applySort(list, dataAttr, direction, originalOrder) {
     if (direction === "none") {
@@ -4494,7 +4510,7 @@ var PRInsightsDashboard = (() => {
     });
     for (const item of items) list.appendChild(item);
   }
-  function applyFilters(list, descriptors) {
+  function applyFilters(list, descriptors, summary, context) {
     const thresholds = [];
     for (const desc of descriptors) {
       const raw = desc.input.value.trim();
@@ -4503,6 +4519,8 @@ var PRInsightsDashboard = (() => {
       if (parsed < 0) continue;
       thresholds.push([desc.dataAttr, parsed]);
     }
+    const hasActiveThreshold = thresholds.length > 0;
+    let visibleNumeric = 0;
     for (const child of list.querySelectorAll("li")) {
       let hidden = false;
       for (const [dataAttr, threshold] of thresholds) {
@@ -4520,8 +4538,18 @@ var PRInsightsDashboard = (() => {
         child.setAttribute("hidden", "");
       } else {
         child.removeAttribute("hidden");
+        if (!child.hasAttribute("data-partial")) {
+          visibleNumeric++;
+        }
       }
     }
+    const nextText = formatFilterSummary(
+      context,
+      hasActiveThreshold,
+      visibleNumeric
+    );
+    summary.textContent = "";
+    summary.textContent = nextText;
   }
   function renderPrListSection(section) {
     const wrapper = createElement("section", {
@@ -4628,7 +4656,13 @@ var PRInsightsDashboard = (() => {
           })
         );
         if (sortRowElements !== null) {
-          wrapper.appendChild(buildCommentsMetricsFilter(list));
+          const filterControls = buildCommentsMetricsFilter(list, {
+            totalRows: rows.length,
+            numericTotal: rows.length - partialRowCount,
+            partialRowCount
+          });
+          wrapper.appendChild(filterControls.filterGroup);
+          wrapper.appendChild(filterControls.summary);
         }
         for (const li of rowElements) {
           list.appendChild(li);

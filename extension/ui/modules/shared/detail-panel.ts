@@ -811,6 +811,67 @@ const COMMENTS_METRICS_C1_TOOLTIP =
   "from the user table are still counted.";
 
 /**
+ * Slice-level metadata the filter feedback summary (#332 / B3) needs
+ * to derive its copy.  All three counts are pre-computed by
+ * ``renderPrListSection`` from the ``rows`` array and the existing
+ * ``partialRowCount`` it already tracks for the coverage notice; this
+ * struct just wires them through to ``applyFilters`` without giving
+ * the filter logic a dependency on the full row list.
+ */
+interface FilterSummaryContext {
+  /** Total rows in the slice (numeric + partial). */
+  readonly totalRows: number;
+  /** Numeric rows in the slice (denominator for "X of Y"). */
+  readonly numericTotal: number;
+  /** Partial-sentinel rows in the slice — hidden whenever any
+   *  threshold is active per FR-3-05. */
+  readonly partialRowCount: number;
+}
+
+/**
+ * Issue #332 / B3: the threshold filter's slice-level feedback
+ * summary.  ``filterGroup`` and ``summary`` are returned together so
+ * the caller can mount them as siblings between the header and the
+ * ``<ol>`` (summary AFTER the filter row).  The summary is its own
+ * polite live region — distinct from the sort announcer (#332 / B1)
+ * because the two surface different events (sort direction vs filter
+ * visibility); SR engines queue back-to-back polite announcements so
+ * mutual exclusivity isn't required.
+ */
+interface FilterControls {
+  readonly filterGroup: HTMLElement;
+  readonly summary: HTMLElement;
+}
+
+/**
+ * Format the filter-feedback summary copy (#332 / B3).
+ *
+ * Three branches, all signed off:
+ *   - No threshold active → ``Showing all {totalRows} PRs.``
+ *   - Threshold active, no partials in slice → ``Showing {visibleNumeric} of {numericTotal} PRs.``
+ *   - Threshold active, partials in slice → adds
+ *     ``{partialRowCount} partial row(s) hidden by filter.`` on the
+ *     same line (singular when ``partialRowCount === 1``).
+ */
+function formatFilterSummary(
+  context: FilterSummaryContext,
+  hasActiveThreshold: boolean,
+  visibleNumeric: number,
+): string {
+  if (!hasActiveThreshold) {
+    return `Showing all ${context.totalRows} PRs.`;
+  }
+  if (context.partialRowCount === 0) {
+    return `Showing ${visibleNumeric} of ${context.numericTotal} PRs.`;
+  }
+  const noun = context.partialRowCount === 1 ? "row" : "rows";
+  return (
+    `Showing ${visibleNumeric} of ${context.numericTotal} PRs. ` +
+    `${context.partialRowCount} partial ${noun} hidden by filter.`
+  );
+}
+
+/**
  * Build the comments-metrics threshold filter bar (FR-3-03 / FR-4-02).
  *
  * Three numeric inputs that compose with AND semantics via
@@ -823,8 +884,16 @@ const COMMENTS_METRICS_C1_TOOLTIP =
  * Issue #332 / B2: a single info-icon adjacent to the "Min:" label
  * surfaces the C1 inclusion-rule contract via the shared
  * ``showInfoTooltip`` primitive (same pattern as ``summary-cards``).
+ *
+ * Issue #332 / B3: returns a ``summary`` element alongside the filter
+ * group — a polite live region whose copy reflects how many PRs are
+ * shown, how many are hidden by the threshold, and how many partial
+ * rows were swept by FR-3-05's any-threshold-hides-partials rule.
  */
-function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
+function buildCommentsMetricsFilter(
+  list: HTMLOListElement,
+  context: FilterSummaryContext,
+): FilterControls {
   const filterGroup = createElement("div", {
     class: "detail-panel-pr-list-filter",
     role: "group",
@@ -877,6 +946,15 @@ function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
     });
   });
   filterGroup.appendChild(infoIcon);
+  // Issue #332 / B3: feedback summary mounted as a sibling of the
+  // filter group; built here so it shares a closure with
+  // ``filterDescriptors`` and the per-input ``applyFilters`` call.
+  const summary = createElement("p", {
+    class: "detail-panel-pr-list-filter-summary",
+    role: "status",
+    "aria-live": "polite",
+  });
+  appendText(summary, formatFilterSummary(context, false, 0));
   const filterDescriptors: FilterDescriptor[] = [];
   for (const axis of COMMENTS_METRICS_AXES) {
     const label = createElement("label", {
@@ -892,13 +970,13 @@ function buildCommentsMetricsFilter(list: HTMLOListElement): HTMLElement {
     });
     const descriptor: FilterDescriptor = { input, dataAttr: axis.dataAttr };
     input.addEventListener("input", () =>
-      applyFilters(list, filterDescriptors),
+      applyFilters(list, filterDescriptors, summary, context),
     );
     label.appendChild(input);
     filterGroup.appendChild(label);
     filterDescriptors.push(descriptor);
   }
-  return filterGroup;
+  return { filterGroup, summary };
 }
 
 /** One filter input + its data attribute, paired at build time. */
@@ -955,6 +1033,8 @@ function applySort(
 function applyFilters(
   list: HTMLOListElement,
   descriptors: readonly FilterDescriptor[],
+  summary: HTMLElement,
+  context: FilterSummaryContext,
 ): void {
   const thresholds: Array<readonly [string, number]> = [];
   for (const desc of descriptors) {
@@ -970,6 +1050,8 @@ function applyFilters(
     if (parsed < 0) continue;
     thresholds.push([desc.dataAttr, parsed]);
   }
+  const hasActiveThreshold = thresholds.length > 0;
+  let visibleNumeric = 0;
   for (const child of list.querySelectorAll<HTMLLIElement>("li")) {
     let hidden = false;
     for (const [dataAttr, threshold] of thresholds) {
@@ -989,8 +1071,26 @@ function applyFilters(
       child.setAttribute("hidden", "");
     } else {
       child.removeAttribute("hidden");
+      // Issue #332 / B3: count visible NUMERIC rows (partial rows
+      // are excluded under FR-3-05 the moment any threshold is active,
+      // so they cannot reach this branch when ``hasActiveThreshold``;
+      // when no threshold is active they ARE visible but we suppress
+      // the "X of Y" copy in that path so visibleNumeric is unused).
+      if (!child.hasAttribute("data-partial")) {
+        visibleNumeric++;
+      }
     }
   }
+  // Issue #332 / B3: refresh the live summary.  Two-step "" → text so
+  // the polite region announces every transition (matches the sort
+  // announcer #332/B1 + loading-state.ts dashboard-banner pattern).
+  const nextText = formatFilterSummary(
+    context,
+    hasActiveThreshold,
+    visibleNumeric,
+  );
+  summary.textContent = "";
+  summary.textContent = nextText;
 }
 
 /**
@@ -1270,7 +1370,19 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         }),
       );
       if (sortRowElements !== null) {
-        wrapper.appendChild(buildCommentsMetricsFilter(list));
+        // Issue #332 / B3: filter group + feedback summary mount as
+        // siblings of the wrapper, summary AFTER the filter row so
+        // the natural reading / SR-walk order is filter → summary →
+        // list.  Slice metadata derived from the same
+        // ``partialRowCount`` already used by the coverage notice
+        // (#331 / C2 + C3) above.
+        const filterControls = buildCommentsMetricsFilter(list, {
+          totalRows: rows.length,
+          numericTotal: rows.length - partialRowCount,
+          partialRowCount,
+        });
+        wrapper.appendChild(filterControls.filterGroup);
+        wrapper.appendChild(filterControls.summary);
       }
       for (const li of rowElements) {
         list.appendChild(li);

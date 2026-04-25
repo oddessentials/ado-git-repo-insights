@@ -1951,3 +1951,266 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
     expect(document.querySelector(".info-tooltip")).toBeNull();
   });
 });
+
+describe("issue #332 / B3 — filter feedback summary", () => {
+  // Locks the contract: when the threshold filter renders, a polite
+  // ``role=status`` paragraph mounts as a sibling of the filter group
+  // (between filter and ``<ol>``) and reports "Showing all N PRs." /
+  // "Showing X of Y PRs." / "...P partial row(s) hidden by filter."
+  // depending on filter activity and slice partial-row count.
+  function getSummary(root: HTMLElement): HTMLElement {
+    const el = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter-summary",
+    );
+    if (el === null) throw new Error("filter feedback summary not rendered");
+    return el;
+  }
+
+  function setFilter(root: HTMLElement, key: string, value: string): void {
+    const input = root.querySelector<HTMLInputElement>(
+      `input[data-filter-key="${key}"]`,
+    );
+    if (input === null) throw new Error(`filter input ${key} not found`);
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function noPartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 4,
+          threadCount: 7,
+          commentCount: 4,
+          activeThreadCount: 2,
+        }),
+      ],
+      renderedCount: 4,
+      actualFilteredCount: 4,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function multiPartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 5,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 4,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 5,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 5,
+      actualFilteredCount: 5,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  function singlePartialSection(): PrListSection {
+    return makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 3,
+          commentCount: 12,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+  }
+
+  it("mounts a role=status aria-live=polite summary between the filter and the list with the no-filter copy", () => {
+    const root = openWithPrListSection(noPartialSection());
+    const summary = getSummary(root);
+    expect(summary.tagName).toBe("P");
+    expect(summary.getAttribute("role")).toBe("status");
+    expect(summary.getAttribute("aria-live")).toBe("polite");
+    expect(summary.textContent).toBe("Showing all 4 PRs.");
+    // DOM order: filter group → summary → <ol>.  Reading / SR walk
+    // sequence is filter → state → list.
+    const wrapper = summary.parentElement!;
+    const children = Array.from(wrapper.children);
+    const filterIdx = children.findIndex((c) =>
+      c.classList.contains("detail-panel-pr-list-filter"),
+    );
+    const summaryIdx = children.indexOf(summary);
+    const listIdx = children.findIndex((c) =>
+      c.classList.contains("detail-panel-pr-list"),
+    );
+    expect(filterIdx).toBeGreaterThan(-1);
+    expect(summaryIdx).toBe(filterIdx + 1);
+    expect(listIdx).toBe(summaryIdx + 1);
+  });
+
+  it("does NOT mount the summary in suppressed-controls states (cap-off / single-row / all-partial)", () => {
+    const states: ReadonlyArray<{ name: string; section: PrListSection }> = [
+      {
+        name: "capability-off",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: false,
+        }),
+      },
+      {
+        name: "capability-on single-row (#330 / C5)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: 5,
+              commentCount: 17,
+              activeThreadCount: 2,
+            }),
+          ],
+          renderedCount: 1,
+          actualFilteredCount: 1,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+      {
+        name: "capability-on all-partial (#331 / C2)",
+        section: makePrListSection({
+          contentState: "pr-list",
+          rows: [
+            buildRow({
+              id: 1,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+            buildRow({
+              id: 2,
+              threadCount: null,
+              commentCount: null,
+              activeThreadCount: null,
+            }),
+          ],
+          renderedCount: 2,
+          actualFilteredCount: 2,
+          capValue: 500,
+          commentsMetricsAvailable: true,
+        }),
+      },
+    ];
+    for (const { name, section } of states) {
+      const root = openWithPrListSection(section);
+      const summary = root.querySelector(
+        ".detail-panel-pr-list-filter-summary",
+      );
+      expect({ state: name, summary }).toEqual({ state: name, summary: null });
+      dismissDetailPanel("explicit-close-button");
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("active threshold on a no-partials slice → 'Showing X of Y PRs.'", () => {
+    const root = openWithPrListSection(noPartialSection());
+    setFilter(root, "threads", "3");
+    // Numeric rows passing threads >= 3: ids 2 (3), 3 (5), 4 (7).
+    expect(getSummary(root).textContent).toBe("Showing 3 of 4 PRs.");
+  });
+
+  it("clearing the filter on a slice with partial rows reverts to 'Showing all N PRs.'", () => {
+    // Crosses the active → inactive transition, exercising the
+    // ``!hasActiveThreshold`` true arm AFTER ``applyFilters`` has run
+    // (initial state hits it via ``formatFilterSummary`` directly).
+    // The partial rows in the slice exercise the
+    // ``!child.hasAttribute("data-partial")`` false arm of the
+    // visible-numeric counter on the cleared-filter pass.
+    const root = openWithPrListSection(multiPartialSection());
+    setFilter(root, "threads", "3");
+    expect(getSummary(root).textContent).toContain("Showing");
+    setFilter(root, "threads", "");
+    expect(getSummary(root).textContent).toBe("Showing all 5 PRs.");
+  });
+
+  it("active threshold on a slice with multiple partial rows → '...P partial rows hidden by filter.' (plural)", () => {
+    const root = openWithPrListSection(multiPartialSection());
+    setFilter(root, "threads", "3");
+    // Numeric rows passing threads >= 3: ids 2 (3), 3 (5).
+    // Numeric total = 3 (ids 1, 2, 3); partial rows = 2 (ids 4, 5).
+    expect(getSummary(root).textContent).toBe(
+      "Showing 2 of 3 PRs. 2 partial rows hidden by filter.",
+    );
+  });
+
+  it("active threshold on a slice with exactly one partial row → 'partial row' (singular)", () => {
+    const root = openWithPrListSection(singlePartialSection());
+    setFilter(root, "threads", "1");
+    // Numeric rows passing threads >= 1: id 2 (3).
+    // Numeric total = 2 (ids 1, 2); partial = 1 (id 3).
+    expect(getSummary(root).textContent).toBe(
+      "Showing 1 of 2 PRs. 1 partial row hidden by filter.",
+    );
+  });
+});
