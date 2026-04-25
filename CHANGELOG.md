@@ -1,3 +1,16 @@
+## [101.17.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.1...v101.17.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **drilldown:** drop dead-code rowElements guard ([#342](https://github.com/oddessentials/ado-git-repo-insights/issues/342)) ([fdfe790](https://github.com/oddessentials/ado-git-repo-insights/commit/fdfe7901fdd664e8c1af0ff857c5e0049aed24a4))
+* **drilldown:** label capability-off PR cycle column ([#342](https://github.com/oddessentials/ado-git-repo-insights/issues/342)) ([406263f](https://github.com/oddessentials/ado-git-repo-insights/commit/406263f662b6bb355eaf8451d9d450a90f9963be)), closes [#9](https://github.com/oddessentials/ado-git-repo-insights/issues/9) [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331)
+* **drilldown:** label suppressed-sort metric columns + restore F8 ([#342](https://github.com/oddessentials/ado-git-repo-insights/issues/342)) ([b563c45](https://github.com/oddessentials/ado-git-repo-insights/commit/b563c459210578a06b964a78cfdf53c19d235f36)), closes [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330) [#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331)
+* **drilldown:** partial-state honesty + header-fit recovery ([#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331), [#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330)) ([9933b6e](https://github.com/oddessentials/ado-git-repo-insights/commit/9933b6ec07eafd2ab75eb7d1a36e400128831d13)), closes [#9](https://github.com/oddessentials/ado-git-repo-insights/issues/9)
+* **drilldown:** preserve PR identity on partial-row a11y label ([#331](https://github.com/oddessentials/ado-git-repo-insights/issues/331) / A2) ([f4d1c30](https://github.com/oddessentials/ado-git-repo-insights/commit/f4d1c300252022e814ef8380101f6c426ea1f888)), closes [#42](https://github.com/oddessentials/ado-git-repo-insights/issues/42)
+* **drilldown:** treat undefined comment metrics as partial ([#342](https://github.com/oddessentials/ado-git-repo-insights/issues/342)) ([28ab7a9](https://github.com/oddessentials/ado-git-repo-insights/commit/28ab7a9497a25bde63d46357a6273bc1c0fad563))
+* **drilldown:** widen UNRESOLVED track for Ubuntu font fallback ([#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330)) ([acd1ae8](https://github.com/oddessentials/ado-git-repo-insights/commit/acd1ae8f6eda9a95eb14151280317400320f6f5b))
+
 ## [101.17.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.0...v101.17.1) (2026-04-25)
 
 
