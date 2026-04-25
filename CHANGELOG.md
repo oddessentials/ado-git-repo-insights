@@ -1,3 +1,12 @@
+## [101.17.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.0...v101.17.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **drilldown:** comments-metrics edge guards + responsive layout ([#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330)) ([6a221c0](https://github.com/oddessentials/ado-git-repo-insights/commit/6a221c045557e87db2e2af8d84ab5c305cac6920))
+* **drilldown:** header-driven column tracks to stop header collision ([#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330)) ([b1f198c](https://github.com/oddessentials/ado-git-repo-insights/commit/b1f198cdb9eb045300a591f5c4d3b037b671b90c))
+* **drilldown:** tighten desktop tracks to restore PR-title space ([#330](https://github.com/oddessentials/ado-git-repo-insights/issues/330)) ([ff9cbb2](https://github.com/oddessentials/ado-git-repo-insights/commit/ff9cbb2dc06785340ba6bf55235786c524d9b2df))
+
 # [101.17.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.16.0...v101.17.0) (2026-04-24)
 
 
