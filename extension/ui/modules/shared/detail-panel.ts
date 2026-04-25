@@ -99,6 +99,33 @@ export interface PrListRow {
 }
 
 /**
+ * Coverage-partial discriminator for a {@link PrListRow}.
+ *
+ * Returns ``true`` when the row carries no comments-metrics data — either:
+ *
+ *   - ``null``: covered PR with ``comments_extracted_at IS NULL`` (INV-10
+ *     coverage-partial sentinel — the documented producer state).
+ *   - ``undefined``: capability-off-passthrough leak.  Per the producer
+ *     comment in throughput-drilldown.ts (``installThroughputDrilldown``,
+ *     "supported" branch) the consumer is the contract enforcer for
+ *     partial detection — the producer hands ``pr.thread_count`` straight
+ *     through without normalising ``undefined`` to ``null``.  Every
+ *     consumer site (renderer + stat-row aggregate) MUST honour both
+ *     shapes identically or partial-state UI surfaces drift apart (issue
+ *     #342 review finding: ``buildCommentsStatRow`` previously counted
+ *     only ``=== null`` and rendered ``0`` on slices where the per-row
+ *     panel showed ``———`` and the coverage notice said "none of these
+ *     PRs have comment data yet").
+ *
+ * Per INV-08 (triplet atomicity — all three values arrive together or
+ * not at all) ``threadCount`` alone is a sufficient discriminator; no
+ * cross-field check is required.
+ */
+export function isPartialPrRow(row: PrListRow): boolean {
+  return row.threadCount === null || row.threadCount === undefined;
+}
+
+/**
  * Feature 060: stable PR-detail container on the throughput drill-down panel.
  *
  * The single section MUST render across four content states without being
@@ -467,7 +494,7 @@ const COMMENTS_METRICS_AXES: readonly {
    * the data column reserved for 1–3-digit counts.  The full form
    * is still surfaced to mouse + assistive-tech users via the
    * ``title`` and ``aria-label`` attributes set in
-   * ``buildCommentsMetricsHeader`` — sighted users lose nothing
+   * ``buildPrListHeader`` — sighted users lose nothing
    * meaningful; screen readers hear the disambiguated phrase the
    * F8 rename was meant to convey.
    */
@@ -507,35 +534,85 @@ function readMetricValue(li: HTMLLIElement, dataAttr: string): number | null {
 }
 
 /**
- * Build the comments-metrics column header row (FR-3-02 / FR-4-02 / F1 / F4).
+ * Build the PR-list column header row.
  *
- * Emits a grid row with five ``role="columnheader"`` cells above the PR
- * ``<ol>`` — two non-interactive labels (``PR``, ``Cycle``) followed by
- * three sort-triggering cells carrying a ``<button data-sort-key>``
- * each (``Threads``, ``Comments``, ``Unresolved threads``).  Clicking a
- * sort button cycles ``aria-sort`` ``none → descending → ascending →
- * none`` on the enclosing cell; clicking a different axis resets the
- * previously-active cell to ``none`` (single active sort axis at a
- * time).
+ * Always emits a grid row with two non-interactive ``role="columnheader"``
+ * cells (``PR``, ``Cycle``) — used by every state of the drill-down list,
+ * including capability-off, where it labels the cycle-time number that
+ * was previously a context-less duration beside the PR link (issue #342
+ * review finding; the SC-03 byte-identical pre-310 baseline preserved
+ * the missing label as an accidental shape, not a positive invariant).
  *
- * ``originalOrder`` is the snapshot of ``<li>`` elements in the
- * aggregator-default sequence — captured by ``renderPrListSection``
+ * When ``options.sortRowElements`` is non-null, the header gets the
+ * ``--with-comments`` modifier class and three additional sort-triggering
+ * columnheader cells carrying a ``<button data-sort-key>`` each
+ * (``Threads``, ``Comments``, ``Unresolved threads``) — FR-3-02 / FR-4-02
+ * / F1 / F4.  Clicking a sort button cycles ``aria-sort``
+ * ``none → descending → ascending → none`` on the enclosing cell;
+ * clicking a different axis resets the previously-active cell to
+ * ``none`` (single active sort axis at a time).
+ *
+ * ``options.sortRowElements`` is the snapshot of ``<li>`` elements in
+ * the aggregator-default sequence — captured by ``renderPrListSection``
  * before the rows are appended to ``list``.  The unsorted state (third
  * click on the active header) restores this sequence verbatim via
  * ``list.appendChild(item)`` on each element in order; ``appendChild``
  * moves rather than duplicates DOM nodes, so the restored DOM is
- * byte-stable across any sequence of interactions.
+ * byte-stable across any sequence of interactions.  ``null`` here means
+ * "skip sort cells" — capability-off, single-row capability-on (issue
+ * #330 / C5), or all-partial capability-on (issue #331 / C2).
  *
  * Partial-sentinel rows (``data-<key>`` absent) sort to the END
  * regardless of direction — matches FR-3-05's "partials are not
  * comparable" rule in the sort context as well as the filter context.
  */
-function buildCommentsMetricsHeader(
+function buildPrListHeader(
   list: HTMLOListElement,
-  originalOrder: readonly HTMLLIElement[],
+  options: {
+    readonly commentsMetricsAvailable: boolean;
+    readonly sortRowElements: readonly HTMLLIElement[] | null;
+  },
 ): HTMLElement {
+  // Issue #342: capability-off used to render a bare <a> + <span
+  // class="cycle-time"> per row with NO header at all (the previous
+  // SC-03 "byte-identical to pre-310" baseline).  That preserved an
+  // unlabeled floating duration number beside every PR title.
+  // Feature 310 added a labeled header on the capability-on path,
+  // which made the capability-off gap obvious by contrast.
+  //
+  // Two-axis matrix, both flags resolved at the caller in
+  // ``renderPrListSection`` and threaded through this function:
+  //
+  //   commentsMetricsAvailable  | sortRowElements | shape rendered
+  //   --------------------------|-----------------|----------------
+  //   false                     | null            | 2-cell PR | Cycle
+  //   true                      | null            | 5-cell PR | Cycle |
+  //                             |                 |   Threads | Comments |
+  //                             |                 |   Unresolved (no
+  //                             |                 |   buttons, no
+  //                             |                 |   aria-sort)
+  //   true                      | non-null        | 5-cell with sort
+  //                             |                 |   buttons + aria-
+  //                             |                 |   sort wired up
+  //
+  // Codex stop-time review on commit 406263f6 caught the missing
+  // middle row: the prior implementation gated BOTH the comments-
+  // metrics columnheader cells AND the ``--with-comments`` modifier
+  // on ``sortRowElements`` non-null.  In the suppressed-sort capability-
+  // on states (single-row — issue #330 / C5; all-partial — issue
+  // #331 / C2) the rows still render three metric spans (5 grid
+  // tracks via ``.detail-panel-pr-list--with-comments .detail-panel-
+  // pr-row``), so a 2-cell header left the Threads / Comments /
+  // Unresolved columns visible but unlabeled.  The capability gate
+  // is now decoupled: ``commentsMetricsAvailable`` decides whether
+  // the THREE columns + modifier emit; ``sortRowElements`` decides
+  // whether those columns carry interactive sort buttons.
+  const { commentsMetricsAvailable, sortRowElements } = options;
+  const withSortButtons = sortRowElements !== null;
   const header = createElement("div", {
-    class: "detail-panel-pr-list-header",
+    class: commentsMetricsAvailable
+      ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments"
+      : "detail-panel-pr-list-header",
     role: "row",
   });
 
@@ -562,27 +639,71 @@ function buildCommentsMetricsHeader(
     ),
   );
 
-  // Collect per-axis cell + state into records.  Iterating records in
-  // the click handler (instead of going through Maps keyed by axis key)
-  // keeps every cell/state access statically known to be defined — no
-  // ``Map.get()`` fallback arms are needed, which keeps the function
-  // free of partial-branch debt.
+  if (!commentsMetricsAvailable) return header;
+
+  // Comments-metrics columnheader cells.  When ``withSortButtons`` is
+  // true, each cell carries an interactive ``<button data-sort-key>``
+  // and ``aria-sort="none"``; otherwise the cell renders the plain
+  // ``headerLabel`` text (with ``title`` for disambiguated axes) and
+  // omits ``aria-sort`` entirely so screen readers don't announce a
+  // sortable column that can't be sorted.  Either way, the cell is
+  // present so the row's metric spans line up under labeled columns.
+
+  // Collect per-axis cell + state into records (only used when sort
+  // buttons are wired).  Iterating records in the click handler
+  // (instead of going through Maps keyed by axis key) keeps every
+  // cell/state access statically known to be defined — no ``Map.get()``
+  // fallback arms are needed, which keeps the function free of
+  // partial-branch debt.
   const records: SortHeaderRecord[] = [];
 
   for (const axis of COMMENTS_METRICS_AXES) {
-    const cell = createElement("div", {
+    const cellAttrs: Record<string, string> = {
       class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
       role: "columnheader",
-      "aria-sort": "none",
-    });
-    // Visible textContent is the SHORT ``headerLabel`` so the button
-    // fits inside the narrow numeric column.  ``title`` exposes the
-    // full disambiguated label on hover; ``aria-label`` overrides the
-    // visible text for screen readers so they always announce the
-    // disambiguating phrase regardless of which axis is rendered.
-    // ``title`` is only set when ``headerLabel`` actually differs from
-    // ``label`` so axes with already-fitting labels (Threads, Comments)
-    // don't get a noise tooltip identical to their visible text.
+    };
+    if (withSortButtons) {
+      cellAttrs["aria-sort"] = "none";
+    }
+    const cell = createElement("div", cellAttrs);
+
+    if (!withSortButtons) {
+      // Plain text cell — preserve the F8 three-surface disambiguation
+      // contract that the sort-button path applies (Codex stop-time
+      // review caught the regression on the prior pass).  When
+      // ``headerLabel`` differs from ``label`` (today: only the
+      // unresolved column, "Unresolved" visible vs. "Unresolved
+      // threads" disambiguated), the cell carries:
+      //   - ``headerLabel`` as visible textContent (fits the narrow
+      //     numeric track)
+      //   - ``title`` = ``label`` (hover surfaces the long form for
+      //     mouse users)
+      //   - ``aria-label`` = ``label`` (overrides the columnheader's
+      //     accessible name so SR users hear the unambiguous phrase
+      //     instead of the truncated visible text — matches what the
+      //     button path achieves via its own ``aria-label``)
+      // When ``headerLabel === label`` (Threads, Comments) the visible
+      // text already serves as accessible name; no extra attributes
+      // are added.  No "Sort by " prefix on aria-label here since
+      // this cell carries no sort action.
+      if (axis.headerLabel !== axis.label) {
+        cell.setAttribute("title", axis.label);
+        cell.setAttribute("aria-label", axis.label);
+      }
+      appendText(cell, axis.headerLabel);
+      header.appendChild(cell);
+      continue;
+    }
+
+    // Interactive sort cell.  Visible textContent is the SHORT
+    // ``headerLabel`` so the button fits inside the narrow numeric
+    // column.  ``title`` exposes the full disambiguated label on
+    // hover; ``aria-label`` overrides the visible text for screen
+    // readers so they always announce the disambiguating phrase
+    // regardless of which axis is rendered.  ``title`` is only set
+    // when ``headerLabel`` actually differs from ``label`` so axes
+    // with already-fitting labels (Threads, Comments) don't get a
+    // noise tooltip identical to their visible text.
     const button = createElement("button", {
       type: "button",
       class: "detail-panel-pr-list-header-sort",
@@ -598,6 +719,10 @@ function buildCommentsMetricsHeader(
     const record: SortHeaderRecord = { axis, cell, state: "none" };
     records.push(record);
 
+    // ``sortRowElements`` is non-null inside this branch — narrow it
+    // to a local ``readonly HTMLLIElement[]`` for use inside the
+    // closure below.
+    const originalOrder = sortRowElements;
     button.addEventListener("click", () => {
       const nextDirection = advanceSortDirection(record.state);
       // Clear every other record's aria-sort to "none" so only one axis
@@ -817,6 +942,22 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         commentsMetricsAvailable,
       } = section;
 
+      // Issue #331 / C2 + C3: pre-compute the slice-level partial
+      // state up front so the truncation-badge disclosure (below),
+      // the coverage notice (further below), and the header/filter
+      // emit gate all read from the same single source of truth.
+      // ``isPartialPrRow`` (defined above) is the shared discriminator
+      // used by every consumer — including ``buildCommentsStatRow``
+      // in throughput-drilldown.ts — so all surfaces stay aligned on
+      // both ``null`` (INV-10 coverage-partial sentinel) and
+      // ``undefined`` (capability-off-passthrough leak) shapes
+      // (issue #342 review finding).
+      const partialRowCount = commentsMetricsAvailable
+        ? rows.filter(isPartialPrRow).length
+        : 0;
+      const allRowsPartial =
+        partialRowCount > 0 && partialRowCount === rows.length;
+
       if (renderedCount < actualFilteredCount) {
         const indicator = createElement("div", {
           class: "truncation-indicator truncation-badge",
@@ -829,10 +970,15 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         // outside the top-500-by-cycle-time window.  Capability-off
         // has no such sort/filter surface, so the pre-310 literal is
         // preserved byte-for-byte to keep SC-03 / INV-01 intact.
+        //
+        // Issue #331 / C2: drop the slice-scope sentence on all-
+        // partial slices — the sort/filter controls are suppressed
+        // there (see emit gate below), so the disclosure would
+        // promise an interaction that never lands.
         const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
         appendText(
           indicator,
-          commentsMetricsAvailable
+          commentsMetricsAvailable && !allRowsPartial
             ? `${base}. Sort and filter operate within this slice.`
             : base,
         );
@@ -852,10 +998,11 @@ function renderPrListSection(section: PrListSection): HTMLElement {
       });
       // Feature 310: build row `<li>` elements into an array BEFORE
       // appending to ``list``.  The array doubles as the original-order
-      // snapshot passed to ``buildCommentsMetricsHeader`` for
-      // unsorted-state restoration (third click on the active column
-      // header).  Capturing here (rather than sampling ``list.children``
-      // later) locks the snapshot to the aggregator-default sequence.
+      // snapshot passed to ``buildPrListHeader`` (via
+      // ``options.sortRowElements``) for unsorted-state restoration
+      // (third click on the active column header).  Capturing here
+      // (rather than sampling ``list.children`` later) locks the
+      // snapshot to the aggregator-default sequence.
       const rowElements: HTMLLIElement[] = [];
       for (const row of rows) {
         const li = createElement("li", { class: "detail-panel-pr-row" });
@@ -888,25 +1035,31 @@ function renderPrListSection(section: PrListSection): HTMLElement {
             ["comments", "comments", row.commentCount],
             ["unresolved", "unresolved", row.activeThreadCount],
           ];
-          // A row is partial when EVERY field is absent (undefined —
-          // capability-off-passthrough row that leaked through) or
-          // coverage-partial (``null`` — covered PR with
-          // ``comments_extracted_at IS NULL``).  Both shapes render as
-          // ``—`` per-span; the row-level ``data-partial`` attribute lets
+          // A partial row carries no comments-metrics data — either the
+          // ``null`` coverage-partial sentinel (INV-10) or ``undefined``
+          // capability-off-passthrough leak.  ``isPartialPrRow`` is the
+          // shared discriminator (see definition above); per INV-08
+          // triplet atomicity, ``threadCount`` alone is sufficient and
+          // a non-partial row is guaranteed to have numeric spans on
+          // every axis.  The row-level ``data-partial`` attribute lets
           // tests assert the row-scoped partial state in one check.
-          // The producer guarantees all-three or none-three (INV-08), so
-          // a non-``allPartial`` row will always have numeric spans.
-          const allPartial = triplet.every(
-            ([, , value]) => value === null || value === undefined,
-          );
-          if (allPartial) li.setAttribute("data-partial", "true");
+          const allPartial = isPartialPrRow(row);
+          if (allPartial) {
+            li.setAttribute("data-partial", "true");
+          }
           for (const [key, cls, value] of triplet) {
             const span = createElement("span", {
               class: `comments-metric comments-metric--${cls}`,
             });
             if (value === null || value === undefined) {
               span.setAttribute("data-partial", "true");
-              span.setAttribute("aria-label", "Coverage pending");
+              // Issue #331 / A2: span is removed from the a11y tree
+              // — the visually-hidden sibling appended below
+              // (when ``allPartial``) carries the SR announcement
+              // exactly once per row.  The visual ``—`` glyph +
+              // ``data-partial="true"`` keep the muted / italic CSS
+              // hooks intact for sighted users.
+              span.setAttribute("aria-hidden", "true");
               appendText(span, "—");
             } else {
               span.setAttribute("data-partial", "false");
@@ -915,25 +1068,110 @@ function renderPrListSection(section: PrListSection): HTMLElement {
             }
             li.appendChild(span);
           }
+          if (allPartial) {
+            // Issue #331 / A2 (Codex 2026-04-25 review remediation):
+            // emit the "Coverage pending" announcement via a
+            // visually-hidden child rather than ``aria-label`` on
+            // the <li>.  An aria-label on the listitem would
+            // OVERRIDE the accessible name computed from the row's
+            // contents — collapsing "PR #42 — fix: title, 1d 4h"
+            // navigation announcements down to just "Coverage
+            // pending" and dropping PR identity entirely.  The
+            // visually-hidden span is announced inline by SR
+            // during sequential row reading, additive to the link
+            // + cycle context rather than replacing them.  The
+            // ``.visually-hidden`` class (existing project
+            // primitive) absolute-positions the span so it does
+            // not consume a grid track in the row's 5-column grid
+            // layout.
+            const srNote = createElement("span", {
+              class: "visually-hidden",
+            });
+            appendText(srNote, "Coverage pending");
+            li.appendChild(srNote);
+          }
         }
         rowElements.push(li);
       }
-      // Feature 310: header + filter live only on the capability-on
-      // path — lock #9 ("no DOM emission when capability-off; absent, not
-      // hidden").  They are appended BEFORE the list so the rendered
-      // order is [header] → [filter] → [list].  The header closure
-      // captures ``rowElements`` as the original-order snapshot for
-      // the unsorted sort state (third click).
+      // Issue #331 / C2 + C3: in-panel coverage notice.  When the
+      // dashboard banner says "Comments coverage: partial" the user
+      // loses that signal once a drill-down panel opens; this notice
+      // restores it and adds slice-level resolution ("N of M PRs"
+      // for mixed; "none of these PRs" for all-partial).  Emitted
+      // before the header so it sits as the first piece of slice-
+      // level chrome above the controls / list, and gated strictly
+      // on capability-on — no DOM emission when capability-off (lock
+      // #9 / SC-03 / INV-01).  ``role="status"`` + ``aria-live="polite"``
+      // matches the dashboard banner pattern so SR users hear the
+      // signal without being interrupted mid-task.
+      if (commentsMetricsAvailable && partialRowCount > 0) {
+        const notice = createElement("p", {
+          class: allRowsPartial
+            ? "detail-panel-pr-list-coverage-notice detail-panel-pr-list-coverage-notice--all-partial"
+            : "detail-panel-pr-list-coverage-notice",
+          role: "status",
+          "aria-live": "polite",
+        });
+        appendText(
+          notice,
+          allRowsPartial
+            ? "Comments coverage: pending — none of these PRs have comment data yet."
+            : `Comments coverage: partial — ${partialRowCount} of ${rows.length} PRs are missing comment data.`,
+        );
+        wrapper.appendChild(notice);
+      }
+
+      // Issue #342: the PR-list header always emits when the slice
+      // has at least one row.  Two independent flags govern the
+      // header's shape (see the matrix in ``buildPrListHeader``):
       //
-      // Issue #330 / C5: additionally suppress emit when the list has
-      // one row or fewer — sort / filter are no-ops on a trivial list
-      // and the controls read as dead UI.  The per-row
-      // ``.comments-metric`` styling on the ``<ol>`` modifier class is
-      // intentionally left untouched so a single-row capability-on
-      // list still renders the three count spans with their usual
-      // tabular / muted-partial treatment.
-      if (commentsMetricsAvailable && rowElements.length > 1) {
-        wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+      //   - ``commentsMetricsAvailable`` decides whether the THREE
+      //     comments-metric columnheader cells (Threads / Comments /
+      //     Unresolved) and the ``--with-comments`` modifier emit on
+      //     the header.  Capability-off → 2-cell PR | Cycle.
+      //     Capability-on → 5-cell, modifier present, regardless of
+      //     sort suppression below.  This keeps the header columns
+      //     in lockstep with the row's grid tracks: the row's three
+      //     metric spans always render when capability-on (the
+      //     ``commentsMetricsAvailable`` block in the row loop above),
+      //     so the header MUST have matching columnheader cells or
+      //     visible metric values would render unlabeled (Codex stop-
+      //     time review on commit 406263f6 caught this regression).
+      //   - ``sortRowElements`` decides whether those three cells
+      //     carry interactive sort buttons + ``aria-sort``.  The
+      //     suppression conditions are unchanged from prior commits:
+      //
+      //       * ``commentsMetricsAvailable``: capability-on only (lock
+      //         #9 / SC-03 / INV-01).
+      //       * ``rowElements.length > 1`` (issue #330 / C5): sort
+      //         is a no-op on a single-row list; the cell renders
+      //         the plain label.
+      //       * ``!allRowsPartial`` (issue #331 / C2): on a slice
+      //         where every row's three numeric fields are coverage-
+      //         pending, sort has nothing comparable to act on; the
+      //         coverage notice above explains the state.
+      //
+      // The threshold filter shares the sort-button gate (it has the
+      // same suppression rationale as the sort buttons).
+      const sortRowElements: readonly HTMLLIElement[] | null =
+        commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial
+          ? rowElements
+          : null;
+      // Header always emits in the ``pr-list`` content state — the
+      // producer (``installThroughputDrilldown``'s "supported" branch)
+      // short-circuits to ``contentState: "supported-empty"`` whenever
+      // ``rawPrs.length === 0`` (throughput-drilldown.ts:142), so by
+      // the time we reach this branch ``rowElements.length`` is
+      // structurally > 0.  No defensive ``length > 0`` guard — the
+      // false arm would be dead code and trip the partial-branch
+      // ratchet (PR #342 caught this on push).
+      wrapper.appendChild(
+        buildPrListHeader(list, {
+          commentsMetricsAvailable,
+          sortRowElements,
+        }),
+      );
+      if (sortRowElements !== null) {
         wrapper.appendChild(buildCommentsMetricsFilter(list));
       }
       for (const li of rowElements) {

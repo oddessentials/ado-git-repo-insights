@@ -3199,40 +3199,51 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 /* ============================================================================
- * Feature 310 — comments-metrics drill-down styling (capability-on ONLY).
+ * Feature 310 + issue #342 — drill-down PR list styling.
  *
- * Every rule below is scoped under one of three capability-on-only classes
- * emitted solely by renderPrListSection when commentsMetricsAvailable===true:
+ * Two layers of scope below.  Issue #342 review finding (2026-04-25): the
+ * pre-310 capability-off shape SC-03 had been preserving rendered the
+ * cycle-time as a context-less ``<span>`` next to the PR link with NO
+ * column header above it — Feature 310 added a labeled header on the
+ * capability-on path, which made the capability-off gap obvious by
+ * contrast.  The fix unifies both paths via a shared ``PR | Cycle``
+ * header + a 2-column row grid; capability-on extends both via the
+ * ``--with-comments`` modifier classes.  SC-03 is reframed accordingly:
+ * capability-off carries the shared header AND no comments-metrics
+ * surface, rather than byte-identical pre-310 absence-of-header.
  *
- *   .detail-panel-pr-list--with-comments   (modifier on <ol>)
- *   .detail-panel-pr-list-header           (new header row above the list)
- *   .detail-panel-pr-list-filter           (threshold filter bar)
+ *   SHARED (capability-off + capability-on):
+ *     .detail-panel-pr-list-header           (always emits when rows>0)
+ *     bare .detail-panel-pr-row              (2-col grid: PR | Cycle)
+ *     bare .detail-panel-pr-link             (ellipsis + link colors)
+ *     bare .cycle-time                       (tabular-nums right-align)
  *
- * No bare .detail-panel-pr-row / .detail-panel-pr-link / .cycle-time /
- * .detail-panel-pr-list selectors appear in this block — capability-off
- * DOM renders exactly as it did pre-310 (SC-03 / INV-01).  Global baseline
- * styling for the Feature 060 PR list is out of scope on this branch.
+ *   CAPABILITY-ON ONLY (additive via modifier classes):
+ *     .detail-panel-pr-list-header--with-comments     (overrides to 5-col)
+ *     .detail-panel-pr-list--with-comments            (modifier on <ol>)
+ *     .detail-panel-pr-list-filter                    (threshold filter bar)
+ *     comments-metrics span / sort button rules       (under modifier scope)
+ *
+ * The capability-off DOM has NO ``--with-comments`` classes anywhere,
+ * NO sort buttons, and NO ``<span class="comments-metric">`` children —
+ * SC-03 / INV-01 byte-identical to the pre-310 shape EXCEPT for the
+ * shared header + bare row grid.  See
+ * extension/tests/modules/drilldown/pr-list-capability-off-baseline.test.ts
+ * for the locked golden.
  * ========================================================================== */
 
 .detail-panel-pr-list-header {
+    /* SHARED rule (capability-off + capability-on).  The base 2-column
+     * template (``PR | Cycle``) is what capability-off renders; the
+     * 5-column extension (``PR | Cycle | Threads | Comments |
+     * Unresolved``) lives on the ``--with-comments`` modifier rule
+     * below and overrides only ``grid-template-columns``.  Issue #342
+     * review finding: capability-off had no header at all in the pre-
+     * 310 baseline; the fix labels the previously-bare cycle-time
+     * span and aligns it under a shared 2-column grid so the column
+     * edges match the bare ``.detail-panel-pr-row`` rule below. */
     display: grid;
-    /* Header-driven track widths (issue #330 / C4 desktop fit).  The
-     * three numeric tracks are sized to fit the uppercase 12px / 600 /
-     * 0.02em-letter-spacing header-button content — at the prior
-     * 5ch / 6ch / 9ch values the proportional uppercase labels
-     * overflowed leftward into the column gap and visually crashed
-     * into their left-hand neighbours.  The rem values are also kept
-     * tight (not generously buffered) so the PR-title track retains
-     * usable width on the 420px panel (roughly 110px, ~13 chars +
-     * ellipsis, instead of ~45px under looser buffers).
-     *
-     * Tracks are in ``rem`` so header (12px) and row (13px) grids
-     * resolve to identical pixel widths and the count digits stay
-     * aligned to their column headers across font-size differences.
-     * The same template is mirrored verbatim on
-     * ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``
-     * below — keep them in lockstep. */
-    grid-template-columns: minmax(0, 1fr) auto 3.5rem 4.25rem 5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 12px;
     align-items: baseline;
     padding: 8px 12px 6px;
@@ -3242,6 +3253,49 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     color: var(--text-secondary);
     letter-spacing: 0.02em;
     text-transform: uppercase;
+}
+
+.detail-panel-pr-list-header--with-comments {
+    /* Capability-on header extension (issue #330 / C4 desktop fit;
+     * #330 follow-up after Codex 2026-04-25 review of the previous
+     * "≥5px buffer" math, which had measured the label text only and
+     * ignored the button's ``::after`` sort indicator (0.75em ≈ 9px)
+     * plus the inline-flex ``gap`` (4px) — leaving an effective −8px
+     * buffer that put real header buttons 8–14px past their cell
+     * rights at desktop and narrow viewports.  Two layout-level moves
+     * recover the buffer:
+     *
+     *   1. Slim the per-button overhead to ~6px (``gap: 0`` +
+     *      ``::after width: 0.5em``) so the indicator stays visually
+     *      adjacent to its label and saves 7px per axis without any
+     *      copy / casing change.
+     *   2. Re-fit the desktop tracks to the WIDER of the two cross-
+     *      platform renderings, not just Windows Segoe UI:
+     *
+     *        Windows Segoe UI       (12px / 600 / 0.02em):
+     *          ~60.13 / 75.05 / 83.03 px
+     *        Ubuntu Chromium fallback (DejaVu Sans / Liberation Sans):
+     *          ~+1px on the longest label ("UNRESOLVED" ≈ 90.86 px)
+     *
+     *      The Playwright smoke runs on the CI Ubuntu runner and is
+     *      the binding contract enforcer (PR #342 caught the gap on
+     *      2026-04-25 when Windows-only sizing under-fit Linux fallback
+     *      glyph metrics by ~0.86 px on UNRESOLVED).  Current values
+     *      give ≥3 px buffer on Ubuntu fallback per axis, ≥5 px on
+     *      Windows Segoe UI.
+     *
+     * The Playwright runtime guard locks the geometric outcome
+     * (button rect ⊆ cell rect ±0.5px); the CSS-text invariant
+     * locks the template values themselves.  Both must move
+     * together when this template changes.
+     *
+     * Tracks are in ``rem`` so header (12px) and row (13px) grids
+     * resolve to identical pixel widths and the count digits stay
+     * aligned to their column headers across font-size differences.
+     * The same template is mirrored verbatim on
+     * ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``
+     * below — keep them in lockstep. */
+    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.875rem;
 }
 
 .detail-panel-pr-list-header-cell--pr {
@@ -3265,8 +3319,15 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     text-transform: inherit;
     letter-spacing: inherit;
     cursor: pointer;
+    /* Issue #330 follow-up: button overhead reduction.  The previous
+     * ``gap: 4px`` + ``::after width: 0.75em`` (9px @ 12px font) left
+     * each sort button ~13px wider than its label text, breaking the
+     * 5px "buffer" the grid template counted on (the buffer measured
+     * the label only, not the rendered button).  Tightening the gap
+     * to 0 keeps the indicator visually adjacent to its label and
+     * recovers ~4px per axis without altering any header copy. */
     display: inline-flex;
-    gap: 4px;
+    gap: 0;
     align-items: baseline;
 }
 
@@ -3280,7 +3341,14 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 .detail-panel-pr-list-header-sort::after {
     content: "";
     display: inline-block;
-    width: 0.75em;
+    /* Issue #330 follow-up: indicator width reduction (0.75em → 0.5em).
+     * Saves ~3px per axis at 12px font.  Combined with ``gap: 0`` on
+     * the parent button, recovers ~7px per axis — enough for the grid
+     * template below to fit the label + indicator with a real ≥5px
+     * buffer instead of the −8px effective buffer the ``buffer`` math
+     * had under the previous overhead.  Sort glyph (▼/▲) still renders
+     * legibly at 6px @ 12px font (5.5px @ 11px narrow). */
+    width: 0.5em;
     text-align: left;
     color: var(--text-tertiary, var(--text-secondary));
     opacity: 0.45;
@@ -3337,21 +3405,27 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     outline-offset: 1px;
 }
 
-.detail-panel-pr-list--with-comments {
+/* SHARED <ol> reset — capability-off + capability-on (issue #342).
+ * Without this, capability-off <ol> would render default browser
+ * numbered markers and left padding, undermining the unified
+ * column-aligned PR | Cycle layout the new shared header introduces. */
+.detail-panel-pr-list {
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.detail-panel-pr-list--with-comments .detail-panel-pr-row {
+/* SHARED row layout — capability-off + capability-on (issue #342).
+ * Two-column grid (PR | Cycle) aligned with the shared
+ * ``.detail-panel-pr-list-header`` above.  Capability-on extends to
+ * five columns via the ``.detail-panel-pr-list--with-comments
+ * .detail-panel-pr-row`` rule below, which overrides ONLY
+ * ``grid-template-columns``.  Same-specificity selectors → source-
+ * order tie-breaker (modifier rule comes later) makes capability-on
+ * win on the columns. */
+.detail-panel-pr-list .detail-panel-pr-row {
     display: grid;
-    /* Mirrors .detail-panel-pr-list-header — header-driven rem widths
-     * keep counts aligned to their column headers (issue #330 / C4).
-     * Updates here MUST be propagated to the header rule above and to
-     * the @media (max-width: 480px) override below; the CSS contract
-     * test in extension/tests/invariants/comments-metrics-responsive.test.ts
-     * locks all three sites in lockstep. */
-    grid-template-columns: minmax(0, 1fr) auto 3.5rem 4.25rem 5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 12px;
     align-items: baseline;
     padding: 6px 12px;
@@ -3359,18 +3433,20 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-size: 13px;
 }
 
-.detail-panel-pr-list--with-comments .detail-panel-pr-row:last-child {
+.detail-panel-pr-list .detail-panel-pr-row:last-child {
     border-bottom: none;
 }
 
-.detail-panel-pr-list--with-comments .detail-panel-pr-row[hidden] {
-    /* The filter path toggles the ``hidden`` attribute; browsers honour it
-     * natively but a grid child with display:grid parent can lose the
-     * implicit display:none in some engines.  Make the intent explicit. */
+.detail-panel-pr-list .detail-panel-pr-row[hidden] {
+    /* The filter path (capability-on) toggles the ``hidden`` attribute;
+     * browsers honour it natively but a grid child with display:grid
+     * parent can lose the implicit display:none in some engines.
+     * Make the intent explicit.  Harmless on capability-off since
+     * the ``hidden`` attribute is never set there. */
     display: none;
 }
 
-.detail-panel-pr-list--with-comments .detail-panel-pr-link {
+.detail-panel-pr-list .detail-panel-pr-link {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3379,17 +3455,27 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     text-decoration: none;
 }
 
-.detail-panel-pr-list--with-comments .detail-panel-pr-link:hover,
-.detail-panel-pr-list--with-comments .detail-panel-pr-link:focus-visible {
+.detail-panel-pr-list .detail-panel-pr-link:hover,
+.detail-panel-pr-list .detail-panel-pr-link:focus-visible {
     text-decoration: underline;
     outline: none;
 }
 
-.detail-panel-pr-list--with-comments .cycle-time {
+.detail-panel-pr-list .cycle-time {
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+}
+
+/* Capability-on row extension — overrides ONLY grid-template-columns
+ * to add the three comments-metrics tracks.  All other row props are
+ * inherited from the shared ``.detail-panel-pr-list .detail-panel-pr-
+ * row`` rule above.  See the ``.detail-panel-pr-list-header--with-
+ * comments`` rule above for the full track-width rationale and the
+ * lockstep contract. */
+.detail-panel-pr-list--with-comments .detail-panel-pr-row {
+    grid-template-columns: minmax(0, 1fr) auto 4.25rem 5.125rem 5.875rem;
 }
 
 .detail-panel-pr-list--with-comments .comments-metric {
@@ -3409,34 +3495,62 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-weight: 600;
 }
 
-/* Issue #330 / C4 — responsive fallback for the comments-metrics grid.
+/* Issue #331 / C2 + C3 — in-panel coverage notice.
  *
- * Scoped strictly to the capability-on-only classes emitted by
- * renderPrListSection when commentsMetricsAvailable===true
- * (.detail-panel-pr-list-header and .detail-panel-pr-list--with-comments).
- * Capability-off DOM still has no comments-metrics header or numeric
- * columns at all, so this block is unreachable on that path — SC-03 /
- * INV-01 byte-identity is preserved by construction.
+ * Emitted by renderPrListSection only when commentsMetricsAvailable===
+ * true AND at least one row is partial.  The class itself is therefore
+ * capability-on-only; no scoping under .detail-panel-pr-list--with-
+ * comments is needed (and adding one would be a no-op since the
+ * notice is a sibling of the <ol>, not a descendant).  Top-level
+ * placement keeps SC-03 / INV-01 byte-identity intact: capability-off
+ * DOM never emits this class.
+ *
+ * Tone matches the dashboard's "Comments coverage: partial" banner
+ * (muted secondary text on the surrounding panel border) so the
+ * signal carries the same affordance the user saw before opening
+ * the panel.  The ``--all-partial`` modifier adds italic emphasis on
+ * the stronger variant ("none of these PRs have comment data yet").
+ */
+.detail-panel-pr-list-coverage-notice {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-panel-pr-list-coverage-notice--all-partial {
+    font-style: italic;
+}
+
+/* Issue #330 / C4 + issue #342 — responsive fallback for the PR-list grid.
+ *
+ * Two layers, mirroring the dual-mode structure of the desktop rules above:
+ *
+ *   - SHARED narrow-viewport adjustments (capability-off + capability-on):
+ *     font-size, letter-spacing, column-gap, padding.  Applied to the
+ *     bare ``.detail-panel-pr-list-header`` and the bare per-row selector
+ *     ``.detail-panel-pr-list .detail-panel-pr-row`` so capability-off
+ *     also tightens up at narrow viewports.
+ *   - CAPABILITY-ON ONLY narrow track template: the 5-col grid template
+ *     is scoped to ``.detail-panel-pr-list-header--with-comments`` and
+ *     the existing ``.detail-panel-pr-list--with-comments .detail-panel-
+ *     pr-row``.  Capability-off keeps its 2-col ``minmax(0, 1fr) auto``
+ *     template at every viewport — naturally responsive without a
+ *     fixed-track override.
  *
  * The panel is `min(420px, 90vw)`; it only begins narrowing once the
  * viewport is narrow enough that 90vw falls below 420px, which is
- * where the desktop 5ch / 6ch / 9ch columns start crowding the
- * PR-link track.  The breakpoint used below matches the project-wide
- * MOBILE_BREAKPOINT constant (see
- * extension/ui/modules/shared/constants.ts), so the narrow-viewport
- * treatment here co-varies with the rest of the dashboard's mobile
- * pass.
+ * where the desktop columns start crowding the PR-link track.  The
+ * breakpoint matches the project-wide MOBILE_BREAKPOINT constant
+ * (see extension/ui/modules/shared/constants.ts), so the narrow-
+ * viewport treatment here co-varies with the rest of the dashboard's
+ * mobile pass.
  */
 @media (max-width: 480px) {
+    /* Shared narrow adjustments — apply at every capability state. */
     .detail-panel-pr-list-header,
-    .detail-panel-pr-list--with-comments .detail-panel-pr-row {
-        /* Narrow override stays header-driven (issue #330 / C4).  Values
-         * are proportional to the desktop template but sized against
-         * the smaller 11px / no-letter-spacing header font used here so
-         * the uppercase labels still fit without overflowing leftward
-         * into the column gap.  rem keeps header + row grids pixel-
-         * aligned across their different font sizes. */
-        grid-template-columns: minmax(0, 1fr) auto 3rem 3.5rem 4.5rem;
+    .detail-panel-pr-list .detail-panel-pr-row {
         column-gap: 8px;
         padding-left: 10px;
         padding-right: 10px;
@@ -3445,6 +3559,30 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     .detail-panel-pr-list-header {
         font-size: 11px;
         letter-spacing: 0;
+    }
+
+    /* Capability-on narrow track template (issue #330 / C4; #330
+     * follow-up: refit after the same Codex 2026-04-25 review
+     * surfaced the same overhead-math gap at the 11px override
+     * font as at the 12px desktop font; second-pass widening on
+     * 2026-04-25 after PR #342 caught Ubuntu Chromium fallback
+     * rendering "UNRESOLVED" ~1.09 px wider than Windows Segoe UI
+     * at this font size — same Linux-fallback drift as the desktop
+     * rule, locked by the same Playwright smoke).  Sized to fit
+     * the WIDER of the two renderings:
+     *
+     *   Windows Segoe UI       (11px / 600 / no-letter-spacing):
+     *     ~53.58 / 67.03 / 73.91 px
+     *   Ubuntu Chromium fallback (DejaVu Sans / Liberation Sans):
+     *     ~+1 px on UNRESOLVED (≈ 81.09 px)
+     *
+     * Current values give ≥3 px buffer on the binding Ubuntu
+     * fallback per axis (≥5 px on Windows Segoe UI).  rem keeps
+     * header + row grids pixel-aligned across their different
+     * font sizes. */
+    .detail-panel-pr-list-header--with-comments,
+    .detail-panel-pr-list--with-comments .detail-panel-pr-row {
+        grid-template-columns: minmax(0, 1fr) auto 3.75rem 4.625rem 5.25rem;
     }
 }
 

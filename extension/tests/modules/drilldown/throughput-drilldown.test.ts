@@ -1453,9 +1453,17 @@ describe("throughput-drilldown", () => {
       // ``.detail-panel-pr-list-controls`` container was removed as part
       // of the header-driven sort swap (lock #3); asserting its absence
       // here is a regression guard against any accidental reintroduction.
+      // Issue #342: when sort cells emit, the header carries the
+      // ``--with-comments`` modifier so CSS swaps to the 5-col grid.
+      const drilldownHeader = prSection!.querySelector<HTMLElement>(
+        ".detail-panel-pr-list-header",
+      );
+      expect(drilldownHeader).not.toBeNull();
       expect(
-        prSection!.querySelector(".detail-panel-pr-list-header"),
-      ).not.toBeNull();
+        drilldownHeader!.classList.contains(
+          "detail-panel-pr-list-header--with-comments",
+        ),
+      ).toBe(true);
       expect(
         prSection!.querySelector(".detail-panel-pr-list-filter"),
       ).not.toBeNull();
@@ -1485,15 +1493,25 @@ describe("throughput-drilldown", () => {
         covered.querySelector(".comments-metric--unresolved")?.textContent,
       ).toBe("3");
       // Partial row — three "—" spans, row-level data-partial, and
-      // per-span aria-label="Coverage pending" (lock #4 — machine +
-      // human + SR distinguishable).
+      // (post-#331 / A2 + Codex review) a visually-hidden
+      // "Coverage pending" child span that announces the partial
+      // state to SR ONCE per row WITHOUT overriding the listitem's
+      // accessible name (which would drop PR identity).  Per-span
+      // aria-hidden suppresses triple "dash" announcements.
       const partial = rows[1]!;
       expect(partial.getAttribute("data-partial")).toBe("true");
+      expect(partial.getAttribute("aria-label")).toBeNull();
+      const srNotes = partial.querySelectorAll<HTMLSpanElement>(
+        "span.visually-hidden",
+      );
+      expect(srNotes).toHaveLength(1);
+      expect(srNotes[0]!.textContent).toBe("Coverage pending");
       const partialSpans =
         partial.querySelectorAll<HTMLSpanElement>(".comments-metric");
       for (const span of partialSpans) {
         expect(span.getAttribute("data-partial")).toBe("true");
-        expect(span.getAttribute("aria-label")).toBe("Coverage pending");
+        expect(span.getAttribute("aria-hidden")).toBe("true");
+        expect(span.getAttribute("aria-label")).toBeNull();
         expect(span.textContent).toBe("—");
       }
     });
@@ -1772,6 +1790,127 @@ describe("throughput-drilldown", () => {
           "6 (+1 partial)",
           "21 (+1 partial)",
           "2 (+1 partial)",
+        ]);
+      });
+
+      it("issue #331 / A1: renders 'Pending (N)' (NOT '0 (+N partial)') when EVERY row in the slice is partial", () => {
+        // Locks the A1 contract: an all-partial week MUST be visibly
+        // distinct from a true-zero week on the stat row.  Under the
+        // prior implementation both states rendered with the SAME
+        // headline "0" plus the SAME "(+N partial)" annotation —
+        // collapsing two materially different states into one
+        // visual signature.  Per INV-08 / INV-10 (all-or-nothing
+        // per row) "all rows partial on any one axis" collapses to
+        // "all rows partial on every axis," so the literal
+        // ``Pending (N)`` is correct on every axis simultaneously.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+            {
+              id: 3,
+              title: "c",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 30,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        // All three axes carry the same literal — the headline IS
+        // the partial signal; no numeric ``0`` because the underlying
+        // data is absent, not zero.
+        expect(statValues()).toEqual([
+          "Pending (3)",
+          "Pending (3)",
+          "Pending (3)",
+        ]);
+      });
+
+      it("issue #342 review finding: undefined comment metrics are counted as partial in the stat row (matches renderer + coverage notice)", () => {
+        // Codex P2 review finding (2026-04-25): the producer at
+        // installThroughputDrilldown's "supported" branch passes
+        // ``pr.thread_count`` / ``comment_count`` /
+        // ``active_thread_count`` straight through without normalising
+        // ``undefined`` to ``null``, on the explicit promise that
+        // every consumer (renderer + stat row) handles both shapes
+        // identically.  The renderer ``renderPrListSection`` honours
+        // that promise; ``buildCommentsStatRow`` previously did not
+        // — it tested ``=== null`` only, so a slice of all-
+        // ``undefined`` rows rendered coverage-pending dashes per
+        // row AND an all-partial coverage notice ("none of these
+        // PRs have comment data yet") AND ``Threads: 0 | Comments:
+        // 0 | Unresolved: 0`` on the stat row.  That's the same
+        // visual signature as a true-zero week — exactly the A1
+        // contradiction the partial-state honesty fix was meant to
+        // eliminate.
+        //
+        // Locks the corrected contract: an all-``undefined`` slice
+        // renders the same ``Pending (N)`` literal on the stat row
+        // as an all-``null`` slice, since both shapes are partial.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              // Fields intentionally OMITTED — produces row.threadCount
+              // === undefined, the capability-off-passthrough leak shape
+              // the producer comment expects every consumer to honour.
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        expect(statValues()).toEqual([
+          "Pending (2)",
+          "Pending (2)",
+          "Pending (2)",
         ]);
       });
 

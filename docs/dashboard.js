@@ -4042,6 +4042,9 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/detail-panel.ts
+  function isPartialPrRow(row) {
+    return row.threadCount === null || row.threadCount === void 0;
+  }
   function makePanelContent(title, subtitle, sections) {
     if (title.length === 0) {
       throw new TypeError("PanelContent.title MUST be non-empty");
@@ -4249,9 +4252,11 @@ var PRInsightsDashboard = (() => {
     if (raw === null) return null;
     return Number.parseInt(raw, 10);
   }
-  function buildCommentsMetricsHeader(list, originalOrder) {
+  function buildPrListHeader(list, options) {
+    const { commentsMetricsAvailable, sortRowElements } = options;
+    const withSortButtons = sortRowElements !== null;
     const header = createElement("div", {
-      class: "detail-panel-pr-list-header",
+      class: commentsMetricsAvailable ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments" : "detail-panel-pr-list-header",
       role: "row"
     });
     header.appendChild(
@@ -4274,13 +4279,26 @@ var PRInsightsDashboard = (() => {
         "Cycle"
       )
     );
+    if (!commentsMetricsAvailable) return header;
     const records = [];
     for (const axis of COMMENTS_METRICS_AXES) {
-      const cell = createElement("div", {
+      const cellAttrs = {
         class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
-        role: "columnheader",
-        "aria-sort": "none"
-      });
+        role: "columnheader"
+      };
+      if (withSortButtons) {
+        cellAttrs["aria-sort"] = "none";
+      }
+      const cell = createElement("div", cellAttrs);
+      if (!withSortButtons) {
+        if (axis.headerLabel !== axis.label) {
+          cell.setAttribute("title", axis.label);
+          cell.setAttribute("aria-label", axis.label);
+        }
+        appendText(cell, axis.headerLabel);
+        header.appendChild(cell);
+        continue;
+      }
       const button = createElement("button", {
         type: "button",
         class: "detail-panel-pr-list-header-sort",
@@ -4295,6 +4313,7 @@ var PRInsightsDashboard = (() => {
       header.appendChild(cell);
       const record = { axis, cell, state: "none" };
       records.push(record);
+      const originalOrder = sortRowElements;
       button.addEventListener("click", () => {
         const nextDirection = advanceSortDirection(record.state);
         for (const peer of records) {
@@ -4418,6 +4437,8 @@ var PRInsightsDashboard = (() => {
           capValue,
           commentsMetricsAvailable
         } = section;
+        const partialRowCount = commentsMetricsAvailable ? rows.filter(isPartialPrRow).length : 0;
+        const allRowsPartial = partialRowCount > 0 && partialRowCount === rows.length;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
@@ -4425,7 +4446,7 @@ var PRInsightsDashboard = (() => {
           const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
           appendText(
             indicator,
-            commentsMetricsAvailable ? `${base}. Sort and filter operate within this slice.` : base
+            commentsMetricsAvailable && !allRowsPartial ? `${base}. Sort and filter operate within this slice.` : base
           );
           wrapper.appendChild(indicator);
         }
@@ -4452,17 +4473,17 @@ var PRInsightsDashboard = (() => {
               ["comments", "comments", row.commentCount],
               ["unresolved", "unresolved", row.activeThreadCount]
             ];
-            const allPartial = triplet.every(
-              ([, , value]) => value === null || value === void 0
-            );
-            if (allPartial) li.setAttribute("data-partial", "true");
+            const allPartial = isPartialPrRow(row);
+            if (allPartial) {
+              li.setAttribute("data-partial", "true");
+            }
             for (const [key, cls, value] of triplet) {
               const span = createElement("span", {
                 class: `comments-metric comments-metric--${cls}`
               });
               if (value === null || value === void 0) {
                 span.setAttribute("data-partial", "true");
-                span.setAttribute("aria-label", "Coverage pending");
+                span.setAttribute("aria-hidden", "true");
                 appendText(span, "\u2014");
               } else {
                 span.setAttribute("data-partial", "false");
@@ -4471,11 +4492,36 @@ var PRInsightsDashboard = (() => {
               }
               li.appendChild(span);
             }
+            if (allPartial) {
+              const srNote = createElement("span", {
+                class: "visually-hidden"
+              });
+              appendText(srNote, "Coverage pending");
+              li.appendChild(srNote);
+            }
           }
           rowElements.push(li);
         }
-        if (commentsMetricsAvailable && rowElements.length > 1) {
-          wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
+        if (commentsMetricsAvailable && partialRowCount > 0) {
+          const notice = createElement("p", {
+            class: allRowsPartial ? "detail-panel-pr-list-coverage-notice detail-panel-pr-list-coverage-notice--all-partial" : "detail-panel-pr-list-coverage-notice",
+            role: "status",
+            "aria-live": "polite"
+          });
+          appendText(
+            notice,
+            allRowsPartial ? "Comments coverage: pending \u2014 none of these PRs have comment data yet." : `Comments coverage: partial \u2014 ${partialRowCount} of ${rows.length} PRs are missing comment data.`
+          );
+          wrapper.appendChild(notice);
+        }
+        const sortRowElements = commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial ? rowElements : null;
+        wrapper.appendChild(
+          buildPrListHeader(list, {
+            commentsMetricsAvailable,
+            sortRowElements
+          })
+        );
+        if (sortRowElements !== null) {
           wrapper.appendChild(buildCommentsMetricsFilter(list));
         }
         for (const li of rowElements) {
@@ -8824,16 +8870,18 @@ var PRInsightsDashboard = (() => {
       threadsSum += row.threadCount ?? 0;
       commentsSum += row.commentCount ?? 0;
       unresolvedSum += row.activeThreadCount ?? 0;
-      if (row.threadCount === null) partialCount += 1;
+      if (isPartialPrRow(row)) partialCount += 1;
     }
-    const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+    const allRowsPartial = partialCount > 0 && partialCount === rows.length;
+    function statValue(numericTotal) {
+      if (allRowsPartial) return `Pending (${partialCount})`;
+      if (partialCount > 0) return `${numericTotal} (+${partialCount} partial)`;
+      return String(numericTotal);
+    }
     return makeStatRow([
-      { label: "Threads", value: `${threadsSum}${partialSuffix}` },
-      { label: "Comments", value: `${commentsSum}${partialSuffix}` },
-      {
-        label: "Unresolved threads",
-        value: `${unresolvedSum}${partialSuffix}`
-      }
+      { label: "Threads", value: statValue(threadsSum) },
+      { label: "Comments", value: statValue(commentsSum) },
+      { label: "Unresolved threads", value: statValue(unresolvedSum) }
     ]);
   }
   function buildAuthorNameMap(dim) {

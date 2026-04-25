@@ -1,5 +1,5 @@
 /**
- * SC-03 byte-identical baseline for the capability-off drill-down path.
+ * SC-03 baseline for the capability-off drill-down path (issue #342 reframed).
  *
  * Renders ``installThroughputDrilldown`` against the REAL committed
  * capability-off demo artifact at
@@ -10,7 +10,25 @@
  * to the committed golden at
  * ``extension/tests/fixtures/throughput-drilldown-capability-off-baseline.html``.
  *
- * Fails on any drift from the pre-310 shape.  Regenerate the golden
+ * Reframed SC-03 contract (post-#342, 2026-04-25): capability-off
+ * carries the shared ``PR | Cycle`` columnheader row ABOVE the list
+ * (so the cycle-time number is labeled, not a context-less duration
+ * floating beside the PR link), AND the bare ``.detail-panel-pr-row``
+ * 2-col grid so rows align under the header — but the DOM still
+ * carries NO comments-metrics surface: no ``--with-comments``
+ * modifier classes anywhere, no sort buttons, no filter, no metric
+ * spans, no coverage notice.  The pre-#310 baseline preserved by
+ * this test from 2025 → 2026-04-25 had NO header at all; that shape
+ * is now superseded — the "byte-identical to pre-310" framing was
+ * preserving an unlabeled cycle-time as an accident, not an
+ * invariant.  See PR #342 for the user-flagged UX gap and the
+ * decision to reframe SC-03 around "no comments-metrics surface"
+ * rather than "no header at all."
+ *
+ * The structural assertion further down (the ``it`` after this one)
+ * spells out the new contract in code.
+ *
+ * Fails on any drift from the post-#342 shape.  Regenerate the golden
  * with ``REGENERATE_CAPABILITY_OFF_BASELINE=1 pnpm --dir extension
  * test -- pr-list-capability-off-baseline``.
  *
@@ -64,7 +82,7 @@ function loadCapabilityOffRollup(): Rollup {
   return readJsonFile<Rollup>(ARTIFACT_ROLLUP_PATH);
 }
 
-describe("SC-03 capability-off baseline DOM is byte-identical to the pre-310 shape", () => {
+describe("SC-03 capability-off baseline DOM matches the post-#342 reframed contract (shared PR | Cycle header, no comments-metrics surface)", () => {
   beforeEach(() => {
     publishComparisonToggled({ enabled: false });
     __resetComparisonAdvisoryForTests();
@@ -148,17 +166,35 @@ describe("SC-03 capability-off baseline DOM is byte-identical to the pre-310 sha
     const prSection = document.getElementById("pr-detail")!;
     // Belt-and-braces structural assertion: the innerHTML snapshot
     // guards against every drift, but this explicit check makes
-    // regressions about the comments-metrics spans surface with a
+    // regressions about the comments-metrics surface surface with a
     // readable message rather than a 100KB diff.
     expect(prSection.querySelectorAll(".comments-metric").length).toBe(0);
-    // Lock #9 — capability-off MUST NOT emit the new header row, the
-    // filter bar, or the ``detail-panel-pr-list--with-comments`` modifier
-    // on the ol.  The legacy ``.detail-panel-pr-list-controls`` container
-    // never existed post-310 either; kept as a regression guard.
-    expect(prSection.querySelector(".detail-panel-pr-list-header")).toBeNull();
+
+    // Issue #342 reframed SC-03 contract: capability-off DOES carry
+    // the shared PR | Cycle header (so the cycle-time gets labeled),
+    // but MUST NOT carry any comments-metrics surface — no sort
+    // buttons, no ``--with-comments`` modifier on header or list,
+    // no filter bar, no metric spans, no coverage notice.  The
+    // legacy ``.detail-panel-pr-list-controls`` container never
+    // existed post-310 either; kept as a regression guard.
+    const header = prSection.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    expect(
+      header!.querySelectorAll<HTMLElement>('[role="columnheader"]'),
+    ).toHaveLength(2);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+
     expect(prSection.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     expect(
       prSection.querySelector(".detail-panel-pr-list-controls"),
+    ).toBeNull();
+    expect(
+      prSection.querySelector(".detail-panel-pr-list-coverage-notice"),
     ).toBeNull();
     const list = prSection.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",

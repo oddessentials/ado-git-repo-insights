@@ -32,6 +32,7 @@ import { createEmptyFilterState, type FilterState } from "../filters";
 import { dismissAllTooltips } from "../tooltip-manager";
 import {
   makeBreakdownTable,
+  isPartialPrRow,
   makeEmptyState,
   makePanelContent,
   makePrListSection,
@@ -262,24 +263,50 @@ function buildCommentsStatRow(rows: readonly PrListRow[]): PanelSection {
   let unresolvedSum = 0;
   let partialCount = 0;
   for (const row of rows) {
-    // ``?? 0`` makes partial rows (``null`` per INV-10) and any
-    // theoretically-absent field contribute 0 to the running sum.
+    // ``?? 0`` makes partial rows (``null`` per INV-10, ``undefined``
+    // for capability-off-passthrough leaks) and any theoretically-
+    // absent field contribute 0 to the running sum.
     threadsSum += row.threadCount ?? 0;
     commentsSum += row.commentCount ?? 0;
     unresolvedSum += row.activeThreadCount ?? 0;
-    // Per INV-08, the producer guarantees threadCount === null implies
-    // the whole triplet is null; checking threadCount alone is
-    // sufficient to identify a partial row.
-    if (row.threadCount === null) partialCount += 1;
+    // ``isPartialPrRow`` is the shared discriminator used by every
+    // consumer surface (per-row dashes, coverage notice, header
+    // suppression).  Issue #342 review finding: this used to test
+    // ``=== null`` only — a slice of all-``undefined`` rows would
+    // therefore render coverage-pending dashes per row + an all-
+    // partial coverage notice + ``Threads: 0 | Comments: 0 |
+    // Unresolved: 0`` on the stat row, undermining the A1 / INV-10
+    // partial-state honesty contract.  Routing through the helper
+    // keeps every surface aligned on both ``null`` and ``undefined``
+    // shapes.
+    if (isPartialPrRow(row)) partialCount += 1;
   }
-  const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+  // Issue #331 / A1: distinguish "all-partial week" from "true zero
+  // week" on the stat row.  Under the prior implementation, a week
+  // where every row was coverage-pending rendered as ``0 (+N partial)``
+  // on each axis — visually identical to a true-zero week with the
+  // same partial annotation pattern, except that the latter actually
+  // had numeric zeros to back the headline value.  Per INV-08 / INV-10
+  // (all-or-nothing per row) "all rows partial on any one axis"
+  // collapses to "all rows partial on every axis," so a single per-
+  // call branch suffices — no per-axis allPartial check is required.
+  //
+  // Three states:
+  //   - ``partialCount === 0``:               render ``K`` (true total)
+  //   - ``0 < partialCount < rows.length``:   render ``K (+N partial)``
+  //   - ``partialCount === rows.length > 0``: render ``Pending (N)`` —
+  //     the headline literal IS the partial signal; no numeric ``0``
+  //     because the underlying data is absent, not zero.
+  const allRowsPartial = partialCount > 0 && partialCount === rows.length;
+  function statValue(numericTotal: number): string {
+    if (allRowsPartial) return `Pending (${partialCount})`;
+    if (partialCount > 0) return `${numericTotal} (+${partialCount} partial)`;
+    return String(numericTotal);
+  }
   return makeStatRow([
-    { label: "Threads", value: `${threadsSum}${partialSuffix}` },
-    { label: "Comments", value: `${commentsSum}${partialSuffix}` },
-    {
-      label: "Unresolved threads",
-      value: `${unresolvedSum}${partialSuffix}`,
-    },
+    { label: "Threads", value: statValue(threadsSum) },
+    { label: "Comments", value: statValue(commentsSum) },
+    { label: "Unresolved threads", value: statValue(unresolvedSum) },
   ]);
 }
 

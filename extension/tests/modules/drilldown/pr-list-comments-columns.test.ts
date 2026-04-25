@@ -99,8 +99,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("capability-off path — no new columns / controls", () => {
-  it("does not emit any comments-metric spans when commentsMetricsAvailable=false", () => {
+describe("capability-off path — no comments-metrics surface (post-#342 SC-03)", () => {
+  it("emits the shared PR | Cycle header with no comments-metrics surface (no sort buttons / filter / modifier classes / metric spans)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
@@ -110,14 +110,41 @@ describe("capability-off path — no new columns / controls", () => {
       commentsMetricsAvailable: false,
     });
     const root = openWithPrListSection(section);
+
+    // Issue #342 reframed SC-03: the shared ``PR | Cycle`` header is
+    // ALWAYS emitted (so capability-off labels its previously-bare
+    // cycle-time span), but it carries NO comments-metrics surface
+    // — no ``--with-comments`` modifier, no sort buttons, no filter,
+    // no metric spans, no coverage notice.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    const headerCells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(headerCells).toHaveLength(2);
+    expect(
+      headerCells[0]!.classList.contains(
+        "detail-panel-pr-list-header-cell--pr",
+      ),
+    ).toBe(true);
+    expect(
+      headerCells[1]!.classList.contains(
+        "detail-panel-pr-list-header-cell--cycle",
+      ),
+    ).toBe(true);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+
     expect(root.querySelectorAll(".comments-metric").length).toBe(0);
-    // Lock #9 — the new capability-on DOM (header row, filter bar, modifier
-    // class on the ol) MUST be absent, not hidden, on the capability-off
-    // path.  The pre-310 ``.detail-panel-pr-list-controls`` container also
-    // never reappears (old selector kept as a regression guard).
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     expect(root.querySelector(".detail-panel-pr-list-controls")).toBeNull();
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
     );
@@ -167,8 +194,9 @@ describe("capability-on path — three columns per row (INV-08)", () => {
 
   it("renders a header row with 3 sort buttons and a separate filter row with 3 inputs", () => {
     // Two rows so the C5 controls-visibility guard (rowElements.length > 1)
-    // permits the header + filter to render.  Single-row suppression is
-    // covered by its own test below.
+    // permits the sort cells + filter to render.  Single-row suppression
+    // (PR | Cycle header still emits, sort cells suppressed) is covered
+    // by its own test below.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -196,6 +224,13 @@ describe("capability-on path — three columns per row (INV-08)", () => {
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
+    // Issue #342: when sort cells emit the header carries the
+    // ``--with-comments`` modifier (mirrors the ``<ol>`` modifier
+    // pattern); CSS uses it to swap the 2-col base grid template
+    // for the 5-col extended template.
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
     const sortButtons = header!.querySelectorAll<HTMLButtonElement>(
       "button[data-sort-key]",
     );
@@ -221,7 +256,7 @@ describe("capability-on path — three columns per row (INV-08)", () => {
 });
 
 describe("issue #330 / C5 — controls-visibility guard on trivial lists", () => {
-  it("suppresses header + filter when the capability-on list has a single row", () => {
+  it("suppresses sort BUTTONS + filter when the capability-on list has a single row (5-cell header still emits, no buttons)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -238,10 +273,38 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
       commentsMetricsAvailable: true,
     });
     const root = openWithPrListSection(section);
-    // Header + filter must be absent — not just hidden — on a trivial
-    // list.  The <ol> modifier class stays intact so the single row
-    // still picks up tabular / muted-partial styling.
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    // Issue #342 (post Codex stop-time review on 406263f6): the
+    // capability-on row carries three metric spans (5 grid tracks via
+    // ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``),
+    // so the header MUST emit matching columnheader cells or the
+    // metric values render unlabeled.  Only the interactive SORT
+    // BUTTONS and the threshold filter are suppressed on a trivial
+    // list.  The cells render the plain label text and OMIT
+    // ``aria-sort`` so SR users don't get told a column is sortable
+    // when it isn't.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(5);
+    // No interactive sort buttons + no aria-sort attributes anywhere
+    // on the suppressed-sort header.
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+    for (const cell of Array.from(cells)) {
+      expect(cell.getAttribute("aria-sort")).toBeNull();
+    }
+    // Spot-check that the comments-metric cells carry their visible
+    // labels — the column edges line up under text, not empty cells.
+    expect(cells[2]!.textContent).toBe("Threads");
+    expect(cells[3]!.textContent).toBe("Comments");
+    expect(cells[4]!.textContent).toBe("Unresolved");
+
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
@@ -282,6 +345,232 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
     const root = openWithPrListSection(section);
     expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
     expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+});
+
+describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppression", () => {
+  it("zero-partial slice → no coverage notice; header + filter still render", () => {
+    // Negative pair: when no row is partial the notice MUST be
+    // absent so it doesn't add chrome on fully-covered slices.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 3,
+          commentCount: 7,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 1,
+          commentCount: 4,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+
+  it("mixed-partial slice → 'N of M' notice; header + filter still render (C3)", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 5,
+          commentCount: 17,
+          activeThreadCount: 2,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 1,
+          commentCount: 4,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const notice = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-coverage-notice",
+    );
+    expect(notice).not.toBeNull();
+    expect(notice!.textContent).toBe(
+      "Comments coverage: partial — 1 of 3 PRs are missing comment data.",
+    );
+    // ``--all-partial`` modifier MUST NOT appear on a mixed slice —
+    // that variant is reserved for the all-partial branch.
+    expect(
+      notice!.classList.contains(
+        "detail-panel-pr-list-coverage-notice--all-partial",
+      ),
+    ).toBe(false);
+    expect(notice!.getAttribute("role")).toBe("status");
+    expect(notice!.getAttribute("aria-live")).toBe("polite");
+    // Sort + filter controls still render — sort/filter operate on
+    // the two numeric rows and partial rows continue to sort to the
+    // end / be hidden by an active threshold per FR-3-05.
+    expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+
+  it("all-partial slice → 'pending — none' notice; header + filter SUPPRESSED (C2)", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const notice = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-coverage-notice",
+    );
+    expect(notice).not.toBeNull();
+    expect(notice!.textContent).toBe(
+      "Comments coverage: pending — none of these PRs have comment data yet.",
+    );
+    expect(
+      notice!.classList.contains(
+        "detail-panel-pr-list-coverage-notice--all-partial",
+      ),
+    ).toBe(true);
+    // C2: sort BUTTONS + filter MUST be absent on an all-partial slice
+    // — there are no numeric values to sort / threshold-filter.  But
+    // the capability-on rows carry three (dashed) metric spans, so
+    // the header still emits 5 columnheader cells with the
+    // ``--with-comments`` modifier (issue #342 post Codex stop-time
+    // review on 406263f6) — otherwise the dashed columns would render
+    // unlabeled.  The cells carry plain label text and omit
+    // ``aria-sort`` so SR users don't get told a column is sortable.
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(5);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+    for (const cell of Array.from(cells)) {
+      expect(cell.getAttribute("aria-sort")).toBeNull();
+    }
+    expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
+    const list = root.querySelector<HTMLOListElement>(
+      "ol.detail-panel-pr-list",
+    );
+    expect(list).not.toBeNull();
+    expect(
+      list!.classList.contains("detail-panel-pr-list--with-comments"),
+    ).toBe(true);
+  });
+
+  it("capability-off slice with any row shape → no coverage notice (SC-03 byte-identity)", () => {
+    // Lock #9 / SC-03: the new coverage-notice element class is
+    // capability-on-only.  Capability-off slices — including ones
+    // whose rows happen to carry partial values from the producer —
+    // MUST NOT emit any new DOM.  Belt-and-braces alongside the
+    // pr-list-capability-off-baseline.test.ts byte-identical check.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({ id: 2 }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: false,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
+  });
+
+  it("truncated all-partial slice → coverage notice present; slice-scope disclosure DROPPED", () => {
+    // Locks the truncation-badge gate's #331 / C2 adjustment: when
+    // every row is partial, the controls don't render, so the "Sort
+    // and filter operate within this slice." sentence would promise
+    // an interaction that never lands and must be dropped.  The
+    // base "Showing N of M matching PRs (top 500 by cycle time)"
+    // text stays so the slice ratio remains discoverable.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 743,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).not.toBeNull();
+    const badge = root.querySelector<HTMLElement>(
+      ".truncation-indicator.truncation-badge",
+    );
+    expect(badge).not.toBeNull();
+    const badgeText = badge!.textContent ?? "";
+    expect(badgeText).toContain("Showing 2 of 743");
+    expect(badgeText).toContain("by cycle time");
+    expect(badgeText).not.toContain(
+      "Sort and filter operate within this slice",
+    );
   });
 });
 
@@ -412,13 +701,99 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     for (const axis of ["threads", "comments", "unresolved"] as const) {
       const span = metricSpan(row, axis);
       expect(span.getAttribute("data-partial")).toBe("true");
-      // Lock #4 — partial data must be human-distinguishable AND
-      // screen-reader-distinguishable, not just machine-tagged.  The
-      // aria-label carries the meaning to assistive tech; a CSS rule
-      // under ``.detail-panel-pr-list--with-comments`` carries the
-      // visual distinction (muted + italic).
-      expect(span.getAttribute("aria-label")).toBe("Coverage pending");
+      // Issue #331 / A2: span is removed from the a11y tree; the
+      // row-level aria-label carries the announcement (asserted
+      // separately below).  Per-span aria-labels would cause the
+      // SR to announce "Coverage pending" three times per partial
+      // row; aria-hidden + a single row-level label fixes that.
+      expect(span.getAttribute("aria-hidden")).toBe("true");
+      expect(span.getAttribute("aria-label")).toBeNull();
       expect(span.textContent).toBe("—");
+    }
+  });
+
+  it("issue #331 / A2: announces 'Coverage pending' ONCE on a partial row WITHOUT overriding PR identity", () => {
+    // Locks the A2 contract (post Codex 2026-04-25 review): exactly
+    // one SR announcement of 'Coverage pending' per partial row,
+    // delivered via a visually-hidden child span — NOT via an
+    // ``aria-label`` on the <li> (which would override the
+    // listitem's accessible name and drop the PR link's text from
+    // list-traversal announcements).  Every metric span stays
+    // removed from the a11y tree via aria-hidden so the visually-
+    // hidden span is the single SR signal for the partial state.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 100,
+          title: "fix: timeout in coverage backfill",
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    // PR identity preserved — the listitem MUST NOT carry an
+    // ``aria-label`` (which would override the accessible name
+    // built from the link text below).  This guard fails if a
+    // future change moves the ``Coverage pending`` announcement
+    // back onto the <li>.
+    expect(row.getAttribute("aria-label")).toBeNull();
+    // Link text stays the listitem's primary accessible name.
+    const link = row.querySelector<HTMLAnchorElement>(".detail-panel-pr-link");
+    expect(link).not.toBeNull();
+    expect(link!.textContent).toContain("fix: timeout in coverage backfill");
+    // Coverage-pending announcement is delivered by exactly one
+    // visually-hidden child span inside the <li>.
+    const srNotes = row.querySelectorAll<HTMLSpanElement>(
+      "span.visually-hidden",
+    );
+    expect(srNotes).toHaveLength(1);
+    expect(srNotes[0]!.textContent).toBe("Coverage pending");
+    // Defense-in-depth: no reachable aria-label leaks anywhere
+    // under the row (locks the original A2 intent that "Coverage
+    // pending" is announced exactly once and not per metric span).
+    const reachableLabels = Array.from(
+      row.querySelectorAll<HTMLElement>(
+        ":not([aria-hidden='true']) > [aria-label]",
+      ),
+    );
+    expect(reachableLabels).toHaveLength(0);
+  });
+
+  it("issue #331 / A2: numeric (non-partial) row carries no visually-hidden 'Coverage pending' note or span aria-hidden", () => {
+    // Negative pair — the A2 visually-hidden announcement and
+    // span aria-hidden treatment MUST NOT leak onto a numeric
+    // (non-partial) row.  A true-zero row still renders explicit
+    // ``0`` and stays fully reachable to assistive tech.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 200,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    expect(row.getAttribute("aria-label")).toBeNull();
+    expect(row.querySelectorAll("span.visually-hidden")).toHaveLength(0);
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      const span = metricSpan(row, axis);
+      expect(span.getAttribute("aria-hidden")).toBeNull();
     }
   });
 
@@ -445,9 +820,11 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
       const span = metricSpan(row, axis);
       expect(span.textContent).toBe("0");
       expect(span.getAttribute("data-partial")).toBe("false");
-      // Negative pair with the aria-label assertion above — a true zero
-      // is NOT partial, so no ``Coverage pending`` label leaks onto it.
+      // Negative pair with the aria-hidden assertion above — a true
+      // zero is NOT partial, so neither aria-hidden nor any
+      // ``Coverage pending`` label leaks onto it.
       expect(span.getAttribute("aria-label")).toBeNull();
+      expect(span.getAttribute("aria-hidden")).toBeNull();
     }
   });
 });
@@ -799,6 +1176,12 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
+    // Issue #342: capability-on multi-row + non-partial → header
+    // carries the ``--with-comments`` modifier so the CSS swaps to
+    // the 5-col grid template.
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(true);
     const cells = header!.querySelectorAll<HTMLElement>(
       '[role="columnheader"]',
     );
@@ -824,7 +1207,12 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     ).toBe(true);
   });
 
-  it("does NOT emit the header row on capability-off (absent, not hidden)", () => {
+  it("emits the shared 2-cell PR | Cycle header (no `--with-comments` modifier) on capability-off (issue #342)", () => {
+    // Pre-#342 contract was "no header at all on capability-off."
+    // Post-#342 the shared PR | Cycle header always emits so the
+    // cycle-time number is labeled — but the header carries no
+    // ``--with-comments`` modifier and no sort cells, so the
+    // capability-off DOM stays free of any comments-metrics surface.
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [buildRow({ id: 1 })],
@@ -834,7 +1222,86 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       commentsMetricsAvailable: false,
     });
     const root = openWithPrListSection(section);
-    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    const header = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header",
+    );
+    expect(header).not.toBeNull();
+    expect(
+      header!.classList.contains("detail-panel-pr-list-header--with-comments"),
+    ).toBe(false);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(2);
+    expect(
+      cells[0]!.classList.contains("detail-panel-pr-list-header-cell--pr"),
+    ).toBe(true);
+    expect(
+      cells[1]!.classList.contains("detail-panel-pr-list-header-cell--cycle"),
+    ).toBe(true);
+    expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+  });
+
+  it("unresolved SUPPRESSED-sort cell preserves F8 three-surface disambiguation (Codex review of #342)", () => {
+    // Codex stop-time review caught a regression on the post-#342
+    // suppressed-sort path: when sort buttons are absent (issue
+    // #330 / C5 single-row OR issue #331 / C2 all-partial), the
+    // capability-on header still emits 5 cells so the row's metric
+    // spans don't render unlabeled, but the prior pass dropped
+    // aria-label on the plain-text columnheader cell.  That left the
+    // SR accessible name as the truncated visible text "Unresolved",
+    // losing the disambiguation the F8 rename was meant to convey.
+    //
+    // Locks the corrected three-surface contract for the SUPPRESSED-
+    // sort cell (no button, no "Sort by" prefix on aria-label):
+    //   - visible textContent: "Unresolved" (short, fits track)
+    //   - title:               "Unresolved threads" (mouse hover)
+    //   - aria-label:          "Unresolved threads" (SR accessible name)
+    // Plus the negative pair: Threads / Comments cells (where
+    // headerLabel === label) carry NO aria-label and NO title — the
+    // visible text already serves as accessible name.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        // Single-row triggers the C5 sort-button suppression (sort-
+        // cells path) while keeping capability-on so the metric
+        // columnheader cells emit.  The sort-button-PRESENT path
+        // for the same axis is locked by the next test.
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+
+    const unresolvedCell = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header-cell--unresolved",
+    );
+    expect(unresolvedCell).not.toBeNull();
+    expect(unresolvedCell!.textContent).toBe("Unresolved");
+    expect(unresolvedCell!.getAttribute("title")).toBe("Unresolved threads");
+    expect(unresolvedCell!.getAttribute("aria-label")).toBe(
+      "Unresolved threads",
+    );
+    // No sort action on this cell — no button child, no "Sort by"
+    // prefix on aria-label.
+    expect(unresolvedCell!.querySelector("button")).toBeNull();
+
+    for (const axis of ["threads", "comments"] as const) {
+      const cell = root.querySelector<HTMLElement>(
+        `.detail-panel-pr-list-header-cell--${axis}`,
+      );
+      expect(cell).not.toBeNull();
+      expect(cell!.getAttribute("aria-label")).toBeNull();
+      expect(cell!.getAttribute("title")).toBeNull();
+    }
   });
 
   it("unresolved sort button shows 'Unresolved' visibly with full disambiguation via title + aria-label (F8 + header-fit)", () => {
