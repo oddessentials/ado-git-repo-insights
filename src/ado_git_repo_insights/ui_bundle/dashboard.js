@@ -4253,9 +4253,10 @@ var PRInsightsDashboard = (() => {
     return Number.parseInt(raw, 10);
   }
   function buildPrListHeader(list, options) {
-    const withSort = options.sortRowElements !== null;
+    const { commentsMetricsAvailable, sortRowElements } = options;
+    const withSortButtons = sortRowElements !== null;
     const header = createElement("div", {
-      class: withSort ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments" : "detail-panel-pr-list-header",
+      class: commentsMetricsAvailable ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments" : "detail-panel-pr-list-header",
       role: "row"
     });
     header.appendChild(
@@ -4278,15 +4279,26 @@ var PRInsightsDashboard = (() => {
         "Cycle"
       )
     );
-    if (!withSort) return header;
-    const originalOrder = options.sortRowElements;
+    if (!commentsMetricsAvailable) return header;
     const records = [];
     for (const axis of COMMENTS_METRICS_AXES) {
-      const cell = createElement("div", {
+      const cellAttrs = {
         class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
-        role: "columnheader",
-        "aria-sort": "none"
-      });
+        role: "columnheader"
+      };
+      if (withSortButtons) {
+        cellAttrs["aria-sort"] = "none";
+      }
+      const cell = createElement("div", cellAttrs);
+      if (!withSortButtons) {
+        if (axis.headerLabel !== axis.label) {
+          cell.setAttribute("title", axis.label);
+          cell.setAttribute("aria-label", axis.label);
+        }
+        appendText(cell, axis.headerLabel);
+        header.appendChild(cell);
+        continue;
+      }
       const button = createElement("button", {
         type: "button",
         class: "detail-panel-pr-list-header-sort",
@@ -4301,6 +4313,7 @@ var PRInsightsDashboard = (() => {
       header.appendChild(cell);
       const record = { axis, cell, state: "none" };
       records.push(record);
+      const originalOrder = sortRowElements;
       button.addEventListener("click", () => {
         const nextDirection = advanceSortDirection(record.state);
         for (const peer of records) {
@@ -4503,7 +4516,12 @@ var PRInsightsDashboard = (() => {
         }
         const sortRowElements = commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial ? rowElements : null;
         if (rowElements.length > 0) {
-          wrapper.appendChild(buildPrListHeader(list, { sortRowElements }));
+          wrapper.appendChild(
+            buildPrListHeader(list, {
+              commentsMetricsAvailable,
+              sortRowElements
+            })
+          );
         }
         if (sortRowElements !== null) {
           wrapper.appendChild(buildCommentsMetricsFilter(list));

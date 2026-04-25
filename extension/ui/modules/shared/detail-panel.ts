@@ -568,26 +568,49 @@ function readMetricValue(li: HTMLLIElement, dataAttr: string): number | null {
  */
 function buildPrListHeader(
   list: HTMLOListElement,
-  options: { readonly sortRowElements: readonly HTMLLIElement[] | null },
+  options: {
+    readonly commentsMetricsAvailable: boolean;
+    readonly sortRowElements: readonly HTMLLIElement[] | null;
+  },
 ): HTMLElement {
-  // Issue #342 review finding: capability-off used to render a bare
-  // <a> + <span class="cycle-time"> per row with NO header at all
-  // (SC-03 byte-identical to pre-310).  That preserved an unlabeled
-  // floating duration number beside every PR title — the cycle-time
-  // value sat next to the link with no column label, no row-level
-  // aria-label, and no visible context.  Feature 310 added a labeled
-  // header (``PR | Cycle | Threads | Comments | Unresolved``) on the
-  // capability-on path, which made the capability-off gap obvious by
-  // contrast.  The fix unifies both paths: this function ALWAYS emits
-  // the base ``PR | Cycle`` columnheaders so the cycle-time number is
-  // labeled in every state.  The three sort cells (Threads / Comments
-  // / Unresolved) and the ``--with-comments`` modifier class are
-  // additive and only emit when the caller passes
-  // ``sortRowElements`` non-null (i.e. capability-on AND >1 row AND
-  // not-all-partial — see ``renderPrListSection`` for the gate).
-  const withSort = options.sortRowElements !== null;
+  // Issue #342: capability-off used to render a bare <a> + <span
+  // class="cycle-time"> per row with NO header at all (the previous
+  // SC-03 "byte-identical to pre-310" baseline).  That preserved an
+  // unlabeled floating duration number beside every PR title.
+  // Feature 310 added a labeled header on the capability-on path,
+  // which made the capability-off gap obvious by contrast.
+  //
+  // Two-axis matrix, both flags resolved at the caller in
+  // ``renderPrListSection`` and threaded through this function:
+  //
+  //   commentsMetricsAvailable  | sortRowElements | shape rendered
+  //   --------------------------|-----------------|----------------
+  //   false                     | null            | 2-cell PR | Cycle
+  //   true                      | null            | 5-cell PR | Cycle |
+  //                             |                 |   Threads | Comments |
+  //                             |                 |   Unresolved (no
+  //                             |                 |   buttons, no
+  //                             |                 |   aria-sort)
+  //   true                      | non-null        | 5-cell with sort
+  //                             |                 |   buttons + aria-
+  //                             |                 |   sort wired up
+  //
+  // Codex stop-time review on commit 406263f6 caught the missing
+  // middle row: the prior implementation gated BOTH the comments-
+  // metrics columnheader cells AND the ``--with-comments`` modifier
+  // on ``sortRowElements`` non-null.  In the suppressed-sort capability-
+  // on states (single-row — issue #330 / C5; all-partial — issue
+  // #331 / C2) the rows still render three metric spans (5 grid
+  // tracks via ``.detail-panel-pr-list--with-comments .detail-panel-
+  // pr-row``), so a 2-cell header left the Threads / Comments /
+  // Unresolved columns visible but unlabeled.  The capability gate
+  // is now decoupled: ``commentsMetricsAvailable`` decides whether
+  // the THREE columns + modifier emit; ``sortRowElements`` decides
+  // whether those columns carry interactive sort buttons.
+  const { commentsMetricsAvailable, sortRowElements } = options;
+  const withSortButtons = sortRowElements !== null;
   const header = createElement("div", {
-    class: withSort
+    class: commentsMetricsAvailable
       ? "detail-panel-pr-list-header detail-panel-pr-list-header--with-comments"
       : "detail-panel-pr-list-header",
     role: "row",
@@ -616,36 +639,71 @@ function buildPrListHeader(
     ),
   );
 
-  if (!withSort) return header;
+  if (!commentsMetricsAvailable) return header;
 
-  // Capability-on, multi-row, non-all-partial: append the three sort
-  // cells on the same header row.  The non-null assertion below
-  // narrows ``sortRowElements`` from ``readonly HTMLLIElement[] |
-  // null`` to ``readonly HTMLLIElement[]`` — already established by
-  // the ``withSort`` check above.
-  const originalOrder = options.sortRowElements as readonly HTMLLIElement[];
+  // Comments-metrics columnheader cells.  When ``withSortButtons`` is
+  // true, each cell carries an interactive ``<button data-sort-key>``
+  // and ``aria-sort="none"``; otherwise the cell renders the plain
+  // ``headerLabel`` text (with ``title`` for disambiguated axes) and
+  // omits ``aria-sort`` entirely so screen readers don't announce a
+  // sortable column that can't be sorted.  Either way, the cell is
+  // present so the row's metric spans line up under labeled columns.
 
-  // Collect per-axis cell + state into records.  Iterating records in
-  // the click handler (instead of going through Maps keyed by axis key)
-  // keeps every cell/state access statically known to be defined — no
-  // ``Map.get()`` fallback arms are needed, which keeps the function
-  // free of partial-branch debt.
+  // Collect per-axis cell + state into records (only used when sort
+  // buttons are wired).  Iterating records in the click handler
+  // (instead of going through Maps keyed by axis key) keeps every
+  // cell/state access statically known to be defined — no ``Map.get()``
+  // fallback arms are needed, which keeps the function free of
+  // partial-branch debt.
   const records: SortHeaderRecord[] = [];
 
   for (const axis of COMMENTS_METRICS_AXES) {
-    const cell = createElement("div", {
+    const cellAttrs: Record<string, string> = {
       class: `detail-panel-pr-list-header-cell detail-panel-pr-list-header-cell--${axis.key}`,
       role: "columnheader",
-      "aria-sort": "none",
-    });
-    // Visible textContent is the SHORT ``headerLabel`` so the button
-    // fits inside the narrow numeric column.  ``title`` exposes the
-    // full disambiguated label on hover; ``aria-label`` overrides the
-    // visible text for screen readers so they always announce the
-    // disambiguating phrase regardless of which axis is rendered.
-    // ``title`` is only set when ``headerLabel`` actually differs from
-    // ``label`` so axes with already-fitting labels (Threads, Comments)
-    // don't get a noise tooltip identical to their visible text.
+    };
+    if (withSortButtons) {
+      cellAttrs["aria-sort"] = "none";
+    }
+    const cell = createElement("div", cellAttrs);
+
+    if (!withSortButtons) {
+      // Plain text cell — preserve the F8 three-surface disambiguation
+      // contract that the sort-button path applies (Codex stop-time
+      // review caught the regression on the prior pass).  When
+      // ``headerLabel`` differs from ``label`` (today: only the
+      // unresolved column, "Unresolved" visible vs. "Unresolved
+      // threads" disambiguated), the cell carries:
+      //   - ``headerLabel`` as visible textContent (fits the narrow
+      //     numeric track)
+      //   - ``title`` = ``label`` (hover surfaces the long form for
+      //     mouse users)
+      //   - ``aria-label`` = ``label`` (overrides the columnheader's
+      //     accessible name so SR users hear the unambiguous phrase
+      //     instead of the truncated visible text — matches what the
+      //     button path achieves via its own ``aria-label``)
+      // When ``headerLabel === label`` (Threads, Comments) the visible
+      // text already serves as accessible name; no extra attributes
+      // are added.  No "Sort by " prefix on aria-label here since
+      // this cell carries no sort action.
+      if (axis.headerLabel !== axis.label) {
+        cell.setAttribute("title", axis.label);
+        cell.setAttribute("aria-label", axis.label);
+      }
+      appendText(cell, axis.headerLabel);
+      header.appendChild(cell);
+      continue;
+    }
+
+    // Interactive sort cell.  Visible textContent is the SHORT
+    // ``headerLabel`` so the button fits inside the narrow numeric
+    // column.  ``title`` exposes the full disambiguated label on
+    // hover; ``aria-label`` overrides the visible text for screen
+    // readers so they always announce the disambiguating phrase
+    // regardless of which axis is rendered.  ``title`` is only set
+    // when ``headerLabel`` actually differs from ``label`` so axes
+    // with already-fitting labels (Threads, Comments) don't get a
+    // noise tooltip identical to their visible text.
     const button = createElement("button", {
       type: "button",
       class: "detail-panel-pr-list-header-sort",
@@ -661,6 +719,10 @@ function buildPrListHeader(
     const record: SortHeaderRecord = { axis, cell, state: "none" };
     records.push(record);
 
+    // ``sortRowElements`` is non-null inside this branch — narrow it
+    // to a local ``readonly HTMLLIElement[]`` for use inside the
+    // closure below.
+    const originalOrder = sortRowElements;
     button.addEventListener("click", () => {
       const nextDirection = advanceSortDirection(record.state);
       // Clear every other record's aria-sort to "none" so only one axis
@@ -1059,36 +1121,49 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         wrapper.appendChild(notice);
       }
 
-      // Issue #342 review finding: the base PR + Cycle header now ALWAYS
-      // emits when the slice has at least one row, so capability-off
-      // also gets a labeled header for its previously-bare cycle-time
-      // span.  The three SORT cells (Threads / Comments / Unresolved)
-      // and the threshold filter remain gated on the same three
-      // suppressions as before — see the ``sortRowElements`` ternary
-      // below — and the ``--with-comments`` modifier on the header
-      // element is added in lockstep with the sort cells so the
-      // header's grid template matches its actual cell count.
+      // Issue #342: the PR-list header always emits when the slice
+      // has at least one row.  Two independent flags govern the
+      // header's shape (see the matrix in ``buildPrListHeader``):
       //
-      // Sort/filter emit gate composes three independent suppressions:
-      //   - ``commentsMetricsAvailable``: capability-on only (lock #9 /
-      //     SC-03 / INV-01).
-      //   - ``rowElements.length > 1`` (issue #330 / C5): sort / filter
-      //     are no-ops on a single-row list; controls read as dead UI.
-      //     The ``<ol>`` ``--with-comments`` modifier class stays so a
-      //     single-row list still gets per-row tabular / muted-partial
-      //     styling.
-      //   - ``!allRowsPartial`` (issue #331 / C2): on a slice where
-      //     every row's three numeric fields are coverage-pending,
-      //     sort + filter have no comparable values to act on; the
-      //     coverage notice above explains the state, and the
-      //     controls would read as dead UI exactly as in the single-
-      //     row case.
+      //   - ``commentsMetricsAvailable`` decides whether the THREE
+      //     comments-metric columnheader cells (Threads / Comments /
+      //     Unresolved) and the ``--with-comments`` modifier emit on
+      //     the header.  Capability-off → 2-cell PR | Cycle.
+      //     Capability-on → 5-cell, modifier present, regardless of
+      //     sort suppression below.  This keeps the header columns
+      //     in lockstep with the row's grid tracks: the row's three
+      //     metric spans always render when capability-on (the
+      //     ``commentsMetricsAvailable`` block in the row loop above),
+      //     so the header MUST have matching columnheader cells or
+      //     visible metric values would render unlabeled (Codex stop-
+      //     time review on commit 406263f6 caught this regression).
+      //   - ``sortRowElements`` decides whether those three cells
+      //     carry interactive sort buttons + ``aria-sort``.  The
+      //     suppression conditions are unchanged from prior commits:
+      //
+      //       * ``commentsMetricsAvailable``: capability-on only (lock
+      //         #9 / SC-03 / INV-01).
+      //       * ``rowElements.length > 1`` (issue #330 / C5): sort
+      //         is a no-op on a single-row list; the cell renders
+      //         the plain label.
+      //       * ``!allRowsPartial`` (issue #331 / C2): on a slice
+      //         where every row's three numeric fields are coverage-
+      //         pending, sort has nothing comparable to act on; the
+      //         coverage notice above explains the state.
+      //
+      // The threshold filter shares the sort-button gate (it has the
+      // same suppression rationale as the sort buttons).
       const sortRowElements: readonly HTMLLIElement[] | null =
         commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial
           ? rowElements
           : null;
       if (rowElements.length > 0) {
-        wrapper.appendChild(buildPrListHeader(list, { sortRowElements }));
+        wrapper.appendChild(
+          buildPrListHeader(list, {
+            commentsMetricsAvailable,
+            sortRowElements,
+          }),
+        );
       }
       if (sortRowElements !== null) {
         wrapper.appendChild(buildCommentsMetricsFilter(list));

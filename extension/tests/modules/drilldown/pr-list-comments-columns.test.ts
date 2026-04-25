@@ -256,7 +256,7 @@ describe("capability-on path — three columns per row (INV-08)", () => {
 });
 
 describe("issue #330 / C5 — controls-visibility guard on trivial lists", () => {
-  it("suppresses sort cells + filter when the capability-on list has a single row (shared PR | Cycle header still emits)", () => {
+  it("suppresses sort BUTTONS + filter when the capability-on list has a single row (5-cell header still emits, no buttons)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
       rows: [
@@ -273,22 +273,37 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
       commentsMetricsAvailable: true,
     });
     const root = openWithPrListSection(section);
-    // Issue #342: the shared PR | Cycle header still emits — only the
-    // SORT CELLS and filter are suppressed on a trivial list.  The
-    // header element does NOT carry the ``--with-comments`` modifier
-    // when sort cells are absent, so its grid template stays at the
-    // 2-col base.
+    // Issue #342 (post Codex stop-time review on 406263f6): the
+    // capability-on row carries three metric spans (5 grid tracks via
+    // ``.detail-panel-pr-list--with-comments .detail-panel-pr-row``),
+    // so the header MUST emit matching columnheader cells or the
+    // metric values render unlabeled.  Only the interactive SORT
+    // BUTTONS and the threshold filter are suppressed on a trivial
+    // list.  The cells render the plain label text and OMIT
+    // ``aria-sort`` so SR users don't get told a column is sortable
+    // when it isn't.
     const header = root.querySelector<HTMLElement>(
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
     expect(
       header!.classList.contains("detail-panel-pr-list-header--with-comments"),
-    ).toBe(false);
-    expect(
-      header!.querySelectorAll<HTMLElement>('[role="columnheader"]'),
-    ).toHaveLength(2);
+    ).toBe(true);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(5);
+    // No interactive sort buttons + no aria-sort attributes anywhere
+    // on the suppressed-sort header.
     expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+    for (const cell of Array.from(cells)) {
+      expect(cell.getAttribute("aria-sort")).toBeNull();
+    }
+    // Spot-check that the comments-metric cells carry their visible
+    // labels — the column edges line up under text, not empty cells.
+    expect(cells[2]!.textContent).toBe("Threads");
+    expect(cells[3]!.textContent).toBe("Comments");
+    expect(cells[4]!.textContent).toBe("Unresolved");
 
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
@@ -453,23 +468,29 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
         "detail-panel-pr-list-coverage-notice--all-partial",
       ),
     ).toBe(true);
-    // C2: sort cells + filter MUST be absent on an all-partial slice
-    // — there are no numeric values to sort / threshold-filter, so
-    // the controls would read as dead UI.  The shared PR | Cycle
-    // header still emits (issue #342), without the ``--with-comments``
-    // modifier; the <ol> modifier class stays on so per-row metric
-    // span styling is unchanged.
+    // C2: sort BUTTONS + filter MUST be absent on an all-partial slice
+    // — there are no numeric values to sort / threshold-filter.  But
+    // the capability-on rows carry three (dashed) metric spans, so
+    // the header still emits 5 columnheader cells with the
+    // ``--with-comments`` modifier (issue #342 post Codex stop-time
+    // review on 406263f6) — otherwise the dashed columns would render
+    // unlabeled.  The cells carry plain label text and omit
+    // ``aria-sort`` so SR users don't get told a column is sortable.
     const header = root.querySelector<HTMLElement>(
       ".detail-panel-pr-list-header",
     );
     expect(header).not.toBeNull();
     expect(
       header!.classList.contains("detail-panel-pr-list-header--with-comments"),
-    ).toBe(false);
-    expect(
-      header!.querySelectorAll<HTMLElement>('[role="columnheader"]'),
-    ).toHaveLength(2);
+    ).toBe(true);
+    const cells = header!.querySelectorAll<HTMLElement>(
+      '[role="columnheader"]',
+    );
+    expect(cells).toHaveLength(5);
     expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+    for (const cell of Array.from(cells)) {
+      expect(cell.getAttribute("aria-sort")).toBeNull();
+    }
     expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
     const list = root.querySelector<HTMLOListElement>(
       "ol.detail-panel-pr-list",
@@ -1219,6 +1240,68 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
       cells[1]!.classList.contains("detail-panel-pr-list-header-cell--cycle"),
     ).toBe(true);
     expect(header!.querySelectorAll("button[data-sort-key]")).toHaveLength(0);
+  });
+
+  it("unresolved SUPPRESSED-sort cell preserves F8 three-surface disambiguation (Codex review of #342)", () => {
+    // Codex stop-time review caught a regression on the post-#342
+    // suppressed-sort path: when sort buttons are absent (issue
+    // #330 / C5 single-row OR issue #331 / C2 all-partial), the
+    // capability-on header still emits 5 cells so the row's metric
+    // spans don't render unlabeled, but the prior pass dropped
+    // aria-label on the plain-text columnheader cell.  That left the
+    // SR accessible name as the truncated visible text "Unresolved",
+    // losing the disambiguation the F8 rename was meant to convey.
+    //
+    // Locks the corrected three-surface contract for the SUPPRESSED-
+    // sort cell (no button, no "Sort by" prefix on aria-label):
+    //   - visible textContent: "Unresolved" (short, fits track)
+    //   - title:               "Unresolved threads" (mouse hover)
+    //   - aria-label:          "Unresolved threads" (SR accessible name)
+    // Plus the negative pair: Threads / Comments cells (where
+    // headerLabel === label) carry NO aria-label and NO title — the
+    // visible text already serves as accessible name.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        // Single-row triggers the C5 sort-button suppression (sort-
+        // cells path) while keeping capability-on so the metric
+        // columnheader cells emit.  The sort-button-PRESENT path
+        // for the same axis is locked by the next test.
+        buildRow({
+          id: 1,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+
+    const unresolvedCell = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-header-cell--unresolved",
+    );
+    expect(unresolvedCell).not.toBeNull();
+    expect(unresolvedCell!.textContent).toBe("Unresolved");
+    expect(unresolvedCell!.getAttribute("title")).toBe("Unresolved threads");
+    expect(unresolvedCell!.getAttribute("aria-label")).toBe(
+      "Unresolved threads",
+    );
+    // No sort action on this cell — no button child, no "Sort by"
+    // prefix on aria-label.
+    expect(unresolvedCell!.querySelector("button")).toBeNull();
+
+    for (const axis of ["threads", "comments"] as const) {
+      const cell = root.querySelector<HTMLElement>(
+        `.detail-panel-pr-list-header-cell--${axis}`,
+      );
+      expect(cell).not.toBeNull();
+      expect(cell!.getAttribute("aria-label")).toBeNull();
+      expect(cell!.getAttribute("title")).toBeNull();
+    }
   });
 
   it("unresolved sort button shows 'Unresolved' visibly with full disambiguation via title + aria-label (F8 + header-fit)", () => {
