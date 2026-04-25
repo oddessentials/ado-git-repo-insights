@@ -285,6 +285,214 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
   });
 });
 
+describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppression", () => {
+  it("zero-partial slice → no coverage notice; header + filter still render", () => {
+    // Negative pair: when no row is partial the notice MUST be
+    // absent so it doesn't add chrome on fully-covered slices.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 3,
+          commentCount: 7,
+          activeThreadCount: 1,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: 1,
+          commentCount: 4,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+
+  it("mixed-partial slice → 'N of M' notice; header + filter still render (C3)", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: 5,
+          commentCount: 17,
+          activeThreadCount: 2,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 3,
+          threadCount: 1,
+          commentCount: 4,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 3,
+      actualFilteredCount: 3,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const notice = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-coverage-notice",
+    );
+    expect(notice).not.toBeNull();
+    expect(notice!.textContent).toBe(
+      "Comments coverage: partial — 1 of 3 PRs are missing comment data.",
+    );
+    // ``--all-partial`` modifier MUST NOT appear on a mixed slice —
+    // that variant is reserved for the all-partial branch.
+    expect(
+      notice!.classList.contains(
+        "detail-panel-pr-list-coverage-notice--all-partial",
+      ),
+    ).toBe(false);
+    expect(notice!.getAttribute("role")).toBe("status");
+    expect(notice!.getAttribute("aria-live")).toBe("polite");
+    // Sort + filter controls still render — sort/filter operate on
+    // the two numeric rows and partial rows continue to sort to the
+    // end / be hidden by an active threshold per FR-3-05.
+    expect(root.querySelector(".detail-panel-pr-list-header")).not.toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).not.toBeNull();
+  });
+
+  it("all-partial slice → 'pending — none' notice; header + filter SUPPRESSED (C2)", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const notice = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-coverage-notice",
+    );
+    expect(notice).not.toBeNull();
+    expect(notice!.textContent).toBe(
+      "Comments coverage: pending — none of these PRs have comment data yet.",
+    );
+    expect(
+      notice!.classList.contains(
+        "detail-panel-pr-list-coverage-notice--all-partial",
+      ),
+    ).toBe(true);
+    // C2: sort + filter MUST be absent on an all-partial slice —
+    // there are no numeric values to sort / threshold-filter, so
+    // the controls would read as dead UI.  The <ol> modifier class
+    // stays on so per-row metric span styling is unchanged.
+    expect(root.querySelector(".detail-panel-pr-list-header")).toBeNull();
+    expect(root.querySelector(".detail-panel-pr-list-filter")).toBeNull();
+    const list = root.querySelector<HTMLOListElement>(
+      "ol.detail-panel-pr-list",
+    );
+    expect(list).not.toBeNull();
+    expect(
+      list!.classList.contains("detail-panel-pr-list--with-comments"),
+    ).toBe(true);
+  });
+
+  it("capability-off slice with any row shape → no coverage notice (SC-03 byte-identity)", () => {
+    // Lock #9 / SC-03: the new coverage-notice element class is
+    // capability-on-only.  Capability-off slices — including ones
+    // whose rows happen to carry partial values from the producer —
+    // MUST NOT emit any new DOM.  Belt-and-braces alongside the
+    // pr-list-capability-off-baseline.test.ts byte-identical check.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({ id: 2 }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: false,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).toBeNull();
+  });
+
+  it("truncated all-partial slice → coverage notice present; slice-scope disclosure DROPPED", () => {
+    // Locks the truncation-badge gate's #331 / C2 adjustment: when
+    // every row is partial, the controls don't render, so the "Sort
+    // and filter operate within this slice." sentence would promise
+    // an interaction that never lands and must be dropped.  The
+    // base "Showing N of M matching PRs (top 500 by cycle time)"
+    // text stays so the slice ratio remains discoverable.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 1,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+        buildRow({
+          id: 2,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 743,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    expect(
+      root.querySelector(".detail-panel-pr-list-coverage-notice"),
+    ).not.toBeNull();
+    const badge = root.querySelector<HTMLElement>(
+      ".truncation-indicator.truncation-badge",
+    );
+    expect(badge).not.toBeNull();
+    const badgeText = badge!.textContent ?? "";
+    expect(badgeText).toContain("Showing 2 of 743");
+    expect(badgeText).toContain("by cycle time");
+    expect(badgeText).not.toContain(
+      "Sort and filter operate within this slice",
+    );
+  });
+});
+
 describe("issue #330 / C1 — truncation badge slice-scope disclosure", () => {
   it("capability-on truncated week appends the slice-scope disclosure sentence", () => {
     const section = makePrListSection({
@@ -412,13 +620,77 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     for (const axis of ["threads", "comments", "unresolved"] as const) {
       const span = metricSpan(row, axis);
       expect(span.getAttribute("data-partial")).toBe("true");
-      // Lock #4 — partial data must be human-distinguishable AND
-      // screen-reader-distinguishable, not just machine-tagged.  The
-      // aria-label carries the meaning to assistive tech; a CSS rule
-      // under ``.detail-panel-pr-list--with-comments`` carries the
-      // visual distinction (muted + italic).
-      expect(span.getAttribute("aria-label")).toBe("Coverage pending");
+      // Issue #331 / A2: span is removed from the a11y tree; the
+      // row-level aria-label carries the announcement (asserted
+      // separately below).  Per-span aria-labels would cause the
+      // SR to announce "Coverage pending" three times per partial
+      // row; aria-hidden + a single row-level label fixes that.
+      expect(span.getAttribute("aria-hidden")).toBe("true");
+      expect(span.getAttribute("aria-label")).toBeNull();
       expect(span.textContent).toBe("—");
+    }
+  });
+
+  it("issue #331 / A2: announces 'Coverage pending' ONCE at the row level on a partial row", () => {
+    // Locks the A2 contract: exactly one accessible announcement of
+    // 'Coverage pending' per partial row, located on the <li>, with
+    // every metric span removed from the a11y tree via aria-hidden.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 100,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    expect(row.getAttribute("aria-label")).toBe("Coverage pending");
+    // Count reachable aria-labels under the row — the row-level one
+    // counts once; spans are aria-hidden so any aria-label they
+    // carried would not be announced.  This guard fails if a future
+    // change adds back per-span aria-labels (regressing A2).
+    const reachableLabels = Array.from(
+      row.querySelectorAll<HTMLElement>(
+        ":not([aria-hidden='true']) > [aria-label]",
+      ),
+    );
+    expect(reachableLabels).toHaveLength(0);
+  });
+
+  it("issue #331 / A2: numeric (non-partial) row carries no row-level aria-label or span aria-hidden", () => {
+    // Negative pair — the A2 row-level aria-label and span aria-
+    // hidden treatment MUST NOT leak onto a numeric (non-partial)
+    // row.  A true-zero row still renders explicit ``0`` and stays
+    // fully reachable to assistive tech.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 200,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    expect(row.getAttribute("aria-label")).toBeNull();
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      const span = metricSpan(row, axis);
+      expect(span.getAttribute("aria-hidden")).toBeNull();
     }
   });
 
@@ -445,9 +717,11 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
       const span = metricSpan(row, axis);
       expect(span.textContent).toBe("0");
       expect(span.getAttribute("data-partial")).toBe("false");
-      // Negative pair with the aria-label assertion above — a true zero
-      // is NOT partial, so no ``Coverage pending`` label leaks onto it.
+      // Negative pair with the aria-hidden assertion above — a true
+      // zero is NOT partial, so neither aria-hidden nor any
+      // ``Coverage pending`` label leaks onto it.
       expect(span.getAttribute("aria-label")).toBeNull();
+      expect(span.getAttribute("aria-hidden")).toBeNull();
     }
   });
 });

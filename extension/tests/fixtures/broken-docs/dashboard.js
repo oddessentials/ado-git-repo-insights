@@ -4418,6 +4418,10 @@ var PRInsightsDashboard = (() => {
           capValue,
           commentsMetricsAvailable
         } = section;
+        const partialRowCount = commentsMetricsAvailable ? rows.filter(
+          (r2) => r2.threadCount === null || r2.threadCount === void 0
+        ).length : 0;
+        const allRowsPartial = partialRowCount > 0 && partialRowCount === rows.length;
         if (renderedCount < actualFilteredCount) {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
@@ -4425,7 +4429,7 @@ var PRInsightsDashboard = (() => {
           const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
           appendText(
             indicator,
-            commentsMetricsAvailable ? `${base}. Sort and filter operate within this slice.` : base
+            commentsMetricsAvailable && !allRowsPartial ? `${base}. Sort and filter operate within this slice.` : base
           );
           wrapper.appendChild(indicator);
         }
@@ -4455,14 +4459,17 @@ var PRInsightsDashboard = (() => {
             const allPartial = triplet.every(
               ([, , value]) => value === null || value === void 0
             );
-            if (allPartial) li.setAttribute("data-partial", "true");
+            if (allPartial) {
+              li.setAttribute("data-partial", "true");
+              li.setAttribute("aria-label", "Coverage pending");
+            }
             for (const [key, cls, value] of triplet) {
               const span = createElement("span", {
                 class: `comments-metric comments-metric--${cls}`
               });
               if (value === null || value === void 0) {
                 span.setAttribute("data-partial", "true");
-                span.setAttribute("aria-label", "Coverage pending");
+                span.setAttribute("aria-hidden", "true");
                 appendText(span, "\u2014");
               } else {
                 span.setAttribute("data-partial", "false");
@@ -4474,7 +4481,19 @@ var PRInsightsDashboard = (() => {
           }
           rowElements.push(li);
         }
-        if (commentsMetricsAvailable && rowElements.length > 1) {
+        if (commentsMetricsAvailable && partialRowCount > 0) {
+          const notice = createElement("p", {
+            class: allRowsPartial ? "detail-panel-pr-list-coverage-notice detail-panel-pr-list-coverage-notice--all-partial" : "detail-panel-pr-list-coverage-notice",
+            role: "status",
+            "aria-live": "polite"
+          });
+          appendText(
+            notice,
+            allRowsPartial ? "Comments coverage: pending \u2014 none of these PRs have comment data yet." : `Comments coverage: partial \u2014 ${partialRowCount} of ${rows.length} PRs are missing comment data.`
+          );
+          wrapper.appendChild(notice);
+        }
+        if (commentsMetricsAvailable && rowElements.length > 1 && !allRowsPartial) {
           wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
           wrapper.appendChild(buildCommentsMetricsFilter(list));
         }
@@ -8826,14 +8845,16 @@ var PRInsightsDashboard = (() => {
       unresolvedSum += row.activeThreadCount ?? 0;
       if (row.threadCount === null) partialCount += 1;
     }
-    const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+    const allRowsPartial = partialCount > 0 && partialCount === rows.length;
+    function statValue(numericTotal) {
+      if (allRowsPartial) return `Pending (${partialCount})`;
+      if (partialCount > 0) return `${numericTotal} (+${partialCount} partial)`;
+      return String(numericTotal);
+    }
     return makeStatRow([
-      { label: "Threads", value: `${threadsSum}${partialSuffix}` },
-      { label: "Comments", value: `${commentsSum}${partialSuffix}` },
-      {
-        label: "Unresolved threads",
-        value: `${unresolvedSum}${partialSuffix}`
-      }
+      { label: "Threads", value: statValue(threadsSum) },
+      { label: "Comments", value: statValue(commentsSum) },
+      { label: "Unresolved threads", value: statValue(unresolvedSum) }
     ]);
   }
   function buildAuthorNameMap(dim) {

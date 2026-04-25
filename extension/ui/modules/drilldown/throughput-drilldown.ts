@@ -272,14 +272,32 @@ function buildCommentsStatRow(rows: readonly PrListRow[]): PanelSection {
     // sufficient to identify a partial row.
     if (row.threadCount === null) partialCount += 1;
   }
-  const partialSuffix = partialCount > 0 ? ` (+${partialCount} partial)` : "";
+  // Issue #331 / A1: distinguish "all-partial week" from "true zero
+  // week" on the stat row.  Under the prior implementation, a week
+  // where every row was coverage-pending rendered as ``0 (+N partial)``
+  // on each axis — visually identical to a true-zero week with the
+  // same partial annotation pattern, except that the latter actually
+  // had numeric zeros to back the headline value.  Per INV-08 / INV-10
+  // (all-or-nothing per row) "all rows partial on any one axis"
+  // collapses to "all rows partial on every axis," so a single per-
+  // call branch suffices — no per-axis allPartial check is required.
+  //
+  // Three states:
+  //   - ``partialCount === 0``:               render ``K`` (true total)
+  //   - ``0 < partialCount < rows.length``:   render ``K (+N partial)``
+  //   - ``partialCount === rows.length > 0``: render ``Pending (N)`` —
+  //     the headline literal IS the partial signal; no numeric ``0``
+  //     because the underlying data is absent, not zero.
+  const allRowsPartial = partialCount > 0 && partialCount === rows.length;
+  function statValue(numericTotal: number): string {
+    if (allRowsPartial) return `Pending (${partialCount})`;
+    if (partialCount > 0) return `${numericTotal} (+${partialCount} partial)`;
+    return String(numericTotal);
+  }
   return makeStatRow([
-    { label: "Threads", value: `${threadsSum}${partialSuffix}` },
-    { label: "Comments", value: `${commentsSum}${partialSuffix}` },
-    {
-      label: "Unresolved threads",
-      value: `${unresolvedSum}${partialSuffix}`,
-    },
+    { label: "Threads", value: statValue(threadsSum) },
+    { label: "Comments", value: statValue(commentsSum) },
+    { label: "Unresolved threads", value: statValue(unresolvedSum) },
   ]);
 }
 

@@ -817,6 +817,23 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         commentsMetricsAvailable,
       } = section;
 
+      // Issue #331 / C2 + C3: pre-compute the slice-level partial
+      // state up front so the truncation-badge disclosure (below),
+      // the coverage notice (further below), and the header/filter
+      // emit gate all read from the same single source of truth.
+      // Per INV-08 (drill-down field atomicity) a row's three fields
+      // are partial together or numeric together; ``threadCount``
+      // alone is a sufficient discriminator.  ``undefined`` covers
+      // the theoretical capability-off-passthrough leak; ``null`` is
+      // the spec-defined coverage-partial sentinel (INV-10).
+      const partialRowCount = commentsMetricsAvailable
+        ? rows.filter(
+            (r) => r.threadCount === null || r.threadCount === undefined,
+          ).length
+        : 0;
+      const allRowsPartial =
+        partialRowCount > 0 && partialRowCount === rows.length;
+
       if (renderedCount < actualFilteredCount) {
         const indicator = createElement("div", {
           class: "truncation-indicator truncation-badge",
@@ -829,10 +846,15 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         // outside the top-500-by-cycle-time window.  Capability-off
         // has no such sort/filter surface, so the pre-310 literal is
         // preserved byte-for-byte to keep SC-03 / INV-01 intact.
+        //
+        // Issue #331 / C2: drop the slice-scope sentence on all-
+        // partial slices — the sort/filter controls are suppressed
+        // there (see emit gate below), so the disclosure would
+        // promise an interaction that never lands.
         const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
         appendText(
           indicator,
-          commentsMetricsAvailable
+          commentsMetricsAvailable && !allRowsPartial
             ? `${base}. Sort and filter operate within this slice.`
             : base,
         );
@@ -899,14 +921,29 @@ function renderPrListSection(section: PrListSection): HTMLElement {
           const allPartial = triplet.every(
             ([, , value]) => value === null || value === undefined,
           );
-          if (allPartial) li.setAttribute("data-partial", "true");
+          if (allPartial) {
+            li.setAttribute("data-partial", "true");
+            // Issue #331 / A2: announce coverage-pending ONCE at the
+            // row level rather than three times across the metric
+            // spans.  Each metric span gains ``aria-hidden="true"``
+            // below so the row-level aria-label is the single SR
+            // signal for the partial state on this PR (lock #4 —
+            // partial data must be SR-distinguishable, but exactly
+            // once per row, not per axis).
+            li.setAttribute("aria-label", "Coverage pending");
+          }
           for (const [key, cls, value] of triplet) {
             const span = createElement("span", {
               class: `comments-metric comments-metric--${cls}`,
             });
             if (value === null || value === undefined) {
               span.setAttribute("data-partial", "true");
-              span.setAttribute("aria-label", "Coverage pending");
+              // Issue #331 / A2: span is removed from the a11y tree
+              // because the row-level ``aria-label`` (set above when
+              // ``allPartial``) carries the announcement.  The visual
+              // ``—`` glyph + ``data-partial="true"`` keep the muted /
+              // italic CSS hooks intact for sighted users.
+              span.setAttribute("aria-hidden", "true");
               appendText(span, "—");
             } else {
               span.setAttribute("data-partial", "false");
@@ -918,21 +955,60 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         }
         rowElements.push(li);
       }
+      // Issue #331 / C2 + C3: in-panel coverage notice.  When the
+      // dashboard banner says "Comments coverage: partial" the user
+      // loses that signal once a drill-down panel opens; this notice
+      // restores it and adds slice-level resolution ("N of M PRs"
+      // for mixed; "none of these PRs" for all-partial).  Emitted
+      // before the header so it sits as the first piece of slice-
+      // level chrome above the controls / list, and gated strictly
+      // on capability-on — no DOM emission when capability-off (lock
+      // #9 / SC-03 / INV-01).  ``role="status"`` + ``aria-live="polite"``
+      // matches the dashboard banner pattern so SR users hear the
+      // signal without being interrupted mid-task.
+      if (commentsMetricsAvailable && partialRowCount > 0) {
+        const notice = createElement("p", {
+          class: allRowsPartial
+            ? "detail-panel-pr-list-coverage-notice detail-panel-pr-list-coverage-notice--all-partial"
+            : "detail-panel-pr-list-coverage-notice",
+          role: "status",
+          "aria-live": "polite",
+        });
+        appendText(
+          notice,
+          allRowsPartial
+            ? "Comments coverage: pending — none of these PRs have comment data yet."
+            : `Comments coverage: partial — ${partialRowCount} of ${rows.length} PRs are missing comment data.`,
+        );
+        wrapper.appendChild(notice);
+      }
+
       // Feature 310: header + filter live only on the capability-on
       // path — lock #9 ("no DOM emission when capability-off; absent, not
       // hidden").  They are appended BEFORE the list so the rendered
-      // order is [header] → [filter] → [list].  The header closure
-      // captures ``rowElements`` as the original-order snapshot for
-      // the unsorted sort state (third click).
+      // order is [coverage-notice?] → [header] → [filter] → [list].
+      // The header closure captures ``rowElements`` as the original-
+      // order snapshot for the unsorted sort state (third click).
       //
-      // Issue #330 / C5: additionally suppress emit when the list has
-      // one row or fewer — sort / filter are no-ops on a trivial list
-      // and the controls read as dead UI.  The per-row
-      // ``.comments-metric`` styling on the ``<ol>`` modifier class is
-      // intentionally left untouched so a single-row capability-on
-      // list still renders the three count spans with their usual
-      // tabular / muted-partial treatment.
-      if (commentsMetricsAvailable && rowElements.length > 1) {
+      // Emit gate composes three independent suppressions:
+      //   - ``commentsMetricsAvailable``: capability-on only (lock #9 /
+      //     SC-03 / INV-01).
+      //   - ``rowElements.length > 1`` (issue #330 / C5): sort / filter
+      //     are no-ops on a single-row list; controls read as dead UI.
+      //     The ``<ol>`` ``--with-comments`` modifier class stays so a
+      //     single-row list still gets per-row tabular / muted-partial
+      //     styling.
+      //   - ``!allRowsPartial`` (issue #331 / C2): on a slice where
+      //     every row's three numeric fields are coverage-pending,
+      //     sort + filter have no comparable values to act on; the
+      //     coverage notice above explains the state, and the
+      //     controls would read as dead UI exactly as in the single-
+      //     row case.
+      if (
+        commentsMetricsAvailable &&
+        rowElements.length > 1 &&
+        !allRowsPartial
+      ) {
         wrapper.appendChild(buildCommentsMetricsHeader(list, rowElements));
         wrapper.appendChild(buildCommentsMetricsFilter(list));
       }

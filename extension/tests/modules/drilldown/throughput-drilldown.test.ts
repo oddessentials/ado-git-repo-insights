@@ -1485,15 +1485,18 @@ describe("throughput-drilldown", () => {
         covered.querySelector(".comments-metric--unresolved")?.textContent,
       ).toBe("3");
       // Partial row — three "—" spans, row-level data-partial, and
-      // per-span aria-label="Coverage pending" (lock #4 — machine +
-      // human + SR distinguishable).
+      // (post-#331 / A2) row-level aria-label="Coverage pending"
+      // with span-level aria-hidden so the SR announces partial
+      // state ONCE per row instead of three times.
       const partial = rows[1]!;
       expect(partial.getAttribute("data-partial")).toBe("true");
+      expect(partial.getAttribute("aria-label")).toBe("Coverage pending");
       const partialSpans =
         partial.querySelectorAll<HTMLSpanElement>(".comments-metric");
       for (const span of partialSpans) {
         expect(span.getAttribute("data-partial")).toBe("true");
-        expect(span.getAttribute("aria-label")).toBe("Coverage pending");
+        expect(span.getAttribute("aria-hidden")).toBe("true");
+        expect(span.getAttribute("aria-label")).toBeNull();
         expect(span.textContent).toBe("—");
       }
     });
@@ -1772,6 +1775,69 @@ describe("throughput-drilldown", () => {
           "6 (+1 partial)",
           "21 (+1 partial)",
           "2 (+1 partial)",
+        ]);
+      });
+
+      it("issue #331 / A1: renders 'Pending (N)' (NOT '0 (+N partial)') when EVERY row in the slice is partial", () => {
+        // Locks the A1 contract: an all-partial week MUST be visibly
+        // distinct from a true-zero week on the stat row.  Under the
+        // prior implementation both states rendered with the SAME
+        // headline "0" plus the SAME "(+N partial)" annotation —
+        // collapsing two materially different states into one
+        // visual signature.  Per INV-08 / INV-10 (all-or-nothing
+        // per row) "all rows partial on any one axis" collapses to
+        // "all rows partial on every axis," so the literal
+        // ``Pending (N)`` is correct on every axis simultaneously.
+        const rollups = [
+          buildPrsWithComments([
+            {
+              id: 1,
+              title: "a",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 10,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+            {
+              id: 2,
+              title: "b",
+              author_id: "bob",
+              repository_id: "repo-1",
+              cycle_time: 20,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+            {
+              id: 3,
+              title: "c",
+              author_id: "alice",
+              repository_id: "repo-1",
+              cycle_time: 30,
+              thread_count: null,
+              comment_count: null,
+              active_thread_count: null,
+            },
+          ]),
+        ];
+        const container = mountChart(rollups);
+        installThroughputDrilldown(container, rollups, {
+          filters: { repos: [], teams: [], reviewers: [], authors: [] },
+          repositoriesDimension: BASE_REPOS,
+          webContext: BASE_WEB_CTX,
+          commentsMetricsAvailable: true,
+        });
+        click(firstBar(container));
+
+        // All three axes carry the same literal — the headline IS
+        // the partial signal; no numeric ``0`` because the underlying
+        // data is absent, not zero.
+        expect(statValues()).toEqual([
+          "Pending (3)",
+          "Pending (3)",
+          "Pending (3)",
         ]);
       });
 

@@ -121,16 +121,25 @@ describe("issue #330 / C4 — comments-metrics grid CSS contract (desktop + narr
 
   it("locks the desktop and 480px comments-metrics grid templates under capability-on selectors", () => {
     // The header rule and the row rule MUST both declare the same
-    // header-driven desktop track widths (``4.5rem 5.5rem 7rem``) so
-    // header cells and their count cells line up to the same column
-    // edges across the 12px-header / 13px-row font-size gap.  rem is
-    // used instead of em so both grid containers resolve to the same
-    // pixel widths regardless of their own font-size.  The @media
-    // (max-width: 480px) override narrows the same three tracks
-    // proportionally for narrow viewports; all three sites move in
-    // lockstep.
+    // header-driven desktop track widths so header cells and their
+    // count cells line up to the same column edges across the 12px-
+    // header / 13px-row font-size gap.  rem is used instead of em so
+    // both grid containers resolve to the same pixel widths regardless
+    // of their own font-size.  The @media (max-width: 480px) override
+    // narrows the same three tracks proportionally for narrow viewports;
+    // all three sites move in lockstep.
+    //
+    // Current values (post-2026-04-25 #330 follow-up): the previous
+    // ``3.5rem 4.25rem 5rem`` template was sized to the label text
+    // alone, ignoring the button's ``::after`` sort indicator + gap
+    // overhead — Codex caught this when reviewing a meaningless
+    // runtime guard, and the corrected geometric guard
+    // (extension/tests/smoke/comments-metrics-header-fit.smoke.ts)
+    // exposed 8–14px overflow on every axis.  The fix slimmed the
+    // button overhead (gap: 0, indicator 0.5em) AND re-fit the
+    // tracks to the slimmed measurements with a real ≥5px buffer.
     const desktopTemplatePattern =
-      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3\.5rem\s+4\.25rem\s+5rem/;
+      /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+4\.25rem\s+5\.125rem\s+5\.625rem/;
 
     // Desktop header rule.
     const headerBody = findTopLevelRuleBody(
@@ -156,7 +165,7 @@ describe("issue #330 / C4 — comments-metrics grid CSS contract (desktop + narr
         body.includes(".detail-panel-pr-list-header") &&
         body.includes(".detail-panel-pr-list--with-comments") &&
         body.includes(".detail-panel-pr-row") &&
-        /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3rem\s+3\.5rem\s+4\.5rem/.test(
+        /grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s+3\.75rem\s+4\.625rem\s+5rem/.test(
           body,
         ),
     );
