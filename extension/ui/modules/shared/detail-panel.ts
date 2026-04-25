@@ -1628,6 +1628,20 @@ export function openDetailPanel(context: DrillDownContext): void {
   const wasOpen = isDetailPanelOpen();
   activeContext = context;
 
+  if (wasOpen) {
+    // Issue #332 / B2 (Codex PR #343 P2 follow-up): retarget-in-place
+    // (cycle-time P50↔P90 swap, throughput week-to-week, etc.)
+    // replaces the panel's DOM via ``renderContent`` below WITHOUT
+    // going through ``dismissDetailPanel``.  The old C1 info-icon's
+    // element-bound listeners are GC'd with the detached DOM, but
+    // the deferred document-level dismiss listener (or its pending
+    // ``rAF``) survives — Codex stop-time review flagged this as the
+    // path the prior fix missed.  Drop both the tooltip and the
+    // listener so the new render starts from a clean tooltip lifecycle.
+    dismissAllTooltips();
+    clearOutsideClickListener();
+  }
+
   if (!wasOpen) {
     // Install the open-scoped controller BEFORE render + is-open so
     // applyTopOffset's ResizeObserver teardown can piggyback on the

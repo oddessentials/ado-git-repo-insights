@@ -4837,6 +4837,10 @@ var PRInsightsDashboard = (() => {
     const els = ensurePanelEls();
     const wasOpen = isDetailPanelOpen();
     activeContext = context;
+    if (wasOpen) {
+      dismissAllTooltips();
+      clearOutsideClickListener();
+    }
     if (!wasOpen) {
       openScopedController = installOpenScopedListeners(els);
       applyTopOffset(els.root, openScopedController.signal);

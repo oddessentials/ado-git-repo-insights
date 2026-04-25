@@ -2021,6 +2021,128 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
     document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(document.querySelector(".chart-tooltip")).not.toBeNull();
   });
+
+  it("PRE-rAF retarget-in-place re-open clears the deferred outside-click frame (chart tooltip survives)", () => {
+    // Codex PR #343 P2 follow-up #2: retarget-in-place (cycle-time
+    // P50↔P90, throughput week-to-week, etc.) is a documented load-
+    // bearing path that re-renders the panel WITHOUT going through
+    // ``dismissDetailPanel``.  The old icon's bound listeners are GC'd
+    // but the document-level deferred listener / pending rAF survive.
+    // Without the openDetailPanel cleanup, the next click would
+    // dismiss whatever tooltip the new content shows.
+    //
+    // Pre-rAF case: rAF callback hasn't fired, so only the
+    // ``cancelAnimationFrame`` branch saves us.
+    const sectionA = iconSection();
+    const sectionB = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 99,
+          threadCount: 9,
+          commentCount: 9,
+          activeThreadCount: 4,
+        }),
+        buildRow({
+          id: 100,
+          threadCount: 1,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    openWithPrListSection(sectionA);
+    const root = document.querySelector<HTMLElement>(".detail-panel");
+    if (root === null) throw new Error("detail-panel not rendered");
+    const iconA = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (iconA === null) throw new Error("icon A not rendered");
+    iconA.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    iconA.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+    // Retarget-in-place re-render BEFORE rAF fires.
+    openWithPrListSection(sectionB);
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("POST-rAF retarget-in-place re-open aborts the attached outside-click listener (chart tooltip survives)", async () => {
+    // Mirror of the pre-rAF retarget test but with the rAF awaited so
+    // the listener IS attached at the time of the in-place re-open.
+    // Hits the controller-abort branch on the openDetailPanel cleanup
+    // path that the prior abort-only proposal would have covered, but
+    // confirms the combined abort+cancelAnimationFrame design covers
+    // it equally.
+    const sectionA = iconSection();
+    const sectionB = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 99,
+          threadCount: 9,
+          commentCount: 9,
+          activeThreadCount: 4,
+        }),
+        buildRow({
+          id: 100,
+          threadCount: 1,
+          commentCount: 2,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 2,
+      actualFilteredCount: 2,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    openWithPrListSection(sectionA);
+    const root = document.querySelector<HTMLElement>(".detail-panel");
+    if (root === null) throw new Error("detail-panel not rendered");
+    const iconA = root.querySelector<HTMLElement>(
+      ".detail-panel-pr-list-filter .info-icon-btn",
+    );
+    if (iconA === null) throw new Error("icon A not rendered");
+    iconA.getBoundingClientRect = () => ({
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    iconA.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    // Retarget-in-place re-render AFTER rAF fires; doc listener is
+    // attached at this point and must be aborted by the openDetailPanel
+    // cleanup, otherwise the next body click clobbers the chart tooltip.
+    openWithPrListSection(sectionB);
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+    mountChartTooltipFixture();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
 });
 
 describe("issue #332 / B3 — filter feedback summary", () => {
