@@ -43,8 +43,31 @@ import {
   renderCommentsTrendChart,
   MAX_COMMENTS_TREND_POINTS,
 } from "../../../ui/modules/charts/comments-trend";
+import { installThroughputDrilldown } from "../../../ui/modules/drilldown/throughput-drilldown";
+import {
+  publishComparisonToggled,
+  publishFiltersChanged,
+} from "../../../ui/modules/drilldown/lifecycle-signals";
+import { __resetComparisonAdvisoryForTests } from "../../../ui/modules/drilldown/comparison-advisory";
+import {
+  dismissDetailPanel,
+  isDetailPanelOpen,
+} from "../../../ui/modules/shared/detail-panel";
 import type { Rollup } from "../../../ui/dataset-loader";
 import type { FilterState } from "../../../ui/modules/filters";
+
+// jsdom lacks PointerEvent — mirror the polyfill used by other drill-down
+// tests so synthesized pointer sequences (tap activation in T023) work.
+if (typeof PointerEvent === "undefined") {
+  (globalThis as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+      }
+    };
+}
+
+void publishFiltersChanged; // imported for symmetry with throughput tests; not exercised here
 
 /**
  * Build a Rollup with a `comments` sub-object populated per the FR-2-06
@@ -520,5 +543,105 @@ describe("comments-trend module", () => {
       );
       expect(legendItems.length).toBe(3);
     });
+  });
+});
+
+/**
+ * T023 — Drill-down activation tests for the comments-trend chart.
+ *
+ * Verifies that the existing throughput-drilldown installer
+ * (`installThroughputDrilldown`) wires bar click + keyboard activation
+ * for comments-trend bars without modification, because both surfaces
+ * share the `data-drilldown-week` convention and the installer uses a
+ * delegated listener that resolves any descendant matching that
+ * attribute. T022 added a parallel install call site in dashboard.ts so
+ * the comments-trend container gets the same drill-down behavior the
+ * throughput chart has had since Feature 060.
+ */
+describe("comments-trend drilldown integration (T023)", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    document.body.innerHTML = "";
+    container = document.createElement("div");
+    container.id = "comments-trend";
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    if (isDetailPanelOpen()) dismissDetailPanel("explicit-close-button");
+    publishComparisonToggled({ enabled: false });
+    __resetComparisonAdvisoryForTests();
+    document.body.innerHTML = "";
+  });
+
+  function renderAndInstall(rollups: Rollup[]): HTMLElement {
+    renderCommentsTrendChart(container, rollups, { filters: emptyFilters() });
+    installThroughputDrilldown(container, rollups);
+    const bar = container.querySelector<HTMLElement>(".bar-container");
+    if (!bar) throw new Error("bar-container not rendered");
+    return bar;
+  }
+
+  it("(a) clicking a comments-trend bar opens the drill-down panel for that week", () => {
+    const rollups = makeCommentsRollups(3);
+    const bar = renderAndInstall(rollups);
+
+    expect(isDetailPanelOpen()).toBe(false);
+    bar.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(isDetailPanelOpen()).toBe(true);
+
+    // The activated bar's aria-expanded MUST flip to "true" — same
+    // accessibility contract throughput honors via
+    // installThroughputDrilldown's `activate` helper.
+    expect(bar.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("(b) keyboard Enter/Space on a focused comments-trend bar opens the same panel", () => {
+    const rollups = makeCommentsRollups(3);
+    const bar = renderAndInstall(rollups);
+
+    // Enter activates.
+    bar.focus();
+    bar.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(bar.getAttribute("aria-expanded")).toBe("true");
+
+    // Dismiss + try Space on a different bar.
+    dismissDetailPanel("explicit-close-button");
+    expect(isDetailPanelOpen()).toBe(false);
+
+    const bars = container.querySelectorAll<HTMLElement>(".bar-container");
+    const second = bars[1];
+    expect(second).toBeDefined();
+    second!.focus();
+    second!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", bubbles: true }),
+    );
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(second!.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("(c) aria-expanded toggles back to false when the panel dismisses", async () => {
+    const rollups = makeCommentsRollups(3);
+    const bar = renderAndInstall(rollups);
+
+    bar.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(bar.getAttribute("aria-expanded")).toBe("true");
+
+    // Dismiss the panel — installThroughputDrilldown's panel observer
+    // (line 353-365) flips aria-expanded back to "false" via clearActive
+    // when the panel's `is-open` class is removed. MutationObserver
+    // callbacks are microtask-scheduled, so await a microtask turn before
+    // asserting (mirroring the throughput drilldown tests' pattern at
+    // tests/modules/drilldown/throughput-drilldown.test.ts).
+    dismissDetailPanel("explicit-close-button");
+    expect(isDetailPanelOpen()).toBe(false);
+    await Promise.resolve();
+    expect(bar.getAttribute("aria-expanded")).toBe("false");
   });
 });

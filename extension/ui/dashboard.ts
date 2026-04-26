@@ -1132,6 +1132,45 @@ async function refreshMetrics(): Promise<void> {
         }),
       );
     }
+    // Feature 333 (T022): comments-trend chart shares the throughput drill-
+    // down semantics — clicking a bar opens the existing 060/310 panel for
+    // that week. Bars carry `data-drilldown-week` in the same convention
+    // throughput uses, so reusing `installThroughputDrilldown` (delegated
+    // listener that resolves `[data-drilldown-week]` via `target.closest`)
+    // wires up click + keyboard activation without any new drill-down code.
+    // The container is provisioned by `ensureCommentsTrendContainer` above;
+    // when capability is off the container is absent and `getElementById`
+    // returns null — defensive against the lifecycle path where the chart
+    // render block ran (capability-on) but the install runs after a
+    // capability flip. Options match the throughput install verbatim so
+    // both surfaces feed the same panel content with identical filters /
+    // dimensions / capability state.
+    const commentsTrendDrillContainer =
+      document.getElementById("comments-trend");
+    if (commentsTrendDrillContainer) {
+      activeDrilldownHandles.push(
+        installThroughputDrilldown(commentsTrendDrillContainer, rollups, {
+          filters: {
+            repos: [...currentFilters.repos],
+            teams: [...currentFilters.teams],
+            reviewers: [...currentFilters.reviewers],
+            authors: [...currentFilters.authors],
+          },
+          repositoriesDimension: currentDimensions?.repositories?.map((r) => ({
+            repository_id: r.repository_id,
+            repository_name: r.repository_name,
+            project_name: r.project_name ?? "",
+            organization_name: r.organization_name,
+          })),
+          webContext: currentCollectionUri
+            ? { collectionUri: currentCollectionUri }
+            : undefined,
+          authorsDimension: currentDimensions?.authors,
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
+        }),
+      );
+    }
     const cycleTimeContainer = document.getElementById("cycle-time-trend");
     if (cycleTimeContainer) {
       activeDrilldownHandles.push(

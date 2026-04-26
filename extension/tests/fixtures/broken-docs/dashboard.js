@@ -10282,6 +10282,28 @@ var PRInsightsDashboard = (() => {
           })
         );
       }
+      const commentsTrendDrillContainer = document.getElementById("comments-trend");
+      if (commentsTrendDrillContainer) {
+        activeDrilldownHandles.push(
+          installThroughputDrilldown(commentsTrendDrillContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
+          })
+        );
+      }
       const cycleTimeContainer = document.getElementById("cycle-time-trend");
       if (cycleTimeContainer) {
         activeDrilldownHandles.push(

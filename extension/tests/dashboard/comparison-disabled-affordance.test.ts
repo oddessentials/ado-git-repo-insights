@@ -76,9 +76,15 @@ describe("comparison-disabled-affordance — CSS structural invariants", () => {
     );
     expect(affordanceIdx).toBeGreaterThan(-1);
 
-    const overrideIdx = stylesSrc.indexOf(
-      '[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:hover',
+    // Source-order assertion is invariant to selector formatting (prettier
+    // may emit the multi-part selector on one line OR split across lines
+    // for long selectors). Use a regex that matches the override regardless
+    // of whitespace, so the test stays semantic ("which block comes first
+    // in source order") rather than coupling to prettier's wrap heuristic.
+    const overrideMatch = stylesSrc.match(
+      /\[data-drilldown-disabled="comparison"\]\s+\.bar-container\[data-drilldown-week\]:hover/,
     );
-    expect(overrideIdx).toBeGreaterThan(affordanceIdx);
+    expect(overrideMatch).not.toBeNull();
+    expect(overrideMatch!.index).toBeGreaterThan(affordanceIdx);
   });
 });
