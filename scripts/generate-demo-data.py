@@ -516,6 +516,43 @@ def _strip_comments_metrics_from_pr(pr: PrRecord) -> PrRecord:
     }
 
 
+def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
+    """Sum per-PR comments-metrics into a rollup-level aggregate (FR-2-06).
+
+    Mirrors ``aggregators.py::_compute_weekly_comments_aggregate`` so the
+    synthetic demo and real-data aggregator emit identical shapes:
+
+    * Numeric fields are sums over the EXTRACTED-SUBSET (PRs where the
+      per-PR triplet is NOT the partial sentinel from 310 INV-10 — i.e.,
+      ``thread_count`` is not None).
+    * PRs with the partial sentinel contribute zero to the sums and flip
+      ``coverage_partial`` to True per FR-2-03.
+    * All four fields present together per INV-1-08 atomicity.
+
+    Caller is responsible for capability gating — only invoke when
+    ``_EMIT_COMMENTS_METRICS`` is True.  Capability-off rollups MUST
+    omit the entire ``comments`` key (FR-3-03).
+    """
+    thread_total = 0
+    comment_total = 0
+    active_total = 0
+    coverage_partial = False
+    for pr in prs:
+        thread = pr.get("thread_count")
+        if thread is None:
+            coverage_partial = True
+            continue
+        thread_total += int(thread)
+        comment_total += int(pr.get("comment_count") or 0)
+        active_total += int(pr.get("active_thread_count") or 0)
+    return {
+        "thread_count": thread_total,
+        "comment_count": comment_total,
+        "active_thread_count": active_total,
+        "coverage_partial": coverage_partial,
+    }
+
+
 # =============================================================================
 # UUID v5 Generation (T007)
 # =============================================================================
@@ -2100,14 +2137,38 @@ def main(argv: list[str] | None = None) -> int:
             # stay byte-identical across runs.
             if _EMIT_COMMENTS_METRICS:
                 rollup_data["prs"] = synthetic_prs
+                # Feature 333 (FR-2-06): rollup-level weekly comments aggregate.
+                # Sum per-PR triplet over the EXTRACTED-SUBSET (PRs where the
+                # per-PR partial sentinel is NOT applied — i.e., thread_count
+                # is not None per 310 INV-10).  PRs with thread_count is None
+                # contribute zero per FR-2-03 and flip coverage_partial to
+                # True.  Matches aggregators.py::_compute_weekly_comments_
+                # aggregate semantics exactly so synthetic and real-data
+                # rollups have identical shape (per the test_schema_guard
+                # KNOWN_ROOT_FIELDS contract).
+                rollup_data["comments"] = _aggregate_comments_for_week(synthetic_prs)
             else:
                 rollup_data["prs"] = [
                     _strip_comments_metrics_from_pr(pr) for pr in synthetic_prs
                 ]
+                # Capability-off: the `comments` key is absent entirely
+                # (FR-3-03 + INV-1-08 atomicity).  No null, no {}, no
+                # partial-fielded shape — gated at the byte-identity test
+                # at tests/integration/test_demo_variants_byte_identity.py.
             rollup_data["_prs_truncated"] = prs_truncated
             rollup_data["_prs_cap"] = _PR_DETAIL_CAP
         else:
             rollup_data["prs"] = []
+            if _EMIT_COMMENTS_METRICS:
+                # Empty-week capability-on: emit zeros with coverage_partial
+                # False (no PRs to be missing extraction for).  All four
+                # fields present together per INV-1-08 atomicity.
+                rollup_data["comments"] = {
+                    "thread_count": 0,
+                    "comment_count": 0,
+                    "active_thread_count": 0,
+                    "coverage_partial": False,
+                }
             rollup_data["_prs_truncated"] = False
             rollup_data["_prs_cap"] = _PR_DETAIL_CAP
 
