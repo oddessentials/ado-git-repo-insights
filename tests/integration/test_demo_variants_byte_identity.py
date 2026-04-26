@@ -1,4 +1,5 @@
-"""Feature 310 R-08 byte-identity test between demo variant-on and variant-off.
+"""Feature 310 R-08 + Feature 333 FR-3-03 byte-identity test between demo
+variant-on and variant-off.
 
 Per R-08 (``specs/310-comments-visualization/research.md``):
 ``scripts/generate-demo-data.py`` gains a ``--comments-metrics`` flag
@@ -6,7 +7,7 @@ that gates output serialization only.  Generation-layer draws are
 identical regardless of the flag — the capability-on artifact
 (``artifacts/demo-enterprise/``) and the capability-off artifact
 (``artifacts/demo-enterprise-comments-off/``) MUST be byte-identical
-except for the five gated keys:
+except for the gated keys:
 
   - ``manifest.capabilities.comments_metrics``
   - ``manifest.features.comments``
@@ -14,8 +15,12 @@ except for the five gated keys:
   - ``prs[*].thread_count``
   - ``prs[*].comment_count``
   - ``prs[*].active_thread_count``
+  - ``rollup[W].comments`` (Feature 333 FR-3-03 / INV-1-08 — the entire
+    weekly comments aggregate sub-object on each rollup root).
 
-This test enforces the contract via three ordered subtests:
+This test enforces the contract via three ordered subtests plus a
+Feature-333 FR-3-03 four-failure-mode positive control on the
+capability-off variant rollup tree:
 
   1. **Sorted key-set equality excluding gated set (structural).**  For
      every JSON file present in either tree, the key sets at every
@@ -28,6 +33,25 @@ This test enforces the contract via three ordered subtests:
      Every ordering-sensitive array (``prs[]`` inside weekly rollups
      especially) must be identical in position AND element content
      after gated-key removal.
+  4. **FR-3-03 four-failure-mode gate on capability-off rollups.**
+     Independent of the on-vs-off comparison, every weekly rollup file
+     in the capability-off variant tree MUST individually satisfy each
+     of FR-3-03's four omission failure modes:
+
+       (a) the ``comments`` key NOT present (canonical absent state);
+       (b) the ``comments`` key NOT present-with-``null``-value;
+       (c) the ``comments`` key NOT present-with-``{}``-empty-object;
+       (d) the ``comments`` key NOT present-with-partial-fields
+           (e.g., 3 of 4 fields per INV-1-08 atomicity).
+
+     Each failure mode is gated by its own test function so a regression
+     emitting any of them under capability-off fails loud and clear with
+     a one-to-one test → spec mapping.  The four tests redundantly cover
+     case (a) — that's intentional: each test stands alone as the
+     positive control for its specific failure mode.  The (a) test is
+     the canonical guard; (b)/(c)/(d) catch shapes that ``"comments" not
+     in rollup`` would also catch but whose test descriptions document
+     the specific regression class being prevented.
 
 If any subtest fails the producer has a contract bug — most likely the
 ``--comments-metrics`` flag has leaked into the generation layer
@@ -49,15 +73,39 @@ from typing import Final, cast
 
 import pytest
 
+# Tuple-from-root paths stripped from both variant trees before the
+# subtest-1/2/3 comparisons.  Despite the historical name (predates
+# Feature 333), this set applies to every JSON file in either variant
+# tree, not just manifests.  Single-element tuples like ``("comments",)``
+# match a top-level key on whatever JSON file the recursion is walking
+# (rollup files for the new weekly comments aggregate; manifest doesn't
+# have a top-level ``comments`` key — uses ``features.comments`` and
+# ``coverage.comments`` nested paths).
 _GATED_MANIFEST_PATHS: Final[frozenset[tuple[str, ...]]] = frozenset(
     {
         ("capabilities", "comments_metrics"),
         ("features", "comments"),
         ("coverage", "comments"),
+        # Feature 333 FR-3-03 / INV-1-08: rollup-level weekly comments
+        # aggregate.  When capabilities.comments_metrics is on, the
+        # aggregator emits this 4-field sub-object on every weekly
+        # rollup root.  Stripped here so subtests 1/2/3 stay green
+        # against the on-vs-off comparison once the demo generator
+        # carries the on-variant emission (T026).  The off-variant
+        # rollup tree is independently gated by the four FR-3-03
+        # failure-mode tests below.
+        ("comments",),
     },
 )
 _GATED_PR_FIELDS: Final[frozenset[str]] = frozenset(
     {"thread_count", "comment_count", "active_thread_count"},
+)
+# Feature 333: the four atomic fields of ``rollup[W].comments`` per
+# INV-1-08.  Used by the FR-3-03 partial-fielded failure-mode test (d)
+# to identify the "all-four-present" canonical shape; any subset is a
+# violation.
+_COMMENTS_AGGREGATE_FIELDS: Final[frozenset[str]] = frozenset(
+    {"thread_count", "comment_count", "active_thread_count", "coverage_partial"},
 )
 
 # Reroot the scratch space under REPO_ROOT/tmp_test_work/ so the generator's
@@ -302,3 +350,183 @@ def test_array_order_parity_including_prs(
         "array-order parity violations detected:\n  - "
         + "\n  - ".join(all_diagnostics[:10])
     )
+
+
+# --------------------------------------------------------------------------
+# Subtest 4 (Feature 333 FR-3-03): four-failure-mode gate on capability-off
+# rollup tree.  Each failure mode is gated by its own test function so the
+# test → spec mapping is one-to-one.  Cases (b)/(c)/(d) are redundant with
+# (a) at the assertion level (``"comments" not in rollup`` covers all four
+# physical shapes), but each is asserted with a description that documents
+# the specific regression class being caught — a future maintainer reading
+# the test names sees explicitly that all four FR-3-03 omission failure
+# modes are gated.
+# --------------------------------------------------------------------------
+
+
+_WEEKLY_ROLLUPS_RELDIR: Final[Path] = Path("aggregates") / "weekly_rollups"
+
+
+def _iter_off_variant_rollups(
+    off_dir: Path,
+) -> Iterator[tuple[Path, dict[str, object]]]:
+    """Yield ``(rel_path, parsed_rollup_dict)`` for every off-variant rollup.
+
+    Walks the capability-off variant tree's
+    ``aggregates/weekly_rollups/*.json`` directory and parses each
+    rollup file.  Skips non-rollup JSON files (manifest, distributions,
+    comment batches) — FR-3-03 specifically gates the rollup-root
+    ``comments`` key, not other surfaces.  The manifest's
+    ``coverage.comments`` and ``features.comments`` nested paths are
+    handled by the existing ``_GATED_MANIFEST_PATHS`` strip and are NOT
+    re-checked here (different contract: those are dataset-level
+    metadata, not the per-week aggregate this test guards).
+    """
+    rollups_dir = off_dir / _WEEKLY_ROLLUPS_RELDIR
+    if not rollups_dir.is_dir():
+        # Generator regressions could conceivably skip the weekly_rollups
+        # directory entirely; surface that as a fixture-level failure
+        # rather than a silent zero-iteration pass.
+        pytest.fail(
+            f"capability-off variant has no weekly_rollups directory at "
+            f"{rollups_dir!s}; FR-3-03 cannot be gated"
+        )
+    rollup_files = sorted(rollups_dir.glob("*.json"))
+    if not rollup_files:
+        pytest.fail(
+            f"capability-off variant weekly_rollups directory at "
+            f"{rollups_dir!s} is empty; FR-3-03 cannot be gated"
+        )
+    for rollup_path in rollup_files:
+        rel = rollup_path.relative_to(off_dir)
+        parsed = json.loads(rollup_path.read_text(encoding="utf-8"))
+        if not isinstance(parsed, dict):
+            pytest.fail(
+                f"weekly rollup at {rel!s} is not a JSON object "
+                f"(got {type(parsed).__name__}); FR-3-03 expects "
+                "object-rooted rollup files"
+            )
+        # ``parsed`` is dict[str, object] in shape; a precise cast keeps
+        # mypy honest without a typing.Any escape hatch (QG-40).
+        yield rel, cast(dict[str, object], parsed)
+
+
+def test_fr_3_03_a_comments_key_absent_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (a): the ``comments`` key MUST be absent on every off rollup.
+
+    This is the canonical absent state.  The aggregator under
+    ``capabilities.comments_metrics === false`` MUST NOT emit the
+    ``comments`` sub-object at all on any week's rollup root.  Cases
+    (b)/(c)/(d) below are physical-shape variants of "the key is
+    present" — this test catches all of them via the simple ``not in``
+    assertion, but those tests stand alone as positive controls for
+    their specific regression classes.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        assert "comments" not in rollup, (
+            f"FR-3-03 (a) violation in {rel!s}: rollup root has the "
+            f"``comments`` key under capability-off "
+            f"(value: {rollup.get('comments')!r}).  The entire "
+            "weekly comments aggregate sub-object MUST be absent when "
+            "capabilities.comments_metrics is false."
+        )
+
+
+def test_fr_3_03_b_comments_key_not_null_valued_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (b): the ``comments`` key MUST NOT be present with a null value.
+
+    Catches the regression class where a producer emits
+    ``"comments": null`` under capability-off (e.g., a defensive
+    "always emit the key, set to None when capability is off"
+    refactor).  Per FR-3-03 + INV-1-08, the entire key must be
+    omitted; null is NOT an acceptable absent-state encoding.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "comments" in rollup:
+            value = rollup["comments"]
+            pytest.fail(
+                f"FR-3-03 (b) violation in {rel!s}: ``comments`` key "
+                f"present with value {value!r} under capability-off.  "
+                "Even null is a violation — the key MUST be omitted "
+                "entirely (absent), never null-valued.  See spec "
+                "FR-3-03 + INV-1-08."
+            )
+
+
+def test_fr_3_03_c_comments_key_not_empty_object_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (c): the ``comments`` key MUST NOT be present as ``{}``.
+
+    Catches the regression class where a producer emits
+    ``"comments": {}`` under capability-off (e.g., a unconditional
+    ``rollup_data["comments"] = build_comments(...)`` that builds an
+    empty dict when capability is off, instead of guarding the
+    assignment).  Per FR-3-03 + INV-1-08, the entire key must be
+    omitted; an empty object is NOT an acceptable absent-state
+    encoding.  INV-1-08 atomicity demands all four fields when
+    present, so ``{}`` is also an INV-1-08 violation independent of
+    capability state.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "comments" in rollup:
+            value = rollup["comments"]
+            # The assertion catches both ``{}`` literally AND any
+            # other "present but unintended" shape; the (a)/(b)/(d)
+            # tests catch the same root violation via different
+            # framing, but this one's diagnostic specifically calls
+            # out the empty-object failure mode.
+            pytest.fail(
+                f"FR-3-03 (c) violation in {rel!s}: ``comments`` key "
+                f"present (value: {value!r}) under capability-off.  "
+                "An empty object ``{}`` is NOT an acceptable absent-"
+                "state encoding — the key MUST be omitted entirely.  "
+                "See spec FR-3-03 + INV-1-08."
+            )
+
+
+def test_fr_3_03_d_comments_key_not_partial_fielded_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (d): the ``comments`` key MUST NOT be present with partial fields.
+
+    Catches the regression class where a producer emits the
+    ``comments`` sub-object with only a subset of INV-1-08's four
+    canonical fields (e.g., 3 of 4 fields, or all 4 with one set to
+    null) under capability-off.  Per FR-3-03 the entire key must be
+    omitted; per INV-1-08 the sub-object is atomic when present, so
+    partial-fielded shapes are doubly invalid under capability-off.
+    Diagnostic includes the specific missing/extra fields so a
+    failing emission is debuggable on first read.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "comments" in rollup:
+            value = rollup["comments"]
+            if isinstance(value, dict):
+                present = frozenset(value.keys())
+                missing = sorted(_COMMENTS_AGGREGATE_FIELDS - present)
+                extra = sorted(present - _COMMENTS_AGGREGATE_FIELDS)
+                shape_diag = (
+                    f"present_fields={sorted(present)!r}, "
+                    f"missing_canonical={missing!r}, "
+                    f"extra_unknown={extra!r}"
+                )
+            else:
+                shape_diag = f"non-dict value={value!r}"
+            pytest.fail(
+                f"FR-3-03 (d) violation in {rel!s}: ``comments`` key "
+                f"present under capability-off ({shape_diag}).  "
+                "Partial-fielded shapes (e.g., 3 of 4 fields) are "
+                "NEVER acceptable — under capability-off the entire "
+                "key MUST be omitted (FR-3-03), and even under "
+                "capability-on the four fields are atomic per "
+                "INV-1-08.  See spec FR-3-03 + INV-1-08."
+            )
