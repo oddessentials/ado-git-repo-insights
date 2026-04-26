@@ -1244,9 +1244,9 @@ describe("Rollup Schema Validator", () => {
       };
       const result = validateRollup(rollup, false);
       expect(result.valid).toBe(false);
-      expect(
-        result.errors.some((e) => e.field.includes("thread_count")),
-      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("thread_count"))).toBe(
+        true,
+      );
     });
 
     it("FAILS when comments.comment_count is null (numeric fields MUST be non-null per INV-1-08)", () => {
@@ -1261,9 +1261,9 @@ describe("Rollup Schema Validator", () => {
       };
       const result = validateRollup(rollup, false);
       expect(result.valid).toBe(false);
-      expect(
-        result.errors.some((e) => e.field.includes("comment_count")),
-      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("comment_count"))).toBe(
+        true,
+      );
     });
 
     it("FAILS when comments.active_thread_count is null (numeric fields MUST be non-null per INV-1-08)", () => {
@@ -1331,6 +1331,26 @@ describe("Rollup Schema Validator", () => {
           (e) =>
             e.field.includes("thread_count") &&
             e.message.toLowerCase().includes("number"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments is null (FR-3-03 failure mode (b))", () => {
+      // FR-3-03 lists `comments: null` as one of the four omission failure
+      // modes the byte-identity test must guard against. Even though the
+      // capability-off path is "key absent," a regression that produces
+      // `comments: null` (key present, null-valued) MUST be rejected by
+      // the validator with an "expected object" error, so misuse on the
+      // producer side is caught at the consumer-validator layer rather
+      // than blowing up later in the renderer.
+      const rollup = { ...BASE_333, comments: null };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "comments" &&
+            e.message.toLowerCase().includes("object"),
         ),
       ).toBe(true);
     });
