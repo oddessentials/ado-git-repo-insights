@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 114,
+  "total_call_sites": 115,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -165,7 +165,7 @@
     },
     {
       "file": "scripts/clean_ephemeral.py",
-      "line": 358,
+      "line": 364,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 610,
+      "line": 672,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 633,
+      "line": 695,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 726,
+      "line": 793,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -261,7 +261,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 808,
+      "line": 875,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -309,7 +309,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 233,
+      "line": 232,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +317,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 242,
+      "line": 241,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +325,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 251,
+      "line": 250,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -333,7 +333,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 267,
+      "line": 266,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +341,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 284,
+      "line": 283,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -349,7 +349,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 325,
+      "line": 324,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -357,7 +357,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 375,
+      "line": 374,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -365,7 +365,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 431,
+      "line": 430,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -373,7 +373,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 489,
+      "line": 487,
       "code": "proc_a = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
@@ -381,7 +381,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 495,
+      "line": 493,
       "code": "proc_b = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
@@ -503,6 +503,14 @@
       "file": "tests/integration/test_cli_distribution.py",
       "line": 285,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_comments_trend_meta_failure.py",
+      "line": 171,
+      "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -669,7 +677,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 608,
+      "line": 689,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -677,7 +685,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 622,
+      "line": 703,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -685,7 +693,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 634,
+      "line": 715,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -693,7 +701,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 654,
+      "line": 735,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -701,7 +709,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 924,
+      "line": 1005,
       "code": "proc = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
@@ -709,7 +717,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 1417,
+      "line": 1508,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -717,7 +725,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 1579,
+      "line": 1695,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -725,7 +733,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 1585,
+      "line": 1701,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -733,7 +741,7 @@
     },
     {
       "file": "tests/unit/test_clean_ephemeral.py",
-      "line": 1624,
+      "line": 1740,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
