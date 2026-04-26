@@ -1743,11 +1743,13 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
   // toggles for touch / keyboard.  Suppressed-controls states emit
   // no icon (the filter itself is absent).
   const C1_TOOLTIP_TEXT =
-    "Counts apply Feature 310's inclusion rules. Threads include " +
-    "unknown-status threads but exclude deleted ones. Comments include " +
-    "system events; deleted comments are excluded. Unresolved counts " +
-    "only threads still in active status. Comments by users missing " +
-    "from the user table are still counted.";
+    "How counts are tallied: The Threads count includes every review " +
+    "thread on this PR, including threads with no recorded status. The " +
+    "Comments count includes every comment, including automated build " +
+    "or CI notifications. The Unresolved count includes only threads " +
+    "currently in the Active state. Deleted threads and comments are " +
+    "not counted. Comments and threads from users who have left the " +
+    "organization are still counted.";
 
   function iconSection(): PrListSection {
     return makePrListSection({

@@ -37,11 +37,11 @@ export const METRIC_EXPLANATIONS = new Map<string, string>([
   ],
   [
     "cycleP50",
-    "Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)",
+    "Median time from PR creation to merge. Half of all PRs completed faster than this. Calculated from weekly summaries.",
   ],
   [
     "cycleP90",
-    "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)",
+    "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. Calculated from weekly summaries.",
   ],
   [
     "authorsCount",
@@ -53,11 +53,11 @@ export const METRIC_EXPLANATIONS = new Map<string, string>([
   ],
   [
     "reviewTimeP50",
-    "Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)",
+    "Median time from first review request to review completion. Half of all reviews completed faster than this. Calculated from weekly summaries.",
   ],
   [
     "reviewTimeP90",
-    "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)",
+    "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. Calculated from weekly summaries.",
   ],
 ]);
 

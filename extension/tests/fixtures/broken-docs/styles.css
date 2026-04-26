@@ -1333,7 +1333,8 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     white-space: nowrap;
 }
 
-/* Info Tooltip (summary card metric explanations) */
+/* Info Tooltip (summary card metric explanations + #332/B2 drill-down
+ * panel info-icon disclosure) */
 .info-tooltip {
     position: fixed;
     background: var(--bg-primary);
@@ -1343,7 +1344,13 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     box-shadow: var(--shadow-md);
     font-size: 12px;
     pointer-events: none;
-    z-index: 150;
+    /* #332/B2 follow-up: must sit above .detail-panel (1050, PR #302
+     * P1.C) so the C1 info-icon's tooltip renders in front of the
+     * drill-down panel rather than occluded behind it.  Stays BELOW
+     * .comparison-advisory-toast (1060) so the higher-priority
+     * "drill-down disabled" advisory always wins on overlap.  Locked
+     * in tests/unit/css-contract.test.ts. */
+    z-index: 1055;
     max-width: min(280px, calc(100vw - 16px));
     white-space: normal;
     line-height: 1.4;

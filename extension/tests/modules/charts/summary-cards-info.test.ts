@@ -412,14 +412,14 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
         "reviewTimeP90",
       ]) {
         const text = METRIC_EXPLANATIONS.get(key) ?? "";
-        expect(text).toContain("Aggregated from weekly values");
+        expect(text).toContain("Calculated from weekly summaries");
       }
     });
 
     it("non-median metrics do NOT include aggregation disclosure", () => {
       for (const key of ["totalPrs", "authorsCount", "reviewersCount"]) {
         const text = METRIC_EXPLANATIONS.get(key) ?? "";
-        expect(text).not.toContain("Aggregated");
+        expect(text).not.toContain("Calculated from weekly summaries");
       }
     });
   });
