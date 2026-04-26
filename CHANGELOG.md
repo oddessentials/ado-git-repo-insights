@@ -1,3 +1,11 @@
+## [101.18.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.18.0...v101.18.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **drilldown:** raise info-tooltip above .detail-panel z-index ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B2) ([9e80d9c](https://github.com/oddessentials/ado-git-repo-insights/commit/9e80d9c6503190f09c1249c86b1f29f4ac51f75a)), closes [#302](https://github.com/oddessentials/ado-git-repo-insights/issues/302)
+* **drilldown:** replace developer jargon in user-facing tooltips ([#332](https://github.com/oddessentials/ado-git-repo-insights/issues/332) / B2) ([d6477a1](https://github.com/oddessentials/ado-git-repo-insights/commit/d6477a12c98a359c7875dd621e45edf01687c669)), closes [post-#343](https://github.com/post-/issues/343)
+
 # [101.18.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.17.2...v101.18.0) (2026-04-25)
 
 
