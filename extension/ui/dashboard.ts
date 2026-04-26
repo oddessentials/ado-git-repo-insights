@@ -50,6 +50,7 @@ import {
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
+  renderCommentsTrendChart as renderCommentsTrendChartModule,
   // Data availability signal derivation
   deriveAvailabilitySignal,
   // Filter constraint resolver
@@ -1072,6 +1073,26 @@ async function refreshMetrics(): Promise<void> {
     renderReviewerActivity(rollups, rawRollups, availability);
     renderCycleDistribution(distributions, rawRollups, availability);
 
+    // Feature 333: comments-trend chart (full-width row below the 2x2 grid).
+    // Capability-gated on the SAME ``commentsMetricsAvailable`` field used by
+    // the throughput drill-down (line 1109) and the comments-coverage banner
+    // (line 2343), so on/off transitions are coherent across the surfaces.
+    // ``ensureCommentsTrendContainer`` is idempotent (check-first); the
+    // chart module re-renders content via the throughput-style
+    // ``renderTrustedHtml`` pattern. Capability-off path calls
+    // ``removeCommentsTrendContainer`` so on→off mid-session flips clean up
+    // (FR-3-02); initial capability-off is a no-op (FR-3-01 + SC-1-04).
+    if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+      const ctsContainer = ensureCommentsTrendContainer();
+      if (ctsContainer) {
+        renderCommentsTrendChartModule(ctsContainer, rollups, {
+          filters: currentFilters,
+        });
+      }
+    } else {
+      removeCommentsTrendContainer();
+    }
+
     // Install per-chart drill-down handles AFTER the render block so the
     // container elements exist. US2–US4 push peers onto the same array.
     const throughputContainer = document.getElementById("throughput-chart");
@@ -1434,6 +1455,135 @@ function renderReviewerActivity(
       filterReviewerName,
     },
   );
+}
+
+// ============================================================================
+// Feature 333 — Comments-trend chart container insertion (T020 + T021)
+// ============================================================================
+//
+// The comments-trend chart container DOM (the `.charts-row` wrapper, its
+// `.chart-container`, and the `<div id="comments-trend" class="chart">` leaf)
+// is built on demand from JS via `document.createElement`. Specifically,
+// `extension/ui/index.html` is NOT modified by this feature — there is no
+// pre-rendered `<div id="comments-trend">`, no `<template>` element, no
+// hidden CSS-gated container, and no comment-anchor marker in the static
+// markup.
+//
+// Why pure dynamic insertion (per spec FR-3-01 + SC-1-04 + FR-3-02 and
+// research.md Decision 10):
+//
+// - **FR-3-01** mandates that with `capabilities.comments_metrics` disabled,
+//   the Metrics tab's DOM occupies the same layout positions and sizes as
+//   the pre-feature baseline — i.e., the four pre-existing charts in the
+//   2x2 grid and nothing else.
+// - **SC-1-04** is the strict-reading verification of FR-3-01: capability-off
+//   renders byte-identical to the pre-feature baseline, verified by a
+//   baseline-comparison check at any moment in time (round-12 reading: not
+//   just at initial mount, but also after on→off cleanup mid-session).
+// - **FR-3-02** requires clean off→on / on→off transitions on dataset
+//   reload — the row appears or disappears with no stale geometry.
+//
+// Rejected alternatives (research.md Decision 10):
+//
+// - *Static `<div id="comments-trend">` in `index.html`* — REJECTED: empty
+//   container is in the DOM under capability-off; round-10 finding.
+// - *`<template id="comments-trend-template">` in `index.html` cloned on
+//   demand* — REJECTED: the `<template>` element itself sits in the DOM
+//   tree (its content is a parked DocumentFragment, but the element node
+//   is still present); a baseline DOM-tree diff would catch it; round-11
+//   finding.
+// - *Static container with CSS `hidden` class under capability-off* —
+//   REJECTED: nodes still in DOM, just visually hidden; baseline DOM diff
+//   still fails.
+// - *Comment-anchor marker (`<!-- comments-trend-anchor -->`)* — REJECTED:
+//   comment nodes are still nodes (`Node.COMMENT_NODE`); strict baseline
+//   would catch the addition.
+// - *Replacing one of the existing 2x2 charts* — REJECTED: violates
+//   capability-off byte-identity (different layout when capability-off).
+// - *New "Comments" tab* — REJECTED: loses visual proximity to throughput;
+//   adds tab-navigation cost.
+//
+// The load-bearing verification for this design is the dashboard-lifecycle
+// test introduced by T025, which asserts (a) initial capability-off
+// byte-identity, (b) on→off cleanup, (c) off→on insertion, and (d) on→on
+// re-render idempotency (round-13 addition — the dashboard-layer
+// idempotency that round-12's `ensureCommentsTrendContainer` check-first
+// design exists to provide).
+//
+// See `specs/333-comments-trend-chart/research.md` Decision 10 for the
+// full rationale and the round-by-round resolution history.
+
+/**
+ * Idempotently ensure the comments-trend chart row exists in the DOM.
+ *
+ * If the `<div id="comments-trend">` leaf is already mounted (from a prior
+ * render in the same session — re-render fires on dataset reload, filter
+ * change, or tab switch back), returns it directly. No duplicate row is
+ * inserted (round-12 dashboard-layer idempotency contract; the chart
+ * module's own `renderTrustedHtml` pattern then refreshes the bars/legend
+ * inside the existing container without stacking duplicate content).
+ *
+ * If the leaf is absent, builds the full container chain via
+ * `document.createElement` (`.charts-row[data-comments-trend-row="true"]`
+ * → `.chart-container` → `<div id="comments-trend" class="chart">`) and
+ * appends the new row immediately after the static second `.charts-row`
+ * that hosts `cycle-distribution`. The anchoring uses
+ * `document.getElementById('cycle-distribution')` plus a `closest()` walk
+ * to the parent `.charts-row` — `cycle-distribution` is in static markup
+ * (`index.html` line 256) and is therefore present whenever the metrics
+ * tab DOM has been parsed, so the anchor is reliable across capability
+ * states.
+ *
+ * Returns `null` (caller defers) if the anchor row cannot be located —
+ * defensive for any future refactor that moves cycle-distribution out of
+ * the static template.
+ */
+function ensureCommentsTrendContainer(): HTMLElement | null {
+  // Check-first: round-12 idempotency. If a prior render already mounted
+  // the chart leaf, reuse it. The chart module replaces innerHTML on each
+  // call, so re-rendering into the same container does not stack content.
+  const existing = document.getElementById("comments-trend");
+  if (existing) return existing;
+
+  // Anchor on the static `cycle-distribution` chart's parent `.charts-row`.
+  const cycleDist = document.getElementById("cycle-distribution");
+  const anchorRow = cycleDist?.closest(".charts-row") ?? null;
+  if (!anchorRow || !anchorRow.parentElement) return null;
+
+  const row = document.createElement("div");
+  row.className = "charts-row";
+  row.setAttribute("data-comments-trend-row", "true");
+
+  const containerCell = document.createElement("div");
+  containerCell.className = "chart-container";
+
+  const chart = document.createElement("div");
+  chart.id = "comments-trend";
+  chart.className = "chart";
+
+  containerCell.appendChild(chart);
+  row.appendChild(containerCell);
+
+  // Insert immediately after the cycle-distribution row so the new
+  // full-width chart sits below the existing 2x2 grid (research.md
+  // Decision 10 — top-to-bottom story is throughput → cycle → comments).
+  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+
+  return chart;
+}
+
+/**
+ * Remove the comments-trend chart row from the DOM if present.
+ *
+ * No-op when the row is absent — covers (a) initial capability-off (the
+ * row was never inserted; preserves FR-3-01 + SC-1-04 byte-identity) and
+ * (b) repeated capability-off renders. Active cleanup happens on the
+ * on→off mid-session transition (FR-3-02) when a prior capability-on
+ * render had inserted the row.
+ */
+function removeCommentsTrendContainer(): void {
+  const row = document.querySelector('[data-comments-trend-row="true"]');
+  row?.parentElement?.removeChild(row);
 }
 
 // addChartTooltips is now imported from "./modules/charts"

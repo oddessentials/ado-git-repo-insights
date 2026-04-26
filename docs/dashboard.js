@@ -8177,6 +8177,128 @@ var PRInsightsDashboard = (() => {
     );
   }
 
+  // ../ui/modules/charts/comments-trend.ts
+  var MAX_COMMENTS_TREND_POINTS = 104;
+  var MAX_VISIBLE_LABELS2 = 16;
+  var CHART_HEIGHT_PX = 200;
+  var CHART_PADDING_PX = 8;
+  function hasComments(rollup) {
+    return rollup.comments !== void 0;
+  }
+  function renderCommentsTrendChart(container, rollups, options) {
+    if (!container) return;
+    void options;
+    clearChartTooltips(container);
+    const withComments = rollups.filter(hasComments);
+    if (withComments.length === 0) {
+      renderNoData(
+        container,
+        "No comments data for selected range",
+        "Try widening the date range, or confirm comments extraction is enabled for this dataset."
+      );
+      return;
+    }
+    const truncated = withComments.length > MAX_COMMENTS_TREND_POINTS;
+    const display = truncated ? withComments.slice(-MAX_COMMENTS_TREND_POINTS) : withComments;
+    const maxValue = Math.max(
+      1,
+      ...display.map(
+        (r2) => Math.max(r2.comments.thread_count, r2.comments.comment_count)
+      )
+    );
+    const labelStep = Math.max(1, Math.ceil(display.length / MAX_VISIBLE_LABELS2));
+    const barsHtml = display.map((r2, i2) => renderBar(r2, i2, labelStep, maxValue)).join("");
+    const lineHtml = renderCommentsLine(display, maxValue);
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_COMMENTS_TREND_POINTS
+    );
+    const anyPartial = display.some((r2) => r2.comments.coverage_partial);
+    const partialLegendItem = anyPartial ? `<div class="legend-item legend-coverage-partial-item"><span class="legend-bar legend-bar-coverage-partial"></span><span>Partial coverage</span></div>` : "";
+    const legendHtml = `
+    <div class="chart-legend">
+      <div class="legend-item">
+        <span class="legend-bar legend-bar-resolved"></span>
+        <span>Resolved threads</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-bar legend-bar-unresolved"></span>
+        <span>Unresolved threads</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-line legend-line-comments"></span>
+        <span>Comments</span>
+      </div>
+      ${partialLegendItem}
+    </div>
+  `;
+    renderTrustedHtml(
+      container,
+      `
+      ${truncationHtml}
+      <div class="chart-with-trend comments-trend-chart" style="--chart-surface: var(--bg-primary);">
+        <div class="bar-chart comments-trend-bars">${barsHtml}</div>
+        ${lineHtml}
+      </div>
+      ${legendHtml}
+    `
+    );
+    addChartTooltips(container, buildTooltipHtml);
+  }
+  function renderBar(rollup, index, labelStep, maxValue) {
+    const c = rollup.comments;
+    const resolvedCount = c.thread_count - c.active_thread_count;
+    const resolvedHeightPct = resolvedCount / maxValue * 100;
+    const unresolvedHeightPct = c.active_thread_count / maxValue * 100;
+    const weekLabel = rollup.week.split("-W")[1];
+    const showLabel = index % labelStep === 0;
+    const partialClass = c.coverage_partial ? " coverage-partial" : "";
+    const partialAttr = c.coverage_partial ? ' data-coverage-partial="true"' : "";
+    const resolvedNoun = c.thread_count === 1 ? "thread" : "threads";
+    const commentNoun = c.comment_count === 1 ? "comment" : "comments";
+    const partialNote = c.coverage_partial ? " \u2014 partial coverage" : "";
+    const ariaLabel = `Drill into week of ${weekRangeForAria(rollup)}, ${c.thread_count} ${resolvedNoun} (${c.active_thread_count} unresolved), ${c.comment_count} ${commentNoun}${partialNote}`;
+    return `
+    <div class="bar-container${partialClass}" data-tooltip="true" data-week="${escapeHtml(rollup.week)}" data-thread-count="${c.thread_count}" data-active-thread-count="${c.active_thread_count}" data-comment-count="${c.comment_count}" data-drilldown-week="${escapeHtml(rollup.week)}"${partialAttr} tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}">
+      <div class="bar-segment-unresolved" style="height: ${unresolvedHeightPct.toFixed(1)}%"></div>
+      <div class="bar-segment-resolved" style="height: ${resolvedHeightPct.toFixed(1)}%"></div>
+      <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
+    </div>
+  `;
+  }
+  function renderCommentsLine(rollups, maxValue) {
+    const points = rollups.map((r2, i2) => {
+      const x2 = rollups.length > 1 ? i2 / (rollups.length - 1) * 100 : 50;
+      const innerHeight = CHART_HEIGHT_PX - CHART_PADDING_PX * 2;
+      const ratio = r2.comments.comment_count / maxValue;
+      const y2 = CHART_HEIGHT_PX - CHART_PADDING_PX - ratio * innerHeight;
+      return { x: x2, y: y2 };
+    });
+    const pathD = points.map((p2, i2) => `${i2 === 0 ? "M" : "L"} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`).join(" ");
+    const dotsHtml = points.map(
+      (p2) => `<circle class="comments-line-dot" cx="${p2.x.toFixed(1)}" cy="${p2.y.toFixed(1)}" r="2" vector-effect="non-scaling-stroke"/>`
+    ).join("");
+    return `<div class="comments-line-overlay"><svg viewBox="0 0 100 ${CHART_HEIGHT_PX}" preserveAspectRatio="none"><path class="comments-line" d="${pathD}" vector-effect="non-scaling-stroke"/>${dotsHtml}</svg></div>`;
+  }
+  function buildTooltipHtml(bar) {
+    const week = bar.dataset.week;
+    const threads = bar.dataset.threadCount;
+    const active2 = bar.dataset.activeThreadCount;
+    const comments = bar.dataset.commentCount;
+    const partial = bar.dataset.coveragePartial === "true";
+    const partialNote = partial ? `<div class="chart-tooltip-row chart-tooltip-note">Some PRs in this week aren't yet extracted \u2014 values shown are partial totals; the full number may be higher.</div>` : "";
+    return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+          <div class="chart-tooltip-row">
+            <span class="chart-tooltip-label">Threads</span>
+            <span>${escapeHtml(threads)} (${escapeHtml(active2)} unresolved)</span>
+          </div>
+          <div class="chart-tooltip-row">
+            <span class="chart-tooltip-label">Comments</span>
+            <span>${escapeHtml(comments)}</span>
+          </div>
+          ${partialNote}`;
+  }
+
   // ../ui/modules/filters.ts
   function createEmptyFilterState() {
     return { repos: [], teams: [], reviewers: [], authors: [] };
@@ -10121,6 +10243,16 @@ var PRInsightsDashboard = (() => {
       renderCycleTimeTrend2(rollups, rawRollups, availability);
       renderReviewerActivity2(rollups, rawRollups, availability);
       renderCycleDistribution2(distributions, rawRollups, availability);
+      if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+        const ctsContainer = ensureCommentsTrendContainer();
+        if (ctsContainer) {
+          renderCommentsTrendChart(ctsContainer, rollups, {
+            filters: currentFilters
+          });
+        }
+      } else {
+        removeCommentsTrendContainer();
+      }
       const throughputContainer = document.getElementById("throughput-chart");
       if (throughputContainer) {
         activeDrilldownHandles.push(
@@ -10337,6 +10469,29 @@ var PRInsightsDashboard = (() => {
         filterReviewerName
       }
     );
+  }
+  function ensureCommentsTrendContainer() {
+    const existing = document.getElementById("comments-trend");
+    if (existing) return existing;
+    const cycleDist = document.getElementById("cycle-distribution");
+    const anchorRow = cycleDist?.closest(".charts-row") ?? null;
+    if (!anchorRow || !anchorRow.parentElement) return null;
+    const row = document.createElement("div");
+    row.className = "charts-row";
+    row.setAttribute("data-comments-trend-row", "true");
+    const containerCell = document.createElement("div");
+    containerCell.className = "chart-container";
+    const chart = document.createElement("div");
+    chart.id = "comments-trend";
+    chart.className = "chart";
+    containerCell.appendChild(chart);
+    row.appendChild(containerCell);
+    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    return chart;
+  }
+  function removeCommentsTrendContainer() {
+    const row = document.querySelector('[data-comments-trend-row="true"]');
+    row?.parentElement?.removeChild(row);
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
     if (!loaderResult) {
