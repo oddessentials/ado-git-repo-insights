@@ -1309,7 +1309,10 @@ var PRInsightsDashboard = (() => {
     // absent from demo-surface rollups).
     "prs",
     "_prs_truncated",
-    "_prs_cap"
+    "_prs_cap",
+    // Feature 333 weekly comments-aggregate (gated on capabilities.comments_metrics).
+    // Atomic when present per INV-1-08; absent entirely when capability-off (FR-3-03).
+    "comments"
   ]);
   var PR_RECORD_REQUIRED_FIELDS = [
     "id",
@@ -1622,6 +1625,75 @@ var PRInsightsDashboard = (() => {
     }
     return { warnings };
   }
+  function validateCommentsAggregate(data, path) {
+    const errors = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors };
+    }
+    const requiredFields = [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "coverage_partial"
+    ];
+    const missing = requiredFields.filter(
+      (field) => !Object.prototype.hasOwnProperty.call(data, field)
+    );
+    if (missing.length > 0) {
+      errors.push(
+        createError(
+          path,
+          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          `missing: ${missing.join(", ")}`,
+          `comments-aggregate atomicity violated (INV-1-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+        )
+      );
+    }
+    const numericFieldChecks = [
+      { name: "thread_count", value: data.thread_count },
+      { name: "comment_count", value: data.comment_count },
+      { name: "active_thread_count", value: data.active_thread_count }
+    ];
+    for (const { name, value } of numericFieldChecks) {
+      if (!Object.prototype.hasOwnProperty.call(data, name)) {
+        continue;
+      }
+      if (value === null) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "number (non-null per INV-1-08; zero is the valid sum over an empty extracted-subset)",
+            "null",
+            `comments.${name} MUST be a non-null number (INV-1-08); null is not a valid sentinel \u2014 use 0 for an empty extracted-subset`
+          )
+        );
+      } else if (!isNumber(value)) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "number",
+            getTypeName(value),
+            `expected number at 'comments.${name}', got ${getTypeName(value)}`
+          )
+        );
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "coverage_partial")) {
+      const coveragePartial = data.coverage_partial;
+      if (!isBoolean(coveragePartial)) {
+        errors.push(
+          createError(
+            buildPath(path, "coverage_partial"),
+            "boolean",
+            getTypeName(coveragePartial),
+            `expected boolean at 'comments.coverage_partial', got ${getTypeName(coveragePartial)}`
+          )
+        );
+      }
+    }
+    return { errors };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1768,6 +1840,10 @@ var PRInsightsDashboard = (() => {
           createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored")
         );
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "comments") && data.comments !== void 0) {
+      const commentsResult = validateCommentsAggregate(data.comments, "comments");
+      errors.push(...commentsResult.errors);
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);

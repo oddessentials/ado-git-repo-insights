@@ -123,6 +123,19 @@ export interface WeeklyRollup {
   prs?: readonly PrRecord[];
   _prs_truncated?: boolean;
   _prs_cap?: number;
+  // Feature 333 weekly comments-aggregate (rollup root). Optional at the
+  // root level; atomic when present (INV-1-08): all four fields MUST be
+  // present together with non-null typed values, or the entire `comments`
+  // key MUST be absent. Capability-off (FR-3-03): the key is absent
+  // entirely (NOT `{}`, NOT `null`).
+  // Authoritative declaration:
+  // specs/333-comments-trend-chart/contracts/weekly-comments-aggregate.md §3.
+  comments?: {
+    thread_count: number;
+    comment_count: number;
+    active_thread_count: number;
+    coverage_partial: boolean;
+  };
 }
 
 // ============================================================================
@@ -151,6 +164,9 @@ const KNOWN_ROOT_FIELDS = new Set([
   "prs",
   "_prs_truncated",
   "_prs_cap",
+  // Feature 333 weekly comments-aggregate (gated on capabilities.comments_metrics).
+  // Atomic when present per INV-1-08; absent entirely when capability-off (FR-3-03).
+  "comments",
 ]);
 
 const PR_RECORD_REQUIRED_FIELDS: readonly (keyof PrRecord)[] = [
@@ -599,6 +615,120 @@ function validatePrRecordArray(
   return { warnings };
 }
 
+/**
+ * Validate the rollup-root `comments` sub-object (Feature 333, INV-1-08).
+ *
+ * Atomicity posture per ADR T004 (contracts/weekly-comments-aggregate.md §3):
+ * STRICT ERROR in BOTH strict and permissive modes. The validator pushes to
+ * `errors`, NOT `warnings` — one tier stricter than the per-PR INV-08
+ * validator at validatePrRecordArray. Justification: INV-1-08 is a fresh
+ * contract introduced by Feature 333 with no legacy emissions to grandfather,
+ * so renderers may trust atomicity without per-field defensive null-checks.
+ *
+ * When `comments` is present:
+ *   - All four fields (`thread_count`, `comment_count`,
+ *     `active_thread_count`, `coverage_partial`) MUST be present.
+ *   - The three numeric fields MUST be non-null typed `number`s (zero is a
+ *     valid sum over an empty extracted-subset; null is NOT a sentinel here
+ *     per FR-2-06).
+ *   - `coverage_partial` MUST be a strict `boolean` (not null/undefined/string).
+ *
+ * The `strict` parameter is intentionally not branched on for atomicity —
+ * INV-1-08 is mode-independent.
+ */
+function validateCommentsAggregate(
+  data: unknown,
+  path: string,
+): { errors: ValidationError[] } {
+  const errors: ValidationError[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors };
+  }
+
+  const requiredFields: readonly (
+    | "thread_count"
+    | "comment_count"
+    | "active_thread_count"
+    | "coverage_partial"
+  )[] = [
+    "thread_count",
+    "comment_count",
+    "active_thread_count",
+    "coverage_partial",
+  ];
+
+  // INV-1-08 atomicity: all four required fields must be present.
+  const missing = requiredFields.filter(
+    (field) => !Object.prototype.hasOwnProperty.call(data, field),
+  );
+  if (missing.length > 0) {
+    errors.push(
+      createError(
+        path,
+        "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+        `missing: ${missing.join(", ")}`,
+        `comments-aggregate atomicity violated (INV-1-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+      ),
+    );
+  }
+
+  // Per-field type checks for whichever required fields ARE present.
+  // Static literal-key access (data is already narrowed to Record<string,unknown>
+  // by isObject above) — mirrors the feature-060 pattern in validatePrRecordArray.
+  const numericFieldChecks: readonly {
+    name: "thread_count" | "comment_count" | "active_thread_count";
+    value: unknown;
+  }[] = [
+    { name: "thread_count", value: data.thread_count },
+    { name: "comment_count", value: data.comment_count },
+    { name: "active_thread_count", value: data.active_thread_count },
+  ];
+  for (const { name, value } of numericFieldChecks) {
+    if (!Object.prototype.hasOwnProperty.call(data, name)) {
+      // Already reported under the missing-fields error above; skip
+      // type-mismatch noise for the same field.
+      continue;
+    }
+    if (value === null) {
+      errors.push(
+        createError(
+          buildPath(path, name),
+          "number (non-null per INV-1-08; zero is the valid sum over an empty extracted-subset)",
+          "null",
+          `comments.${name} MUST be a non-null number (INV-1-08); null is not a valid sentinel — use 0 for an empty extracted-subset`,
+        ),
+      );
+    } else if (!isNumber(value)) {
+      errors.push(
+        createError(
+          buildPath(path, name),
+          "number",
+          getTypeName(value),
+          `expected number at 'comments.${name}', got ${getTypeName(value)}`,
+        ),
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(data, "coverage_partial")) {
+    const coveragePartial = data.coverage_partial;
+    if (!isBoolean(coveragePartial)) {
+      errors.push(
+        createError(
+          buildPath(path, "coverage_partial"),
+          "boolean",
+          getTypeName(coveragePartial),
+          `expected boolean at 'comments.coverage_partial', got ${getTypeName(coveragePartial)}`,
+        ),
+      );
+    }
+  }
+
+  return { errors };
+}
+
 // ============================================================================
 // Main Validator
 // ============================================================================
@@ -802,6 +932,22 @@ export function validateRollup(
         createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored"),
       );
     }
+  }
+
+  // Feature 333 weekly comments-aggregate (rollup root). Optional at the
+  // root level; atomic when present per INV-1-08. ADR T004 atomicity posture
+  // is STRICT ERROR in both modes — the `strict` parameter is irrelevant for
+  // the atomicity check itself (one tier stricter than the per-PR INV-08
+  // validator's mode-independent warning, justified by being a fresh contract
+  // with no legacy emissions to grandfather).  Capability-off (FR-3-03) is
+  // signalled by the entire `comments` key being absent — that path simply
+  // skips the validator with no warning.
+  if (
+    Object.prototype.hasOwnProperty.call(data, "comments") &&
+    data.comments !== undefined
+  ) {
+    const commentsResult = validateCommentsAggregate(data.comments, "comments");
+    errors.push(...commentsResult.errors);
   }
 
   // Check for unknown fields at root

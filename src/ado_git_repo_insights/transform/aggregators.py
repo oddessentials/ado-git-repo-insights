@@ -703,6 +703,17 @@ class AggregateGenerator:
 
             # Build rollup dict with dimension slices
             rollup_dict = asdict(rollup)
+
+            # Feature 333: weekly comments aggregate (FR-2-06).  Capability-on
+            # emits the four-field ``comments`` sub-object on the rollup root;
+            # capability-off omits the key entirely (FR-3-03 + INV-1-08
+            # atomicity).  The ``_compute_weekly_comments_aggregate`` helper
+            # encapsulates ``_has_comments()`` gating and the extracted-subset
+            # filter (FR-2-03) so this call site stays a one-liner.
+            weekly_comments = self._compute_weekly_comments_aggregate(week_pr_uids)
+            if weekly_comments is not None:
+                rollup_dict["comments"] = weekly_comments
+
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
             if by_author:
@@ -953,6 +964,112 @@ class AggregateGenerator:
         self._any_rollup_has_cross_dim = any_rollup_has_cross_dim
 
         return index
+
+    def _compute_weekly_comments_aggregate(
+        self, week_pr_uids: set[str]
+    ) -> dict[str, int | bool] | None:
+        """Compute the weekly ``comments`` aggregate (FR-2-06) for one week.
+
+        Returns ``None`` when ``_has_comments()`` is False so callers can omit
+        the ``comments`` key from the rollup entirely (FR-3-03 / INV-1-08
+        atomicity — the key MUST be absent under capability-off, NOT
+        ``None``-valued, NOT ``{}``-valued, NOT partial).
+
+        When capability-on, returns a four-field dict whose three numeric
+        fields are sums over W's EXTRACTED-SUBSET (PRs in ``week_pr_uids``
+        whose ``comments_extracted_at IS NOT NULL``) per FR-2-03.  PRs in
+        the canonical set that are unextracted contribute zero to the sums
+        but flip ``coverage_partial`` to ``True``.
+
+        C1 inclusion rules (per
+        ``specs/310-comments-visualization/spec.md`` lines 75-87) are
+        encoded in the SQL: ``pr_threads.is_deleted = 0`` excluded;
+        ``status = 'active'`` predicate isolates active threads;
+        ``pr_comments.is_deleted = 0`` excluded.  Same temp-table staging
+        pattern as the per-PR query in ``_generate_weekly_rollups`` at the
+        310 PR-level emission, scoped to W's canonical PR set rather than
+        the top-500 cycle-time slice.  The dynamic-SQL avoidance follows
+        ``reference_s608_refactor_pattern.md`` (no f-string ``IN`` clause).
+
+        Spec anchors: FR-2-06, FR-2-03, FR-3-03, INV-1-06, INV-1-07,
+        INV-1-08.
+        """
+        if not self._has_comments():
+            return None
+
+        if not week_pr_uids:
+            # Defensive: empty canonical set yields the all-zero aggregate.
+            # Should not occur in practice (caller iterates per-week groups
+            # of length >= 1) but keeps the contract well-defined.
+            return {
+                "thread_count": 0,
+                "comment_count": 0,
+                "active_thread_count": 0,
+                "coverage_partial": False,
+            }
+
+        self.db.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS "
+            "_aggr_week_comments_slice (pull_request_uid TEXT PRIMARY KEY)"
+        )
+        self.db.execute("DELETE FROM _aggr_week_comments_slice")
+        self.db.executemany(
+            "INSERT INTO _aggr_week_comments_slice (pull_request_uid) VALUES (?)",
+            [(uid,) for uid in week_pr_uids],
+        )
+
+        cursor = self.db.execute(
+            "SELECT "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.thread_count ELSE 0 END), 0) "
+            "    AS thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.comment_count ELSE 0 END), 0) "
+            "    AS comment_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.active_thread_count ELSE 0 END), 0) "
+            "    AS active_thread_count, "
+            "  MAX(CASE WHEN pr.comments_extracted_at IS NULL THEN 1 ELSE 0 END) "
+            "    AS coverage_partial "
+            "FROM pull_requests pr "
+            "INNER JOIN _aggr_week_comments_slice s "
+            "  ON s.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS thread_count, "
+            "         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) "
+            "           AS active_thread_count "
+            "  FROM pr_threads "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") t ON t.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  FROM pr_comments "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") c ON c.pull_request_uid = pr.pull_request_uid"
+        )
+        row = cursor.fetchone()
+        if row is None:
+            # Defensive: SELECT with aggregates always returns one row, but
+            # if the cursor is empty for some driver-specific reason, fall
+            # back to the all-zero aggregate.
+            return {
+                "thread_count": 0,
+                "comment_count": 0,
+                "active_thread_count": 0,
+                "coverage_partial": False,
+            }
+
+        coverage_raw = row["coverage_partial"]
+        coverage_partial = coverage_raw is not None and int(coverage_raw) > 0
+        return {
+            "thread_count": int(row["thread_count"]),
+            "comment_count": int(row["comment_count"]),
+            "active_thread_count": int(row["active_thread_count"]),
+            "coverage_partial": coverage_partial,
+        }
 
     def _generate_author_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
