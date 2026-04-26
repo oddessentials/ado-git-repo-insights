@@ -53,12 +53,31 @@ Both live in `src/ado_git_repo_insights/transform/aggregators.py`. This means:
 
 **Why round 9 extended the rule to throughput**: if the test reads throughput's emitted `prs[]` to determine W's PR set, then the test couples the reconciliation to throughput's aggregator correctness. A bug in throughput's PR-set assembly would silently propagate into the test's "expected" values — both surfaces would agree by virtue of sharing the same upstream bug. Direct SQL against the source `pull_requests` table is the only true independence.
 
-**Structural enforcement**: the "no shared code" constraint MUST be enforced at the IMPORT-BLOCK level, NOT by code-organization convention. Two implementation options (task-level pin):
+**Structural enforcement**: the "no shared code" constraint MUST be enforced at the IMPORT-BLOCK level, NOT by code-organization convention.
 
-- **AST-based import-block test** (`tests/integration/test_comments_trend_reconciliation_isolation.py`): walks the reconciliation test module's transitive imports and asserts that NEITHER `src/ado_git_repo_insights/transform/aggregators.py` NOR any of its non-trivial helpers appear in the set. Fails the build if a future refactor pulls a shared helper into the test path.
-- **Module-boundary mechanism**: the reconciliation test lives in a sub-package (e.g., `tests/integration/sc05_reconciliation/`) configured with no shared transitive imports — perhaps via a Python import hook or a static analysis check.
+**ADR T002 — import-block isolation mechanism**
 
-The AST-based check is the simpler implementation; module-boundary mechanism is plan-of-record only if AST-based proves brittle.
+**Decision**: option (a) AST-based — implemented as `tests/integration/test_comments_trend_reconciliation_isolation.py` (matching tasks.md T008's pinned file name).
+
+**Mechanism**:
+
+- The isolation test imports the SC-05 reconciliation test module (`tests/integration/test_comments_trend_reconciliation.py`) by file path and walks its transitive imports.
+- Use Python's `ast` module (stdlib) to parse the test file; walk `Import` and `ImportFrom` nodes; recursively resolve discovered modules via `importlib.util.find_spec()`; collect into a set; assert the module path `src/ado_git_repo_insights/transform/aggregators.py` (or its dotted form `src.ado_git_repo_insights.transform.aggregators`) is NOT in the set.
+- Covers BOTH aggregators because they share that single source file — one assertion, two aggregators.
+- The test fails the build with a clear diff if a future refactor pulls a shared helper into the test path.
+
+**Why option (a) won**:
+
+- No Python packaging or import-hook complexity: runs as a standard pytest test in the existing `tests/integration/` invocation pathway. No new entry points, no new tooling.
+- Implementable in <100 lines of Python using only stdlib (`ast`, `importlib.util`).
+- Failure mode is observable and actionable: the test prints the offending import + its source location, so a developer can see exactly which import to remove.
+
+**Why option (b) rejected**:
+
+- Module-boundary mechanism would require either (i) a custom import hook that pytest must load before collecting any test (test-discovery ordering complexity, brittle CI integration) or (ii) a separate static-analysis tool to bolt onto the preflight gate (new dependency, parallel maintenance burden).
+- Option (a) lives entirely inside the existing pytest invocation — no extra tooling, no CI workflow changes, no plugin maintenance.
+
+**Edge case acknowledged**: dynamic imports via `__import__("...")` with non-literal strings would not be visible to AST analysis. These are themselves a code-smell that should fail review; if the constraint is ever circumvented this way, the violation would still surface as a runtime test failure of the SC-05 reconciliation test (because the test's assertions would be met using shared code, which would re-couple the test to aggregator correctness — and a future aggregator bug that the test currently catches would silently pass).
 
 **Why this matters**: without structural enforcement covering BOTH aggregators, "no shared code" can drift silently — a future refactor pulls in a shared utility, the test stops being independent, the reconciliation degrades to internal tautology and silently passes on a wrong codebase. The structural check catches it at commit time.
 

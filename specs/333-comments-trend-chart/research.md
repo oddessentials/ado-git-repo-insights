@@ -105,7 +105,15 @@ Either works; pinning the exact mechanism is a tasks-level decision.
 
 **Rationale**: Round-4 user-locked hardening. Without the guard, the comments aggregator could silently drift on week boundaries — a PR could be attributed to week W in the comments aggregate but week W+1 in throughput, causing chart-vs-drill-down mismatches that no other contract catches.
 
-**Lean**: Option (a) is simpler if a canonical function already exists in `aggregators.py`. Plan-level investigation will confirm.
+**ADR T003 — week-attribution helper path**
+
+**Investigation outcome**: Throughput's week-attribution in `aggregators.py::_generate_weekly_rollups()` (lines 590-656) is fully **inlined** — there is no standalone `_week_for_pr(pr_record) -> WeekKey` helper. The rule is expressed as three consecutive pandas operations on the per-PR DataFrame: `df["closed_dt"] = pd.to_datetime(df["closed_date"])` (line 647), `df["iso_year"] = df["closed_dt"].dt.isocalendar().year` and `df["iso_week"] = df["closed_dt"].dt.isocalendar().week` (lines 648-649), then `df.groupby(["iso_year", "iso_week"])` (line 656) with `week_str = f"{iso_year}-W{iso_week:02d}"` (line 657). A repo-wide grep confirmed no `_week_for_*` / `_iso_week_for_*` / `attribute_pr_to_week` helper exists anywhere under `src/`; the same inlined pattern is independently re-duplicated in `ml/forecaster.py:153-154` and `ml/fallback_forecaster.py:398-399`. `ml/date_utils.py:41-42` provides only a Monday-of-week `week_start(date)` utility, not a PR→ISO-week-key attribution function.
+
+**Decision**: **Option (b)** — the comments aggregator implements its own week-attribution (same `closed_date → pd.to_datetime → .dt.isocalendar() → f"{year}-W{week:02d}"` formula) AND FR-2-03 is enforced by a per-PR parity test that walks every PR in the demo dataset and asserts the comments aggregator's week assignment equals throughput's emission for that PR. Option (a) would require extracting a shared helper out of throughput's pandas pipeline (a refactor of three intermixed DataFrame mutations spanning lines 647-657 on a hot path that also feeds `start_date`/`end_date` derivation), which is out of scope for feature 333's foundation PR.
+
+**Round-9 implication**: Even if production code had adopted option (a), the FR-2-04 (b) reconciliation test side cannot call the helper (round-9 / Decision 6 forbids `aggregators.py` imports from the test). The test will always be option-(b)-shape on its own side: a third re-implementation + per-PR parity guard, just for a different reason than option-(b) production code. The FR-2-03 (b) production-side parity test and the FR-2-04 (b) test-side third re-implementation are distinct surfaces — both required regardless.
+
+**What this ADR pins**: production-code side ONLY. The test-side mechanism (AST-based import-block test vs. module-boundary configuration) is pinned by T002.
 
 **Spec anchors**: FR-2-03, Background guards (ii).
 
@@ -169,6 +177,21 @@ These are NOT spec-level decisions; the plan acknowledges them and `/speckit.tas
 
 - **Exact file path for the byte-identity test extension** (FR-3-03): two candidates exist per Explore findings — `tests/integration/test_demo_variants_byte_identity.py` (referenced in issue body) and `tests/demo/test_demo_parity_pipeline.py` (Explore-flagged as the existing locked-shape gate). Tasks-level investigation pins the right file. The gating MUST cover all four omission failure modes (key absent, `null`, `{}`, partial fields).
 - **Exact import-block isolation mechanism** (FR-2-04 b, round 9): AST-based test (covering BOTH the comments aggregator's path AND throughput aggregator's path) vs. module-boundary configuration. Tasks-level decision. Per round 9, the option of "cross-reference against throughput rollup's per-week PR list" is REMOVED — the test MUST use direct SQL against `pull_requests`.
-- **Exact week-attribution helper reuse path** (FR-2-03 a vs. b): plan-level investigation will confirm whether throughput exposes a callable helper or whether a per-PR parity test is the cleaner path. Note round-9 implication: even if throughput exposes a callable helper that the comments aggregator could reuse (FR-2-03 (a) shared canonical), the FR-2-04 (b) RECONCILIATION TEST still cannot call that helper — the test's week-attribution is a third re-implementation that asserts parity with throughput's via a per-PR check. So round-9 effectively forces FR-2-03 (b) shape on the reconciliation test side regardless of which option (a)/(b) the production code adopts.
+- **Exact week-attribution helper reuse path** (FR-2-03 a vs. b): RESOLVED by ADR T003 in Decision 7 — see Decision 7 for the pinned outcome.
 - **Schema validator atomicity enforcement** (INV-1-08): the validator either accepts the `comments` object (if all 4 fields present) or warns/errors (if partial). Pin the exact error vs. warning posture at tasks time.
-- **Partial-coverage visual qualifier exact rendering** (FR-1-04): hatched bar fill, dimmed color, or both. Tuning decision per A-05 (`Example:` values are iteration starting points per `feedback_visual_example_iteration.md`). Round-9 added FR-2-06 case (vi) requiring the qualifier to apply to all-unextracted weeks (zero-height bars MUST still render with the qualifier, not be silently omitted).
+- **ADR T005 — partial-coverage visual qualifier (round-1 starting point)** (FR-1-04):
+
+  **Decision (round-1 starting point — iterates per `feedback_visual_example_iteration.md`)**:
+
+  1. **Hatched fill**: CSS `repeating-linear-gradient` over each bar segment. Round-1 starting parameters: 45deg angle, 4px-on / 4px-off stripe spacing, contrasting line color (e.g., a desaturated white at low opacity for light themes, light grey at low opacity for dark themes — exact tuning during T018 styles task).
+  2. **Slightly dimmed segment colors**: reduce the partial-state segment fills' lightness/saturation slightly (e.g., HSL lightness +5%, saturation -10%) to create a "lower confidence" visual signal alongside hatching.
+  3. **Legend explanation**: a single legend item titled "Partial coverage" explains the convention. Gated on "any partial week visible in the current range" — if no partial weeks render, the legend item is hidden (avoids noise on fully-extracted ranges).
+  4. **Tooltip on partial bars**: hovering / focusing a partial-marked bar surfaces a tooltip explaining the convention in plain language ("Some PRs in this week aren't yet extracted — values shown are partial totals; the full number may be higher.").
+  5. **All-unextracted (zero-height) handling per FR-2-06 case (vi)**: even when all three numeric fields = 0, the bar element remains in the DOM with explicit zero-height segments AND the qualifier classes applied (per FR-2-06 case (vi) round-9). The hatched fill on a zero-height bar may not be visible — that's expected; the qualifier surfaces via tooltip + the comment-line connecting through the zero point + the legend's "Partial coverage" entry.
+
+  **Why this combination**:
+  - Hatched alone is too subtle for some viewers (especially with high-contrast monitor profiles).
+  - Dimmed alone could be misread as "different but valid" data — losing the "incomplete" signal.
+  - The combination + legend + tooltip provides a layered signal that survives accessibility-color-blind testing AND keyboard-only navigation (focus → tooltip).
+
+  **Iteration plan**: this is round-1; visual sign-off (T030) and Codex stop-time review during the chart-implementation phase will surface any tuning needed; iterate per `feedback_visual_example_iteration.md` (visual values are starting points, measure rendered impact and tighten).

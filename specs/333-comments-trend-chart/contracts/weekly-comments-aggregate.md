@@ -115,6 +115,15 @@ export interface Rollup {
 - Numeric fields: integer or floating-point `number`, not null.
 - Boolean field: strict `boolean`, not null/undefined/string.
 
+**ADR T004 — atomicity posture**
+
+- **Decision**: STRICT ERROR in both strict and permissive modes (per INV-1-08). The validator MUST push to the result's `errors` array (not `warnings`) when the `comments` sub-object is present with partial shape; the `strict` parameter is irrelevant for this check.
+- **Why**:
+  - (a) The per-PR INV-08 validator's "warning" posture exists for backward-compat with pre-310 emissions that may legitimately have partial shape. INV-1-08 is a NEW contract introduced by Feature 333 with no existing emissions to be lenient toward — there is nothing to be backward-compatible with.
+  - (b) Renderers (the new `comments-trend.ts` chart, plus any future consumer) see `rollup[W].comments` and reasonably trust atomicity per this contract; a partial-shape regression slipping through as a warning would force every renderer to add defensive null-checks per field, defeating the contract's purpose.
+  - (c) The per-PR INV-08 validator at `rollup.schema.ts:560-567` is observed to push partial-shape violations to the `warnings` array unconditionally — the `strict` parameter is not branched on inside the atomicity check, so a partial shape emits the same warning in both modes (mode-independent warning). INV-1-08's strict-in-both-modes posture is one tier stricter (error vs. warning), justified by being a fresh contract with no legacy emissions to grandfather.
+- **Rejected alternative**: warning + permissive accept (mirroring per-PR INV-08). Rejected because it would silently allow partial-shape regressions to ship to consumers, undermining INV-1-08 as a contract — the whole point of INV-1-08 is that renderers can trust atomicity without per-field defensive checks.
+
 **Schema test extension** (`extension/tests/schema/rollup.test.ts`): add cases verifying:
 - Valid `comments` object passes.
 - Partial `comments` (missing one field) fails validation.
@@ -130,4 +139,10 @@ The decision is locked. The SC-05 reconciliation test (FR-2-04, see sibling cont
 
 ## §5 Demo dataset gating (FR-3-03)
 
-The capability-off demo variant MUST emit rollups WITHOUT the `comments` key. The byte-identity test (file path pinned at task time per Decision 11 in research.md — candidates: `tests/integration/test_demo_variants_byte_identity.py` or `tests/demo/test_demo_parity_pipeline.py`) MUST be tightened to gate the new key, so a future regression that emits the `comments` object under capability-off is caught at CI rather than at the dashboard render layer.
+The capability-off demo variant MUST emit rollups WITHOUT the `comments` key. The byte-identity test at `tests/integration/test_demo_variants_byte_identity.py` MUST be tightened to gate the new key across all four omission failure modes (key absent, `null`-valued, `{}`-valued, partial-fielded), so a future regression that emits the `comments` object under capability-off is caught at CI rather than at the dashboard render layer.
+
+**ADR T001 — byte-identity test extension target**
+
+- **Pinned**: `tests/integration/test_demo_variants_byte_identity.py`.
+- **Why**: this file already implements the capability-on-vs-capability-off variant comparison via a module-scoped `variant_trees` fixture that runs `scripts/generate-demo-data.py` twice (`--comments-metrics true` and `--comments-metrics false`) into sibling scratch dirs, then compares the trees with explicit gated-key strip (`_GATED_MANIFEST_PATHS = frozenset({("capabilities", "comments_metrics"), ("features", "comments"), ("coverage", "comments")})` and `_GATED_PR_FIELDS = frozenset({"thread_count", "comment_count", "active_thread_count"})`). Adding the new rollup-level `comments` key to the gated set is a 1-line extension of the existing assertion model — exactly the "rollup-level key absent in capability-off variant" gate FR-3-03 needs.
+- **Rejected**: `tests/demo/test_demo_parity_pipeline.py`. This file tests `build-demo-dataset.py` build/promote pipeline correctness against a single canonical artifact root (capability-matrix, startup-parity, reviewer-fixture validation, strip-gate atomicity) — it has no capability-on-vs-off variant comparison and no gated-key strip mechanism. Hosting the FR-3-03 extension here would require inventing a brand new comparison harness, defeating the "extend existing locked-shape gate" intent.

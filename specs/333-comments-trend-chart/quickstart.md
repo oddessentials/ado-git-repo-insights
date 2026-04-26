@@ -131,7 +131,7 @@ cd extension && pnpm test -- comments-trend.test.ts
 
 ```bash
 .venv/Scripts/python.exe scripts/run_pytest.py tests/integration/test_demo_variants_byte_identity.py -v
-# (Or tests/demo/test_demo_parity_pipeline.py — exact path pinned at task time.)
+# Pinned per T001 ADR (see contracts/weekly-comments-aggregate.md §5).
 # Expected: PASSES. Tightened to gate the new `comments` key under capability-off
 # for ALL FOUR omission failure modes individually:
 #   - key NOT present (the canonical absent state)
