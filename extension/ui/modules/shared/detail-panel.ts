@@ -825,17 +825,27 @@ function advanceSortDirection(current: SortDirection): SortDirection {
  * Issue #332 / B2: condensed C1 inclusion-rule disclosure surfaced via
  * a single info tooltip on the controls bar.  Authoritative source is
  * ``specs/310-comments-visualization/spec.md`` "Shared inclusion-rule
- * contract (C1)" — this string distills those rules per axis without
- * re-declaring them.  One icon (not three per-axis) so the disclosure
- * adds zero pixels to the columnheader tracks (Linux DejaVu header-fit
- * contract from #341 / #330 stays intact).
+ * contract (C1)" — this string distills those rules per axis in user-
+ * facing language without re-declaring them.  One icon (not three per-
+ * axis) so the disclosure adds zero pixels to the columnheader tracks
+ * (Linux DejaVu header-fit contract from #341 / #330 stays intact).
+ *
+ * Copy review (post-#343 merge): the prior version leaked the internal
+ * "Feature 310" label and data-model terms ("user table", "system
+ * events") into a user-facing tooltip.  This rewrite preserves the
+ * full C1 contract — exclude-deleted-threads / include-unknown-status
+ * / include-system-comments / exclude-deleted-comments / count-rows-
+ * from-deprovisioned-users — while replacing developer vocabulary
+ * with prose users of an Azure DevOps extension recognise.
  */
 const COMMENTS_METRICS_C1_TOOLTIP =
-  "Counts apply Feature 310's inclusion rules. Threads include " +
-  "unknown-status threads but exclude deleted ones. Comments include " +
-  "system events; deleted comments are excluded. Unresolved counts " +
-  "only threads still in active status. Comments by users missing " +
-  "from the user table are still counted.";
+  "How counts are tallied: The Threads count includes every review " +
+  "thread on this PR, including threads with no recorded status. The " +
+  "Comments count includes every comment, including automated build " +
+  "or CI notifications. The Unresolved count includes only threads " +
+  "currently in the Active state. Deleted threads and comments are " +
+  "not counted. Comments and threads from users who have left the " +
+  "organization are still counted.";
 
 /**
  * Slice-level metadata the filter feedback summary (#332 / B3) needs

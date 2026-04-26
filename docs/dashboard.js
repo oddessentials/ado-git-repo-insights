@@ -4419,7 +4419,7 @@ var PRInsightsDashboard = (() => {
     if (current === "descending") return "ascending";
     return "none";
   }
-  var COMMENTS_METRICS_C1_TOOLTIP = "Counts apply Feature 310's inclusion rules. Threads include unknown-status threads but exclude deleted ones. Comments include system events; deleted comments are excluded. Unresolved counts only threads still in active status. Comments by users missing from the user table are still counted.";
+  var COMMENTS_METRICS_C1_TOOLTIP = "How counts are tallied: The Threads count includes every review thread on this PR, including threads with no recorded status. The Comments count includes every comment, including automated build or CI notifications. The Unresolved count includes only threads currently in the Active state. Deleted threads and comments are not counted. Comments and threads from users who have left the organization are still counted.";
   function formatFilterSummary(context, hasActiveThreshold, visibleNumeric) {
     if (!hasActiveThreshold) {
       return `Showing all ${context.totalRows} PRs.`;
@@ -7103,11 +7103,11 @@ var PRInsightsDashboard = (() => {
     ],
     [
       "cycleP50",
-      "Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)"
+      "Median time from PR creation to merge. Half of all PRs completed faster than this. Calculated from weekly summaries."
     ],
     [
       "cycleP90",
-      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)"
+      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. Calculated from weekly summaries."
     ],
     [
       "authorsCount",
@@ -7119,11 +7119,11 @@ var PRInsightsDashboard = (() => {
     ],
     [
       "reviewTimeP50",
-      "Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)"
+      "Median time from first review request to review completion. Half of all reviews completed faster than this. Calculated from weekly summaries."
     ],
     [
       "reviewTimeP90",
-      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)"
+      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. Calculated from weekly summaries."
     ]
   ]);
   function renderSummaryCards(options) {
