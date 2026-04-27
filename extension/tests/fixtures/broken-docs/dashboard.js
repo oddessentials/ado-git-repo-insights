@@ -8207,6 +8207,64 @@ var PRInsightsDashboard = (() => {
     );
   }
 
+  // ../ui/modules/filters.ts
+  function createEmptyFilterState() {
+    return { repos: [], teams: [], reviewers: [], authors: [] };
+  }
+  function hasActiveFilters2(state) {
+    return state.repos.length > 0 || state.teams.length > 0 || state.reviewers.length > 0 || state.authors.length > 0;
+  }
+  function parseCommaSeparated(raw) {
+    if (!raw) return [];
+    return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
+  }
+  function parseFiltersFromUrl(params) {
+    const repos = parseCommaSeparated(params.get("repos"));
+    const teams = parseCommaSeparated(params.get("teams"));
+    const reviewerRaw = params.get("reviewers")?.trim() ?? "";
+    const authorRaw = params.get("author")?.trim() ?? "";
+    return {
+      repos,
+      teams,
+      reviewers: reviewerRaw ? [reviewerRaw] : [],
+      authors: authorRaw ? [authorRaw] : []
+    };
+  }
+  function serializeFiltersToUrl(state, params) {
+    if (state.repos.length > 0) {
+      const sorted = [...state.repos].sort();
+      params.set("repos", sorted.join(","));
+    } else {
+      params.delete("repos");
+    }
+    if (state.teams.length > 0) {
+      const sorted = [...state.teams].sort();
+      params.set("teams", sorted.join(","));
+    } else {
+      params.delete("teams");
+    }
+    if (state.reviewers.length > 0) {
+      const firstReviewer = state.reviewers[0];
+      if (firstReviewer) {
+        params.set("reviewers", firstReviewer);
+      } else {
+        params.delete("reviewers");
+      }
+    } else {
+      params.delete("reviewers");
+    }
+    if (state.authors.length > 0) {
+      const firstAuthor = state.authors[0];
+      if (firstAuthor) {
+        params.set("author", firstAuthor);
+      } else {
+        params.delete("author");
+      }
+    } else {
+      params.delete("author");
+    }
+  }
+
   // ../ui/modules/charts/comments-trend.ts
   var MAX_COMMENTS_TREND_POINTS = 104;
   var COMMENTS_TREND_TOOLTIP = "Bars show resolved (lower) and unresolved (upper) review threads per week. The line shows total comments. Hatched bars indicate partial coverage \u2014 some PRs in the week aren't yet extracted, so totals are partial.";
@@ -8281,8 +8339,15 @@ var PRInsightsDashboard = (() => {
   }
   function renderCommentsTrendChart(container, rollups, options) {
     if (!container) return;
-    void options;
     clearChartTooltips(container);
+    if (options?.filters && hasActiveFilters2(options.filters)) {
+      renderNoData(
+        container,
+        "Comments trend is not yet filterable",
+        "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+      );
+      return;
+    }
     const withComments = rollups.filter(hasComments);
     if (withComments.length === 0) {
       renderNoData(
@@ -8391,61 +8456,6 @@ var PRInsightsDashboard = (() => {
             <span>${escapeHtml(comments)}</span>
           </div>
           ${partialNote}`;
-  }
-
-  // ../ui/modules/filters.ts
-  function createEmptyFilterState() {
-    return { repos: [], teams: [], reviewers: [], authors: [] };
-  }
-  function parseCommaSeparated(raw) {
-    if (!raw) return [];
-    return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
-  }
-  function parseFiltersFromUrl(params) {
-    const repos = parseCommaSeparated(params.get("repos"));
-    const teams = parseCommaSeparated(params.get("teams"));
-    const reviewerRaw = params.get("reviewers")?.trim() ?? "";
-    const authorRaw = params.get("author")?.trim() ?? "";
-    return {
-      repos,
-      teams,
-      reviewers: reviewerRaw ? [reviewerRaw] : [],
-      authors: authorRaw ? [authorRaw] : []
-    };
-  }
-  function serializeFiltersToUrl(state, params) {
-    if (state.repos.length > 0) {
-      const sorted = [...state.repos].sort();
-      params.set("repos", sorted.join(","));
-    } else {
-      params.delete("repos");
-    }
-    if (state.teams.length > 0) {
-      const sorted = [...state.teams].sort();
-      params.set("teams", sorted.join(","));
-    } else {
-      params.delete("teams");
-    }
-    if (state.reviewers.length > 0) {
-      const firstReviewer = state.reviewers[0];
-      if (firstReviewer) {
-        params.set("reviewers", firstReviewer);
-      } else {
-        params.delete("reviewers");
-      }
-    } else {
-      params.delete("reviewers");
-    }
-    if (state.authors.length > 0) {
-      const firstAuthor = state.authors[0];
-      if (firstAuthor) {
-        params.set("author", firstAuthor);
-      } else {
-        params.delete("author");
-      }
-    } else {
-      params.delete("author");
-    }
   }
 
   // ../ui/modules/filter-constraint-resolver.ts

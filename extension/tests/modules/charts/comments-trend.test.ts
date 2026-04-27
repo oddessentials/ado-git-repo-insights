@@ -543,6 +543,62 @@ describe("comments-trend module", () => {
       );
       expect(legendItems.length).toBe(3);
     });
+
+    // FR-1-06: per-PR dimension filtering does NOT propagate into the
+    // rollup-root `comments` aggregate. `applyFiltersToRollups` ->
+    // `buildFilteredRollup` spreads `...rollup` and only overrides top-level
+    // throughput fields, so `rollup.comments` carries unfiltered week
+    // totals through. Rather than render those in disagreement with the
+    // rest of the dashboard, the chart shows a filter-not-supported empty
+    // state. Per-dimension comments slices are tracked under issue #322.
+    function expectFilterUnsupportedEmptyState(c: HTMLElement): void {
+      // No bars / line / legend.
+      expect(c.querySelectorAll(".bar-container").length).toBe(0);
+      expect(c.querySelectorAll(".comments-line-overlay").length).toBe(0);
+      expect(c.querySelectorAll(".chart-legend .legend-item").length).toBe(0);
+      // The empty-state title surfaces the filter-not-supported wording.
+      expect(c.textContent).toContain("Comments trend is not yet filterable");
+    }
+
+    it("(i.a) repos filter active — renders filter-not-supported empty state, no bars/line (FR-1-06)", () => {
+      const rollups = makeCommentsRollups(12);
+      const filters: FilterState = {
+        ...emptyFilters(),
+        repos: ["repo-a"],
+      };
+      renderCommentsTrendChart(container, rollups, { filters });
+      expectFilterUnsupportedEmptyState(container);
+    });
+
+    it("(i.b) teams filter active — renders filter-not-supported empty state, no bars/line (FR-1-06)", () => {
+      const rollups = makeCommentsRollups(12);
+      const filters: FilterState = {
+        ...emptyFilters(),
+        teams: ["team-x"],
+      };
+      renderCommentsTrendChart(container, rollups, { filters });
+      expectFilterUnsupportedEmptyState(container);
+    });
+
+    it("(i.c) authors filter active — renders filter-not-supported empty state, no bars/line (FR-1-06)", () => {
+      const rollups = makeCommentsRollups(12);
+      const filters: FilterState = {
+        ...emptyFilters(),
+        authors: ["author-1"],
+      };
+      renderCommentsTrendChart(container, rollups, { filters });
+      expectFilterUnsupportedEmptyState(container);
+    });
+
+    it("(i.d) reviewers filter active — renders filter-not-supported empty state, no bars/line (FR-1-06)", () => {
+      const rollups = makeCommentsRollups(12);
+      const filters: FilterState = {
+        ...emptyFilters(),
+        reviewers: ["reviewer-7"],
+      };
+      renderCommentsTrendChart(container, rollups, { filters });
+      expectFilterUnsupportedEmptyState(container);
+    });
   });
 });
 

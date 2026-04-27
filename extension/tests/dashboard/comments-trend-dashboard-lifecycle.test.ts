@@ -60,6 +60,7 @@ import {
   detachCommentsTrendInfoIcon,
 } from "../../ui/modules/charts/comments-trend";
 import type { Rollup } from "../../ui/dataset-loader";
+import type { FilterState } from "../../ui/modules/filters";
 
 // ---------------------------------------------------------------------------
 // Source under test (read once for the contract-lock describe block).
@@ -576,5 +577,55 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
     expect(btn.getAttribute("data-info-tooltip")).toBe("comments-trend");
     expect(btn.textContent).toBe("ℹ");
     expect(btn.parentElement).toBe(heading);
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario (f) — capability-on filter on/off transition (FR-1-06).
+  //
+  // The chart row stays mounted across filter flips (capability is still on),
+  // but bars/line are replaced with the filter-not-supported empty state
+  // when any dimension filter is active. Clearing filters restores bars
+  // without leaving stale empty-state DOM behind. Mirrors the (b)/(c)
+  // capability transition pattern at the chart-content layer.
+  // -------------------------------------------------------------------------
+
+  it("(f) filter on/off transition replaces bars with empty state and back, without stale DOM", () => {
+    const chart = ensureCommentsTrendContainerContract();
+    expect(chart).not.toBeNull();
+    const rollups = makeCommentsRollups(12);
+    const noFilters: FilterState = {
+      repos: [],
+      teams: [],
+      reviewers: [],
+      authors: [],
+    };
+    const repoFilterActive: FilterState = { ...noFilters, repos: ["repo-a"] };
+
+    // Step 1: filter cleared → bars present.
+    renderCommentsTrendChart(chart!, rollups, { filters: noFilters });
+    expect(chart!.querySelectorAll(".bar-container").length).toBe(12);
+    expect(chart!.querySelectorAll(".comments-line-overlay").length).toBe(1);
+    expect(chart!.textContent).not.toContain(
+      "Comments trend is not yet filterable",
+    );
+
+    // Step 2: filter activated → bars/line replaced by empty state.
+    renderCommentsTrendChart(chart!, rollups, { filters: repoFilterActive });
+    expect(chart!.querySelectorAll(".bar-container").length).toBe(0);
+    expect(chart!.querySelectorAll(".comments-line-overlay").length).toBe(0);
+    expect(chart!.querySelectorAll(".chart-legend .legend-item").length).toBe(
+      0,
+    );
+    expect(chart!.textContent).toContain(
+      "Comments trend is not yet filterable",
+    );
+
+    // Step 3: filter cleared again → bars come back, empty-state DOM gone.
+    renderCommentsTrendChart(chart!, rollups, { filters: noFilters });
+    expect(chart!.querySelectorAll(".bar-container").length).toBe(12);
+    expect(chart!.querySelectorAll(".comments-line-overlay").length).toBe(1);
+    expect(chart!.textContent).not.toContain(
+      "Comments trend is not yet filterable",
+    );
   });
 });

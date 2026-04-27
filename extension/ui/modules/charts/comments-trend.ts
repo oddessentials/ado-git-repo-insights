@@ -34,6 +34,7 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { FilterState } from "../filters";
+import { hasActiveFilters } from "../filters";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { addChartTooltips, clearChartTooltips } from "../charts";
@@ -176,11 +177,17 @@ function hasComments(rollup: Rollup): rollup is RollupWithComments {
  * @param rollups   Weekly rollups in chronological order. Weeks lacking the
  *                  `comments` sub-object are filtered out (capability-off
  *                  path defense).
- * @param options   Filter state forwarded for future use (currently unused
- *                  by the chart itself — the dashboard slices `rollups` to
- *                  the active range before calling). Keeping the signature
- *                  symmetric with `renderThroughputChart` so the
- *                  capability-on call sites remain uniform.
+ * @param options   Filter state. When any of `filters.{repos,teams,authors,
+ *                  reviewers}` is non-empty, the chart renders a
+ *                  filter-not-supported empty state instead of bars/line
+ *                  (FR-1-06). The rest of the dashboard's metric surfaces
+ *                  consume `applyFiltersToRollups`-filtered rollups, but
+ *                  `buildFilteredRollup` carries `rollup.comments` through
+ *                  unchanged via the `...rollup` spread, so rendering bars
+ *                  off filtered rollups would silently show unfiltered
+ *                  week totals — the inverse of an honest UI. Per-dimension
+ *                  comments slices are deferred to issue #322 / 310
+ *                  Capability 2.
  */
 export function renderCommentsTrendChart(
   container: HTMLElement | null,
@@ -188,12 +195,22 @@ export function renderCommentsTrendChart(
   options?: { filters?: FilterState },
 ): void {
   if (!container) return;
-  // Acknowledge `options` to satisfy lint's no-unused-vars without forcing
-  // call sites to reshape. Future iterations may consume `options.filters`
-  // for empty-state classification; for now the parent dashboard performs
-  // any filter-state-aware messaging at its own layer.
-  void options;
   clearChartTooltips(container);
+
+  // FR-1-06: dimension filters are not yet supported on this chart. The
+  // dashboard slices `rollups` by date range before calling, but per-PR
+  // dimension filtering does NOT propagate into the rollup-root `comments`
+  // aggregate (`buildFilteredRollup` spreads `...rollup` and only overrides
+  // top-level throughput fields). Render a self-explanatory empty state
+  // rather than show data that contradicts the rest of the dashboard.
+  if (options?.filters && hasActiveFilters(options.filters)) {
+    renderNoData(
+      container,
+      "Comments trend is not yet filterable",
+      "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comments breakdowns are tracked under follow-up issue #322.",
+    );
+    return;
+  }
 
   const withComments = rollups.filter(hasComments);
 
