@@ -140,6 +140,21 @@ export interface Rollup {
   prs?: readonly PrRecord[];
   _prs_truncated?: boolean;
   _prs_cap?: number;
+  // Feature 333 weekly comments aggregate (FR-2-06). Optional sub-object
+  // emitted only when capabilities.comments_metrics is enabled (FR-3-03).
+  // When present, all four fields are present together (INV-1-08 atomicity).
+  // The three numeric fields are sums over W's EXTRACTED-SUBSET per FR-2-03
+  // (PRs with comments_extracted_at IS NOT NULL); coverage_partial flags
+  // when the extracted-subset is incomplete vs. the canonical throughput
+  // PR set. Validator: validateCommentsAggregate in rollup.schema.ts (ADR
+  // T004 STRICT-ERROR posture, both modes). Renderer: comments-trend chart
+  // module under modules/charts/comments-trend.ts (T016).
+  comments?: {
+    thread_count: number;
+    comment_count: number;
+    active_thread_count: number;
+    coverage_partial: boolean;
+  };
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 

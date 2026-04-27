@@ -1373,7 +1373,9 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     margin-left: 4px;
     vertical-align: middle;
     border-radius: 50%;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition:
+        color 0.15s ease,
+        background-color 0.15s ease;
     outline: 2px solid transparent;
     outline-offset: 1px;
     /* Touch target: 20px + 4px padding each side = 28px visible,
@@ -3361,14 +3363,16 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     opacity: 0.45;
 }
 
-.detail-panel-pr-list-header [role="columnheader"][aria-sort="descending"]
+.detail-panel-pr-list-header
+    [role="columnheader"][aria-sort="descending"]
     .detail-panel-pr-list-header-sort::after {
     content: "▼";
     color: var(--text-primary);
     opacity: 1;
 }
 
-.detail-panel-pr-list-header [role="columnheader"][aria-sort="ascending"]
+.detail-panel-pr-list-header
+    [role="columnheader"][aria-sort="ascending"]
     .detail-panel-pr-list-header-sort::after {
     content: "▲";
     color: var(--text-primary);
@@ -3645,12 +3649,24 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
  * affordance hover/focus brightness rules. Source-order ties with the
  * affordance rules above; this block (later in file) wins. Covers the
  * three trigger types and the cycle-time <g> wrapper. */
-[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:hover .bar,
-[data-drilldown-disabled="comparison"] .bar-container[data-drilldown-week]:focus-visible .bar,
-[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:hover .h-bar,
-[data-drilldown-disabled="comparison"] .h-bar-row[data-drilldown-reviewer-id]:focus-visible .h-bar,
-[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:hover .line-chart-dot,
-[data-drilldown-disabled="comparison"] g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
+[data-drilldown-disabled="comparison"]
+    .bar-container[data-drilldown-week]:hover
+    .bar,
+[data-drilldown-disabled="comparison"]
+    .bar-container[data-drilldown-week]:focus-visible
+    .bar,
+[data-drilldown-disabled="comparison"]
+    .h-bar-row[data-drilldown-reviewer-id]:hover
+    .h-bar,
+[data-drilldown-disabled="comparison"]
+    .h-bar-row[data-drilldown-reviewer-id]:focus-visible
+    .h-bar,
+[data-drilldown-disabled="comparison"]
+    g[role="button"][data-drilldown-week]:hover
+    .line-chart-dot,
+[data-drilldown-disabled="comparison"]
+    g[role="button"][data-drilldown-week]:focus-visible
+    .line-chart-dot {
     filter: none;
 }
 
@@ -3687,4 +3703,139 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     .comparison-advisory-toast {
         animation: none;
     }
+}
+
+/* ===========================================================================
+ * Comments-Trend Chart (Feature 333)
+ *
+ * Stacked bars (resolved + unresolved threads) with overlaid comment-count
+ * line on a shared vertical axis (FR-1-02). Partial-coverage qualifier per
+ * ADR T005: hatched fill (`repeating-linear-gradient`) + slightly dimmed
+ * segment colors on `.bar-container.coverage-partial`. Legend item for
+ * "Partial coverage" is rendered conditionally by the chart module — only
+ * when at least one partial week is in range.
+ * ========================================================================= */
+
+.comments-trend-bars .bar-container {
+    /* Stack segments at the bottom of the bar-container so the resolved (lower)
+     * + unresolved (upper) duo rises from the chart baseline (mirrors how
+     * throughput's single bar visually sits at the bottom). DOM order in the
+     * chart module: unresolved -> resolved -> label. With justify-content
+     * flex-end, all three are pushed to the bottom in DOM order top-to-bottom,
+     * so unresolved appears on top of resolved, and the label sits at the very
+     * bottom. */
+    justify-content: flex-end;
+}
+
+.bar-segment-resolved,
+.bar-segment-unresolved {
+    width: 100%;
+    max-width: 40px;
+    transition: height 0.3s ease;
+}
+
+.bar-segment-resolved {
+    /* Resolved threads — lower segment in the visual stack (FR-1-02). Uses
+     * the success-token gradient to convey "done / closed conversations." */
+    background: linear-gradient(180deg, var(--success) 0%, #0e6b0e 100%);
+}
+
+.bar-segment-unresolved {
+    /* Unresolved threads — upper segment in the visual stack. Uses the
+     * warning-token gradient to convey "still active / needs attention."
+     * Border-radius applied to the top corners only since this is the visible
+     * top of the stacked bar. */
+    background: linear-gradient(180deg, var(--warning) 0%, #d39c00 100%);
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* Partial-coverage qualifier (ADR T005 — round-1 starting point):
+ *  1. Hatched fill via repeating-linear-gradient overlay (45deg, 4px stripes)
+ *     applied to BOTH stacked segments via :is() so the pattern is visible
+ *     across the resolved + unresolved sub-rectangles.
+ *  2. Slight dim via reduced opacity on the segments + a slightly desaturated
+ *     overlay color, conveying "lower-confidence data" without making the
+ *     bar disappear (the bar's height still encodes the known-extracted-subset
+ *     total per FR-2-03).
+ *  3. Tooltip + legend ("Partial coverage" entry, gated on any partial bar
+ *     visible) are wired by the chart module — pure-CSS layer here. */
+.bar-container.coverage-partial .bar-segment-resolved,
+.bar-container.coverage-partial .bar-segment-unresolved {
+    opacity: 0.78;
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.55) 0,
+        rgba(255, 255, 255, 0.55) 3px,
+        transparent 3px,
+        transparent 7px
+    );
+}
+
+.bar-container.coverage-partial .bar-segment-resolved {
+    background-color: var(--success);
+}
+
+.bar-container.coverage-partial .bar-segment-unresolved {
+    background-color: var(--warning);
+}
+
+/* Comments-line overlay (the comment_count series). Mirrors the
+ * `.trend-line-overlay` pattern but uses a distinct color (--primary) so the
+ * three series — resolved, unresolved, comments — read as visually distinct
+ * on the same axis. */
+.comments-line-overlay {
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 200px;
+    pointer-events: none;
+}
+
+.comments-line-overlay svg {
+    width: 100%;
+    height: 100%;
+}
+
+.comments-line {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Per-week dot markers on the comment-count line. Per FR-2-06 case (vi),
+ * zero-value weeks still emit a marker so the line connects through them
+ * rather than skipping. */
+.comments-line-dot {
+    fill: var(--primary);
+    stroke: var(--bg-primary);
+    stroke-width: 1;
+}
+
+/* Legend swatches for the comments-trend chart. */
+.legend-bar-resolved {
+    background: linear-gradient(180deg, var(--success) 0%, #0e6b0e 100%);
+}
+
+.legend-bar-unresolved {
+    background: linear-gradient(180deg, var(--warning) 0%, #d39c00 100%);
+}
+
+.legend-line-comments {
+    background: var(--primary);
+}
+
+/* Partial-coverage legend swatch — hatched mini-square so the convention is
+ * visually self-explanatory without needing the bars on screen. */
+.legend-bar-coverage-partial {
+    background-color: var(--text-tertiary);
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.65) 0,
+        rgba(255, 255, 255, 0.65) 2px,
+        transparent 2px,
+        transparent 5px
+    );
 }

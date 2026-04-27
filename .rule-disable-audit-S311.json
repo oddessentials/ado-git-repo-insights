@@ -22,19 +22,19 @@
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1383,
+      "line": 1420,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1994,
+      "line": 2031,
       "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1995,
+      "line": 2032,
       "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },

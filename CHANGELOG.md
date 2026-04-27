@@ -1,3 +1,21 @@
+# [101.19.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.18.1...v101.19.0) (2026-04-27)
+
+
+### Bug Fixes
+
+* **333:** chart heading + info-icon affordance for comments-trend ([8cd855e](https://github.com/oddessentials/ado-git-repo-insights/commit/8cd855eee0300c3b4d31bdee2c5148fcafbfada6))
+* **comments-trend:** empty-state on active dimension filters ([#345](https://github.com/oddessentials/ado-git-repo-insights/issues/345) P1) ([6263cc1](https://github.com/oddessentials/ado-git-repo-insights/commit/6263cc1572460a683887637550120882f3968133)), closes [#322](https://github.com/oddessentials/ado-git-repo-insights/issues/322) [#322](https://github.com/oddessentials/ado-git-repo-insights/issues/322) [#322](https://github.com/oddessentials/ado-git-repo-insights/issues/322)
+* **comments-trend:** enforce sign/integer/INV-1-06 in validateCommentsAggregate ([#345](https://github.com/oddessentials/ado-git-repo-insights/issues/345) P2) ([eda6385](https://github.com/oddessentials/ado-git-repo-insights/commit/eda6385d1b8a2cfacc1368fbd8cdc46892dd9c0c))
+
+
+### Features
+
+* **333:** comments-trend chart module + tests + styles (T015-T019) ([4417178](https://github.com/oddessentials/ado-git-repo-insights/commit/4417178f95c97b8e8a297fd5c8d79ebd1ba72ffd))
+* **333:** emit weekly comments aggregate + schema validator (T011, T012, T013) ([4919116](https://github.com/oddessentials/ado-git-repo-insights/commit/4919116991b5d0d72f434643088f13488c5e95bf))
+* **333:** synthesizer emits rollup-level `comments` sub-object (T026 prereq) ([ec55a8f](https://github.com/oddessentials/ado-git-repo-insights/commit/ec55a8fcb58b292fb6427b9c1fc4e2c6cb96784e))
+* **333:** wire bar click + keyboard activation for drill-down (T022 + T023) ([6919cd9](https://github.com/oddessentials/ado-git-repo-insights/commit/6919cd956b8da2bd83fc39e67d666cf523f6a510))
+* **333:** wire comments-trend chart into Metrics tab (T020 + T021) ([007a730](https://github.com/oddessentials/ado-git-repo-insights/commit/007a7300ec455ee903d867ea9da96124fc6bb063))
+
 ## [101.18.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.18.0...v101.18.1) (2026-04-26)
 
 
