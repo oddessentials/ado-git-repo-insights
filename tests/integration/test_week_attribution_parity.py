@@ -37,10 +37,10 @@ Authoritative refs:
   (ADR T003) + Decision 6 (round-9 isolation rule).
 * Tasks: ``specs/333-comments-trend-chart/tasks.md`` T012 at line 71.
 
-Demo dataset discovery follows the same tiered pattern as T007 (``ADO_DEMO_DB``
-env var, then ``<demo-root>/dataset.sqlite``, then
-``artifacts/demo-enterprise/dataset.sqlite``, then ``ado-insights.sqlite`` at
-repo root). Skips cleanly when no populated DB or when capability is off.
+Fixture (Round 14, revised — production-driven): the test consumes the
+session-scoped ``sc05_fixture`` (``tests/integration/conftest.py``). The
+fixture writes raw rows then runs the production ``build-aggregates`` CLI
+to produce real rollups. NO env-var discovery, NO tiered fallback, NO skips.
 
 Test floor: +1 Python (single test function). Floor bump is handled by the
 parent session's Phase 2 commit, not this file.
@@ -49,62 +49,14 @@ parent session's Phase 2 commit, not this file.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
-from typing import Final
 
 import pandas as pd
 import pytest
 
-_REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
-_DEMO_DATA_ENV_VAR: Final[str] = "ADO_DEMO_DATA_DIR"
-_DEMO_DB_ENV_VAR: Final[str] = "ADO_DEMO_DB"
-_DEFAULT_DEMO_DATA_DIR: Final[Path] = _REPO_ROOT / "docs" / "data"
-_FALLBACK_DB_CANDIDATES: Final[tuple[Path, ...]] = (
-    _REPO_ROOT / "artifacts" / "demo-enterprise" / "dataset.sqlite",
-    _REPO_ROOT / "ado-insights.sqlite",
-)
-
-
-def _resolve_demo_data_dir() -> Path:
-    override = os.environ.get(_DEMO_DATA_ENV_VAR)
-    if override:
-        return Path(override)
-    return _DEFAULT_DEMO_DATA_DIR
-
-
-def _resolve_demo_db_path(demo_data_dir: Path) -> Path | None:
-    """Tiered SQLite discovery; returns None when no candidate exists."""
-    override = os.environ.get(_DEMO_DB_ENV_VAR)
-    if override:
-        candidate = Path(override)
-        return candidate if candidate.exists() else None
-    primary = demo_data_dir / "dataset.sqlite"
-    if primary.exists():
-        return primary
-    for fallback in _FALLBACK_DB_CANDIDATES:
-        if fallback.exists():
-            return fallback
-    return None
-
-
-def _load_manifest(demo_data_dir: Path) -> dict[str, object] | None:
-    manifest_path = demo_data_dir / "dataset-manifest.json"
-    if not manifest_path.exists():
-        return None
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        return None
-    return payload
-
-
-def _capability_on(manifest: dict[str, object]) -> bool:
-    capabilities = manifest.get("capabilities")
-    if not isinstance(capabilities, dict):
-        return False
-    return capabilities.get("comments_metrics") is True
+from tests.fixtures.sc05.fixture_builder import SC05Fixture
 
 
 def _isoweek_key(closed_date: str) -> str:
@@ -123,7 +75,7 @@ def _isoweek_key(closed_date: str) -> str:
     return f"{year_int}-W{week_int:02d}"
 
 
-def _read_throughput_pr_week_map(demo_data_dir: Path) -> dict[int, str]:
+def _read_throughput_pr_week_map(rollups_dir: Path) -> dict[int, str]:
     """Build {pull_request_id: week_key} from every weekly rollup's ``prs[]``.
 
     The rollup ``prs[]`` array carries the top-500-by-cycle-time slice per
@@ -136,9 +88,6 @@ def _read_throughput_pr_week_map(demo_data_dir: Path) -> dict[int, str]:
     prevents this test from grounding against throughput's internal
     attribution beyond the emission surface.
     """
-    rollups_dir = demo_data_dir / "aggregates" / "weekly_rollups"
-    if not rollups_dir.exists():
-        return {}
     pr_to_week: dict[int, str] = {}
     for rollup_path in sorted(rollups_dir.glob("*.json")):
         week_key = rollup_path.stem
@@ -158,7 +107,9 @@ def _read_throughput_pr_week_map(demo_data_dir: Path) -> dict[int, str]:
     return pr_to_week
 
 
-def test_throughput_per_pr_week_attribution_matches_isoweek_formula() -> None:
+def test_throughput_per_pr_week_attribution_matches_isoweek_formula(
+    sc05_fixture: SC05Fixture,
+) -> None:
     """FR-2-03 (b): every PR in throughput's prs[] must match the ISO-week formula.
 
     For every PR ``P`` that appears in some weekly rollup's ``prs[]`` array,
@@ -170,39 +121,14 @@ def test_throughput_per_pr_week_attribution_matches_isoweek_formula() -> None:
     only surface as a per-week sum mismatch in the SC-05 reconciliation
     test (T007).
     """
-    demo_data_dir = _resolve_demo_data_dir()
-    manifest = _load_manifest(demo_data_dir)
-    if manifest is None:
-        pytest.skip(
-            f"demo manifest not found at {demo_data_dir}/dataset-manifest.json; "
-            "FR-2-03 (b) parity cannot be exercised without throughput's emission"
-        )
-    if not _capability_on(manifest):
-        pytest.skip(
-            "capabilities.comments_metrics is False on the demo manifest; "
-            "T012 verifies the formula throughput shares with the comments "
-            "aggregator — under capability-off the comments aggregator does "
-            "not emit, but the throughput formula is still verifiable. "
-            "Skipping for parity with T007's capability-on contract; the "
-            "formula is independently exercised by repository-level tests "
-            "of the throughput aggregator."
-        )
+    pr_to_throughput_week = _read_throughput_pr_week_map(sc05_fixture.rollups_dir)
+    assert pr_to_throughput_week, (
+        f"sc05_fixture has no PRs in any rollup's prs[] under "
+        f"{sc05_fixture.rollups_dir}; fixture builder is broken"
+    )
 
-    db_path = _resolve_demo_db_path(demo_data_dir)
-    if db_path is None:
-        pytest.skip(
-            "no source SQLite found via tiered discovery; FR-2-03 (b) cannot "
-            "ground the per-PR closed_date lookups without the source DB"
-        )
-
-    pr_to_throughput_week = _read_throughput_pr_week_map(demo_data_dir)
-    if not pr_to_throughput_week:
-        pytest.skip(
-            f"no PRs found in any weekly rollup's prs[] under {demo_data_dir}; "
-            "throughput emission is empty, nothing to verify"
-        )
-
-    with closing(sqlite3.connect(db_path)) as conn:
+    db_path = sc05_fixture.sqlite_path
+    with closing(sqlite3.connect(str(db_path))) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT pull_request_id, closed_date FROM pull_requests "
@@ -210,11 +136,10 @@ def test_throughput_per_pr_week_attribution_matches_isoweek_formula() -> None:
         )
         pr_rows = cursor.fetchall()
 
-    if not pr_rows:
-        pytest.skip(
-            f"source SQLite at {db_path} has no completed PRs with "
-            "closed_date; FR-2-03 (b) cannot ground without source rows"
-        )
+    assert pr_rows, (
+        f"sc05_fixture sqlite at {db_path} has no completed PRs with "
+        "closed_date; fixture builder is broken"
+    )
 
     pr_id_to_closed_date: dict[int, str] = {}
     for row in pr_rows:

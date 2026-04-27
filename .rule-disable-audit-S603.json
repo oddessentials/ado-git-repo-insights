@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 115,
+  "total_call_sites": 116,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -428,6 +428,14 @@
       "safety": "safe-literal-list"
     },
     {
+      "file": "tests/fixtures/sc05/fixture_builder.py",
+      "line": 512,
+      "code": "completed = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 18,
       "code": "result = subprocess.run(",
@@ -509,7 +517,7 @@
     },
     {
       "file": "tests/integration/test_comments_trend_meta_failure.py",
-      "line": 171,
+      "line": 153,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,

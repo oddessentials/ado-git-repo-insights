@@ -1,9 +1,9 @@
 """Feature 333 FR-2-04 SC-05 cross-feature reconciliation test.
 
-This module is the executable closure of feature 310's deferred SC-05 cross-feature
-coherence obligation (310 spec lines 145-146; closed by 333 spec SC-1-05 / INV-1-02).
-For every week W in the demo dataset, the test asserts two properties per spec
-``FR-2-04`` (a) + (b):
+This module is the executable closure of feature 310's deferred SC-05
+cross-feature coherence obligation (310 spec lines 145-146; closed by 333
+spec SC-1-05 / INV-1-02). For every week W in the SC-05 fixture, the test
+asserts two properties per spec ``FR-2-04`` (a) + (b):
 
 * (a) **Cross-surface coherence on the extracted-subset of the intersection**
   (``FR-2-01`` + round-9 positive-sentinel extension): for every PR P in
@@ -44,38 +44,18 @@ helpers, and the test does NOT read the throughput rollup's ``prs[]`` list as
 the source of W's PR set (that would couple reconciliation to throughput's
 correctness — round-9 explicitly forbids it).
 
-Demo dataset discovery:
+Fixture (Round 14, revised — production-driven):
 
-* Reads ``ADO_DEMO_DATA_DIR`` env var (default: ``<repo>/docs/data``) for the
-  demo manifest + weekly rollup JSONs. The sibling FR-2-05 meta-test
-  (``test_comments_trend_meta_failure.py``) sets this env var to point at a
-  mutated working copy.
-* Reads ``ADO_DEMO_DB`` env var for the source SQLite path. If unset, falls
-  back to checking ``<demo-root>/dataset.sqlite``,
-  ``<repo>/artifacts/demo-enterprise/dataset.sqlite``, then ``<repo>/ado-insights.sqlite``.
-* If ``capabilities.comments_metrics`` is False on the manifest, the test
-  skips with reason ``"capability off"`` (FR-3-03 says no ``comments`` object
-  is emitted; nothing to reconcile).
-* If the manifest is capability-on but no source SQLite is locatable OR the
-  located SQLite has no PR data, the test skips with a clear reason. The
-  reconciliation cannot ground the independent re-computation without source
-  rows; skipping a missing fixture is acceptable, passing without
-  verification is not.
-* If both the manifest and a populated SQLite are present, the test runs
-  fully and FAILS if any week's ``rollup[W].comments`` values diverge from
-  the independent re-computation (this includes the TDD failure mode where
-  ``rollup[W].comments`` is absent altogether before T011 lands — a
-  ``"comments key missing"`` assertion fires before the field-by-field
-  comparison so the failure message is clear).
-
-TDD intent (T007 ordering):
-
-This test MUST currently FAIL on a populated demo (T011 has not yet emitted
-``rollup[W].comments``). The "comments key missing" assertion at the head
-of each week's check delivers a clean failure message until T011 lands the
-aggregator emission. After T011 + T026 regenerate the demo with the
-``comments`` sub-object, this test transitions to GREEN and remains the
-authoritative parity check for weekly comments aggregates.
+The test consumes the session-scoped ``sc05_fixture`` (see
+``tests/integration/conftest.py`` / ``tests/fixtures/sc05/fixture_builder.py``).
+The fixture writes raw rows into a SQLite using the production schema
+(``DatabaseManager``), then shells out to
+``python -m ado_git_repo_insights build-aggregates --db <sqlite> --out <data>``
+so the rollups + manifest under test are REAL production output of
+``aggregators.py::_compute_weekly_comments_aggregate``. The subprocess
+boundary keeps ``aggregators.py`` out of T007's import graph (preserving
+the round-9 isolation walked by T008). NO env-var-driven discovery, NO
+tiered fallback, NO skip-on-missing.
 
 Test floor: +1 Python (single test function; pytest reports per-week failures
 via the first-failing-assertion pattern). Floor bump is handled by the parent
@@ -85,15 +65,15 @@ session's Phase 2 commit, not this file.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
-from collections.abc import Iterator
 from contextlib import closing
 from pathlib import Path
 from typing import Final, TypedDict
 
 import pandas as pd
 import pytest
+
+from tests.fixtures.sc05.fixture_builder import SC05Fixture
 
 
 class _CanonicalPrRow(TypedDict):
@@ -106,118 +86,6 @@ class _CanonicalPrRow(TypedDict):
     pull_request_uid: str
     pull_request_id: int
     comments_extracted_at: str | None
-
-
-# --------------------------------------------------------------------------- #
-# Paths & env vars                                                             #
-# --------------------------------------------------------------------------- #
-
-_REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
-
-# Override env var for relocating the demo data root. Honored by the
-# FR-2-05 meta-test (``test_comments_trend_meta_failure.py``) so it can
-# point reconciliation at a tmp_path mutated working copy without
-# touching ``docs/data/`` in the repo.
-_DEMO_DATA_ENV_VAR: Final[str] = "ADO_DEMO_DATA_DIR"
-_DEMO_DB_ENV_VAR: Final[str] = "ADO_DEMO_DB"
-
-# Default demo data root (capability-on demo committed in the repo).
-_DEFAULT_DEMO_DATA_DIR: Final[Path] = _REPO_ROOT / "docs" / "data"
-
-# Demo SQLite candidate locations searched in order when ADO_DEMO_DB is unset.
-# The list is intentionally short and explicit; T011 / T026 will pin a single
-# canonical location once the demo workflow exposes a backing SQLite.
-_DEFAULT_DB_CANDIDATES_RELATIVE: Final[tuple[Path, ...]] = (
-    Path("artifacts") / "demo-enterprise" / "dataset.sqlite",
-    Path("ado-insights.sqlite"),
-)
-
-
-# --------------------------------------------------------------------------- #
-# Demo dataset discovery                                                       #
-# --------------------------------------------------------------------------- #
-
-
-def _resolve_demo_data_dir() -> Path:
-    """Return the demo data root. Honors ``ADO_DEMO_DATA_DIR`` env var."""
-    override = os.environ.get(_DEMO_DATA_ENV_VAR)
-    if override:
-        return Path(override).resolve()
-    return _DEFAULT_DEMO_DATA_DIR
-
-
-def _resolve_demo_db_path(demo_data_dir: Path) -> Path | None:
-    """Find the source SQLite that backs the demo dataset, or ``None``.
-
-    Search order:
-      1. ``ADO_DEMO_DB`` env var (absolute path).
-      2. ``<demo-data-dir>/dataset.sqlite`` — convention for a future demo
-         workflow that publishes the SQLite alongside the JSON tree.
-      3. ``<repo>/artifacts/demo-enterprise/dataset.sqlite`` — convention
-         pinned by the 310 quickstart §2.
-      4. ``<repo>/ado-insights.sqlite`` — local-developer extraction default.
-
-    Returns the first existing path, or ``None`` if no candidate exists. The
-    caller decides whether to skip the test or proceed.
-    """
-    override = os.environ.get(_DEMO_DB_ENV_VAR)
-    if override:
-        candidate = Path(override)
-        return candidate if candidate.exists() else None
-
-    candidates: list[Path] = [demo_data_dir / "dataset.sqlite"]
-    candidates.extend(_REPO_ROOT / rel for rel in _DEFAULT_DB_CANDIDATES_RELATIVE)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _load_manifest(demo_data_dir: Path) -> dict[str, object]:
-    manifest_path = demo_data_dir / "dataset-manifest.json"
-    if not manifest_path.exists():
-        pytest.skip(
-            f"demo manifest not found at {manifest_path}; "
-            "cannot exercise FR-2-04 without a manifest"
-        )
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        pytest.fail(f"manifest {manifest_path} is not a JSON object")
-    return payload
-
-
-def _capability_on(manifest: dict[str, object]) -> bool:
-    capabilities = manifest.get("capabilities")
-    if not isinstance(capabilities, dict):
-        return False
-    return bool(capabilities.get("comments_metrics"))
-
-
-def _iter_rollup_paths(demo_data_dir: Path) -> Iterator[Path]:
-    rollup_dir = demo_data_dir / "aggregates" / "weekly_rollups"
-    if not rollup_dir.is_dir():
-        pytest.skip(
-            f"weekly rollup directory not found at {rollup_dir}; "
-            "demo dataset is incomplete"
-        )
-    yield from sorted(rollup_dir.glob("*.json"))
-
-
-def _has_source_pr_rows(db_path: Path) -> bool:
-    """Return True iff the source SQLite has any pull_requests rows.
-
-    A path that exists but has zero rows (e.g., a freshly-initialized DB
-    file from a developer's local extraction that never ran) cannot ground
-    the independent re-computation; the test skips rather than passing on
-    an empty fixture.
-    """
-    try:
-        with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
-            cursor = conn.execute("SELECT COUNT(*) FROM pull_requests")
-            count = cursor.fetchone()[0]
-    except sqlite3.DatabaseError:
-        return False
-    return int(count) > 0
 
 
 # --------------------------------------------------------------------------- #
@@ -278,8 +146,11 @@ def _attribute_prs_to_weeks(
         rows: list[_CanonicalPrRow] = []
         for row in group.itertuples(index=False):
             extracted_raw = row.comments_extracted_at
+            # pandas converts SQL NULL to NaN (not None) inside read_sql_query
+            # results, so a plain ``is None`` check would silently misclassify
+            # unextracted PRs as extracted — pd.isna() handles both.
             extracted: str | None = (
-                None if extracted_raw is None else str(extracted_raw)
+                None if pd.isna(extracted_raw) else str(extracted_raw)
             )
             rows.append(
                 _CanonicalPrRow(
@@ -384,12 +255,12 @@ def _drilldown_pr_records(rollup: dict[str, object]) -> list[dict[str, object]]:
 # --------------------------------------------------------------------------- #
 
 
-def test_sc05_reconciliation_per_week() -> None:
-    """FR-2-04 (a) + (b): every demo week's ``rollup[W].comments`` matches an
+def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
+    """FR-2-04 (a) + (b): every fixture week's ``rollup[W].comments`` matches an
     independent re-computation, and per-PR drill-down values agree with the
     aggregator on the extracted-subset of the intersection.
 
-    Iterates every week W discoverable in the demo dataset. Per-week assertions:
+    Iterates every week W in the SC-05 fixture. Per-week assertions:
 
     * (a) Cross-surface coherence (FR-2-01 + round-9 positive sentinel):
       For each PR P in ``rollup[W].prs[]``:
@@ -407,43 +278,16 @@ def test_sc05_reconciliation_per_week() -> None:
       extracted-subset of the per-PR C1 counts; ``coverage_partial`` MUST
       equal ``(|canonical PR set| != |extracted-subset|)``.
 
-    Skip semantics: skips when the manifest is capability-off, when the
-    source SQLite is missing, or when the located SQLite has zero PR rows.
-    Skipping a missing fixture is acceptable; passing without verification
-    is not.
+    Fixture is built fresh at session start by invoking the production
+    ``build-aggregates`` CLI (see ``conftest.py``); no skip paths.
     """
-    demo_data_dir = _resolve_demo_data_dir()
-    manifest = _load_manifest(demo_data_dir)
-
-    if not _capability_on(manifest):
-        pytest.skip(
-            "capabilities.comments_metrics is False on the demo manifest; "
-            "FR-3-03 specifies no comments object is emitted under "
-            "capability-off, so reconciliation has nothing to compare"
-        )
-
-    db_path = _resolve_demo_db_path(demo_data_dir)
-    if db_path is None:
-        pytest.skip(
-            "no source SQLite found for the demo dataset; set "
-            f"{_DEMO_DB_ENV_VAR} to a path with pull_requests / pr_threads / "
-            "pr_comments tables, or place a populated SQLite at one of: "
-            f"{demo_data_dir / 'dataset.sqlite'}, "
-            f"{_REPO_ROOT / 'artifacts' / 'demo-enterprise' / 'dataset.sqlite'}, "
-            f"{_REPO_ROOT / 'ado-insights.sqlite'}. The independent "
-            "re-computation requires direct SQL grounding (round-9 isolation "
-            "forbids reading throughput's emitted PR list)"
-        )
-    if not _has_source_pr_rows(db_path):
-        pytest.skip(
-            f"source SQLite at {db_path} has no pull_requests rows; cannot "
-            "ground the independent re-computation"
-        )
-
+    db_path = sc05_fixture.sqlite_path
     weeks_to_prs = _attribute_prs_to_weeks(db_path)
-    rollup_paths = list(_iter_rollup_paths(demo_data_dir))
-    if not rollup_paths:
-        pytest.skip(f"no weekly rollups found under {demo_data_dir}")
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}; "
+        "fixture builder is broken"
+    )
 
     with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
         conn.row_factory = sqlite3.Row

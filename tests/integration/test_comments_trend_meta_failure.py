@@ -40,23 +40,15 @@ Invocation strategy:
     because it targets T007's file path explicitly (not a directory).
 
 Test floor:
-    +1 Python (this file's single test function counts toward the floor
-    even when xfail; pytest collects xfail tests). The floor bump is
+    +1 Python (this file's single test function). The floor bump is
     handled by the parent session's Phase 2 commit, not here.
 
-xfail / skip behaviour:
-    Marked ``xfail(strict=False)`` per tasks.md T009 because, until T007
-    + T011 land, T007 fails on a CLEAN demo too. Asserting that
-    reconciliation fails on a MUTATED dataset is a degenerate result
-    while reconciliation is still red on the unmutated dataset; xfail
-    keeps this test collection-stable per Principle XXVI without
-    inverting the assertion's truth value when T011 finally lands.
-    Once reconciliation is green on clean demo, this meta-test starts
-    emitting XPASS, at which point the xfail marker can be removed and
-    the test becomes a regular green guard. Additionally, if T007's file
-    has not yet been created in the workspace (parallel-author race
-    where this file lands before T007), the meta-test skips with a clear
-    reason rather than failing on a missing path.
+Skip behaviour:
+    None — the meta-test consumes the SC-05 fixture (built fresh at session
+    start by ``conftest.py`` invoking the production ``build-aggregates``
+    CLI), copies it to ``tmp_path``, and points reconciliation at the
+    mutated copy via env vars. There is no path where this test legitimately
+    skips on the supported configuration.
 """
 
 from __future__ import annotations
@@ -69,21 +61,13 @@ import sys
 from pathlib import Path
 from typing import Final
 
-import pytest
+from tests.fixtures.sc05.fixture_builder import SC05Fixture
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
-_DEMO_DATA_DIR: Final[Path] = _REPO_ROOT / "docs" / "data"
-_MANIFEST_FILENAME: Final[str] = "dataset-manifest.json"
 _WEEKLY_ROLLUPS_DIR: Final[str] = "aggregates/weekly_rollups"
 _RECONCILIATION_TEST_PATH: Final[Path] = (
     _REPO_ROOT / "tests" / "integration" / "test_comments_trend_reconciliation.py"
 )
-# T007 must read this env var to relocate its demo-data root. The meta-test
-# uses it to point reconciliation at the mutated working copy. If T007's
-# implementation diverges from this contract, the meta-test will degrade
-# to "pytest exits zero on the unmutated repo dataset" and FAIL its own
-# assertion clearly (rather than silently passing).
-_DEMO_DATA_ENV_VAR: Final[str] = "ADO_DEMO_DATA_DIR"
 
 # Synthetic mutation values. Use small non-zero numbers so the resulting
 # rollup is plausibly real-looking (a defensive renderer that drops weeks
@@ -95,28 +79,31 @@ _SYNTH_ACTIVE_THREAD_COUNT: Final[int] = _SYNTH_THREAD_COUNT + 1
 _SYNTH_COVERAGE_PARTIAL: Final[bool] = False
 
 
-def _copy_demo_data_into(tmp_path: Path) -> Path:
-    """Mirror ``docs/data/`` into ``tmp_path / data`` and return the copy root.
+def _copy_fixture_into(tmp_path: Path, source_fixture: SC05Fixture) -> Path:
+    """Mirror the SC-05 fixture's on-disk layout into ``tmp_path / fixture``.
 
-    Uses ``shutil.copytree`` so the working copy is fully isolated from the
-    repo dataset; the meta-test never writes into ``docs/data/``.
+    Returns the working-copy root (the parent of ``data/`` and
+    ``dataset.sqlite``) so the meta-test can pass it via the
+    ``ADO_SC05_FIXTURE_DIR`` env var to the child pytest process.
     """
-    dest = tmp_path / "data"
-    shutil.copytree(_DEMO_DATA_DIR, dest)
-    return dest
+    dest_root = tmp_path / "fixture"
+    dest_root.mkdir()
+    shutil.copy2(source_fixture.sqlite_path, dest_root / "dataset.sqlite")
+    shutil.copytree(source_fixture.data_dir, dest_root / "data")
+    return dest_root
 
 
 def _pick_target_rollup(working_root: Path) -> Path:
     """Pick the most recent weekly rollup JSON in the working copy.
 
     The most recent week is preferred because it is most likely to
-    contain real PR activity in the demo dataset; a week with zero PRs
-    would still permit injection (the ``comments`` sub-object is gated
-    on the capability flag, not on PR count) but a substantive week
-    makes the meta-test's failure messages clearer when reconciliation
-    surfaces the violation.
+    contain substantive PR activity; a week with zero PRs would still
+    permit injection (the ``comments`` sub-object is gated on the
+    capability flag, not on PR count) but a substantive week makes the
+    meta-test's failure messages clearer when reconciliation surfaces
+    the violation.
     """
-    rollup_dir = working_root / _WEEKLY_ROLLUPS_DIR
+    rollup_dir = working_root / "data" / _WEEKLY_ROLLUPS_DIR
     candidates = sorted(rollup_dir.glob("*.json"))
     if not candidates:
         raise RuntimeError(f"no weekly rollups under {rollup_dir} in working copy")
@@ -157,17 +144,12 @@ def _run_reconciliation_against(working_root: Path) -> subprocess.CompletedProce
     this meta-test inside the child process. ``-p no:cacheprovider``
     keeps the child process from polluting ``.pytest_cache`` in the
     working copy. ``cwd=_REPO_ROOT`` so relative imports and conftest
-    discovery work as they would in normal pytest runs; the dataset
-    relocation is signalled exclusively via the env var.
+    discovery work as they would in normal pytest runs; the fixture
+    relocation is signalled exclusively via ``ADO_SC05_FIXTURE_DIR``,
+    which conftest's ``sc05_fixture`` honors as a pre-built override.
     """
     env = dict(os.environ)
-    env[_DEMO_DATA_ENV_VAR] = str(working_root)
-    # Defensive recursion guard: if T007 ever uses ``pytest.main`` to
-    # invoke other tests, this flag (read by the meta-test only) lets
-    # T007's discovery code skip the meta-test deterministically. T007
-    # is not contractually required to honour this var; the explicit
-    # file-path argument to pytest below is the primary recursion guard.
-    env["ADO_META_FAILURE_TEST_RUNNING"] = "1"
+    env["ADO_SC05_FIXTURE_DIR"] = str(working_root)
     return subprocess.run(
         [
             sys.executable,
@@ -179,11 +161,9 @@ def _run_reconciliation_against(working_root: Path) -> subprocess.CompletedProce
             # Disable pytest-cov in the child process. The repo's pyproject.toml
             # configures `[tool.coverage.report] fail_under = 75`, which makes
             # pytest-cov exit 1 on a child whose only test SKIPS (0% coverage).
-            # That false-positive non-zero exit would be indistinguishable from
-            # "reconciliation detected the mutation," silently breaking the
-            # meta-test's signal: T009 would XPASS pre-T011 for the wrong
-            # reason. With --no-cov the subprocess exits 0 on skip and 1 only
-            # on real test failure (which is precisely the FR-2-05 signal).
+            # With --no-cov the subprocess exits 0 only on a real test pass
+            # and 1 only on a real test failure — which is precisely the
+            # FR-2-05 signal we are asserting on.
             "--no-cov",
             "--no-header",
             "-q",
@@ -196,47 +176,25 @@ def _run_reconciliation_against(working_root: Path) -> subprocess.CompletedProce
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="depends on T007 + T012 making the reconciliation test green on clean demo",
-)
-def test_meta_reconciliation_fails_on_inv_1_06_violation(tmp_path: Path) -> None:
+def test_meta_reconciliation_fails_on_inv_1_06_violation(
+    tmp_path: Path, sc05_fixture: SC05Fixture
+) -> None:
     """FR-2-05: reconciliation MUST fail on a synthetic INV-1-06 violation.
 
     Mechanism:
-        1. Copy ``docs/data/`` into ``tmp_path`` (working copy isolated
-           from the repo dataset; the test never writes to ``docs/data/``).
+        1. Copy the SC-05 fixture (sqlite + data tree) into ``tmp_path``
+           (working copy isolated from the session fixture).
         2. Pick the most recent weekly rollup; inject a synthetic
            ``comments`` sub-object with ``active_thread_count = thread_count + 1``
            (the spec-minimum positive control for FR-2-05).
-        3. Invoke the FR-2-04 reconciliation test in a subprocess
-           pointed at the mutated working copy via the ``ADO_DEMO_DATA_DIR``
-           env var.
+        3. Invoke the FR-2-04 reconciliation test in a subprocess pointed
+           at the mutated working copy via ``ADO_SC05_FIXTURE_DIR``.
         4. Assert the subprocess returned non-zero (reconciliation
            failed). A return code of 0 means reconciliation accepted the
            violation, which would be the silent-passive failure mode
            FR-2-05 exists to detect.
-
-    Marked xfail strict=False because T011 has not yet emitted the
-    ``comments`` sub-object on clean demo, so reconciliation still fails
-    on the unmutated dataset; the "fails on mutated dataset" property
-    cannot be cleanly proven until T011 lands. After T011, reconciliation
-    is green on clean demo and this meta-test transitions XPASS, at
-    which point the xfail marker is removed and this becomes a regular
-    guard. Both states are collection-stable per Principle XXVI.
     """
-    if not _RECONCILIATION_TEST_PATH.exists():
-        pytest.skip(
-            f"FR-2-04 reconciliation test missing at {_RECONCILIATION_TEST_PATH}; "
-            "meta-test cannot run until T007 lands"
-        )
-    if not _DEMO_DATA_DIR.exists():
-        pytest.skip(
-            f"demo dataset missing at {_DEMO_DATA_DIR}; "
-            "meta-test cannot exercise FR-2-05 without it"
-        )
-
-    working_root = _copy_demo_data_into(tmp_path)
+    working_root = _copy_fixture_into(tmp_path, sc05_fixture)
     target_rollup = _pick_target_rollup(working_root)
     week_key = _inject_inv106_violation(target_rollup)
 
