@@ -114,6 +114,9 @@ export interface Rollup {
 - When `comments` key present: all four fields MUST be present with the correct types. Partial shape = error in both strict and permissive mode (this is INV-1-08, and unlike the PrRecord-level INV-08 it is NOT a "warning" condition).
 - Numeric fields: integer or floating-point `number`, not null.
 - Boolean field: strict `boolean`, not null/undefined/string.
+- **Non-negative**: each numeric field MUST be `>= 0`. Counts cannot be negative; producer-side SQL guarantees this by construction (`COALESCE(SUM(CASE ... THEN N ELSE 0 END), 0)` over `COUNT(*)`/`SUM(0|1)` subqueries), but the validator is the trust boundary for golden fixtures, third-party feeds, and any future producer drift.
+- **Integer**: each numeric field MUST satisfy `Number.isInteger(value)`. Counts are whole numbers; producer-side `int()` casts guarantee this, but the validator's wire-format type allows any `number`.
+- **INV-1-06 ordering**: `active_thread_count <= thread_count`. Active threads are a subset (possibly equal) of all included threads after applying C1's inclusion rules; the producer enforces this by reading both fields from the same `pr_threads WHERE is_deleted = 0` predicate. The validator's ordering check is mode-independent (strict-in-both-modes per INV-1-08 posture). Without it the renderer's `resolved = thread_count - active_thread_count` would compute a negative bar height.
 
 **ADR T004 — atomicity posture**
 

@@ -709,6 +709,24 @@ function validateCommentsAggregate(
           `expected number at 'comments.${name}', got ${getTypeName(value)}`,
         ),
       );
+    } else if (value < 0) {
+      errors.push(
+        createError(
+          buildPath(path, name),
+          "non-negative number (counts cannot be negative)",
+          String(value),
+          `comments.${name} MUST be non-negative; got ${value}`,
+        ),
+      );
+    } else if (!Number.isInteger(value)) {
+      errors.push(
+        createError(
+          buildPath(path, name),
+          "integer (counts must be whole numbers)",
+          String(value),
+          `comments.${name} MUST be an integer; got ${value}`,
+        ),
+      );
     }
   }
 
@@ -724,6 +742,31 @@ function validateCommentsAggregate(
         ),
       );
     }
+  }
+
+  // INV-1-06 ordering: active_thread_count <= thread_count. Only checked when
+  // both fields are valid non-negative integers; otherwise an earlier error in
+  // the per-field loop already named the offending value, and adding an
+  // ordering complaint on top would be noise.
+  const threadCount = data.thread_count;
+  const activeCount = data.active_thread_count;
+  if (
+    isNumber(threadCount) &&
+    isNumber(activeCount) &&
+    Number.isInteger(threadCount) &&
+    Number.isInteger(activeCount) &&
+    threadCount >= 0 &&
+    activeCount >= 0 &&
+    activeCount > threadCount
+  ) {
+    errors.push(
+      createError(
+        buildPath(path, "active_thread_count"),
+        "<= thread_count (INV-1-06; active is a subset of total)",
+        `${activeCount} > ${threadCount}`,
+        `comments-aggregate ordering violated (INV-1-06): active_thread_count (${activeCount}) MUST NOT exceed thread_count (${threadCount})`,
+      ),
+    );
   }
 
   return { errors };

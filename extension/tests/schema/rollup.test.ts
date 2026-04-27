@@ -1354,5 +1354,103 @@ describe("Rollup Schema Validator", () => {
         ),
       ).toBe(true);
     });
+
+    // INV-1-06 ordering + sign + integer: producer-side SQL guarantees these
+    // by construction, but the validator is the trust boundary. Without
+    // these checks, a malformed rollup (golden fixture, third-party feed,
+    // or future producer drift) would slip through to the renderer where
+    // `resolved = thread - active` would yield negative bar heights.
+    it("FAILS when comments.thread_count is negative (counts cannot be negative)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: -1,
+          comment_count: 5,
+          active_thread_count: 0,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("non-negative"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.comment_count is non-integer (counts must be whole numbers)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 1.5,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comment_count") &&
+            e.message.toLowerCase().includes("integer"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when active_thread_count > thread_count (INV-1-06 ordering)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 4,
+          comment_count: 12,
+          active_thread_count: 5,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("active_thread_count") &&
+            e.message.includes("INV-1-06"),
+        ),
+      ).toBe(true);
+    });
+
+    it("passes when all three numeric fields are 0 (zero is the valid sum over an empty extracted-subset)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 0,
+          comment_count: 0,
+          active_thread_count: 0,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes at the INV-1-06 boundary (active_thread_count == thread_count; subset == set)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 4,
+          comment_count: 9,
+          active_thread_count: 4,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
   });
 });
