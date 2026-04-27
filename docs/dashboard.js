@@ -8179,6 +8179,70 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/comments-trend.ts
   var MAX_COMMENTS_TREND_POINTS = 104;
+  var COMMENTS_TREND_TOOLTIP = "Bars show resolved (lower) and unresolved (upper) review threads per week. The line shows total comments. Hatched bars indicate partial coverage \u2014 some PRs in the week aren't yet extracted, so totals are partial.";
+  var commentsTrendInfoIconControllers = /* @__PURE__ */ new WeakMap();
+  function attachCommentsTrendInfoIcon(heading) {
+    const existing = heading.querySelector(
+      ".info-icon-btn"
+    );
+    if (existing) {
+      commentsTrendInfoIconControllers.get(existing)?.abort();
+      commentsTrendInfoIconControllers.delete(existing);
+      existing.remove();
+    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    const btn = document.createElement("button");
+    btn.className = "info-icon-btn";
+    btn.setAttribute("type", "button");
+    btn.setAttribute("aria-label", "About this chart");
+    btn.setAttribute("data-info-tooltip", "comments-trend");
+    btn.textContent = "\u2139";
+    btn.addEventListener(
+      "pointerenter",
+      () => {
+        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+      },
+      { signal }
+    );
+    btn.addEventListener(
+      "pointerleave",
+      () => {
+        dismissAllTooltips();
+      },
+      { signal }
+    );
+    btn.addEventListener(
+      "click",
+      (e2) => {
+        e2.stopPropagation();
+        const open = document.querySelector(".info-tooltip");
+        if (open) {
+          dismissAllTooltips();
+          return;
+        }
+        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+        requestAnimationFrame(() => {
+          const dismissOnce = () => {
+            dismissAllTooltips();
+            document.removeEventListener("click", dismissOnce);
+          };
+          document.addEventListener("click", dismissOnce);
+        });
+      },
+      { signal }
+    );
+    commentsTrendInfoIconControllers.set(btn, controller);
+    heading.appendChild(btn);
+  }
+  function detachCommentsTrendInfoIcon(heading) {
+    const btn = heading.querySelector(".info-icon-btn");
+    if (!btn) return;
+    commentsTrendInfoIconControllers.get(btn)?.abort();
+    commentsTrendInfoIconControllers.delete(btn);
+    btn.remove();
+    dismissAllTooltips();
+  }
   var MAX_VISIBLE_LABELS2 = 16;
   var CHART_HEIGHT_PX = 200;
   var CHART_PADDING_PX = 8;
@@ -10503,6 +10567,10 @@ var PRInsightsDashboard = (() => {
     row.setAttribute("data-comments-trend-row", "true");
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
+    const heading = document.createElement("h3");
+    heading.textContent = "Comments Trend";
+    attachCommentsTrendInfoIcon(heading);
+    containerCell.appendChild(heading);
     const chart = document.createElement("div");
     chart.id = "comments-trend";
     chart.className = "chart";
@@ -10513,7 +10581,12 @@ var PRInsightsDashboard = (() => {
   }
   function removeCommentsTrendContainer() {
     const row = document.querySelector('[data-comments-trend-row="true"]');
-    row?.parentElement?.removeChild(row);
+    if (!row) return;
+    const heading = row.querySelector("h3");
+    if (heading instanceof HTMLElement) {
+      detachCommentsTrendInfoIcon(heading);
+    }
+    row.parentElement?.removeChild(row);
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
     if (!loaderResult) {

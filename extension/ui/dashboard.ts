@@ -51,6 +51,8 @@ import {
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
   renderCommentsTrendChart as renderCommentsTrendChartModule,
+  attachCommentsTrendInfoIcon,
+  detachCommentsTrendInfoIcon,
   // Data availability signal derivation
   deriveAvailabilitySignal,
   // Filter constraint resolver
@@ -1596,6 +1598,11 @@ function ensureCommentsTrendContainer(): HTMLElement | null {
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
 
+  const heading = document.createElement("h3");
+  heading.textContent = "Comments Trend";
+  attachCommentsTrendInfoIcon(heading);
+  containerCell.appendChild(heading);
+
   const chart = document.createElement("div");
   chart.id = "comments-trend";
   chart.className = "chart";
@@ -1622,7 +1629,12 @@ function ensureCommentsTrendContainer(): HTMLElement | null {
  */
 function removeCommentsTrendContainer(): void {
   const row = document.querySelector('[data-comments-trend-row="true"]');
-  row?.parentElement?.removeChild(row);
+  if (!row) return;
+  const heading = row.querySelector("h3");
+  if (heading instanceof HTMLElement) {
+    detachCommentsTrendInfoIcon(heading);
+  }
+  row.parentElement?.removeChild(row);
 }
 
 // addChartTooltips is now imported from "./modules/charts"

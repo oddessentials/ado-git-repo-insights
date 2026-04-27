@@ -38,9 +38,112 @@ import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { weekRangeForAria } from "../drilldown/week-range";
+import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
 
 /** Maximum data points rendered (matches throughput's 2-year cap). */
 export const MAX_COMMENTS_TREND_POINTS = 104;
+
+/**
+ * Plain-text explanation surfaced by the chart-level info-icon (FR-1-04
+ * disclosure surface; SC-1-01/02 first-glance comprehension).
+ */
+export const COMMENTS_TREND_TOOLTIP =
+  "Bars show resolved (lower) and unresolved (upper) review threads per week. " +
+  "The line shows total comments. Hatched bars indicate partial coverage — " +
+  "some PRs in the week aren't yet extracted, so totals are partial.";
+
+/** Per-button AbortControllers to prevent listener accumulation on re-attach. */
+const commentsTrendInfoIconControllers = new WeakMap<
+  HTMLElement,
+  AbortController
+>();
+
+/**
+ * Mount the chart-level info-icon button as a child of `heading`.
+ *
+ * Idempotent: if the heading already carries an `.info-icon-btn`, the previous
+ * controller is aborted and the button is replaced. This keeps re-mounts safe
+ * across capability flips and dashboard re-renders.
+ */
+export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
+  const existing = heading.querySelector(
+    ".info-icon-btn",
+  ) as HTMLElement | null;
+  if (existing) {
+    commentsTrendInfoIconControllers.get(existing)?.abort();
+    commentsTrendInfoIconControllers.delete(existing);
+    existing.remove();
+  }
+
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  const btn = document.createElement("button");
+  btn.className = "info-icon-btn";
+  btn.setAttribute("type", "button");
+  btn.setAttribute("aria-label", "About this chart");
+  btn.setAttribute("data-info-tooltip", "comments-trend");
+  btn.textContent = "ℹ"; // Unicode info symbol ⓘ
+
+  btn.addEventListener(
+    "pointerenter",
+    () => {
+      showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+    },
+    { signal },
+  );
+  btn.addEventListener(
+    "pointerleave",
+    () => {
+      dismissAllTooltips();
+    },
+    { signal },
+  );
+  btn.addEventListener(
+    "click",
+    (e) => {
+      e.stopPropagation();
+      const open = document.querySelector(".info-tooltip");
+      if (open) {
+        dismissAllTooltips();
+        return;
+      }
+      showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+      requestAnimationFrame(() => {
+        const dismissOnce = (): void => {
+          dismissAllTooltips();
+          document.removeEventListener("click", dismissOnce);
+        };
+        document.addEventListener("click", dismissOnce);
+      });
+    },
+    { signal },
+  );
+
+  commentsTrendInfoIconControllers.set(btn, controller);
+  heading.appendChild(btn);
+}
+
+/**
+ * Remove the chart-level info-icon button from `heading` and abort its
+ * listeners. Also dismisses any open info-tooltip — the tooltip is
+ * document-rooted (positioned via `position: fixed` on document.body by
+ * `tooltip-manager.ts::showInfoTooltip`), so removing the button alone
+ * leaves the tooltip stranded with no anchoring element. No-op when the
+ * heading carries no button AND no tooltip is open.
+ */
+export function detachCommentsTrendInfoIcon(heading: HTMLElement): void {
+  const btn = heading.querySelector(".info-icon-btn") as HTMLElement | null;
+  if (!btn) return;
+  commentsTrendInfoIconControllers.get(btn)?.abort();
+  commentsTrendInfoIconControllers.delete(btn);
+  btn.remove();
+  // The button is gone — drop any open tooltip so it cannot survive the
+  // heading's teardown and render against an orphaned position. Uses the
+  // canonical tooltip-manager helper so the scroll/resize dismiss listener
+  // is also released.
+  dismissAllTooltips();
+}
 
 /** Maximum visible week labels before thinning kicks in. */
 const MAX_VISIBLE_LABELS = 16;

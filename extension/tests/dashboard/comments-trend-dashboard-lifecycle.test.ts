@@ -54,7 +54,11 @@ function _loadFs(): typeof _fsOriginal {
 const _fs = _loadFs();
 import { resolve } from "path";
 
-import { renderCommentsTrendChart } from "../../ui/modules/charts/comments-trend";
+import {
+  renderCommentsTrendChart,
+  attachCommentsTrendInfoIcon,
+  detachCommentsTrendInfoIcon,
+} from "../../ui/modules/charts/comments-trend";
 import type { Rollup } from "../../ui/dataset-loader";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +78,7 @@ const dashboardSrc = _fs.readFileSync(dashboardSrcPath, "utf-8");
 // each mirror to its production counterpart so they cannot silently drift.
 // ---------------------------------------------------------------------------
 
-/** Mirror of dashboard.ts:1580 `ensureCommentsTrendContainer`. */
+/** Mirror of dashboard.ts:1582 `ensureCommentsTrendContainer`. */
 function ensureCommentsTrendContainerContract(): HTMLElement | null {
   const existing = document.getElementById("comments-trend");
   if (existing) return existing;
@@ -90,6 +94,11 @@ function ensureCommentsTrendContainerContract(): HTMLElement | null {
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
 
+  const heading = document.createElement("h3");
+  heading.textContent = "Comments Trend";
+  attachCommentsTrendInfoIcon(heading);
+  containerCell.appendChild(heading);
+
   const chart = document.createElement("div");
   chart.id = "comments-trend";
   chart.className = "chart";
@@ -102,10 +111,15 @@ function ensureCommentsTrendContainerContract(): HTMLElement | null {
   return chart;
 }
 
-/** Mirror of dashboard.ts:1623 `removeCommentsTrendContainer`. */
+/** Mirror of dashboard.ts:1625 `removeCommentsTrendContainer`. */
 function removeCommentsTrendContainerContract(): void {
   const row = document.querySelector('[data-comments-trend-row="true"]');
-  row?.parentElement?.removeChild(row);
+  if (!row) return;
+  const heading = row.querySelector("h3");
+  if (heading instanceof HTMLElement) {
+    detachCommentsTrendInfoIcon(heading);
+  }
+  row.parentElement?.removeChild(row);
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +207,7 @@ describe("comments-trend dashboard lifecycle — source-parse contract", () => {
     );
     expect(helperStart).toBeGreaterThan(-1);
 
-    const helperBody = dashboardSrc.slice(helperStart, helperStart + 1500);
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 2000);
 
     // Round-12 idempotency: the helper queries the existing leaf BEFORE
     // building any new DOM. If it didn't, a second render would insert a
@@ -222,15 +236,42 @@ describe("comments-trend dashboard lifecycle — source-parse contract", () => {
     );
   });
 
-  it("removeCommentsTrendContainer in dashboard.ts targets the data-attribute selector", () => {
+  it("ensureCommentsTrendContainer mounts the heading + info-icon affordance", () => {
+    const helperStart = dashboardSrc.indexOf(
+      "function ensureCommentsTrendContainer(",
+    );
+    expect(helperStart).toBeGreaterThan(-1);
+
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 2000);
+
+    // Peer-pattern parity with index.html:236-256: every chart container
+    // has an <h3> title. The new chart's heading text is locked here so a
+    // future refactor that drops or renames it fails this contract.
+    expect(helperBody).toContain('document.createElement("h3")');
+    expect(helperBody).toContain('heading.textContent = "Comments Trend"');
+
+    // Chart-level info-icon affordance (FR-1-04 disclosure surface).
+    // The attach call is the contractual binding to the controller-tracked
+    // info-icon module — moving the wiring out of this helper would break
+    // the dashboard-layer cleanup path.
+    expect(helperBody).toContain("attachCommentsTrendInfoIcon(heading)");
+  });
+
+  it("removeCommentsTrendContainer in dashboard.ts targets the data-attribute selector and detaches the info-icon", () => {
     const helperStart = dashboardSrc.indexOf(
       "function removeCommentsTrendContainer(",
     );
     expect(helperStart).toBeGreaterThan(-1);
 
-    const helperBody = dashboardSrc.slice(helperStart, helperStart + 600);
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 800);
     expect(helperBody).toContain('[data-comments-trend-row="true"]');
-    expect(helperBody).toContain("row?.parentElement?.removeChild(row)");
+    // Early-return guard keeps the rest of the body inside an
+    // already-narrowed `row` reference, so the removal line drops the
+    // leading `row?.` chain that the pre-affordance helper used.
+    expect(helperBody).toMatch(/if \(!row\) return;/);
+    expect(helperBody).toContain("row.parentElement?.removeChild(row)");
+    // Info-icon detach is the cleanup half of the new affordance.
+    expect(helperBody).toContain("detachCommentsTrendInfoIcon(heading)");
   });
 
   it("dashboard refresh path calls both helpers behind the capability gate", () => {
@@ -279,6 +320,17 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
       document.querySelector('[data-comments-trend-row="true"]'),
     ).toBeNull();
 
+    // Heading + info-icon affordance also absent under initial capability-off
+    // — the chart row was never inserted, so neither child is mounted.
+    expect(
+      document.querySelectorAll('[data-comments-trend-row="true"] h3'),
+    ).toHaveLength(0);
+    expect(
+      document.querySelectorAll(
+        '.info-icon-btn[data-info-tooltip="comments-trend"]',
+      ),
+    ).toHaveLength(0);
+
     // Four pre-existing charts still occupy their original layout positions.
     expect(document.getElementById("throughput-chart")).not.toBeNull();
     expect(document.getElementById("cycle-time-trend")).not.toBeNull();
@@ -310,6 +362,15 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
     expect(
       document.querySelector('[data-comments-trend-row="true"]'),
     ).not.toBeNull();
+    // Heading + info-icon are mounted alongside the chart leaf.
+    expect(
+      document.querySelectorAll('[data-comments-trend-row="true"] h3'),
+    ).toHaveLength(1);
+    expect(
+      document.querySelectorAll(
+        '.info-icon-btn[data-info-tooltip="comments-trend"]',
+      ),
+    ).toHaveLength(1);
     expect(
       document.querySelectorAll(".comments-trend-bars .bar-container").length,
     ).toBe(12);
@@ -323,6 +384,15 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
     expect(
       document.querySelector('[data-comments-trend-row="true"]'),
     ).toBeNull();
+    // Heading + info-icon are detached as part of the cleanup.
+    expect(
+      document.querySelectorAll('[data-comments-trend-row="true"] h3'),
+    ).toHaveLength(0);
+    expect(
+      document.querySelectorAll(
+        '.info-icon-btn[data-info-tooltip="comments-trend"]',
+      ),
+    ).toHaveLength(0);
     expect(document.querySelectorAll(".charts-row").length).toBe(2);
     expect(metricsTabHtml()).toBe(baselineHtml);
   });
@@ -346,6 +416,16 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
       document.querySelectorAll('[data-comments-trend-row="true"]').length,
     ).toBe(1);
     expect(document.querySelectorAll("#comments-trend").length).toBe(1);
+
+    // Heading + info-icon affordance are mounted exactly once.
+    expect(
+      document.querySelectorAll('[data-comments-trend-row="true"] h3'),
+    ).toHaveLength(1);
+    expect(
+      document.querySelectorAll(
+        '.info-icon-btn[data-info-tooltip="comments-trend"]',
+      ),
+    ).toHaveLength(1);
 
     // Total `.charts-row` count is now three (row-1 + row-2 + new row).
     expect(document.querySelectorAll(".charts-row").length).toBe(3);
@@ -399,11 +479,19 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
     const legendItemCountAfterFirst = document.querySelectorAll(
       ".chart-legend .legend-item",
     ).length;
+    const headingCountAfterFirst = document.querySelectorAll(
+      '[data-comments-trend-row="true"] h3',
+    ).length;
+    const infoIconCountAfterFirst = document.querySelectorAll(
+      '.info-icon-btn[data-info-tooltip="comments-trend"]',
+    ).length;
 
     expect(rowCountAfterFirst).toBe(1);
     expect(chartCountAfterFirst).toBe(1);
     expect(barCountAfterFirst).toBe(12);
     expect(legendItemCountAfterFirst).toBeGreaterThan(0);
+    expect(headingCountAfterFirst).toBe(1);
+    expect(infoIconCountAfterFirst).toBe(1);
 
     // Second "refresh" — same capability state, same data. Real dashboard
     // refreshes fire on dataset reload / filter change / tab-switch-back.
@@ -432,8 +520,61 @@ describe("comments-trend dashboard lifecycle — four scenarios (T025)", () => {
       legendItemCountAfterFirst,
     );
 
+    // AFFORDANCE IDEMPOTENCY: the heading and info-icon are check-first
+    // siblings of the chart leaf — the second ensure call returns the
+    // existing leaf and skips re-mounting the row entirely, so the
+    // affordance stays at exactly one each (no duplicate <h3>, no duplicate
+    // info-icon button).
+    expect(
+      document.querySelectorAll('[data-comments-trend-row="true"] h3').length,
+    ).toBe(1);
+    expect(
+      document.querySelectorAll(
+        '.info-icon-btn[data-info-tooltip="comments-trend"]',
+      ).length,
+    ).toBe(1);
+
     // Total `.charts-row` count is still three (no second comments-trend
     // row was inserted alongside the original).
     expect(document.querySelectorAll(".charts-row").length).toBe(3);
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario (e) — capability-on heading + info-icon affordance.
+  //
+  // Locks the chart-level disclosure surface (FR-1-04 explanatory affordance;
+  // SC-1-01/02 first-glance comprehension) at the canonical attribute level,
+  // so a future refactor that drops the heading text, renames the data-
+  // tooltip id, or swaps the glyph fails this scenario rather than slipping
+  // through the more permissive count-only assertions in (b)-(d). Mirrors
+  // the canonical info-icon test pattern from
+  // `modules/drilldown/pr-list-comments-columns.test.ts` (issue #332 / B2).
+  // -------------------------------------------------------------------------
+
+  it("(e) capability-on render exposes <h3>Comments Trend</h3> with a single info-icon-btn child carrying the canonical attributes", () => {
+    const chart = ensureCommentsTrendContainerContract();
+    expect(chart).not.toBeNull();
+
+    // Heading is present, sits inside the comments-trend row's chart
+    // container, and carries the locked title text. The info-icon glyph is
+    // appended as a child node, so we use `toContain` rather than strict
+    // equality on `textContent`.
+    const heading = document.querySelector(
+      '[data-comments-trend-row="true"] .chart-container > h3',
+    );
+    expect(heading).not.toBeNull();
+    expect(heading?.textContent).toContain("Comments Trend");
+
+    // Info-icon affordance: single button, parented to the heading.
+    const icons = heading?.querySelectorAll(".info-icon-btn") ?? [];
+    expect(icons).toHaveLength(1);
+
+    const btn = icons[0] as HTMLButtonElement;
+    expect(btn.tagName).toBe("BUTTON");
+    expect(btn.getAttribute("type")).toBe("button");
+    expect(btn.getAttribute("aria-label")).toBe("About this chart");
+    expect(btn.getAttribute("data-info-tooltip")).toBe("comments-trend");
+    expect(btn.textContent).toBe("ℹ");
+    expect(btn.parentElement).toBe(heading);
   });
 });
