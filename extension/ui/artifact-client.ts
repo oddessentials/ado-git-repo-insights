@@ -10,7 +10,12 @@
  * Callers must obtain a Bearer token from the SDK before initializing.
  */
 
-import { type IDatasetLoader, type Rollup } from "./dataset-loader";
+import {
+  DEFAULT_CAPABILITY_STATE,
+  normalizeCapabilityState,
+  type IDatasetLoader,
+  type Rollup,
+} from "./dataset-loader";
 import { createPermissionDeniedError } from "./error-types";
 import {
   getErrorMessage,
@@ -18,6 +23,7 @@ import {
   type DimensionsData,
   type DistributionData,
   type CoverageInfo,
+  type DatasetCapabilityState,
   type PredictionsData,
   type InsightsData,
   type VSSBuildArtifact,
@@ -455,6 +461,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
   private readonly buildId: number;
   private readonly artifactName: string;
   private manifest: ManifestSchema | null = null;
+  private capabilityState: DatasetCapabilityState | null = null;
   private dimensions: DimensionsData | null = null;
   private rollupCache = new Map<string, Rollup>();
   private distributionCache = new Map<string, DistributionData>();
@@ -480,6 +487,13 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         throw new Error("Manifest file is empty or invalid");
       }
       this.validateManifest(this.manifest);
+      // Live-extension parity with DatasetLoader: derive capability state
+      // from the validated manifest so the dashboard's capability gate
+      // (`loader.getCapabilityState()?.commentsMetricsAvailable === true`)
+      // resolves identically across demo, CLI, and extension paths.
+      // Without this, the gate short-circuits on undefined and silently
+      // hides capability-on chart surfaces (Feature 333 comments-trend).
+      this.capabilityState = normalizeCapabilityState(this.manifest);
       return this.manifest;
     } catch (error: unknown) {
       const wrappedError = new Error(
@@ -644,6 +658,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 
   getDefaultRangeDays(): number {
     return this.manifest?.defaults?.default_date_range_days || 90;
+  }
+
+  getCapabilityState(): DatasetCapabilityState {
+    return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
   }
 
   async loadPredictions(): Promise<PredictionsData> {

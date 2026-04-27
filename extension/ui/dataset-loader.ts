@@ -79,7 +79,7 @@ const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
 const SUPPORTED_AGGREGATES_VERSION = 3;
 
-const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
+export const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
   authorFiltersAvailable: false,
   authorRepoExactAvailable: false,
   commentsMetricsAvailable: false,
@@ -88,6 +88,60 @@ const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
   reviewerTeamMode: "disallowed",
   crossDimensionalAvailable: false,
 };
+
+/**
+ * Pure manifest → capability-state derivation.
+ *
+ * Single source of truth used by every IDatasetLoader implementation
+ * (DatasetLoader for fetch-based / demo paths; AuthenticatedDatasetLoader
+ * for the ADO extension's authenticated-artifact path). Keeping this as a
+ * free function — not a method — guarantees the two loaders cannot drift
+ * on capability semantics; the dashboard's capability gate at
+ * `dashboard.ts::renderMetricsTab` (commentsMetricsAvailable check) reads
+ * the same shape regardless of which loader produced it.
+ */
+export function normalizeCapabilityState(
+  manifest: ManifestSchema,
+): DatasetCapabilityState {
+  const capabilities = manifest.capabilities ?? {};
+  const features = manifest.features ?? {};
+  const commentsCoverage = manifest.coverage?.comments;
+  const commentsCoverageStatus =
+    typeof commentsCoverage === "object" &&
+    commentsCoverage !== null &&
+    "status" in commentsCoverage &&
+    (commentsCoverage.status === "full" ||
+      commentsCoverage.status === "partial" ||
+      commentsCoverage.status === "disabled")
+      ? commentsCoverage.status
+      : typeof commentsCoverage === "string" &&
+          (commentsCoverage === "full" ||
+            commentsCoverage === "partial" ||
+            commentsCoverage === "disabled")
+        ? commentsCoverage
+        : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+
+  return {
+    authorFiltersAvailable:
+      capabilities.author_filters ??
+      (manifest.aggregates_schema_version ?? 0) >= 3,
+    authorRepoExactAvailable:
+      capabilities.author_repo_exact ??
+      (manifest.aggregates_schema_version ?? 0) >= 3,
+    commentsMetricsAvailable:
+      capabilities.comments_metrics ?? features.comments === true,
+    commentsCoverageStatus,
+    reviewerRepositoryMode:
+      capabilities.reviewer_repository_mode ??
+      DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+    reviewerTeamMode:
+      capabilities.reviewer_team_mode ??
+      DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+    crossDimensionalAvailable:
+      capabilities.cross_dimensional_available ??
+      features.cross_dimensional === true,
+  };
+}
 
 /**
  * Candidate paths to search for dataset-manifest.json.
@@ -570,51 +624,8 @@ export class DatasetLoader implements IDatasetLoader {
     const manifest = await response.json();
     this.validateManifestSchema(manifest);
     this.manifest = manifest;
-    this.capabilityState = this.normalizeCapabilityState(manifest);
+    this.capabilityState = normalizeCapabilityState(manifest);
     return manifest;
-  }
-
-  protected normalizeCapabilityState(
-    manifest: ManifestSchema,
-  ): DatasetCapabilityState {
-    const capabilities = manifest.capabilities ?? {};
-    const features = manifest.features ?? {};
-    const commentsCoverage = manifest.coverage?.comments;
-    const commentsCoverageStatus =
-      typeof commentsCoverage === "object" &&
-      commentsCoverage !== null &&
-      "status" in commentsCoverage &&
-      (commentsCoverage.status === "full" ||
-        commentsCoverage.status === "partial" ||
-        commentsCoverage.status === "disabled")
-        ? commentsCoverage.status
-        : typeof commentsCoverage === "string" &&
-            (commentsCoverage === "full" ||
-              commentsCoverage === "partial" ||
-              commentsCoverage === "disabled")
-          ? commentsCoverage
-          : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
-
-    return {
-      authorFiltersAvailable:
-        capabilities.author_filters ??
-        (manifest.aggregates_schema_version ?? 0) >= 3,
-      authorRepoExactAvailable:
-        capabilities.author_repo_exact ??
-        (manifest.aggregates_schema_version ?? 0) >= 3,
-      commentsMetricsAvailable:
-        capabilities.comments_metrics ?? features.comments === true,
-      commentsCoverageStatus,
-      reviewerRepositoryMode:
-        capabilities.reviewer_repository_mode ??
-        DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
-      reviewerTeamMode:
-        capabilities.reviewer_team_mode ??
-        DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
-      crossDimensionalAvailable:
-        capabilities.cross_dimensional_available ??
-        features.cross_dimensional === true,
-    };
   }
 
   /**

@@ -3,7 +3,7 @@
   "generated_from": "pnpm --dir extension run test:coverage on 055-lock-target-partial-branches (#271 meta-guard)",
   "files": {
     "extension/ui/artifact-client.ts": 6,
-    "extension/ui/dataset-loader.ts": 31,
+    "extension/ui/dataset-loader.ts": 29,
     "extension/ui/error-codes.ts": 1,
     "extension/ui/error-types.ts": 1,
     "extension/ui/modules/api-versions.ts": 1,

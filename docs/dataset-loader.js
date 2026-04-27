@@ -22,11 +22,13 @@ var PRInsightsDatasetLoader = (() => {
   var dataset_loader_exports = {};
   __export(dataset_loader_exports, {
     DATASET_CANDIDATE_PATHS: () => DATASET_CANDIDATE_PATHS,
+    DEFAULT_CAPABILITY_STATE: () => DEFAULT_CAPABILITY_STATE,
     DEPRECATED_LAYOUT_ERROR: () => DEPRECATED_LAYOUT_ERROR,
     DatasetLoader: () => DatasetLoader,
     ROLLUP_FIELD_DEFAULTS: () => ROLLUP_FIELD_DEFAULTS,
     createRollupCache: () => createRollupCache,
     fetchSemaphore: () => fetchSemaphore,
+    normalizeCapabilityState: () => normalizeCapabilityState,
     normalizeRollup: () => normalizeRollup2,
     normalizeRollups: () => normalizeRollups
   });
@@ -2608,6 +2610,21 @@ var PRInsightsDatasetLoader = (() => {
     reviewerTeamMode: "disallowed",
     crossDimensionalAvailable: false
   };
+  function normalizeCapabilityState(manifest) {
+    const capabilities = manifest.capabilities ?? {};
+    const features = manifest.features ?? {};
+    const commentsCoverage = manifest.coverage?.comments;
+    const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+    return {
+      authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+      authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+      commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
+      commentsCoverageStatus,
+      reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+      reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+      crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
+    };
+  }
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -2862,23 +2879,8 @@ var PRInsightsDatasetLoader = (() => {
       const manifest = await response.json();
       this.validateManifestSchema(manifest);
       this.manifest = manifest;
-      this.capabilityState = this.normalizeCapabilityState(manifest);
+      this.capabilityState = normalizeCapabilityState(manifest);
       return manifest;
-    }
-    normalizeCapabilityState(manifest) {
-      const capabilities = manifest.capabilities ?? {};
-      const features = manifest.features ?? {};
-      const commentsCoverage = manifest.coverage?.comments;
-      const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
-      return {
-        authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
-        authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
-        commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
-        commentsCoverageStatus,
-        reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
-        reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
-        crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
-      };
     }
     /**
      * Validate manifest schema using schema validator.

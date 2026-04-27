@@ -2585,6 +2585,21 @@ var PRInsightsDashboard = (() => {
     reviewerTeamMode: "disallowed",
     crossDimensionalAvailable: false
   };
+  function normalizeCapabilityState(manifest) {
+    const capabilities = manifest.capabilities ?? {};
+    const features = manifest.features ?? {};
+    const commentsCoverage = manifest.coverage?.comments;
+    const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+    return {
+      authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+      authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+      commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
+      commentsCoverageStatus,
+      reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+      reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+      crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
+    };
+  }
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -2838,23 +2853,8 @@ var PRInsightsDashboard = (() => {
       const manifest = await response.json();
       this.validateManifestSchema(manifest);
       this.manifest = manifest;
-      this.capabilityState = this.normalizeCapabilityState(manifest);
+      this.capabilityState = normalizeCapabilityState(manifest);
       return manifest;
-    }
-    normalizeCapabilityState(manifest) {
-      const capabilities = manifest.capabilities ?? {};
-      const features = manifest.features ?? {};
-      const commentsCoverage = manifest.coverage?.comments;
-      const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
-      return {
-        authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
-        authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
-        commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
-        commentsCoverageStatus,
-        reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
-        reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
-        crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
-      };
     }
     /**
      * Validate manifest schema using schema validator.
@@ -3759,6 +3759,7 @@ var PRInsightsDashboard = (() => {
   var AuthenticatedDatasetLoader = class {
     constructor(artifactClient2, buildId, artifactName) {
       this.manifest = null;
+      this.capabilityState = null;
       this.dimensions = null;
       this.rollupCache = /* @__PURE__ */ new Map();
       this.distributionCache = /* @__PURE__ */ new Map();
@@ -3777,6 +3778,7 @@ var PRInsightsDashboard = (() => {
           throw new Error("Manifest file is empty or invalid");
         }
         this.validateManifest(this.manifest);
+        this.capabilityState = normalizeCapabilityState(this.manifest);
         return this.manifest;
       } catch (error) {
         const wrappedError = new Error(
@@ -3907,6 +3909,9 @@ var PRInsightsDashboard = (() => {
     }
     getDefaultRangeDays() {
       return this.manifest?.defaults?.default_date_range_days || 90;
+    }
+    getCapabilityState() {
+      return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
     }
     async loadPredictions() {
       try {
