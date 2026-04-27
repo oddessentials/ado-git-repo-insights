@@ -1111,4 +1111,346 @@ describe("Rollup Schema Validator", () => {
       expect(w!.message.toLowerCase()).toContain("number");
     });
   });
+
+  // =========================================================================
+  // Feature 333 weekly-comments-aggregate: rollup-root `comments` sub-object.
+  // Contract: specs/333-comments-trend-chart/contracts/weekly-comments-aggregate.md §3
+  //   - Atomic: all four fields (thread_count, comment_count, active_thread_count,
+  //     coverage_partial) MUST be present together with non-null typed values.
+  //   - Capability-off: the `comments` key is absent entirely (FR-3-03).
+  //   - INV-1-08 atomicity posture (ADR T004): STRICT ERROR in BOTH strict and
+  //     permissive modes. Validator pushes to `errors`, not `warnings`. This is
+  //     ONE TIER STRICTER than the per-PR INV-08 validator at rollup.schema.ts:560-567
+  //     (which warns in both modes for backward-compat with pre-310 emissions);
+  //     INV-1-08 is a fresh contract with no legacy emissions to grandfather.
+  //
+  // T010 (TDD): these tests intentionally FAIL today — T013 will extend the
+  // validator to satisfy them by adding `"comments"` to KNOWN_ROOT_FIELDS and
+  // wiring an atomicity check that pushes to `errors` mode-independently.
+  // =========================================================================
+  describe("rollup-root comments sub-object (feature 333 INV-1-08)", () => {
+    const BASE_333 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+
+    it("passes validation with a complete comments sub-object (no errors, no warnings about 'comments')", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      // No "unknown field" warning about `comments` itself — the validator
+      // (after T013) recognises the key as part of KNOWN_ROOT_FIELDS.
+      expect(result.warnings.some((w) => w.field === "comments")).toBe(false);
+    });
+
+    it("passes validation with comments.coverage_partial=true (per-week partial coverage sentinel)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: true,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("FAILS in PERMISSIVE mode when comments is partial (missing coverage_partial) — INV-1-08 strict-in-both-modes", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          // coverage_partial intentionally absent — atomicity violation.
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      // INV-1-08 ADR T004: pushes to `errors`, NOT `warnings`. This is the key
+      // contrast with per-PR INV-08, which warns even in strict mode.
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("coverage_partial"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS in STRICT mode when comments is partial (missing coverage_partial) — same posture as permissive", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+        },
+      };
+      const result = validateRollup(rollup, true);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("coverage_partial"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments is partial — missing thread_count (any of the four atomicity fields)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.thread_count is null (numeric fields MUST be non-null per INV-1-08)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: null,
+          comment_count: 5,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("thread_count"))).toBe(
+        true,
+      );
+    });
+
+    it("FAILS when comments.comment_count is null (numeric fields MUST be non-null per INV-1-08)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: null,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("comment_count"))).toBe(
+        true,
+      );
+    });
+
+    it("FAILS when comments.active_thread_count is null (numeric fields MUST be non-null per INV-1-08)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: null,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("active_thread_count")),
+      ).toBe(true);
+    });
+
+    it("passes validation when the comments key is absent entirely (capability-off path per FR-3-03)", () => {
+      const rollup = { ...BASE_333 };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      // No warning about a missing `comments` key — absence is the canonical
+      // capability-off signal, not a violation.
+      expect(result.warnings.some((w) => w.field === "comments")).toBe(false);
+    });
+
+    it("FAILS when comments.coverage_partial is a string instead of boolean", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: "true",
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("coverage_partial") &&
+            e.message.toLowerCase().includes("boolean"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.thread_count is a string instead of number", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: "5",
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("number"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments is null (FR-3-03 failure mode (b))", () => {
+      // FR-3-03 lists `comments: null` as one of the four omission failure
+      // modes the byte-identity test must guard against. Even though the
+      // capability-off path is "key absent," a regression that produces
+      // `comments: null` (key present, null-valued) MUST be rejected by
+      // the validator with an "expected object" error, so misuse on the
+      // producer side is caught at the consumer-validator layer rather
+      // than blowing up later in the renderer.
+      const rollup = { ...BASE_333, comments: null };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "comments" &&
+            e.message.toLowerCase().includes("object"),
+        ),
+      ).toBe(true);
+    });
+
+    // INV-1-06 ordering + sign + integer: producer-side SQL guarantees these
+    // by construction, but the validator is the trust boundary. Without
+    // these checks, a malformed rollup (golden fixture, third-party feed,
+    // or future producer drift) would slip through to the renderer where
+    // `resolved = thread - active` would yield negative bar heights.
+    it("FAILS when comments.thread_count is negative (counts cannot be negative)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: -1,
+          comment_count: 5,
+          active_thread_count: 0,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("non-negative"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.comment_count is non-integer (counts must be whole numbers)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 5,
+          comment_count: 1.5,
+          active_thread_count: 2,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comment_count") &&
+            e.message.toLowerCase().includes("integer"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when active_thread_count > thread_count (INV-1-06 ordering)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 4,
+          comment_count: 12,
+          active_thread_count: 5,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("active_thread_count") &&
+            e.message.includes("INV-1-06"),
+        ),
+      ).toBe(true);
+    });
+
+    it("passes when all three numeric fields are 0 (zero is the valid sum over an empty extracted-subset)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 0,
+          comment_count: 0,
+          active_thread_count: 0,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes at the INV-1-06 boundary (active_thread_count == thread_count; subset == set)", () => {
+      const rollup = {
+        ...BASE_333,
+        comments: {
+          thread_count: 4,
+          comment_count: 9,
+          active_thread_count: 4,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });

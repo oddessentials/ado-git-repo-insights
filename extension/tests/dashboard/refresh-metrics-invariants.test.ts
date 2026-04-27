@@ -63,14 +63,22 @@ describe("refresh-metrics-invariants — dispose ordering vs stale guards", () =
 });
 
 describe("refresh-metrics-invariants — handle array reset/push integrity", () => {
-  it("handle array is reset exactly once per refresh and re-installs four chart surfaces", () => {
+  it("handle array is reset exactly once per refresh and re-installs five chart surfaces", () => {
+    // Five surfaces install drill-down handles per refresh:
+    //   1. throughput chart (Feature 060)
+    //   2. comments-trend chart (Feature 333 — added at T022; reuses
+    //      installThroughputDrilldown since both surfaces share the
+    //      `data-drilldown-week` convention)
+    //   3. cycle-time trend chart
+    //   4. reviewer-activity chart
+    //   5. summary cards (sparkline navigator)
     const resetMatches =
       dashboardSrc.match(/activeDrilldownHandles = \[\];/g) ?? [];
     expect(resetMatches).toHaveLength(1);
 
     const pushMatches =
       dashboardSrc.match(/activeDrilldownHandles\.push\(/g) ?? [];
-    expect(pushMatches).toHaveLength(4);
+    expect(pushMatches).toHaveLength(5);
   });
 
   it("handle reset sits adjacent to the dispose loop (no intervening installs)", () => {

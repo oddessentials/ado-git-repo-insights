@@ -20,5 +20,8 @@ export * from "./reviewer-activity";
 // Predictions charts (forecast with confidence bands)
 export * from "./predictions";
 
+// Comments-trend chart (Feature 333 — weekly review-conversation volume)
+export * from "./comments-trend";
+
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor

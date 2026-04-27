@@ -4547,3 +4547,416 @@ class TestReviewTimeDimensionSlices:
         assert repo["cycle_time_p50"] is not None
 
         db.close()
+
+
+class TestWeeklyRollupCommentsAggregate:
+    """FR-2-06: weekly comments aggregate (`rollup[W].comments`) — Feature 333.
+
+    Feature 333 introduces a new optional sub-object on each weekly rollup::
+
+        rollup[W].comments = {
+            "thread_count": int,
+            "comment_count": int,
+            "active_thread_count": int,
+            "coverage_partial": bool,
+        }
+
+    These tests cover the four shape-and-value contracts from
+    ``specs/333-comments-trend-chart/spec.md`` FR-2-06:
+
+    * **case (i) all-full** — every PR in W has
+      ``comments_extracted_at IS NOT NULL`` → ``coverage_partial=False``;
+      numeric fields are full-week sums (extracted-subset == canonical set).
+    * **case (ii) mixed** — at least one PR extracted, at least one PR
+      unextracted → ``coverage_partial=True``; numeric fields are sums over
+      the EXTRACTED-SUBSET ONLY (unextracted PRs contribute zero — even
+      when ``pr_threads`` / ``pr_comments`` have rows for them, the
+      extracted-subset filter MUST exclude them).
+    * **case (iii) all-unextracted** — every PR in W has
+      ``comments_extracted_at IS NULL`` → ``coverage_partial=True``; all
+      numeric fields == 0 (sum over an empty extracted-subset). Numeric
+      fields stay non-null per INV-1-08.
+    * **case (iv) capability-off** — ``_has_comments() == False`` (e.g., no
+      ``pr_threads`` rows anywhere): the entire ``comments`` key MUST be
+      absent from the rollup (FR-3-03 / INV-1-08 atomicity — not ``null``,
+      not ``{}``, not partially-fielded).
+
+    Helpers below mirror ``tests/unit/test_aggregators_pr_records_comments.py``
+    (310's per-PR producer test harness) so regressions remain localized
+    across the two surfaces.
+    """
+
+    @staticmethod
+    def _seed_dimensions(db: DatabaseManager) -> None:
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)",
+            ("org1",),
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repository 1", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User One", "u1@example.com"),
+        )
+
+    @staticmethod
+    def _insert_pr(
+        db: DatabaseManager,
+        *,
+        uid: str,
+        pr_id: int,
+        closed_date: str,
+        comments_extracted_at: str | None,
+    ) -> None:
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name,
+                project_name, repository_id, user_id, title, status,
+                description, creation_date, closed_date, cycle_time_minutes,
+                comments_extracted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uid,
+                pr_id,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                f"PR {pr_id}",
+                "completed",
+                None,
+                "2026-01-01T00:00:00Z",
+                closed_date,
+                100.0,
+                comments_extracted_at,
+            ),
+        )
+
+    @staticmethod
+    def _insert_thread(
+        db: DatabaseManager,
+        *,
+        uid: str,
+        thread_id: str,
+        status: str,
+    ) -> None:
+        db.execute(
+            """
+            INSERT INTO pr_threads (
+                thread_id, pull_request_uid, status, thread_context,
+                last_updated, created_at, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                thread_id,
+                uid,
+                status,
+                None,
+                "2026-01-02T00:00:00Z",
+                "2026-01-02T00:00:00Z",
+                0,
+            ),
+        )
+
+    @staticmethod
+    def _insert_comment(
+        db: DatabaseManager,
+        *,
+        uid: str,
+        thread_id: str,
+        comment_id: str,
+    ) -> None:
+        db.execute(
+            """
+            INSERT INTO pr_comments (
+                comment_id, thread_id, pull_request_uid, author_id,
+                content, comment_type, created_at, last_updated, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                comment_id,
+                thread_id,
+                uid,
+                "user1",
+                "body",
+                "text",
+                "2026-01-02T00:00:00Z",
+                "2026-01-02T00:00:00Z",
+                0,
+            ),
+        )
+
+    @staticmethod
+    def _read_rollup(output_dir: Path, week: str) -> dict[str, object]:
+        rollup_path = output_dir / "aggregates" / "weekly_rollups" / f"{week}.json"
+        assert rollup_path.exists(), f"expected rollup file at {rollup_path}"
+        loaded = json.loads(rollup_path.read_text(encoding="utf-8"))
+        assert isinstance(loaded, dict)
+        return loaded
+
+    def test_case_i_all_full_coverage_complete(self, tmp_path: Path) -> None:
+        """FR-2-06 case (i): all PRs extracted → coverage_partial=False, full sums."""
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        # Two PRs in 2026-W02 (Jan 5-11), both extracted.
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_pr(
+            db,
+            uid="repo1-2",
+            pr_id=2,
+            closed_date="2026-01-07T12:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        # PR-1: 2 threads (1 active, 1 fixed), 3 comments.
+        self._insert_thread(db, uid="repo1-1", thread_id="t1", status="active")
+        self._insert_thread(db, uid="repo1-1", thread_id="t2", status="fixed")
+        self._insert_comment(db, uid="repo1-1", thread_id="t1", comment_id="c1")
+        self._insert_comment(db, uid="repo1-1", thread_id="t1", comment_id="c2")
+        self._insert_comment(db, uid="repo1-1", thread_id="t2", comment_id="c3")
+        # PR-2: 1 thread (active), 1 comment.
+        self._insert_thread(db, uid="repo1-2", thread_id="t3", status="active")
+        self._insert_comment(db, uid="repo1-2", thread_id="t3", comment_id="c4")
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+
+        assert "comments" in rollup, (
+            "FR-2-06 case (i): comments sub-object MUST be emitted on the "
+            "weekly rollup root when capability-on (pr_threads non-empty)."
+        )
+        comments = rollup["comments"]
+        assert isinstance(comments, dict)
+        # PR-1 contributes (thread=2, active=1, comment=3); PR-2 contributes (1, 1, 1).
+        # Extracted-subset == canonical set, so totals are full-week sums.
+        assert comments["thread_count"] == 3
+        assert comments["active_thread_count"] == 2
+        assert comments["comment_count"] == 4
+        assert comments["coverage_partial"] is False, (
+            "FR-2-06 case (i): coverage_partial MUST be False when every PR "
+            "in W's canonical throughput PR set has comments_extracted_at "
+            "IS NOT NULL (extracted-subset == canonical set)."
+        )
+        db.close()
+
+    def test_case_ii_mixed_extracted_subset_only(self, tmp_path: Path) -> None:
+        """FR-2-06 case (ii): mixed week → coverage_partial=True, sums over EXTRACTED-SUBSET ONLY.
+
+        Positive assertion: even when ``pr_threads`` / ``pr_comments`` have
+        rows for an unextracted PR (a load-bearing trap that catches the
+        regression where the aggregator forgets the extracted-subset filter
+        and accidentally sums across the full canonical set), the
+        unextracted PR MUST contribute zero to the numeric totals.
+
+        Per spec FR-2-06 case (ii): "the test fixture includes both
+        extracted and unextracted PRs in the same week, the test verifies
+        the numeric totals match the sum over only the extracted PRs and do
+        NOT include any contribution from the unextracted ones."
+        """
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        # Three PRs in 2026-W02: PR-1, PR-2 extracted; PR-3 NOT extracted.
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_pr(
+            db,
+            uid="repo1-2",
+            pr_id=2,
+            closed_date="2026-01-07T12:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_pr(
+            db,
+            uid="repo1-3",
+            pr_id=3,
+            closed_date="2026-01-08T10:00:00Z",
+            comments_extracted_at=None,
+        )
+        # PR-1: 2 threads (1 active, 1 fixed), 3 comments.
+        self._insert_thread(db, uid="repo1-1", thread_id="t1", status="active")
+        self._insert_thread(db, uid="repo1-1", thread_id="t2", status="fixed")
+        self._insert_comment(db, uid="repo1-1", thread_id="t1", comment_id="c1")
+        self._insert_comment(db, uid="repo1-1", thread_id="t1", comment_id="c2")
+        self._insert_comment(db, uid="repo1-1", thread_id="t2", comment_id="c3")
+        # PR-2: 1 thread (active), 1 comment.
+        self._insert_thread(db, uid="repo1-2", thread_id="t3", status="active")
+        self._insert_comment(db, uid="repo1-2", thread_id="t3", comment_id="c4")
+        # PR-3 (unextracted): pr_threads / pr_comments DO have rows for it.
+        # The extracted-subset filter MUST exclude PR-3's contributions even
+        # though the underlying tables are populated for it. This is the
+        # load-bearing trap.
+        self._insert_thread(db, uid="repo1-3", thread_id="t4", status="active")
+        self._insert_thread(db, uid="repo1-3", thread_id="t5", status="active")
+        self._insert_comment(db, uid="repo1-3", thread_id="t4", comment_id="c5")
+        self._insert_comment(db, uid="repo1-3", thread_id="t4", comment_id="c6")
+        self._insert_comment(db, uid="repo1-3", thread_id="t4", comment_id="c7")
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+
+        assert "comments" in rollup
+        comments = rollup["comments"]
+        assert isinstance(comments, dict)
+        # Expected: extracted-subset (PR-1 + PR-2) ONLY.
+        # PR-3's 2 threads + 3 comments MUST NOT appear.
+        assert comments["thread_count"] == 3, (
+            f"FR-2-06 case (ii) — extracted-subset filter regression: "
+            f"expected thread_count=3 (PR-1[2] + PR-2[1] only), got "
+            f"{comments['thread_count']!r}. PR-3 has 2 threads in pr_threads "
+            f"but its comments_extracted_at IS NULL, so it MUST contribute zero."
+        )
+        assert comments["active_thread_count"] == 2, (
+            f"FR-2-06 case (ii) — extracted-subset regression on active: "
+            f"expected 2 (PR-1[1] + PR-2[1]), got "
+            f"{comments['active_thread_count']!r}."
+        )
+        assert comments["comment_count"] == 4, (
+            f"FR-2-06 case (ii) — extracted-subset regression on comments: "
+            f"expected 4 (PR-1[3] + PR-2[1]), got {comments['comment_count']!r}. "
+            f"PR-3 has 3 comments but its comments_extracted_at IS NULL, "
+            f"so it MUST contribute zero."
+        )
+        assert comments["coverage_partial"] is True, (
+            "FR-2-06 case (ii) — coverage_partial MUST be True when at "
+            "least one PR in W's canonical throughput PR set has "
+            "comments_extracted_at IS NULL (PR-3 in this fixture)."
+        )
+        db.close()
+
+    def test_case_iii_all_unextracted_zeros_with_partial_flag(
+        self, tmp_path: Path
+    ) -> None:
+        """FR-2-06 case (iii): all PRs in W unextracted → all zeros + coverage_partial=True.
+
+        Numeric fields are sums over an empty extracted-subset, so 0 is the
+        correct value (NOT a "no data" sentinel — they stay non-null per
+        INV-1-08). The ``coverage_partial=True`` flag plus the FR-1-04
+        visual qualifier are the user-facing "we don't know yet" signal.
+
+        A filler thread on a different week's PR enables ``_has_comments()``
+        so the aggregator runs the comments emission path at all.
+        """
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        # Two PRs in 2026-W02, both unextracted.
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at=None,
+        )
+        self._insert_pr(
+            db,
+            uid="repo1-2",
+            pr_id=2,
+            closed_date="2026-01-07T12:00:00Z",
+            comments_extracted_at=None,
+        )
+        # Filler PR in 2026-W03 with one thread → enables _has_comments().
+        # The W02 rollup MUST still emit comments=zeros (capability-on path).
+        self._insert_pr(
+            db,
+            uid="repo1-3",
+            pr_id=3,
+            closed_date="2026-01-13T10:00:00Z",
+            comments_extracted_at="2026-01-14T00:00:00Z",
+        )
+        self._insert_thread(db, uid="repo1-3", thread_id="t-filler", status="fixed")
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+
+        assert "comments" in rollup, (
+            "FR-2-06 case (iii): comments MUST be emitted under capability-on "
+            "(_has_comments()=True via the W03 filler thread) even when W02 "
+            "has zero extracted PRs. Absence would silently drop the partial "
+            "signal that user-facing rendering depends on."
+        )
+        comments = rollup["comments"]
+        assert isinstance(comments, dict)
+        assert comments["thread_count"] == 0
+        assert comments["active_thread_count"] == 0
+        assert comments["comment_count"] == 0
+        assert comments["coverage_partial"] is True, (
+            "FR-2-06 case (iii): coverage_partial MUST be True when ALL PRs "
+            "in W's canonical throughput PR set are unextracted (the entire "
+            "canonical set was filtered out by the extracted-subset rule)."
+        )
+        db.close()
+
+    def test_case_iv_capability_off_no_comments_key(self, tmp_path: Path) -> None:
+        """FR-2-06 case (iv): capability-off → entire `comments` key absent from rollup.
+
+        FR-3-03 + INV-1-08: when ``_has_comments()`` returns False (no
+        ``pr_threads`` rows anywhere), the rollup MUST NOT contain the
+        ``comments`` key at all. The four omission failure modes that this
+        test guards against are:
+
+        * key NOT present (the canonical absent state — what this test asserts)
+        * key NOT present-with-``null``-value
+        * key NOT present-with-``{}``-empty-object
+        * key NOT present-with-partial-fields
+
+        ``"comments" not in rollup`` excludes all four uniformly.
+        """
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        # Two PRs in W02, NO pr_threads anywhere → _has_comments() returns False.
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_pr(
+            db,
+            uid="repo1-2",
+            pr_id=2,
+            closed_date="2026-01-07T12:00:00Z",
+            comments_extracted_at=None,
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+
+        assert "comments" not in rollup, (
+            "FR-3-03 / INV-1-08 case (iv): capability-off rollup MUST NOT "
+            "contain the `comments` key. Failure modes guarded uniformly: "
+            "(a) `comments: null`, (b) `comments: {}`, "
+            "(c) `comments: {3 of 4 fields}`, (d) any other partial shape. "
+            "Got: comments key present in rollup."
+        )
+        db.close()

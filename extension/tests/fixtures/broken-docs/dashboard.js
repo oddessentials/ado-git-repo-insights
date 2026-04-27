@@ -1309,7 +1309,10 @@ var PRInsightsDashboard = (() => {
     // absent from demo-surface rollups).
     "prs",
     "_prs_truncated",
-    "_prs_cap"
+    "_prs_cap",
+    // Feature 333 weekly comments-aggregate (gated on capabilities.comments_metrics).
+    // Atomic when present per INV-1-08; absent entirely when capability-off (FR-3-03).
+    "comments"
   ]);
   var PR_RECORD_REQUIRED_FIELDS = [
     "id",
@@ -1622,6 +1625,105 @@ var PRInsightsDashboard = (() => {
     }
     return { warnings };
   }
+  function validateCommentsAggregate(data, path) {
+    const errors = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors };
+    }
+    const requiredFields = [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "coverage_partial"
+    ];
+    const missing = requiredFields.filter(
+      (field) => !Object.prototype.hasOwnProperty.call(data, field)
+    );
+    if (missing.length > 0) {
+      errors.push(
+        createError(
+          path,
+          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          `missing: ${missing.join(", ")}`,
+          `comments-aggregate atomicity violated (INV-1-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+        )
+      );
+    }
+    const numericFieldChecks = [
+      { name: "thread_count", value: data.thread_count },
+      { name: "comment_count", value: data.comment_count },
+      { name: "active_thread_count", value: data.active_thread_count }
+    ];
+    for (const { name, value } of numericFieldChecks) {
+      if (!Object.prototype.hasOwnProperty.call(data, name)) {
+        continue;
+      }
+      if (value === null) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "number (non-null per INV-1-08; zero is the valid sum over an empty extracted-subset)",
+            "null",
+            `comments.${name} MUST be a non-null number (INV-1-08); null is not a valid sentinel \u2014 use 0 for an empty extracted-subset`
+          )
+        );
+      } else if (!isNumber(value)) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "number",
+            getTypeName(value),
+            `expected number at 'comments.${name}', got ${getTypeName(value)}`
+          )
+        );
+      } else if (value < 0) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "non-negative number (counts cannot be negative)",
+            String(value),
+            `comments.${name} MUST be non-negative; got ${value}`
+          )
+        );
+      } else if (!Number.isInteger(value)) {
+        errors.push(
+          createError(
+            buildPath(path, name),
+            "integer (counts must be whole numbers)",
+            String(value),
+            `comments.${name} MUST be an integer; got ${value}`
+          )
+        );
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "coverage_partial")) {
+      const coveragePartial = data.coverage_partial;
+      if (!isBoolean(coveragePartial)) {
+        errors.push(
+          createError(
+            buildPath(path, "coverage_partial"),
+            "boolean",
+            getTypeName(coveragePartial),
+            `expected boolean at 'comments.coverage_partial', got ${getTypeName(coveragePartial)}`
+          )
+        );
+      }
+    }
+    const threadCount = data.thread_count;
+    const activeCount = data.active_thread_count;
+    if (isNumber(threadCount) && isNumber(activeCount) && Number.isInteger(threadCount) && Number.isInteger(activeCount) && threadCount >= 0 && activeCount >= 0 && activeCount > threadCount) {
+      errors.push(
+        createError(
+          buildPath(path, "active_thread_count"),
+          "<= thread_count (INV-1-06; active is a subset of total)",
+          `${activeCount} > ${threadCount}`,
+          `comments-aggregate ordering violated (INV-1-06): active_thread_count (${activeCount}) MUST NOT exceed thread_count (${threadCount})`
+        )
+      );
+    }
+    return { errors };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1768,6 +1870,10 @@ var PRInsightsDashboard = (() => {
           createWarning("_prs_cap", "'_prs_cap' present without 'prs'; ignored")
         );
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "comments") && data.comments !== void 0) {
+      const commentsResult = validateCommentsAggregate(data.comments, "comments");
+      errors.push(...commentsResult.errors);
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);
@@ -8105,6 +8211,9 @@ var PRInsightsDashboard = (() => {
   function createEmptyFilterState() {
     return { repos: [], teams: [], reviewers: [], authors: [] };
   }
+  function hasActiveFilters2(state) {
+    return state.repos.length > 0 || state.teams.length > 0 || state.reviewers.length > 0 || state.authors.length > 0;
+  }
   function parseCommaSeparated(raw) {
     if (!raw) return [];
     return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
@@ -8154,6 +8263,199 @@ var PRInsightsDashboard = (() => {
     } else {
       params.delete("author");
     }
+  }
+
+  // ../ui/modules/charts/comments-trend.ts
+  var MAX_COMMENTS_TREND_POINTS = 104;
+  var COMMENTS_TREND_TOOLTIP = "Bars show resolved (lower) and unresolved (upper) review threads per week. The line shows total comments. Hatched bars indicate partial coverage \u2014 some PRs in the week aren't yet extracted, so totals are partial.";
+  var commentsTrendInfoIconControllers = /* @__PURE__ */ new WeakMap();
+  function attachCommentsTrendInfoIcon(heading) {
+    const existing = heading.querySelector(
+      ".info-icon-btn"
+    );
+    if (existing) {
+      commentsTrendInfoIconControllers.get(existing)?.abort();
+      commentsTrendInfoIconControllers.delete(existing);
+      existing.remove();
+    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    const btn = document.createElement("button");
+    btn.className = "info-icon-btn";
+    btn.setAttribute("type", "button");
+    btn.setAttribute("aria-label", "About this chart");
+    btn.setAttribute("data-info-tooltip", "comments-trend");
+    btn.textContent = "\u2139";
+    btn.addEventListener(
+      "pointerenter",
+      () => {
+        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+      },
+      { signal }
+    );
+    btn.addEventListener(
+      "pointerleave",
+      () => {
+        dismissAllTooltips();
+      },
+      { signal }
+    );
+    btn.addEventListener(
+      "click",
+      (e2) => {
+        e2.stopPropagation();
+        const open = document.querySelector(".info-tooltip");
+        if (open) {
+          dismissAllTooltips();
+          return;
+        }
+        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+        requestAnimationFrame(() => {
+          const dismissOnce = () => {
+            dismissAllTooltips();
+            document.removeEventListener("click", dismissOnce);
+          };
+          document.addEventListener("click", dismissOnce);
+        });
+      },
+      { signal }
+    );
+    commentsTrendInfoIconControllers.set(btn, controller);
+    heading.appendChild(btn);
+  }
+  function detachCommentsTrendInfoIcon(heading) {
+    const btn = heading.querySelector(".info-icon-btn");
+    if (!btn) return;
+    commentsTrendInfoIconControllers.get(btn)?.abort();
+    commentsTrendInfoIconControllers.delete(btn);
+    btn.remove();
+    dismissAllTooltips();
+  }
+  var MAX_VISIBLE_LABELS2 = 16;
+  var CHART_HEIGHT_PX = 200;
+  var CHART_PADDING_PX = 8;
+  function hasComments(rollup) {
+    return rollup.comments !== void 0;
+  }
+  function renderCommentsTrendChart(container, rollups, options) {
+    if (!container) return;
+    clearChartTooltips(container);
+    if (options?.filters && hasActiveFilters2(options.filters)) {
+      renderNoData(
+        container,
+        "Comments trend is not yet filterable",
+        "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+      );
+      return;
+    }
+    const withComments = rollups.filter(hasComments);
+    if (withComments.length === 0) {
+      renderNoData(
+        container,
+        "No comments data for selected range",
+        "Try widening the date range, or confirm comments extraction is enabled for this dataset."
+      );
+      return;
+    }
+    const truncated = withComments.length > MAX_COMMENTS_TREND_POINTS;
+    const display = truncated ? withComments.slice(-MAX_COMMENTS_TREND_POINTS) : withComments;
+    const maxValue = Math.max(
+      1,
+      ...display.map(
+        (r2) => Math.max(r2.comments.thread_count, r2.comments.comment_count)
+      )
+    );
+    const labelStep = Math.max(1, Math.ceil(display.length / MAX_VISIBLE_LABELS2));
+    const barsHtml = display.map((r2, i2) => renderBar(r2, i2, labelStep, maxValue)).join("");
+    const lineHtml = renderCommentsLine(display, maxValue);
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_COMMENTS_TREND_POINTS
+    );
+    const anyPartial = display.some((r2) => r2.comments.coverage_partial);
+    const partialLegendItem = anyPartial ? `<div class="legend-item legend-coverage-partial-item"><span class="legend-bar legend-bar-coverage-partial"></span><span>Partial coverage</span></div>` : "";
+    const legendHtml = `
+    <div class="chart-legend">
+      <div class="legend-item">
+        <span class="legend-bar legend-bar-resolved"></span>
+        <span>Resolved threads</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-bar legend-bar-unresolved"></span>
+        <span>Unresolved threads</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-line legend-line-comments"></span>
+        <span>Comments</span>
+      </div>
+      ${partialLegendItem}
+    </div>
+  `;
+    renderTrustedHtml(
+      container,
+      `
+      ${truncationHtml}
+      <div class="chart-with-trend comments-trend-chart" style="--chart-surface: var(--bg-primary);">
+        <div class="bar-chart comments-trend-bars">${barsHtml}</div>
+        ${lineHtml}
+      </div>
+      ${legendHtml}
+    `
+    );
+    addChartTooltips(container, buildTooltipHtml);
+  }
+  function renderBar(rollup, index, labelStep, maxValue) {
+    const c = rollup.comments;
+    const resolvedCount = c.thread_count - c.active_thread_count;
+    const resolvedHeightPct = resolvedCount / maxValue * 100;
+    const unresolvedHeightPct = c.active_thread_count / maxValue * 100;
+    const weekLabel = rollup.week.split("-W")[1];
+    const showLabel = index % labelStep === 0;
+    const partialClass = c.coverage_partial ? " coverage-partial" : "";
+    const partialAttr = c.coverage_partial ? ' data-coverage-partial="true"' : "";
+    const resolvedNoun = c.thread_count === 1 ? "thread" : "threads";
+    const commentNoun = c.comment_count === 1 ? "comment" : "comments";
+    const partialNote = c.coverage_partial ? " \u2014 partial coverage" : "";
+    const ariaLabel = `Drill into week of ${weekRangeForAria(rollup)}, ${c.thread_count} ${resolvedNoun} (${c.active_thread_count} unresolved), ${c.comment_count} ${commentNoun}${partialNote}`;
+    return `
+    <div class="bar-container${partialClass}" data-tooltip="true" data-week="${escapeHtml(rollup.week)}" data-thread-count="${c.thread_count}" data-active-thread-count="${c.active_thread_count}" data-comment-count="${c.comment_count}" data-drilldown-week="${escapeHtml(rollup.week)}"${partialAttr} tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}">
+      <div class="bar-segment-unresolved" style="height: ${unresolvedHeightPct.toFixed(1)}%"></div>
+      <div class="bar-segment-resolved" style="height: ${resolvedHeightPct.toFixed(1)}%"></div>
+      <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
+    </div>
+  `;
+  }
+  function renderCommentsLine(rollups, maxValue) {
+    const points = rollups.map((r2, i2) => {
+      const x2 = rollups.length > 1 ? i2 / (rollups.length - 1) * 100 : 50;
+      const innerHeight = CHART_HEIGHT_PX - CHART_PADDING_PX * 2;
+      const ratio = r2.comments.comment_count / maxValue;
+      const y2 = CHART_HEIGHT_PX - CHART_PADDING_PX - ratio * innerHeight;
+      return { x: x2, y: y2 };
+    });
+    const pathD = points.map((p2, i2) => `${i2 === 0 ? "M" : "L"} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`).join(" ");
+    const dotsHtml = points.map(
+      (p2) => `<circle class="comments-line-dot" cx="${p2.x.toFixed(1)}" cy="${p2.y.toFixed(1)}" r="2" vector-effect="non-scaling-stroke"/>`
+    ).join("");
+    return `<div class="comments-line-overlay"><svg viewBox="0 0 100 ${CHART_HEIGHT_PX}" preserveAspectRatio="none"><path class="comments-line" d="${pathD}" vector-effect="non-scaling-stroke"/>${dotsHtml}</svg></div>`;
+  }
+  function buildTooltipHtml(bar) {
+    const week = bar.dataset.week;
+    const threads = bar.dataset.threadCount;
+    const active2 = bar.dataset.activeThreadCount;
+    const comments = bar.dataset.commentCount;
+    const partial = bar.dataset.coveragePartial === "true";
+    const partialNote = partial ? `<div class="chart-tooltip-row chart-tooltip-note">Some PRs in this week aren't yet extracted \u2014 values shown are partial totals; the full number may be higher.</div>` : "";
+    return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+          <div class="chart-tooltip-row">
+            <span class="chart-tooltip-label">Threads</span>
+            <span>${escapeHtml(threads)} (${escapeHtml(active2)} unresolved)</span>
+          </div>
+          <div class="chart-tooltip-row">
+            <span class="chart-tooltip-label">Comments</span>
+            <span>${escapeHtml(comments)}</span>
+          </div>
+          ${partialNote}`;
   }
 
   // ../ui/modules/filter-constraint-resolver.ts
@@ -10045,6 +10347,16 @@ var PRInsightsDashboard = (() => {
       renderCycleTimeTrend2(rollups, rawRollups, availability);
       renderReviewerActivity2(rollups, rawRollups, availability);
       renderCycleDistribution2(distributions, rawRollups, availability);
+      if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+        const ctsContainer = ensureCommentsTrendContainer();
+        if (ctsContainer) {
+          renderCommentsTrendChart(ctsContainer, rollups, {
+            filters: currentFilters
+          });
+        }
+      } else {
+        removeCommentsTrendContainer();
+      }
       const throughputContainer = document.getElementById("throughput-chart");
       if (throughputContainer) {
         activeDrilldownHandles.push(
@@ -10070,6 +10382,28 @@ var PRInsightsDashboard = (() => {
             // dashboard's comments-coverage banner reads at line 2334).
             // Default ``false`` when the loader has not produced a state
             // yet (first render / dataset-less bootstrap).
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
+          })
+        );
+      }
+      const commentsTrendDrillContainer = document.getElementById("comments-trend");
+      if (commentsTrendDrillContainer) {
+        activeDrilldownHandles.push(
+          installThroughputDrilldown(commentsTrendDrillContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
             commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
           })
         );
@@ -10261,6 +10595,38 @@ var PRInsightsDashboard = (() => {
         filterReviewerName
       }
     );
+  }
+  function ensureCommentsTrendContainer() {
+    const existing = document.getElementById("comments-trend");
+    if (existing) return existing;
+    const cycleDist = document.getElementById("cycle-distribution");
+    const anchorRow = cycleDist?.closest(".charts-row") ?? null;
+    if (!anchorRow || !anchorRow.parentElement) return null;
+    const row = document.createElement("div");
+    row.className = "charts-row";
+    row.setAttribute("data-comments-trend-row", "true");
+    const containerCell = document.createElement("div");
+    containerCell.className = "chart-container";
+    const heading = document.createElement("h3");
+    heading.textContent = "Comments Trend";
+    attachCommentsTrendInfoIcon(heading);
+    containerCell.appendChild(heading);
+    const chart = document.createElement("div");
+    chart.id = "comments-trend";
+    chart.className = "chart";
+    containerCell.appendChild(chart);
+    row.appendChild(containerCell);
+    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    return chart;
+  }
+  function removeCommentsTrendContainer() {
+    const row = document.querySelector('[data-comments-trend-row="true"]');
+    if (!row) return;
+    const heading = row.querySelector("h3");
+    if (heading instanceof HTMLElement) {
+      detachCommentsTrendInfoIcon(heading);
+    }
+    row.parentElement?.removeChild(row);
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
     if (!loaderResult) {
