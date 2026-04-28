@@ -743,6 +743,116 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
   });
 
+  // ===========================================================================
+  // US4 (T028): sentinel-key → sentinel-label mapping.  When the bucket
+  // key is the reserved literal ``__former_or_unavailable_author__``, the
+  // rendered row label MUST be the fixed-string "Former / unavailable
+  // author" (NOT the raw key) and the sentinel row MUST participate in
+  // sort exactly like real-author rows (not pinned to top / bottom).
+  // ===========================================================================
+
+  const SENTINEL_KEY = "__former_or_unavailable_author__";
+  const SENTINEL_LABEL = "Former / unavailable author";
+
+  it("(T028-a) sentinel-keyed row renders the fixed-string label, not the raw key", () => {
+    const authors = buildAuthorsDimension(2);
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(2, 50, 1),
+      [authors[1]!.author_id]: makeBucket(2, 30, 1),
+      // Even if a malicious / drifted authorsDimension contained an
+      // entry under the literal key, the renderer's sentinel branch
+      // takes precedence — the row label MUST be the fixed string.
+      [SENTINEL_KEY]: makeBucket(2, 40, 1),
+    };
+    const dim = [
+      ...authors,
+      // Defensive: the producer guarantees the literal does not collide
+      // with real author IDs (Feature 334 A-07), but if a fixture drift
+      // ever inserted such an entry, the chart MUST still surface the
+      // sentinel label — not the dimensional display name.
+      { author_id: SENTINEL_KEY, author_name: "Should NEVER show" },
+    ];
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: dim,
+    });
+
+    const sentinelRow = container.querySelector<HTMLElement>(
+      `.comments-author-density-row[data-author-key="${SENTINEL_KEY}"]`,
+    );
+    expect(sentinelRow).not.toBeNull();
+    const sentinelName = sentinelRow?.querySelector(
+      ".comments-author-density-name",
+    )?.textContent;
+    expect(sentinelName).toBe(SENTINEL_LABEL);
+    // Negative: the raw key string MUST NOT appear in any rendered row's
+    // visible text (the data attribute carrying it is fine — that's
+    // queryable infrastructure, not user-visible text).
+    const visibleText = container.textContent ?? "";
+    expect(visibleText).not.toContain(SENTINEL_KEY);
+    expect(visibleText).toContain(SENTINEL_LABEL);
+  });
+
+  it("(T028-b) sentinel row participates in sort — not pinned to top or bottom", () => {
+    const authors = buildAuthorsDimension(3);
+    // Comment counts: alice=100, bob=50, sentinel=75, ccc=10. The
+    // sentinel ranks SECOND (between alice and bob) in comment_count
+    // desc. NOT pinned at top or bottom.
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(2, 100, 1), // alice — top
+      [authors[1]!.author_id]: makeBucket(2, 50, 1), // bob — third
+      [authors[2]!.author_id]: makeBucket(2, 10, 1), // ccc — bottom
+      [SENTINEL_KEY]: makeBucket(2, 75, 1), // sentinel — second
+    };
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedKeys).toEqual([
+      authors[0]!.author_id,
+      SENTINEL_KEY,
+      authors[1]!.author_id,
+      authors[2]!.author_id,
+    ]);
+    // Switching the sort metric MUST keep the sentinel participating in
+    // sort (not pinned).  thread_count is uniform here, so the secondary
+    // tie-breaker (display name asc) decides. Display names: "Former /
+    // unavailable author" < "user 0" < "user 1" < "user 2" lexically.
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+      sortMetric: "thread_count",
+    });
+    const orderedAfter = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedAfter[0]).toBe(SENTINEL_KEY);
+  });
+
+  it("(T028-c) dataset with zero unknown-to-users PRs in range emits NO sentinel row", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a, i) => {
+      buckets[a.author_id] = makeBucket(2, 100 - i, 1);
+    });
+    // Deliberately omit any sentinel-keyed bucket: the producer omits
+    // the entry when zero unknown-to-users PRs exist in W's canonical
+    // set per FR-2-03 / CL-03.
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    expect(
+      container.querySelector(
+        `.comments-author-density-row[data-author-key="${SENTINEL_KEY}"]`,
+      ),
+    ).toBeNull();
+    expect(container.textContent ?? "").not.toContain(SENTINEL_LABEL);
+  });
+
   it("(T025-d) keyboard activation (Enter / Space) on a focused button re-orders rows", () => {
     const authors = buildAuthorsDimension(3);
     const buckets: Record<string, AuthorBucket> = {

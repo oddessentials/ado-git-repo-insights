@@ -511,6 +511,79 @@ def test_inv207_ordering_active_le_thread_per_entry(
 # --------------------------------------------------------------------------- #
 
 
+def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
+    """T029 (US4): the reserved sentinel literal MUST NOT match any real author_id.
+
+    Spec assumption A-07 declares ``__former_or_unavailable_author__``
+    namespace-safe (production author_ids are UUID-format strings —
+    32 hex + 4 hyphens — and cannot collide with the leading-double-
+    underscore literal).  This test is the executable closure: scan
+    every committed demo fixture surface where an ``author_id`` value
+    could appear and assert the literal never shows up there.
+
+    Surfaces scanned:
+
+    * ``docs/data/aggregates/dimensions.json`` — every
+      ``authors[].author_id`` value (the canonical authors directory
+      the dashboard renders display names from).
+    * ``docs/data/aggregates/weekly_rollups/*.json`` — every key in
+      ``rollup[W].by_author`` (the throughput per-author slice; one
+      bucket per real author_id).  This is the pre-existing
+      throughput-side mirror of the same author_id space.
+
+    The test does NOT scan ``rollup[W].by_author_comments`` — that is
+    the producer's own emission and the literal IS a valid bucket key
+    there by design (CL-03).  The check only asserts that NO REAL
+    author_id collides with it.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    docs_data = repo_root / "docs" / "data" / "aggregates"
+
+    dimensions_path = docs_data / "dimensions.json"
+    assert dimensions_path.is_file(), (
+        f"docs/data/aggregates/dimensions.json missing at {dimensions_path} — "
+        "the canonical demo fixture must exist before this safety test runs"
+    )
+    dimensions = json.loads(dimensions_path.read_text(encoding="utf-8"))
+    authors_dim_raw = dimensions.get("authors")
+    assert isinstance(authors_dim_raw, list), (
+        "dimensions.json missing or non-list authors array"
+    )
+    for entry in authors_dim_raw:
+        if not isinstance(entry, dict):
+            continue
+        author_id = entry.get("author_id")
+        assert author_id != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL, (
+            "Feature 334 A-07 violation: dimensions.json carries an authors[] "
+            f"entry whose author_id collides with the reserved sentinel "
+            f"literal {FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Real "
+            "author_ids must NEVER equal the sentinel literal — see "
+            "specs/334-comments-author-density/spec.md Assumption A-07."
+        )
+
+    rollups_dir = docs_data / "weekly_rollups"
+    assert rollups_dir.is_dir(), (
+        f"docs/data/aggregates/weekly_rollups missing at {rollups_dir}"
+    )
+    rollup_files = sorted(rollups_dir.glob("*.json"))
+    assert rollup_files, (
+        f"docs/data/aggregates/weekly_rollups is empty at {rollups_dir}"
+    )
+    for rollup_path in rollup_files:
+        payload = json.loads(rollup_path.read_text(encoding="utf-8"))
+        by_author = payload.get("by_author")
+        if not isinstance(by_author, dict):
+            continue
+        assert FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL not in by_author, (
+            f"Feature 334 A-07 violation: {rollup_path.name} carries a "
+            f"by_author bucket keyed by the reserved sentinel literal "
+            f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Throughput's "
+            "per-author slice must NEVER use a real author_id equal to "
+            "the sentinel literal — that would collide with Feature 334's "
+            "by_author_comments sentinel-bucket convention (CL-03)."
+        )
+
+
 def test_determinism_outer_dict_key_order_ascending(
     author_comments_db: tuple[DatabaseManager, Path],
 ) -> None:

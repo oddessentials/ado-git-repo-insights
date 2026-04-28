@@ -49,6 +49,28 @@ import { renderTruncationIndicator } from "../shared/chart-layout";
 /** Maximum rows rendered before truncation kicks in (CL-05 / FR-4-06). */
 export const MAX_COMMENTS_AUTHOR_DENSITY_ROWS = 50;
 
+/**
+ * Reserved aggregator-side bucket key for ALL PRs whose ``author_id`` is
+ * absent from the ``users`` table per Feature 334 CL-03 / FR-1-03.  The
+ * canonical Python constant lives at
+ * ``src/ado_git_repo_insights/transform/constants.py`` and the literal
+ * ``"__former_or_unavailable_author__"`` is the producer / consumer
+ * contract.  ADR T006 keeps the renderer self-contained — the literal
+ * is hard-coded here rather than imported from a shared module so the
+ * extension chart bundle does not couple to the transform package.
+ * Drift between the two is gated by ``test_sentinel_safety`` in the
+ * Python aggregator-author-comments test suite (T029) which asserts no
+ * real ``author_id`` collides with this literal.
+ */
+const FORMER_OR_UNAVAILABLE_AUTHOR_KEY = "__former_or_unavailable_author__";
+
+/**
+ * Renderer-side label for the sentinel bucket per CL-03.  Fixed English
+ * string for v1; localization is deferred (out of scope per the
+ * Feature 334 spec).
+ */
+const FORMER_OR_UNAVAILABLE_AUTHOR_LABEL = "Former / unavailable author";
+
 /** Sort metrics exposed in the radio-group sort selector (FR-4-05). */
 export const COMMENTS_AUTHOR_DENSITY_SORT_METRICS = [
   "comment_count",
@@ -142,10 +164,16 @@ function resolveDisplayName(
   authorKey: string,
   directory: Map<string, string> | null,
 ): string {
-  // US4 (T030) will map ``__former_or_unavailable_author__`` to the fixed
-  // label "Former / unavailable author". US1 renders the raw key for
-  // unknown-to-directory authors so the FR-4-01 row contract still emits
-  // a deterministic display string.
+  // CL-03 / T030: the reserved sentinel bucket key always renders as
+  // the fixed-string label "Former / unavailable author", regardless of
+  // whether ``authorsDimension`` happens to contain an entry under the
+  // literal key (defensive — the producer guarantees the literal does
+  // not collide with real author IDs per A-07, but the renderer keeps
+  // the contract one-sided so a future fixture drift cannot mask a
+  // real-author row as the sentinel or vice versa).
+  if (authorKey === FORMER_OR_UNAVAILABLE_AUTHOR_KEY) {
+    return FORMER_OR_UNAVAILABLE_AUTHOR_LABEL;
+  }
   if (directory) {
     const found = directory.get(authorKey);
     if (typeof found === "string" && found.length > 0) {

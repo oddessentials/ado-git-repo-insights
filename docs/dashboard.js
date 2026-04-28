@@ -8596,6 +8596,8 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/comments-author-density.ts
   var MAX_COMMENTS_AUTHOR_DENSITY_ROWS = 50;
+  var FORMER_OR_UNAVAILABLE_AUTHOR_KEY = "__former_or_unavailable_author__";
+  var FORMER_OR_UNAVAILABLE_AUTHOR_LABEL = "Former / unavailable author";
   var COMMENTS_AUTHOR_DENSITY_SORT_METRICS = [
     "comment_count",
     "thread_count",
@@ -8640,6 +8642,9 @@ var PRInsightsDashboard = (() => {
     return map;
   }
   function resolveDisplayName(authorKey, directory) {
+    if (authorKey === FORMER_OR_UNAVAILABLE_AUTHOR_KEY) {
+      return FORMER_OR_UNAVAILABLE_AUTHOR_LABEL;
+    }
     if (directory) {
       const found = directory.get(authorKey);
       if (typeof found === "string" && found.length > 0) {
