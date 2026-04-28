@@ -53,6 +53,7 @@ import {
   renderCommentsTrendChart as renderCommentsTrendChartModule,
   attachCommentsTrendInfoIcon,
   detachCommentsTrendInfoIcon,
+  renderCommentsAuthorDensityChart as renderCommentsAuthorDensityChartModule,
   // Data availability signal derivation
   deriveAvailabilitySignal,
   // Filter constraint resolver
@@ -1095,6 +1096,24 @@ async function refreshMetrics(): Promise<void> {
       removeCommentsTrendContainer();
     }
 
+    // Feature 334 (US1): per-author comments-density breakdown row, mounted
+    // BELOW the 333 comments-trend chart per FR-4-01.  Same capability gate
+    // as 333, same lifecycle pattern (idempotent ensure / no-op remove).
+    // Anchors on the 333 row when present; falls back to cycle-distribution
+    // for atypical orderings.  Per FR-4-09 the chart is informational —
+    // no drill-down handle is installed below.
+    if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+      const cadContainer = ensureCommentsAuthorDensityContainer();
+      if (cadContainer) {
+        renderCommentsAuthorDensityChartModule(cadContainer, rollups, {
+          filters: currentFilters,
+          authorsDimension: currentDimensions?.authors,
+        });
+      }
+    } else {
+      removeCommentsAuthorDensityContainer();
+    }
+
     // Install per-chart drill-down handles AFTER the render block so the
     // container elements exist. US2–US4 push peers onto the same array.
     const throughputContainer = document.getElementById("throughput-chart");
@@ -1634,6 +1653,69 @@ function removeCommentsTrendContainer(): void {
   if (heading instanceof HTMLElement) {
     detachCommentsTrendInfoIcon(heading);
   }
+  row.parentElement?.removeChild(row);
+}
+
+/**
+ * Idempotently ensure the per-author comments-density chart row exists
+ * (Feature 334 US1).  Mirrors ``ensureCommentsTrendContainer`` (333 round-12
+ * idempotency contract) but anchors BELOW the 333 row per FR-4-01.
+ *
+ * Anchor preference: the existing comments-trend row (333) when mounted —
+ * this guarantees the per-author breakdown lands immediately under the
+ * weekly trend chart in the typical capability-on render order.  Fallback
+ * to ``cycle-distribution`` for atypical orderings (e.g., a future render
+ * path that mounts 334 before 333).  Returns ``null`` if neither anchor
+ * is locatable.
+ */
+function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
+  const existing = document.getElementById("comments-author-density");
+  if (existing) return existing;
+
+  const commentsTrendRow = document.querySelector(
+    '[data-comments-trend-row="true"]',
+  );
+  let anchorRow: Element | null = commentsTrendRow;
+  if (!anchorRow) {
+    const cycleDist = document.getElementById("cycle-distribution");
+    anchorRow = cycleDist?.closest(".charts-row") ?? null;
+  }
+  if (!anchorRow || !anchorRow.parentElement) return null;
+
+  const row = document.createElement("div");
+  row.className = "charts-row";
+  row.setAttribute("data-comments-author-density-row", "true");
+
+  const containerCell = document.createElement("div");
+  containerCell.className = "chart-container";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Comment Density by Author";
+  containerCell.appendChild(heading);
+
+  const chart = document.createElement("div");
+  chart.id = "comments-author-density";
+  chart.className = "chart";
+
+  containerCell.appendChild(chart);
+  row.appendChild(containerCell);
+
+  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+
+  return chart;
+}
+
+/**
+ * Remove the per-author comments-density chart row from the DOM if
+ * present.  No-op when absent (initial capability-off; repeated
+ * capability-off renders).  Active cleanup happens on the on→off
+ * mid-session transition (FR-3-02).
+ */
+function removeCommentsAuthorDensityContainer(): void {
+  const row = document.querySelector(
+    '[data-comments-author-density-row="true"]',
+  );
+  if (!row) return;
   row.parentElement?.removeChild(row);
 }
 

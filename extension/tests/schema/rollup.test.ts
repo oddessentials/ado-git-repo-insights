@@ -1621,5 +1621,146 @@ describe("Rollup Schema Validator", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
+
+    it("FAILS when by_author_comments is not an object (non-Record top-level type)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: "not-an-object" as unknown as Record<
+          string,
+          unknown
+        >,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "by_author_comments")).toBe(
+        true,
+      );
+    });
+
+    it("FAILS when by_author_comments is the empty object (capability-on must omit, not emit `{}`)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {},
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "by_author_comments" &&
+            e.message.toLowerCase().includes("must be omitted"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when an entry value is not an object", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": "not-an-entry" as unknown as Record<string, unknown>,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("by_author_comments")),
+      ).toBe(true);
+    });
+
+    it("FAILS when a numeric field is negative", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: -1,
+            comment_count: 4,
+            active_thread_count: 0,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("non-negative"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when a numeric field is a non-integer (counts must be whole numbers)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 1.5,
+            comment_count: 4,
+            active_thread_count: 0,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("integer"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when coverage_partial is not a boolean", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 1,
+            comment_count: 1,
+            active_thread_count: 0,
+            coverage_partial: "yes" as unknown as boolean,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("coverage_partial"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when one numeric field is missing (single-field omission, not full atomicity)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            // thread_count intentionally absent — atomicity violation that
+            // must still fire on a single-field omission (case (b) covers
+            // coverage_partial; this case covers a numeric-field omission).
+            comment_count: 4,
+            active_thread_count: 0,
+            coverage_partial: false,
+          } as unknown as Record<string, unknown>,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.message.toLowerCase().includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
   });
 });

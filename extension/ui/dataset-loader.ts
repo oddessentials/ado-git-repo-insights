@@ -209,6 +209,23 @@ export interface Rollup {
     active_thread_count: number;
     coverage_partial: boolean;
   };
+  // Feature 334 per-author comments-density (FR-1-01..FR-1-08). Optional
+  // outer dict emitted only when capabilities.comments_metrics is enabled
+  // (FR-3-03 / INV-2-09). Each entry carries the same four atomic fields
+  // as the 333 ``comments`` aggregate (per-bucket scope rather than
+  // per-week). Validator: validateAuthorCommentsDensity in
+  // rollup.schema.ts (ADR T003 STRICT-ERROR posture, both modes).
+  // Renderer: comments-author-density chart module under
+  // modules/charts/comments-author-density.ts (Feature 334 US1).
+  by_author_comments?: Record<
+    string,
+    {
+      thread_count: number;
+      comment_count: number;
+      active_thread_count: number;
+      coverage_partial: boolean;
+    }
+  >;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 
