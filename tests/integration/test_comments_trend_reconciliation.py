@@ -688,6 +688,13 @@ def test_sc05_reconciliation_per_week_by_author_sentinel_parity(
     weeks_to_prs = _attribute_prs_to_weeks(db_path)
     rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
 
+    # Non-vacuity tripwire: tally how many unknown-author PRs the test
+    # actually saw across all weeks.  Zero means the fixture has no
+    # ghost-author PRs and the sentinel-value-parity branch is never
+    # exercised — the test would pass vacuously and the contract
+    # surface would silently rot.  Asserted at the end of the loop.
+    total_unknown_prs_seen = 0
+
     with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
         conn.row_factory = sqlite3.Row
 
@@ -763,6 +770,15 @@ def test_sc05_reconciliation_per_week_by_author_sentinel_parity(
                 f"re-computation {any_unextracted!r} (FR-1-06 propagated "
                 "to sentinel bucket)"
             )
+            total_unknown_prs_seen += len(unknown_prs)
+
+    assert total_unknown_prs_seen > 0, (
+        "Vacuity guard: zero unknown-to-users PRs across every fixture "
+        "week, so the sentinel-value-parity branch above never fired.  "
+        "The fixture builder MUST seed at least one ghost-author PR "
+        "(see GHOST_USER_ID in tests/fixtures/sc05/fixture_builder.py) "
+        "so this test exercises FR-2-03's hot path on real demo data."
+    )
 
 
 def test_sc05_reconciliation_per_week_by_author_pairwise_drilldown(

@@ -70,6 +70,15 @@ USER_ID: Final[str] = "user-001"
 USER_NAME: Final[str] = "Demo User"
 USER_EMAIL: Final[str] = "demo@example.local"
 
+# Feature 334: a deliberately deprovisioned author whose ``user_id`` is
+# NOT inserted into the ``users`` table.  PRs assigned to this id (the
+# first PR of each fixture week per ``_populate_raw_rows``) exercise the
+# sentinel-bucket branch of the per-author reconciliation tests.  The
+# fixture insert path toggles ``PRAGMA foreign_keys = OFF`` before
+# inserting these PRs to mirror the production reality where deletions /
+# legacy migrations may leave orphaned PRs.
+GHOST_USER_ID: Final[str] = "ghost-001"
+
 
 @dataclass(frozen=True)
 class _ThreadSpec:
@@ -407,10 +416,27 @@ def _populate_raw_rows(sqlite_path: Path) -> None:
             (USER_ID, USER_NAME, USER_EMAIL),
         )
 
+        # Feature 334: disable FK enforcement so the first PR of each
+        # week can be authored by ``GHOST_USER_ID`` (absent from the
+        # ``users`` table) — required to exercise the sentinel-bucket
+        # branch of the per-author reconciliation tests
+        # (FR-2-03, CL-03).  The PRAGMA is restored to ON before
+        # ``build-aggregates`` runs so the production aggregator path
+        # encounters the same FK posture it would in production after
+        # an out-of-band user deletion.
+        conn.execute("PRAGMA foreign_keys = OFF")
         for week in _WEEKS:
-            for pr in week.prs:
+            for idx, pr in enumerate(week.prs):
                 pr_uid = _pr_uid(pr.pr_id)
                 comments_extracted_at = pr.closed_date if pr.extracted else None
+                # Route the FIRST PR of each fixture week to the
+                # ghost author so every week's per-author bucket dict
+                # contains exactly one sentinel-keyed entry — non-vacuous
+                # coverage for the sentinel parity assertion.  All other
+                # PRs continue to point at ``USER_ID`` so the
+                # known-author bucket also exists per week (cross-bucket
+                # coverage).
+                pr_user_id = GHOST_USER_ID if idx == 0 else USER_ID
                 conn.execute(
                     "INSERT INTO pull_requests "
                     "(pull_request_uid, pull_request_id, organization_name, "
@@ -425,7 +451,7 @@ def _populate_raw_rows(sqlite_path: Path) -> None:
                         ORG_NAME,
                         PROJECT_NAME,
                         REPO_ID,
-                        USER_ID,
+                        pr_user_id,
                         f"PR {pr.pr_id}",
                         "completed",
                         None,
@@ -494,6 +520,10 @@ def _populate_raw_rows(sqlite_path: Path) -> None:
                                 1,
                             ),
                         )
+        # Restore FK enforcement so the production ``build-aggregates``
+        # CLI invoked by ``build_fixture`` runs against the same FK
+        # posture it would in production.
+        conn.execute("PRAGMA foreign_keys = ON")
     finally:
         db.close()
 
