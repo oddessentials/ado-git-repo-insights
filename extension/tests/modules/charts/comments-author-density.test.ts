@@ -498,4 +498,278 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     );
     expect(radioGroups).toHaveLength(1);
   });
+
+  // ===========================================================================
+  // US2 (T025): sort-toggle behaviour — clicking a button or activating it
+  // via Enter/Space re-orders the rows by the new metric and updates the
+  // aria-checked indicator.  Tie-break determinism (display name asc →
+  // author key asc) is reproducible across re-renders.
+  // ===========================================================================
+
+  function clickSortButton(metric: string): HTMLButtonElement {
+    const btn = container.querySelector<HTMLButtonElement>(
+      `.comments-author-density-sort-btn[data-sort-metric="${metric}"]`,
+    );
+    if (!btn) {
+      throw new Error(`sort button for metric ${metric} not found`);
+    }
+    btn.click();
+    return btn;
+  }
+
+  it("(T025-a) clicking the thread_count button re-orders rows and updates aria-checked", () => {
+    const authors = buildAuthorsDimension(3);
+    // thread_count and comment_count rank authors differently so the
+    // re-order is unambiguously visible.
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(1, 100, 0),
+      [authors[1]!.author_id]: makeBucket(50, 1, 25),
+      [authors[2]!.author_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+
+    clickSortButton("thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedKeys).toEqual([
+      authors[1]!.author_id,
+      authors[2]!.author_id,
+      authors[0]!.author_id,
+    ]);
+    const checked = container.querySelector(
+      '.comments-author-density-sort-btn[aria-checked="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("thread_count");
+    expect(checked?.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("(T025-b) clicking the active_thread_count button re-orders rows by active-thread desc", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(10, 50, 1),
+      [authors[1]!.author_id]: makeBucket(10, 50, 8),
+      [authors[2]!.author_id]: makeBucket(10, 50, 4),
+    };
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+
+    clickSortButton("active_thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedKeys).toEqual([
+      authors[1]!.author_id,
+      authors[2]!.author_id,
+      authors[0]!.author_id,
+    ]);
+  });
+
+  it("(T025-c) tie-break is reproducible — duplicate display names + duplicate metric tie ⇒ author key asc", () => {
+    // Five authors all named "Alice" with the same comment_count — every
+    // pair hits the final author-key tie-break.  Re-running the same
+    // render call MUST produce the identical row order.
+    const authors = [
+      { author_id: "user-eee", author_name: "Alice" },
+      { author_id: "user-bbb", author_name: "Alice" },
+      { author_id: "user-aaa", author_name: "Alice" },
+      { author_id: "user-ddd", author_name: "Alice" },
+      { author_id: "user-ccc", author_name: "Alice" },
+    ];
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a) => {
+      buckets[a.author_id] = makeBucket(1, 7, 0);
+    });
+    const expected = [
+      "user-aaa",
+      "user-bbb",
+      "user-ccc",
+      "user-ddd",
+      "user-eee",
+    ];
+
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const firstOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(firstOrder).toEqual(expected);
+
+    // Simulate a "page reload" by clearing the container and re-rendering
+    // with a fresh container element (drops the prior state in the
+    // sortMetricByContainer WeakMap so the default ordering applies).
+    container.remove();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const secondOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(secondOrder).toEqual(expected);
+  });
+
+  it("ignores click events that do not land on a sort button (delegated click handler)", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a, i) => {
+      buckets[a.author_id] = makeBucket(2, 100 - i, 1);
+    });
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const before = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+
+    // Click on the row table area (NOT a sort button) — handler should
+    // resolve closest() to null and short-circuit.
+    const firstRow = container.querySelector<HTMLElement>(
+      ".comments-author-density-row",
+    );
+    firstRow?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const after = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(after).toEqual(before);
+    const checked = container.querySelector(
+      '.comments-author-density-sort-btn[aria-checked="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
+  });
+
+  it("ignores keydown events that do not land on a sort button (delegated keydown handler)", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a, i) => {
+      buckets[a.author_id] = makeBucket(2, 100 - i, 1);
+    });
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const firstRow = container.querySelector<HTMLElement>(
+      ".comments-author-density-row",
+    );
+    // Enter on a row (not a sort button) — short-circuits via closest()===null.
+    firstRow?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    const checked = container.querySelector(
+      '.comments-author-density-sort-btn[aria-checked="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
+  });
+
+  it("ignores click + keydown when data-sort-metric is mutated to an unknown metric", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a, i) => {
+      buckets[a.author_id] = makeBucket(2, 100 - i, 1);
+    });
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+
+    // Mutate the thread_count button's metric attribute to a value that is
+    // NOT in COMMENTS_AUTHOR_DENSITY_SORT_METRICS.  Click + Enter must
+    // both resolve metric=undefined and short-circuit without re-rendering.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-author-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    threadBtn!.setAttribute("data-sort-metric", "bogus_metric");
+
+    threadBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    const checked = container.querySelector(
+      '.comments-author-density-sort-btn[aria-checked="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
+  });
+
+  it("ignores keys other than Enter/Space on a focused sort button (covers the keydown false branch)", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(1, 100, 0),
+      [authors[1]!.author_id]: makeBucket(50, 1, 25),
+      [authors[2]!.author_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    const before = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+
+    // Tab on the thread_count button MUST NOT re-order — only Enter / Space
+    // are activation keys per the WAI-ARIA radio-group contract.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-author-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+    );
+    const after = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(after).toEqual(before);
+    const checked = container.querySelector(
+      '.comments-author-density-sort-btn[aria-checked="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
+  });
+
+  it("(T025-d) keyboard activation (Enter / Space) on a focused button re-orders rows", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {
+      [authors[0]!.author_id]: makeBucket(1, 100, 0),
+      [authors[1]!.author_id]: makeBucket(50, 1, 25),
+      [authors[2]!.author_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsAuthorDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+
+    // Enter on the thread_count button.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-author-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    let orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedKeys[0]).toBe(authors[1]!.author_id); // 50 threads top
+
+    // Space on the active_thread_count button.
+    const activeBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-author-density-sort-btn[data-sort-metric="active_thread_count"]',
+    );
+    activeBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", bubbles: true }),
+    );
+    orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-author-density-row"),
+    ).map((r) => r.getAttribute("data-author-key"));
+    expect(orderedKeys[0]).toBe(authors[1]!.author_id); // 25 active top
+  });
 });

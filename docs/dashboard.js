@@ -8665,6 +8665,53 @@ var PRInsightsDashboard = (() => {
     if (displayCmp !== 0) return displayCmp;
     return a2.authorKey < b2.authorKey ? -1 : 1;
   }
+  var sortMetricByContainer = /* @__PURE__ */ new WeakMap();
+  var sortListenerControllers = /* @__PURE__ */ new WeakMap();
+  function attachSortToggleListeners(container, rollups, options) {
+    sortListenerControllers.get(container)?.abort();
+    const controller = new AbortController();
+    sortListenerControllers.set(container, controller);
+    const { signal } = controller;
+    const resolveMetric = (raw) => {
+      return COMMENTS_AUTHOR_DENSITY_SORT_METRICS.find((m2) => m2 === raw);
+    };
+    const activate = (metric) => {
+      sortMetricByContainer.set(container, metric);
+      renderCommentsAuthorDensityChart(container, rollups, {
+        ...options,
+        sortMetric: metric
+      });
+    };
+    const findSortButton = (event) => {
+      const target = event.target;
+      return target.closest(".comments-author-density-sort-btn");
+    };
+    container.addEventListener(
+      "click",
+      (event) => {
+        const button = findSortButton(event);
+        if (!button) return;
+        const metric = resolveMetric(button.dataset.sortMetric);
+        if (!metric) return;
+        activate(metric);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        const button = findSortButton(event);
+        if (!button) return;
+        const key = event.key;
+        if (key !== "Enter" && key !== " ") return;
+        const metric = resolveMetric(button.dataset.sortMetric);
+        if (!metric) return;
+        event.preventDefault();
+        activate(metric);
+      },
+      { signal }
+    );
+  }
   function renderCommentsAuthorDensityChart(container, rollups, options) {
     if (!container) return;
     if (options?.filters && hasActiveFilters2(options.filters)) {
@@ -8697,7 +8744,13 @@ var PRInsightsDashboard = (() => {
         coverage_partial: bucket.coverage_partial
       });
     }
-    const activeMetric = options?.sortMetric ?? "comment_count";
+    let activeMetric;
+    if (options?.sortMetric) {
+      activeMetric = options.sortMetric;
+      sortMetricByContainer.set(container, activeMetric);
+    } else {
+      activeMetric = sortMetricByContainer.get(container) ?? "comment_count";
+    }
     rows.sort((a2, b2) => compareRows(a2, b2, activeMetric));
     const truncated = rows.length > MAX_COMMENTS_AUTHOR_DENSITY_ROWS;
     const display = truncated ? rows.slice(0, MAX_COMMENTS_AUTHOR_DENSITY_ROWS) : rows;
@@ -8714,6 +8767,7 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}${sortControlsHtml}${tableHtml}${partialLegendHtml}`
     );
+    attachSortToggleListeners(container, rollups, options);
   }
   function metricLabel(metric) {
     switch (metric) {

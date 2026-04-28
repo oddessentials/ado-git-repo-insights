@@ -199,6 +199,98 @@ export interface CommentsAuthorDensityOptions {
 }
 
 /**
+ * Per-container sort metric state. Keys are the chart container element
+ * so a single dashboard with multiple chart instances (none today, but
+ * the contract leaves the door open) keeps state isolated. Set when the
+ * user clicks a sort button (US2 / T026); read when ``options.sortMetric``
+ * is not provided so the chart preserves its toggle state across
+ * re-renders triggered by filter / range changes.
+ */
+const sortMetricByContainer = new WeakMap<
+  HTMLElement,
+  CommentsAuthorDensitySortMetric
+>();
+
+/**
+ * Per-container listener controllers. Each render aborts the prior set
+ * before attaching fresh button handlers so re-renders never accumulate
+ * duplicate listeners (mirrors the throughput / 333 info-icon pattern).
+ */
+const sortListenerControllers = new WeakMap<HTMLElement, AbortController>();
+
+function attachSortToggleListeners(
+  container: HTMLElement,
+  rollups: Rollup[],
+  options: CommentsAuthorDensityOptions | undefined,
+): void {
+  // Drop any prior listeners attached on a previous render.  Use a
+  // single delegated handler on the container itself rather than per-
+  // button listeners so re-attach is a one-listener swap and so the
+  // metric is resolved AT click time from the rendered ``data-sort-metric``
+  // attribute (rather than captured at attach time).  The latter lets
+  // tests exercise the malformed-attribute branch by mutating the
+  // attribute between render and click — coverage of the validation
+  // branch comes from real DOM input rather than dead code.
+  sortListenerControllers.get(container)?.abort();
+  const controller = new AbortController();
+  sortListenerControllers.set(container, controller);
+  const { signal } = controller;
+
+  const resolveMetric = (
+    raw: string | undefined,
+  ): CommentsAuthorDensitySortMetric | undefined => {
+    return COMMENTS_AUTHOR_DENSITY_SORT_METRICS.find((m) => m === raw);
+  };
+
+  const activate = (metric: CommentsAuthorDensitySortMetric): void => {
+    sortMetricByContainer.set(container, metric);
+    // Re-render with the same rollups + options but the new metric.
+    // The new render replaces these listeners via the controller-abort
+    // pattern at the top of this function.
+    renderCommentsAuthorDensityChart(container, rollups, {
+      ...options,
+      sortMetric: metric,
+    });
+  };
+
+  const findSortButton = (event: Event): HTMLElement | null => {
+    // ``event.target`` is always the dispatching element under
+    // ``container.addEventListener`` so the cast is sound; a defensive
+    // ``instanceof Element`` check would create a dead branch the
+    // partial-branch coverage gate cannot reach from a real test.
+    const target = event.target as Element;
+    return target.closest<HTMLElement>(".comments-author-density-sort-btn");
+  };
+
+  container.addEventListener(
+    "click",
+    (event) => {
+      const button = findSortButton(event);
+      if (!button) return;
+      const metric = resolveMetric(button.dataset.sortMetric);
+      if (!metric) return;
+      activate(metric);
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    "keydown",
+    (event) => {
+      const button = findSortButton(event);
+      if (!button) return;
+      const key = (event as KeyboardEvent).key;
+      if (key !== "Enter" && key !== " ") return;
+      const metric = resolveMetric(button.dataset.sortMetric);
+      if (!metric) return;
+      event.preventDefault();
+      activate(metric);
+    },
+    { signal },
+  );
+}
+
+/**
  * Render the per-author comments-density breakdown.
  *
  * @param container Target container element. The dashboard call site is
@@ -253,8 +345,17 @@ export function renderCommentsAuthorDensityChart(
     });
   }
 
-  const activeMetric: CommentsAuthorDensitySortMetric =
-    options?.sortMetric ?? "comment_count";
+  // Resolve the active sort metric: explicit option wins (e.g., the
+  // dashboard hard-overrides per render), then per-container state set
+  // by the user's last button click (US2 / T026), then the default
+  // ``comment_count`` per CL-05.
+  let activeMetric: CommentsAuthorDensitySortMetric;
+  if (options?.sortMetric) {
+    activeMetric = options.sortMetric;
+    sortMetricByContainer.set(container, activeMetric);
+  } else {
+    activeMetric = sortMetricByContainer.get(container) ?? "comment_count";
+  }
   rows.sort((a, b) => compareRows(a, b, activeMetric));
 
   const truncated = rows.length > MAX_COMMENTS_AUTHOR_DENSITY_ROWS;
@@ -277,6 +378,8 @@ export function renderCommentsAuthorDensityChart(
     container,
     `${truncationHtml}${sortControlsHtml}${tableHtml}${partialLegendHtml}`,
   );
+
+  attachSortToggleListeners(container, rollups, options);
 }
 
 function metricLabel(metric: CommentsAuthorDensitySortMetric): string {
