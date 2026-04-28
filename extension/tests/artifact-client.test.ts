@@ -1167,6 +1167,99 @@ describe("AuthenticatedDatasetLoader", () => {
       expect(loader.getDefaultRangeDays()).toBe(180);
     });
   });
+
+  describe("getCapabilityState", () => {
+    // Regression: AuthenticatedDatasetLoader previously did not implement
+    // getCapabilityState(); the dashboard's capability gate at
+    // `dashboard.ts:1087` short-circuited on `undefined`, removing the
+    // comments-trend chart row in production even when the manifest had
+    // `capabilities.comments_metrics: true`. These tests construct a real
+    // AuthenticatedDatasetLoader (no fake of getCapabilityState) and prove
+    // the live-extension path now mirrors DatasetLoader semantics.
+
+    function buildLoader(manifest: ManifestSchema): AuthenticatedDatasetLoader {
+      const mockData: Record<string, unknown> = {
+        "123/aggregates/dataset-manifest.json": manifest,
+      };
+      const mockClient = new TestMockArtifactClient(mockData);
+      return new AuthenticatedDatasetLoader(
+        mockClient as unknown as ArtifactClient,
+        123,
+        "aggregates",
+      );
+    }
+
+    const baseManifest: ManifestSchema = {
+      manifest_schema_version: 1,
+      dataset_schema_version: 1,
+      aggregates_schema_version: 3,
+      aggregate_index: { weekly_rollups: [], distributions: [] },
+    };
+
+    it("returns commentsMetricsAvailable=true when manifest has capabilities.comments_metrics=true (live-extension regression for Feature 333)", async () => {
+      const loader = buildLoader({
+        ...baseManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      });
+
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(true);
+    });
+
+    it("returns commentsMetricsAvailable=false when manifest has capabilities.comments_metrics=false (negative control — prevents accidental permissive gating)", async () => {
+      const loader = buildLoader({
+        ...baseManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: false,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: false,
+        },
+      });
+
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(false);
+    });
+
+    it("returns DEFAULT_CAPABILITY_STATE.commentsMetricsAvailable=false when manifest omits capabilities and features.comments", async () => {
+      const loader = buildLoader(baseManifest);
+
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(false);
+    });
+
+    it("falls back to features.comments=true when capabilities.comments_metrics is absent (legacy-manifest compatibility — same fallback as DatasetLoader)", async () => {
+      const loader = buildLoader({
+        ...baseManifest,
+        features: { comments: true },
+      });
+
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(true);
+    });
+
+    it("returns DEFAULT_CAPABILITY_STATE before loadManifest() is called (no-state baseline)", () => {
+      const loader = buildLoader(baseManifest);
+
+      expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(false);
+      expect(loader.getCapabilityState().commentsCoverageStatus).toBe(
+        "disabled",
+      );
+    });
+  });
 });
 
 describe("MockArtifactClient", () => {
