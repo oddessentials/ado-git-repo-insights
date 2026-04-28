@@ -832,6 +832,126 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     expect(orderedAfter[0]).toBe(SENTINEL_KEY);
   });
 
+  // ===========================================================================
+  // US5 (T031): filter-not-supported posture (FR-4-07).  When ANY of the
+  // dashboard's per-PR dimension filters (repos / teams / authors /
+  // reviewers) is active, the chart MUST render a self-explanatory
+  // empty state instead of rows AND the empty state MUST be visibly
+  // distinct from the no-data-in-range empty state (FR-4-08).
+  // The short-circuit logic ships in US1 (T021); these tests gate
+  // the contract surface that future renders must keep honoring.
+  // ===========================================================================
+
+  it("(T031-a) any active dimension filter triggers the filter-not-supported empty state", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a) => {
+      buckets[a.author_id] = makeBucket(1, 5, 0);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    // Each of the four dimension axes individually triggers the
+    // filter-not-supported empty state (full FR-1-07 parity from 333).
+    const axes: (keyof FilterState)[] = [
+      "repos",
+      "teams",
+      "authors",
+      "reviewers",
+    ];
+    for (const axis of axes) {
+      const filters: FilterState = { ...emptyFilters(), [axis]: ["x"] };
+      // Re-mount a fresh container so each axis is observed in isolation
+      // (avoids state leak via the per-container sortMetric WeakMap).
+      const fresh = document.createElement("div");
+      document.body.appendChild(fresh);
+      renderCommentsAuthorDensityChart(fresh, rollups, {
+        filters,
+        authorsDimension: authors,
+      });
+      expect(
+        fresh.querySelectorAll(".comments-author-density-row").length,
+      ).toBe(0);
+      expect(fresh.textContent ?? "").toContain("filterable");
+      fresh.remove();
+    }
+  });
+
+  it("(T031-b) clearing the dimension filter restores the rendered rows", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a, i) => {
+      buckets[a.author_id] = makeBucket(2, 50 - i, 1);
+    });
+    const rollups = [makeRollup(0, buckets)];
+    const repoFilter: FilterState = {
+      ...emptyFilters(),
+      repos: ["repo-a"],
+    };
+
+    // Step 1: filter active → no rows, filter-not-supported text present.
+    renderCommentsAuthorDensityChart(container, rollups, {
+      filters: repoFilter,
+      authorsDimension: authors,
+    });
+    expect(
+      container.querySelectorAll(".comments-author-density-row").length,
+    ).toBe(0);
+    expect(container.textContent ?? "").toContain("filterable");
+
+    // Step 2: filter cleared → rows restored, filter-not-supported text gone.
+    renderCommentsAuthorDensityChart(container, rollups, {
+      filters: emptyFilters(),
+      authorsDimension: authors,
+    });
+    expect(
+      container.querySelectorAll(".comments-author-density-row").length,
+    ).toBe(3);
+    expect(container.textContent ?? "").not.toContain("filterable");
+  });
+
+  it("(T031-c) filter-not-supported empty state is visibly distinct from no-data-in-range", () => {
+    const authors = buildAuthorsDimension(3);
+    const buckets: Record<string, AuthorBucket> = {};
+    authors.forEach((a) => {
+      buckets[a.author_id] = makeBucket(1, 5, 0);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    // Filter-not-supported empty state.
+    renderCommentsAuthorDensityChart(container, rollups, {
+      filters: { ...emptyFilters(), repos: ["repo-a"] },
+      authorsDimension: authors,
+    });
+    const filterText = container.textContent ?? "";
+
+    // No-data-in-range empty state (rollups carry NO by_author_comments,
+    // so the reduce yields an empty Map and the chart short-circuits to
+    // the no-data branch instead of the filter-not-supported branch).
+    const fresh = document.createElement("div");
+    document.body.appendChild(fresh);
+    renderCommentsAuthorDensityChart(
+      fresh,
+      [makeRollup(0, undefined), makeRollup(1, undefined)],
+      { filters: emptyFilters(), authorsDimension: authors },
+    );
+    const noDataText = fresh.textContent ?? "";
+
+    // Distinct message text — neither phrase appears in the other state.
+    expect(filterText).toContain("filterable");
+    expect(filterText).not.toContain("No comments data");
+    expect(noDataText).toContain("No comments data");
+    expect(noDataText).not.toContain("filterable");
+
+    // Both empty states omit the rows table entirely (no DOM bleed-over).
+    expect(
+      container.querySelectorAll(".comments-author-density-row").length,
+    ).toBe(0);
+    expect(fresh.querySelectorAll(".comments-author-density-row").length).toBe(
+      0,
+    );
+    fresh.remove();
+  });
+
   it("(T028-c) dataset with zero unknown-to-users PRs in range emits NO sentinel row", () => {
     const authors = buildAuthorsDimension(3);
     const buckets: Record<string, AuthorBucket> = {};
