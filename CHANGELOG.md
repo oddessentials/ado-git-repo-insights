@@ -1,3 +1,10 @@
+## [101.19.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.19.0...v101.19.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **extension:** live-loader getCapabilityState regression hides comments-trend ([#347](https://github.com/oddessentials/ado-git-repo-insights/issues/347)) ([e1fea49](https://github.com/oddessentials/ado-git-repo-insights/commit/e1fea49e8de72dee56d284c5ff2f4c3738bbdd82))
+
 # [101.19.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.18.1...v101.19.0) (2026-04-27)
 
 
