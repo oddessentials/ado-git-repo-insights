@@ -95,6 +95,13 @@ _GATED_MANIFEST_PATHS: Final[frozenset[tuple[str, ...]]] = frozenset(
         # rollup tree is independently gated by the four FR-3-03
         # failure-mode tests below.
         ("comments",),
+        # Feature 334 FR-3-03 / INV-2-08: rollup-level per-author
+        # comments-density outer dict.  Same gating posture as the
+        # 333 ``comments`` sibling — stripped from both variants for
+        # subtests 1/2/3, then independently gated on the off variant
+        # by the four FR-3-03 failure-mode tests below (per-author
+        # parallels of the 333 (a)/(b)/(c)/(d) tests).
+        ("by_author_comments",),
     },
 )
 _GATED_PR_FIELDS: Final[frozenset[str]] = frozenset(
@@ -107,6 +114,11 @@ _GATED_PR_FIELDS: Final[frozenset[str]] = frozenset(
 _COMMENTS_AGGREGATE_FIELDS: Final[frozenset[str]] = frozenset(
     {"thread_count", "comment_count", "active_thread_count", "coverage_partial"},
 )
+# Feature 334: each entry inside ``rollup[W].by_author_comments`` carries
+# the same four atomic fields as the 333 ``comments`` aggregate (per-bucket
+# scope rather than per-week).  Used by the FR-3-03 partial-fielded test (d)
+# for the per-author surface.
+_BY_AUTHOR_COMMENTS_ENTRY_FIELDS: Final[frozenset[str]] = _COMMENTS_AGGREGATE_FIELDS
 
 # Reroot the scratch space under REPO_ROOT/tmp_test_work/ so the generator's
 # docs/data/ bypass guard (which calls .relative_to(REPO_ROOT)) doesn't
@@ -529,4 +541,125 @@ def test_fr_3_03_d_comments_key_not_partial_fielded_in_capability_off_rollups(
                 "key MUST be omitted (FR-3-03), and even under "
                 "capability-on the four fields are atomic per "
                 "INV-1-08.  See spec FR-3-03 + INV-1-08."
+            )
+
+
+# --------------------------------------------------------------------------
+# Feature 334 FR-3-03 four-failure-mode gate on the per-author surface.
+# Parallel to the 333 (a)/(b)/(c)/(d) tests above, scoped to the
+# ``by_author_comments`` rollup-root key (Feature 334 INV-2-08 atomicity
+# applies per-entry; FR-3-03 + INV-2-09 require the entire key absent
+# under capability-off).
+# --------------------------------------------------------------------------
+
+
+def test_fr_3_03_a_by_author_comments_key_absent_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (a) per-author: ``by_author_comments`` key absent on every off rollup.
+
+    Canonical absent state for the 334 surface.  Under
+    ``capabilities.comments_metrics === false`` the aggregator MUST NOT
+    emit the per-author outer dict at all.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        assert "by_author_comments" not in rollup, (
+            f"FR-3-03 (a) per-author violation in {rel!s}: rollup root "
+            f"has ``by_author_comments`` key under capability-off "
+            f"(value: {rollup.get('by_author_comments')!r}).  The entire "
+            "per-author outer dict MUST be absent when "
+            "capabilities.comments_metrics is false."
+        )
+
+
+def test_fr_3_03_b_by_author_comments_key_not_null_valued_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (b) per-author: key MUST NOT be present with null value.
+
+    Catches the regression where a producer emits
+    ``"by_author_comments": null`` under capability-off (defensive
+    "always emit, null when off" refactor).  Per FR-3-03 + INV-2-09
+    the entire key must be omitted; null is NOT acceptable.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "by_author_comments" in rollup:
+            value = rollup["by_author_comments"]
+            pytest.fail(
+                f"FR-3-03 (b) per-author violation in {rel!s}: "
+                f"``by_author_comments`` key present with value {value!r} "
+                "under capability-off.  Even null is a violation — the "
+                "key MUST be omitted entirely.  See spec FR-3-03 + "
+                "INV-2-09."
+            )
+
+
+def test_fr_3_03_c_by_author_comments_key_not_empty_object_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (c) per-author: key MUST NOT be present as ``{}``.
+
+    Catches the regression where a producer emits
+    ``"by_author_comments": {}`` under capability-off.  Per FR-3-03 +
+    INV-2-09 the entire key must be omitted.  Empty outer dict is
+    additionally a contract violation under capability-on (the producer
+    must omit when no buckets exist) — independent of capability state.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "by_author_comments" in rollup:
+            value = rollup["by_author_comments"]
+            pytest.fail(
+                f"FR-3-03 (c) per-author violation in {rel!s}: "
+                f"``by_author_comments`` key present (value: {value!r}) "
+                "under capability-off.  An empty object ``{}`` is NOT "
+                "acceptable — the key MUST be omitted entirely.  See "
+                "spec FR-3-03 + INV-2-09."
+            )
+
+
+def test_fr_3_03_d_by_author_comments_key_not_partial_entries_in_capability_off_rollups(
+    variant_trees: tuple[Path, Path],
+) -> None:
+    """FR-3-03 (d) per-author: key MUST NOT be present with partial entries.
+
+    Catches the regression where a producer emits ``by_author_comments``
+    populated with one or more entries that violate INV-2-08 atomicity
+    (entries missing one of the four canonical fields, or with null in a
+    numeric field) under capability-off.  Per FR-3-03 the entire key
+    must be omitted; per INV-2-08 each entry is atomic when present.
+    """
+    _on_dir, off_dir = variant_trees
+    for rel, rollup in _iter_off_variant_rollups(off_dir):
+        if "by_author_comments" in rollup:
+            value = rollup["by_author_comments"]
+            if isinstance(value, dict):
+                shape_diags: list[str] = []
+                for entry_key, entry_value in value.items():
+                    if isinstance(entry_value, dict):
+                        present = frozenset(entry_value.keys())
+                        missing = sorted(_BY_AUTHOR_COMMENTS_ENTRY_FIELDS - present)
+                        extra = sorted(present - _BY_AUTHOR_COMMENTS_ENTRY_FIELDS)
+                        shape_diags.append(
+                            f"entry[{entry_key!r}]: present_fields="
+                            f"{sorted(present)!r}, missing_canonical="
+                            f"{missing!r}, extra_unknown={extra!r}"
+                        )
+                    else:
+                        shape_diags.append(
+                            f"entry[{entry_key!r}]: non-dict value={entry_value!r}"
+                        )
+                shape_diag = "; ".join(shape_diags) if shape_diags else "<empty>"
+            else:
+                shape_diag = f"non-dict outer value={value!r}"
+            pytest.fail(
+                f"FR-3-03 (d) per-author violation in {rel!s}: "
+                f"``by_author_comments`` key present under capability-off "
+                f"({shape_diag}).  Partial-entry shapes (e.g., entries "
+                "with 3 of 4 fields) are NEVER acceptable — under "
+                "capability-off the entire key MUST be omitted "
+                "(FR-3-03), and under capability-on each entry is atomic "
+                "per INV-2-08.  See spec FR-3-03 + INV-2-09."
             )

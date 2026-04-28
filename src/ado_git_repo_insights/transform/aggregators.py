@@ -40,6 +40,7 @@ from ..types import (
     UserRecord,
     WeeklyRollupIndexEntry,
 )
+from .constants import FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
 from .schema_versions import (
     AGGREGATES_SCHEMA_VERSION,
     DATASET_SCHEMA_VERSION,
@@ -714,6 +715,19 @@ class AggregateGenerator:
             if weekly_comments is not None:
                 rollup_dict["comments"] = weekly_comments
 
+            # Feature 334: per-(week, author) comments-density emission
+            # (FR-1-01..FR-1-08).  Capability-on emits the
+            # ``by_author_comments`` outer dict on the rollup root, keyed
+            # by author_id (or the reserved sentinel literal when the
+            # author is absent from ``users``).  Capability-off omits the
+            # key entirely (FR-3-03 + INV-2-08 atomicity).  Empty outer
+            # dict (no PRs in the canonical set) is also omitted.
+            weekly_by_author_comments = self._compute_weekly_by_author_comments(
+                week_pr_uids
+            )
+            if weekly_by_author_comments:
+                rollup_dict["by_author_comments"] = weekly_by_author_comments
+
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
             if by_author:
@@ -1070,6 +1084,141 @@ class AggregateGenerator:
             "active_thread_count": int(row["active_thread_count"]),
             "coverage_partial": coverage_partial,
         }
+
+    def _compute_weekly_by_author_comments(
+        self, week_pr_uids: set[str]
+    ) -> dict[str, dict[str, int | bool]] | None:
+        """Compute per-(week, author) ``by_author_comments`` emission for one week.
+
+        Returns ``None`` when ``_has_comments()`` is False or when
+        ``week_pr_uids`` is empty so callers can omit the
+        ``by_author_comments`` key entirely (FR-3-03 + INV-2-08
+        atomicity — the key MUST be absent under capability-off, NOT
+        ``None``-valued, NOT ``{}``-valued, NOT partial).
+
+        When capability-on with a non-empty canonical set, returns an
+        outer dict keyed by ``author_id`` (or the reserved sentinel
+        literal ``FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL`` when the
+        author is absent from the ``users`` table per CL-03 + FR-1-03).
+        Each inner dict carries the four atomic fields:
+
+          - ``thread_count``: SUM over the bucket's extracted-subset
+            (PRs with ``comments_extracted_at IS NOT NULL``) of the
+            per-PR active-or-closed thread count, after C1 inclusion
+            (``pr_threads.is_deleted = 0``).  PRs in the canonical
+            set with ``comments_extracted_at IS NULL`` contribute zero
+            to this sum (FR-1-05).
+          - ``comment_count``: SUM over the same extracted-subset of
+            per-PR comment count after C1 (``pr_comments.is_deleted = 0``).
+          - ``active_thread_count``: SUM over the same extracted-subset
+            of per-PR active-thread count (threads with
+            ``status = 'active'`` after C1).
+          - ``coverage_partial``: ``True`` iff at least one PR in W's
+            canonical throughput PR set keyed under the same bucket
+            has ``comments_extracted_at IS NULL`` (FR-1-06).  Each
+            bucket's flag is independent of every other bucket's flag.
+
+        Outer dict key order is ascending by author key (the stable
+        identity string, including the sentinel literal which sorts
+        between digit-starting and letter-starting UUIDs in ASCII)
+        per QG-05 + plan.md directive 3.  Display name is NOT used
+        for producer-side ordering — that's renderer-side tie-breaking
+        per FR-4-05.
+
+        SQL pattern mirrors ``_compute_weekly_comments_aggregate`` but
+        adds a ``LEFT JOIN users`` for sentinel detection and a
+        ``GROUP BY author_or_sentinel``.  Sentinel literal is bound
+        via parameter (not f-string interpolation) — S608 compliance
+        per ``reference_s608_refactor_pattern.md``.
+
+        Spec anchors: FR-1-01..FR-1-08, FR-3-03, INV-2-07, INV-2-08,
+        ADR T005, ADR T006, CL-03, CL-07.  C1 contract authority:
+        ``specs/310-comments-visualization/spec.md`` "Shared
+        inclusion-rule contract (C1)".
+        """
+        if not self._has_comments():
+            return None
+
+        if not week_pr_uids:
+            # Defensive: empty canonical set yields no bucket emission.
+            # Callers see ``None`` and omit the ``by_author_comments``
+            # key (consistent with FR-3-03 omission contract).
+            return None
+
+        self.db.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS "
+            "_aggr_week_by_author_comments_slice "
+            "(pull_request_uid TEXT PRIMARY KEY)"
+        )
+        self.db.execute("DELETE FROM _aggr_week_by_author_comments_slice")
+        self.db.executemany(
+            "INSERT INTO _aggr_week_by_author_comments_slice "
+            "(pull_request_uid) VALUES (?)",
+            [(uid,) for uid in week_pr_uids],
+        )
+
+        cursor = self.db.execute(
+            "SELECT "
+            "  CASE WHEN u.user_id IS NULL THEN ? ELSE pr.user_id END "
+            "    AS author_or_sentinel, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.thread_count ELSE 0 END), 0) "
+            "    AS thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.comment_count ELSE 0 END), 0) "
+            "    AS comment_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.active_thread_count ELSE 0 END), 0) "
+            "    AS active_thread_count, "
+            "  MAX(CASE WHEN pr.comments_extracted_at IS NULL "
+            "          THEN 1 ELSE 0 END) "
+            "    AS coverage_partial "
+            "FROM pull_requests pr "
+            "INNER JOIN _aggr_week_by_author_comments_slice s "
+            "  ON s.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN users u ON u.user_id = pr.user_id "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS thread_count, "
+            "         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) "
+            "           AS active_thread_count "
+            "  FROM pr_threads "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") t ON t.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  FROM pr_comments "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") c ON c.pull_request_uid = pr.pull_request_uid "
+            "GROUP BY author_or_sentinel "
+            "ORDER BY author_or_sentinel ASC",
+            (FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,),
+        )
+
+        buckets: dict[str, dict[str, int | bool]] = {}
+        for row in cursor.fetchall():
+            key_raw = row["author_or_sentinel"]
+            if key_raw is None:
+                # Defensive: a NULL author_id with no users-row would
+                # have been mapped to the sentinel by the CASE; a NULL
+                # author key here means an unexpected schema state.
+                # Skip rather than emit a NULL key into the JSON.
+                continue
+            key = str(key_raw)
+            coverage_raw = row["coverage_partial"]
+            coverage_partial = coverage_raw is not None and int(coverage_raw) > 0
+            buckets[key] = {
+                "thread_count": int(row["thread_count"]),
+                "comment_count": int(row["comment_count"]),
+                "active_thread_count": int(row["active_thread_count"]),
+                "coverage_partial": coverage_partial,
+            }
+
+        if not buckets:
+            return None
+        return buckets
 
     def _generate_author_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame

@@ -1453,4 +1453,173 @@ describe("Rollup Schema Validator", () => {
       expect(result.errors).toHaveLength(0);
     });
   });
+
+  // =========================================================================
+  // Feature 334 per-author comments-density: rollup-root `by_author_comments`
+  // outer dict.  Each entry is atomic per INV-2-08 (mirrors 333's per-week
+  // INV-1-08 at sub-object granularity).  ADR T003 atomicity posture is
+  // STRICT ERROR in BOTH strict and permissive modes — same justification as
+  // the 333 `comments` validator (no legacy emissions to grandfather).
+  // Capability-off (FR-3-03 + INV-2-09) signals via the entire key being
+  // absent.  The reserved sentinel literal `__former_or_unavailable_author__`
+  // is a permitted bucket key.
+  // =========================================================================
+  describe("rollup-root by_author_comments outer dict (feature 334 INV-2-08)", () => {
+    const BASE_334 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+    const SENTINEL_LITERAL = "__former_or_unavailable_author__";
+
+    it("(a) passes validation with a complete by_author_comments entry", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_author_comments"),
+      ).toBe(false);
+    });
+
+    it("(b) FAILS atomicity in BOTH strict and permissive modes when an entry is partial (ADR T003)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            // coverage_partial intentionally absent — INV-2-08 violation.
+          },
+        },
+      };
+      for (const strict of [false, true] as const) {
+        const result = validateRollup(rollup, strict);
+        expect(result.valid).toBe(false);
+        expect(
+          result.errors.some(
+            (e) =>
+              e.field.includes("by_author_comments") &&
+              e.message.toLowerCase().includes("coverage_partial"),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("(c) FAILS when a numeric field is null (INV-2-08: zero is the empty-extracted-subset sum, null is not a sentinel)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: null,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("null"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(d) passes validation when by_author_comments key is entirely absent (capability-off path)", () => {
+      const rollup = { ...BASE_334 };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_author_comments"),
+      ).toBe(false);
+    });
+
+    it("(e) FAILS with wrong-typed numeric field (e.g., thread_count is a string)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: "5" as unknown as number,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(f) FAILS when active_thread_count > thread_count per entry (INV-2-07 ordering)", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 4, // > thread_count, INV-2-07 violation
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("active_thread_count") &&
+            e.message.toLowerCase().includes("inv-2-07"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(g) accepts the reserved sentinel literal as a bucket key with an atomic entry", () => {
+      const rollup = {
+        ...BASE_334,
+        by_author_comments: {
+          [SENTINEL_LITERAL]: {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: true,
+          },
+          "alice-uid": {
+            thread_count: 1,
+            comment_count: 1,
+            active_thread_count: 0,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });

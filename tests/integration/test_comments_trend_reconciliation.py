@@ -73,6 +73,9 @@ from typing import Final, TypedDict
 import pandas as pd
 import pytest
 
+from ado_git_repo_insights.transform.constants import (
+    FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
+)
 from tests.fixtures.sc05.fixture_builder import SC05Fixture
 
 
@@ -450,3 +453,389 @@ def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
                 # all are out of scope for FR-2-04 (a) — the contract only
                 # covers PRs in the drill-down ∩ canonical intersection. No
                 # assertion here.
+
+
+# --------------------------------------------------------------------------- #
+# Feature 334 per-author reconciliation                                        #
+# --------------------------------------------------------------------------- #
+#
+# FR-2-01 / FR-2-02 / FR-2-03 (Feature 334): every (W, author_or_sentinel)
+# bucket emitted under ``rollup[W].by_author_comments`` MUST match an
+# independent re-computation grounded outside ``aggregators.py``.  The
+# round-9 isolation rule extends automatically since the import-forbid is
+# by-FILE; the helpers here re-implement bucket grouping via direct SQL
+# (LEFT JOIN to ``users`` for sentinel detection per FR-1-03 + CL-03) and
+# C1 inclusion rules (re-implemented inline per the existing 333 helpers
+# above, no aggregator imports).
+
+
+def _author_bucket_for_uid(
+    conn: sqlite3.Connection,
+    pull_request_uid: str,
+) -> str:
+    """Resolve the bucket key for one PR (author_id or sentinel literal).
+
+    Independent of ``aggregators.py``.  LEFT JOIN to ``users`` mirrors
+    the producer's resolution rule: PRs whose ``user_id`` is absent
+    from the ``users`` table collapse into the single sentinel bucket
+    ``FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL`` (CL-03 + FR-1-03).  A
+    NULL ``user_id`` on the PR row is treated as unknown-to-``users``
+    (also collapses into the sentinel bucket) — the same behavior the
+    aggregator's ``CASE WHEN u.user_id IS NULL`` produces.
+    """
+    cursor = conn.execute(
+        "SELECT pr.user_id, u.user_id AS users_match "
+        "FROM pull_requests pr "
+        "LEFT JOIN users u ON u.user_id = pr.user_id "
+        "WHERE pr.pull_request_uid = ?",
+        (pull_request_uid,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+    if row["users_match"] is None:
+        return FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+    return str(row["user_id"])
+
+
+class _ExpectedBucket(TypedDict):
+    """Independent re-computation result for one (W, author_or_sentinel) bucket."""
+
+    thread_count: int
+    comment_count: int
+    active_thread_count: int
+    coverage_partial: bool
+
+
+def _build_expected_buckets(
+    conn: sqlite3.Connection,
+    canonical_prs: list[_CanonicalPrRow],
+) -> dict[str, _ExpectedBucket]:
+    """Independent re-computation of one week's per-author bucket emissions.
+
+    Groups ``canonical_prs`` by resolved bucket key (author_id or
+    sentinel) via direct SQL on each PR's ``user_id`` LEFT JOIN
+    ``users``.  For each bucket: filters to extracted-subset (PRs
+    with ``comments_extracted_at IS NOT NULL``), sums per-PR C1
+    counts via ``_per_pr_counts``, derives ``coverage_partial`` as
+    ``(any PR in the bucket has comments_extracted_at IS NULL)``.
+
+    Buckets with empty extracted-subset still emit (numeric=0, but
+    ``coverage_partial = True`` since by definition all the bucket's
+    PRs are unextracted — every author with any canonical PR gets a
+    bucket regardless of extraction state).
+    """
+    grouped: dict[str, list[_CanonicalPrRow]] = {}
+    for pr in canonical_prs:
+        bucket = _author_bucket_for_uid(conn, pr["pull_request_uid"])
+        grouped.setdefault(bucket, []).append(pr)
+
+    expected: dict[str, _ExpectedBucket] = {}
+    for bucket, prs in grouped.items():
+        thread_count = 0
+        comment_count = 0
+        active_thread_count = 0
+        any_unextracted = False
+        for pr in prs:
+            if pr["comments_extracted_at"] is None:
+                any_unextracted = True
+                continue
+            tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+            thread_count += tc
+            comment_count += cc
+            active_thread_count += atc
+        expected[bucket] = _ExpectedBucket(
+            thread_count=thread_count,
+            comment_count=comment_count,
+            active_thread_count=active_thread_count,
+            coverage_partial=any_unextracted,
+        )
+    return expected
+
+
+def _by_author_comments_dict(
+    rollup: dict[str, object],
+    week_key: str,
+) -> dict[str, dict[str, object]]:
+    """Return ``rollup[W].by_author_comments`` validated as a dict-of-dicts.
+
+    Fails the test with a clear message rather than a confusing type
+    error when the producer has not yet emitted the key (TDD failure
+    mode for the per-author reconciliation tests).
+    """
+    raw = rollup.get("by_author_comments")
+    assert raw is not None, (
+        f"week {week_key}: rollup[W].by_author_comments key MISSING. "
+        "FR-1-01 requires the aggregator to emit the per-author bucket "
+        "outer dict on every weekly rollup when "
+        "capabilities.comments_metrics is enabled and the canonical set "
+        "is non-empty.  Until Feature 334's aggregator emission lands, "
+        "this assertion is the TDD failure mode for the per-author "
+        "reconciliation tests."
+    )
+    assert isinstance(raw, dict), (
+        f"week {week_key}: rollup[W].by_author_comments has unexpected "
+        f"type {type(raw).__name__}; expected dict per INV-2-08 atomicity"
+    )
+    typed: dict[str, dict[str, object]] = {}
+    for key, entry in raw.items():
+        assert isinstance(entry, dict), (
+            f"week {week_key}: by_author_comments[{key!r}] has unexpected "
+            f"type {type(entry).__name__}; expected 4-field dict"
+        )
+        typed[str(key)] = entry
+    return typed
+
+
+def test_sc05_reconciliation_per_week_by_author_independent(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-02 (Feature 334): per-(W, bucket) independent re-computation parity.
+
+    For every week W and every bucket key in ``rollup[W].by_author_comments``,
+    the four atomic fields MUST equal the result of an independent
+    re-computation that:
+
+    1. Determines W's canonical throughput PR set via direct SQL against
+       ``pull_requests`` (re-implemented week-attribution rule per ADR T005).
+    2. Groups each PR by resolved bucket key (author_id or sentinel)
+       via LEFT JOIN to ``users``.
+    3. Filters each bucket's PRs to W's extracted-subset.
+    4. Sums per-PR C1 counts (``_per_pr_counts``).
+    5. Derives ``coverage_partial`` per bucket as
+       ``(∃ PR in bucket with comments_extracted_at IS NULL)``.
+
+    Round-9 isolation: helpers re-implement everything inline; no
+    imports from ``aggregators.py``.  The sentinel literal is imported
+    from ``transform.constants`` (a non-aggregator module).
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}; "
+        "fixture builder is broken"
+    )
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            if not canonical_prs:
+                # Week with no canonical PRs — producer omits the key
+                # entirely (FR-3-03 omission contract).
+                assert "by_author_comments" not in rollup, (
+                    f"week {week_key}: rollup has empty canonical PR set "
+                    "but emits a non-omitted by_author_comments key"
+                )
+                continue
+
+            buckets_emitted = _by_author_comments_dict(rollup, week_key)
+            expected_buckets = _build_expected_buckets(conn, canonical_prs)
+
+            assert set(buckets_emitted.keys()) == set(expected_buckets.keys()), (
+                f"week {week_key}: by_author_comments key set "
+                f"{sorted(buckets_emitted.keys())!r} != independent "
+                f"re-computation {sorted(expected_buckets.keys())!r} "
+                "(FR-1-03 + FR-2-02: every author/sentinel with a canonical "
+                "PR in W MUST appear in the bucket dict)"
+            )
+
+            for bucket_key, emitted in buckets_emitted.items():
+                expected = expected_buckets[bucket_key]
+                assert emitted["thread_count"] == expected["thread_count"], (
+                    f"week {week_key}, bucket {bucket_key!r}: thread_count="
+                    f"{emitted['thread_count']!r} != independent re-computation "
+                    f"{expected['thread_count']} (FR-2-02 violation)"
+                )
+                assert emitted["comment_count"] == expected["comment_count"], (
+                    f"week {week_key}, bucket {bucket_key!r}: comment_count="
+                    f"{emitted['comment_count']!r} != independent re-computation "
+                    f"{expected['comment_count']} (FR-2-02 violation)"
+                )
+                assert (
+                    emitted["active_thread_count"] == expected["active_thread_count"]
+                ), (
+                    f"week {week_key}, bucket {bucket_key!r}: "
+                    f"active_thread_count={emitted['active_thread_count']!r} != "
+                    f"independent re-computation {expected['active_thread_count']} "
+                    "(FR-2-02 violation)"
+                )
+                assert emitted["coverage_partial"] is expected["coverage_partial"], (
+                    f"week {week_key}, bucket {bucket_key!r}: coverage_partial="
+                    f"{emitted['coverage_partial']!r} != independent re-computation "
+                    f"{expected['coverage_partial']!r} (FR-1-06: True iff at least "
+                    "one PR in the bucket's canonical set has "
+                    "comments_extracted_at IS NULL)"
+                )
+
+
+def test_sc05_reconciliation_per_week_by_author_sentinel_parity(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-03 (Feature 334): sentinel bucket aggregates ALL unknown-to-users PRs.
+
+    For each week W, if ``rollup[W].by_author_comments`` carries an entry
+    keyed by the reserved sentinel literal, that entry's metrics MUST
+    equal the SUM of contributions from ALL PRs in W's canonical set
+    whose ``user_id`` is absent from the ``users`` table.  If zero such
+    PRs exist for W, the sentinel bucket MUST NOT be emitted for W.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+
+            unknown_prs: list[_CanonicalPrRow] = [
+                pr
+                for pr in canonical_prs
+                if _author_bucket_for_uid(conn, pr["pull_request_uid"])
+                == FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+            ]
+
+            buckets_raw = rollup.get("by_author_comments")
+            sentinel_emitted: dict[str, object] | None
+            if isinstance(buckets_raw, dict):
+                raw_entry = buckets_raw.get(FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL)
+                sentinel_emitted = raw_entry if isinstance(raw_entry, dict) else None
+            else:
+                sentinel_emitted = None
+
+            if not unknown_prs:
+                assert sentinel_emitted is None, (
+                    f"week {week_key}: zero unknown-to-users PRs in canonical "
+                    "set but sentinel bucket "
+                    f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r} is emitted "
+                    "(FR-2-03 + CL-03: sentinel MUST NOT be emitted when no "
+                    "unknown-author PRs exist for W)"
+                )
+                continue
+
+            assert sentinel_emitted is not None, (
+                f"week {week_key}: {len(unknown_prs)} unknown-to-users PRs "
+                "in canonical set but sentinel bucket "
+                f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r} is missing from "
+                "rollup[W].by_author_comments (FR-2-03 violation)"
+            )
+
+            expected_thread = 0
+            expected_comment = 0
+            expected_active = 0
+            any_unextracted = False
+            for pr in unknown_prs:
+                if pr["comments_extracted_at"] is None:
+                    any_unextracted = True
+                    continue
+                tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+                expected_thread += tc
+                expected_comment += cc
+                expected_active += atc
+
+            assert sentinel_emitted["thread_count"] == expected_thread, (
+                f"week {week_key}: sentinel bucket thread_count="
+                f"{sentinel_emitted['thread_count']!r} != independent SUM "
+                f"{expected_thread} over {len(unknown_prs)} unknown-author PRs "
+                "(FR-2-03)"
+            )
+            assert sentinel_emitted["comment_count"] == expected_comment, (
+                f"week {week_key}: sentinel bucket comment_count="
+                f"{sentinel_emitted['comment_count']!r} != independent SUM "
+                f"{expected_comment} (FR-2-03)"
+            )
+            assert sentinel_emitted["active_thread_count"] == expected_active, (
+                f"week {week_key}: sentinel bucket active_thread_count="
+                f"{sentinel_emitted['active_thread_count']!r} != independent "
+                f"SUM {expected_active} (FR-2-03)"
+            )
+            assert sentinel_emitted["coverage_partial"] is any_unextracted, (
+                f"week {week_key}: sentinel bucket coverage_partial="
+                f"{sentinel_emitted['coverage_partial']!r} != independent "
+                f"re-computation {any_unextracted!r} (FR-1-06 propagated "
+                "to sentinel bucket)"
+            )
+
+
+def test_sc05_reconciliation_per_week_by_author_pairwise_drilldown(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-01 (Feature 334): drill-down ∩ extracted-subset PRs map to a bucket.
+
+    For every PR P in ``rollup[W].prs`` AND in W's extracted-subset, P's
+    resolved bucket key MUST exist in ``rollup[W].by_author_comments``,
+    and P's drill-down per-PR values MUST equal an independent C1
+    re-computation (the value-equality side; the existing 333 test
+    covers this for ``rollup[W].comments`` — this test extends the
+    cross-surface coherence check to the per-author surface).
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            extracted_prs = [
+                pr for pr in canonical_prs if pr["comments_extracted_at"] is not None
+            ]
+            if not canonical_prs:
+                continue
+
+            buckets_emitted = _by_author_comments_dict(rollup, week_key)
+            id_to_uid_extracted: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"] for pr in extracted_prs
+            }
+
+            for record in _drilldown_pr_records(rollup):
+                pr_id_raw = record.get("id")
+                if not isinstance(pr_id_raw, int):
+                    continue
+                pr_id = pr_id_raw
+                if pr_id not in id_to_uid_extracted:
+                    # Unextracted drill-down PRs are out of scope — covered
+                    # by the existing 333 reconciliation test for the
+                    # round-9 positive sentinel.
+                    continue
+
+                pr_uid = id_to_uid_extracted[pr_id]
+                bucket_key = _author_bucket_for_uid(conn, pr_uid)
+                assert bucket_key in buckets_emitted, (
+                    f"week {week_key}, PR id={pr_id}: resolved bucket "
+                    f"{bucket_key!r} is missing from "
+                    f"rollup[W].by_author_comments (FR-2-01: every "
+                    "drill-down ∩ extracted-subset PR's author MUST have "
+                    "a bucket emission)"
+                )
+
+                expected_tc, expected_cc, expected_atc = _per_pr_counts(conn, pr_uid)
+                drill_thread = record.get("thread_count")
+                drill_comment = record.get("comment_count")
+                drill_active = record.get("active_thread_count")
+                assert drill_thread == expected_tc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down thread_count="
+                    f"{drill_thread!r} != independent re-computation "
+                    f"{expected_tc} (FR-2-01: per-author surface coherence)"
+                )
+                assert drill_comment == expected_cc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down comment_count="
+                    f"{drill_comment!r} != independent re-computation "
+                    f"{expected_cc} (FR-2-01)"
+                )
+                assert drill_active == expected_atc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down "
+                    f"active_thread_count={drill_active!r} != independent "
+                    f"re-computation {expected_atc} (FR-2-01)"
+                )
