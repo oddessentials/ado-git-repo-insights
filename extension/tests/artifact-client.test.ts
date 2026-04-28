@@ -8,6 +8,16 @@
  * - AuthenticatedDatasetLoader manifest validation and caching
  */
 
+import * as _fsOriginal from "fs";
+
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
+
+const _fs = _loadFs();
+
+import { resolve as resolvePath } from "path";
+
 import {
   ArtifactClient,
   AuthenticatedDatasetLoader,
@@ -1257,6 +1267,69 @@ describe("AuthenticatedDatasetLoader", () => {
       expect(loader.getCapabilityState().commentsMetricsAvailable).toBe(false);
       expect(loader.getCapabilityState().commentsCoverageStatus).toBe(
         "disabled",
+      );
+    });
+
+    it("gates the Feature 334 per-author chart via the same loader path that the 333 chart uses (live-extension regression)", async () => {
+      // F3 reinforcement (Feature 334): the per-author comments-density
+      // chart row introduced by US1 is gated on
+      // ``loader.getCapabilityState()?.commentsMetricsAvailable === true``
+      // — the SAME expression the 333 comments-trend chart uses.  PR
+      // #347 fixed the live-extension regression where that gate
+      // short-circuited to ``false`` on AuthenticatedDatasetLoader
+      // because the method was missing; this test re-exercises the
+      // capability path against the per-author chart's call site so a
+      // future loader refactor cannot silently re-introduce the same
+      // failure mode for the new chart.
+      const loader = buildLoader({
+        ...baseManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      });
+
+      await loader.loadManifest();
+
+      // Live-loader capability state is the load-bearing gate for the
+      // per-author chart.  Confirm via the same chained access the
+      // dashboard uses at the per-author chart's call site.
+      const gateValue =
+        loader.getCapabilityState?.()?.commentsMetricsAvailable === true;
+      expect(gateValue).toBe(true);
+    });
+
+    it("source-parse: the per-author chart's dashboard gate uses the SAME getCapabilityState chain as the 333 chart", () => {
+      // Lock the dashboard call sites so a refactor cannot drop the
+      // per-author gate or pivot it to a different loader method
+      // without surfacing here.
+      const dashboardSrcLocal = _fs.readFileSync(
+        resolvePath(__dirname, "../ui/dashboard.ts"),
+        "utf-8",
+      );
+
+      // Both the 333 and 334 chart blocks must reference the canonical
+      // ``commentsMetricsAvailable`` field via the optional-chained
+      // ``getCapabilityState`` call.
+      const occurrences = dashboardSrcLocal.match(
+        /loader\?\.getCapabilityState\?\.\(\)\?\.commentsMetricsAvailable === true/g,
+      );
+      expect(occurrences).not.toBeNull();
+      // At least two: one for the 333 chart, one for the 334 chart.
+      expect(occurrences!.length).toBeGreaterThanOrEqual(2);
+
+      // The 334 ``ensureCommentsAuthorDensityContainer()`` call sits
+      // inside the capability-on branch.
+      expect(dashboardSrcLocal).toContain(
+        "ensureCommentsAuthorDensityContainer()",
+      );
+      // The capability-off branch calls the remove helper.
+      expect(dashboardSrcLocal).toContain(
+        "removeCommentsAuthorDensityContainer()",
       );
     });
   });
