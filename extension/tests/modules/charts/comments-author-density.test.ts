@@ -20,7 +20,8 @@
  *       and no click handler attached by the chart module.
  *   (g) FR-4-10 a11y: rows expose metrics via screen-reader-readable
  *       aria-label; sort-selector buttons are wired into a WAI-ARIA
- *       radio-group (role="radio" + aria-checked + tabindex).
+ *       toolbar (role="toolbar" + aria-pressed; each <button> is
+ *       independently Tab-reachable).
  *   (h) Chart-layer idempotency: rendering twice on the same container
  *       produces ONE chart, not two — content replaced via the
  *       throughput / 333-style renderTrustedHtml pattern.
@@ -287,20 +288,25 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
       authorsDimension: authors,
     });
 
-    const radioGroup = container.querySelector(
-      '.comments-author-density-sort[role="radiogroup"]',
+    const toolbar = container.querySelector(
+      '.comments-author-density-sort[role="toolbar"]',
     );
-    expect(radioGroup).not.toBeNull();
+    expect(toolbar).not.toBeNull();
     const buttons = container.querySelectorAll<HTMLButtonElement>(
-      '.comments-author-density-sort-btn[role="radio"]',
+      ".comments-author-density-sort-btn",
     );
     expect(buttons).toHaveLength(3);
+    // Toolbar pattern: every button is independently Tab-reachable
+    // (default <button> tabindex=0, no explicit tabindex attribute).
+    buttons.forEach((btn) => {
+      expect(btn.tagName).toBe("BUTTON");
+      expect(btn.hasAttribute("tabindex")).toBe(false);
+    });
     const checked = container.querySelectorAll(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked).toHaveLength(1);
     expect(checked[0]?.getAttribute("data-sort-metric")).toBe("comment_count");
-    expect(checked[0]?.getAttribute("tabindex")).toBe("0");
 
     // Rows carry an aria-label that includes all 3 metric values.
     const firstRow = container.querySelector<HTMLElement>(
@@ -448,7 +454,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     expect(orderedKeys?.[1]).toBe(authors[2]!.author_id); // 20 threads
     expect(orderedKeys?.[2]).toBe(authors[0]!.author_id); // 1 thread
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("thread_count");
   });
@@ -493,16 +499,16 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     expect(tables).toHaveLength(1);
     const rows = container.querySelectorAll(".comments-author-density-row");
     expect(rows).toHaveLength(5);
-    const radioGroups = container.querySelectorAll(
-      '.comments-author-density-sort[role="radiogroup"]',
+    const toolbars = container.querySelectorAll(
+      '.comments-author-density-sort[role="toolbar"]',
     );
-    expect(radioGroups).toHaveLength(1);
+    expect(toolbars).toHaveLength(1);
   });
 
   // ===========================================================================
   // US2 (T025): sort-toggle behaviour — clicking a button or activating it
   // via Enter/Space re-orders the rows by the new metric and updates the
-  // aria-checked indicator.  Tie-break determinism (display name asc →
+  // aria-pressed indicator.  Tie-break determinism (display name asc →
   // author key asc) is reproducible across re-renders.
   // ===========================================================================
 
@@ -517,7 +523,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     return btn;
   }
 
-  it("(T025-a) clicking the thread_count button re-orders rows and updates aria-checked", () => {
+  it("(T025-a) clicking the thread_count button re-orders rows and updates aria-pressed", () => {
     const authors = buildAuthorsDimension(3);
     // thread_count and comment_count rank authors differently so the
     // re-order is unambiguously visible.
@@ -542,10 +548,11 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
       authors[0]!.author_id,
     ]);
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("thread_count");
-    expect(checked?.getAttribute("tabindex")).toBe("0");
+    // Toolbar pattern: <button> default tabindex=0; no explicit attribute.
+    expect(checked?.hasAttribute("tabindex")).toBe(false);
   });
 
   it("(T025-b) clicking the active_thread_count button re-orders rows by active-thread desc", () => {
@@ -645,7 +652,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     ).map((r) => r.getAttribute("data-author-key"));
     expect(after).toEqual(before);
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
   });
@@ -668,7 +675,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
       new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
     );
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
   });
@@ -698,7 +705,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     );
 
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
   });
@@ -731,7 +738,7 @@ describe("renderCommentsAuthorDensityChart (Feature 334 US1)", () => {
     ).map((r) => r.getAttribute("data-author-key"));
     expect(after).toEqual(before);
     const checked = container.querySelector(
-      '.comments-author-density-sort-btn[aria-checked="true"]',
+      '.comments-author-density-sort-btn[aria-pressed="true"]',
     );
     expect(checked?.getAttribute("data-sort-metric")).toBe("comment_count");
   });

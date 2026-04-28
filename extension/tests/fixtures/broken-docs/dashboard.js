@@ -8782,12 +8782,11 @@ var PRInsightsDashboard = (() => {
   function renderSortControls(activeMetric) {
     const buttons = COMMENTS_AUTHOR_DENSITY_SORT_METRICS.map((metric) => {
       const checked = metric === activeMetric;
-      const ariaChecked = checked ? "true" : "false";
-      const tabIndex = checked ? "0" : "-1";
+      const ariaPressed = checked ? "true" : "false";
       const label = metricLabel(metric);
-      return `<button type="button" class="comments-author-density-sort-btn${checked ? " is-active" : ""}" role="radio" aria-checked="${ariaChecked}" tabindex="${tabIndex}" data-sort-metric="${escapeHtml(metric)}">${escapeHtml(label)}</button>`;
+      return `<button type="button" class="comments-author-density-sort-btn${checked ? " is-active" : ""}" aria-pressed="${ariaPressed}" data-sort-metric="${escapeHtml(metric)}">${escapeHtml(label)}</button>`;
     }).join("");
-    return `<div class="comments-author-density-sort" role="radiogroup" aria-label="Sort author rows by metric">${buttons}</div>`;
+    return `<div class="comments-author-density-sort" role="toolbar" aria-label="Sort author rows by metric">${buttons}</div>`;
   }
   function renderTable(rows) {
     const rowsHtml = rows.map((row) => renderRow(row)).join("");

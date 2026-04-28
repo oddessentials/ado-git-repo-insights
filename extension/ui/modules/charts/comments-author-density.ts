@@ -399,14 +399,23 @@ function metricLabel(metric: CommentsAuthorDensitySortMetric): string {
 function renderSortControls(
   activeMetric: CommentsAuthorDensitySortMetric,
 ): string {
+  // Toolbar pattern (WAI-ARIA Authoring Practices "Toolbar"): each
+  // button is an independently Tab-reachable <button> with aria-pressed
+  // tracking the active sort metric.  Toolbar is preferred over a
+  // single-tabstop radio-group here because the previous radio-group
+  // implementation gated the other two buttons behind arrow-key
+  // navigation that the chart did not implement — making them
+  // keyboard-unreachable (Codex stop-time review caught the regression).
+  // <button> elements default to tabindex=0 and natively activate on
+  // Enter / Space; the delegated click + keydown handlers below catch
+  // both sequences.
   const buttons = COMMENTS_AUTHOR_DENSITY_SORT_METRICS.map((metric) => {
     const checked = metric === activeMetric;
-    const ariaChecked = checked ? "true" : "false";
-    const tabIndex = checked ? "0" : "-1";
+    const ariaPressed = checked ? "true" : "false";
     const label = metricLabel(metric);
-    return `<button type="button" class="comments-author-density-sort-btn${checked ? " is-active" : ""}" role="radio" aria-checked="${ariaChecked}" tabindex="${tabIndex}" data-sort-metric="${escapeHtml(metric)}">${escapeHtml(label)}</button>`;
+    return `<button type="button" class="comments-author-density-sort-btn${checked ? " is-active" : ""}" aria-pressed="${ariaPressed}" data-sort-metric="${escapeHtml(metric)}">${escapeHtml(label)}</button>`;
   }).join("");
-  return `<div class="comments-author-density-sort" role="radiogroup" aria-label="Sort author rows by metric">${buttons}</div>`;
+  return `<div class="comments-author-density-sort" role="toolbar" aria-label="Sort author rows by metric">${buttons}</div>`;
 }
 
 function renderTable(rows: readonly AuthorDensityRow[]): string {
