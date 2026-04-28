@@ -2230,25 +2230,26 @@ def main(argv: list[str] | None = None) -> int:
             # stay byte-identical across runs.
             if _EMIT_COMMENTS_METRICS:
                 rollup_data["prs"] = synthetic_prs
-                # Feature 333 (FR-2-06): rollup-level weekly comments aggregate.
-                # Sum per-PR triplet over the EXTRACTED-SUBSET (PRs where the
-                # per-PR partial sentinel is NOT applied — i.e., thread_count
-                # is not None per 310 INV-10).  PRs with thread_count is None
-                # contribute zero per FR-2-03 and flip coverage_partial to
-                # True.  Matches aggregators.py::_compute_weekly_comments_
-                # aggregate semantics exactly so synthetic and real-data
-                # rollups have identical shape (per the test_schema_guard
-                # KNOWN_ROOT_FIELDS contract).
-                rollup_data["comments"] = _aggregate_comments_for_week(synthetic_prs)
-                # Feature 334 (FR-1-01..FR-1-08, INV-2-10): rollup-level
-                # per-author comments-density outer dict.  One bucket per
-                # author_id, numeric sums over the bucket's extracted-subset,
-                # per-bucket coverage_partial.  Aggregated from the FULL
-                # synthetic_prs_full set (not the capped synthetic_prs)
-                # so the demo matches production's
-                # ``_compute_weekly_by_author_comments`` semantics on
-                # truncated weeks (qualified_count > _PR_DETAIL_CAP).
-                # Omits the key when no buckets exist per FR-3-03 / INV-2-09.
+                # Feature 333 (FR-2-06) + Feature 334 (FR-1-01..08, INV-2-10):
+                # both rollup-root comments aggregates MUST span W's FULL
+                # extracted-subset, NOT the 500-row drill-down slice.
+                # Production aggregators.py::_compute_weekly_comments_aggregate
+                # and _compute_weekly_by_author_comments are both keyed on
+                # week_pr_uids (the full week's PR set) — emitting them
+                # from the capped synthetic_prs would diverge from
+                # production on truncated weeks (qualified_count >
+                # _PR_DETAIL_CAP=500) AND inconsistently between the two
+                # rollup-root keys.  Aggregating both from
+                # synthetic_prs_full keeps the demo aligned with production
+                # and internally consistent (the per-week comments total
+                # equals the sum across by_author_comments buckets on every
+                # week, including W26 with 520 PRs).
+                rollup_data["comments"] = _aggregate_comments_for_week(
+                    synthetic_prs_full
+                )
+                # Feature 334 per-author bucketing.  Mirrors production
+                # ``_compute_weekly_by_author_comments``; omits the key
+                # when no buckets exist per FR-3-03 / INV-2-09.
                 weekly_by_author_comments = _aggregate_by_author_comments_for_week(
                     synthetic_prs_full
                 )
