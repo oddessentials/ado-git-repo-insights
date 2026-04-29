@@ -120,6 +120,28 @@ export interface AuthorCommentsDensityEntry {
 }
 
 /**
+ * Per-repo comments-density entry (Feature 335, INV-3-08).
+ *
+ * Inner-dict shape for one entry of the `rollup[W].by_repository_comments`
+ * outer dict.  Atomic when the outer dict is present (INV-3-08): all four
+ * fields MUST be present together with non-null typed values, or the
+ * entire entry is a contract violation.  The outer dict's key is
+ * `repository_id` directly — there is NO sentinel concept for the per-repo
+ * dimension (CL-03 / FR-1-03 / INV-3-12; the FK constraint at
+ * `models.py:88` makes unknown-to-`repositories` IDs impossible in
+ * well-formed production data).
+ *
+ * Authoritative declaration:
+ * specs/335-comments-repo-density/contracts/per-repo-comments-density.md §1.
+ */
+export interface RepositoryCommentsDensityEntry {
+  thread_count: number;
+  comment_count: number;
+  active_thread_count: number;
+  coverage_partial: boolean;
+}
+
+/**
  * Weekly rollup structure.
  */
 export interface WeeklyRollup {
@@ -164,6 +186,15 @@ export interface WeeklyRollup {
   // Authoritative declaration:
   // specs/334-comments-author-density/contracts/per-author-comments-density.md §1.
   by_author_comments?: Record<string, AuthorCommentsDensityEntry>;
+  // Feature 335 per-repo comments-density (rollup root).  Outer dict
+  // optional at the root level; when present every entry is atomic per
+  // INV-3-08 (mirrors 333 INV-1-08 / 334 INV-2-08 at sub-object
+  // granularity).  Capability-off (FR-3-03 + INV-3-09) omits the entire
+  // key (NOT `{}`, NOT `null`).  No sentinel concept (CL-03 / INV-3-12;
+  // repository_id is FK-protected at models.py:88).
+  // Authoritative declaration:
+  // specs/335-comments-repo-density/contracts/per-repo-comments-density.md §1.
+  by_repository_comments?: Record<string, RepositoryCommentsDensityEntry>;
 }
 
 // ============================================================================
@@ -199,6 +230,11 @@ const KNOWN_ROOT_FIELDS = new Set([
   // Outer dict at rollup root; per-entry atomic per INV-2-08; absent entirely
   // when capability-off (FR-3-03 + INV-2-09).
   "by_author_comments",
+  // Feature 335 per-repo comments-density (gated on capabilities.comments_metrics).
+  // Outer dict at rollup root; per-entry atomic per INV-3-08; absent entirely
+  // when capability-off (FR-3-03 + INV-3-09 + FR-1-10 — including the empty-{}
+  // omission contract).  No sentinel concept (CL-03 / INV-3-12 — FK-protected).
+  "by_repository_comments",
 ]);
 
 const PR_RECORD_REQUIRED_FIELDS: readonly (keyof PrRecord)[] = [
@@ -985,6 +1021,186 @@ function validateAuthorCommentsDensity(
   return { errors };
 }
 
+/**
+ * Validate the rollup-root `by_repository_comments` outer dict (Feature 335,
+ * INV-3-08 atomicity).
+ *
+ * Atomicity posture mirrors Feature 334's `validateAuthorCommentsDensity`:
+ * STRICT ERROR in BOTH strict and permissive modes.  The validator pushes
+ * to `errors`, NOT `warnings` — INV-3-08 is a fresh contract introduced
+ * by Feature 335 with no legacy emissions to grandfather, so renderers
+ * may trust each entry's atomicity without per-field defensive null-checks.
+ *
+ * When `by_repository_comments` is present:
+ *   - It MUST be an object (the outer Record<repositoryId, entry>).
+ *   - It MUST NOT be the empty object `{}` (FR-1-10: the producer omits
+ *     the key entirely when no buckets exist for the week).
+ *   - Every entry value MUST satisfy the four-field atomicity contract
+ *     (`thread_count` / `comment_count` / `active_thread_count` /
+ *     `coverage_partial` all present, numeric fields non-null integers,
+ *     boolean coverage_partial, INV-3-07 ordering).
+ *
+ * No sentinel concept — `repository_id` is FK-protected at `models.py:88`
+ * (CL-03 / FR-1-03 / INV-3-12), so every key is a raw `repository_id`
+ * string.  There is no reserved-literal handling.
+ *
+ * Capability-off (FR-3-03 + INV-3-09) is signalled by the entire
+ * `by_repository_comments` key being absent — that path simply skips this
+ * validator with no warning.  Empty outer dict (`{}`) under capability-on
+ * is a contract violation (FR-1-10).
+ */
+function validateRepositoryCommentsDensity(
+  data: unknown,
+  path: string,
+): { errors: ValidationError[] } {
+  const errors: ValidationError[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors };
+  }
+
+  const entries: ReadonlyArray<readonly [string, unknown]> = Object.entries(
+    data as Record<string, unknown>,
+  );
+  if (entries.length === 0) {
+    errors.push(
+      createError(
+        path,
+        "non-empty Record<string, RepositoryCommentsDensityEntry>",
+        "{}",
+        `by_repository_comments MUST be omitted entirely when no per-repo buckets exist (FR-3-03 + INV-3-09 + FR-1-10); empty object is a contract violation`,
+      ),
+    );
+    return { errors };
+  }
+
+  const requiredFields: readonly (
+    | "thread_count"
+    | "comment_count"
+    | "active_thread_count"
+    | "coverage_partial"
+  )[] = [
+    "thread_count",
+    "comment_count",
+    "active_thread_count",
+    "coverage_partial",
+  ];
+
+  for (const [key, entry] of entries) {
+    const entryPath = buildPath(path, key);
+
+    if (!isObject(entry)) {
+      errors.push(createError(entryPath, "object", getTypeName(entry)));
+      continue;
+    }
+
+    // INV-3-08 atomicity: all four required fields must be present.
+    const missing = requiredFields.filter(
+      (field) => !Object.prototype.hasOwnProperty.call(entry, field),
+    );
+    if (missing.length > 0) {
+      errors.push(
+        createError(
+          entryPath,
+          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          `missing: ${missing.join(", ")}`,
+          `by_repository_comments[${key}] atomicity violated (INV-3-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+        ),
+      );
+    }
+
+    const numericFieldChecks: readonly {
+      name: "thread_count" | "comment_count" | "active_thread_count";
+      value: unknown;
+    }[] = [
+      { name: "thread_count", value: entry.thread_count },
+      { name: "comment_count", value: entry.comment_count },
+      { name: "active_thread_count", value: entry.active_thread_count },
+    ];
+    for (const { name, value } of numericFieldChecks) {
+      if (!Object.prototype.hasOwnProperty.call(entry, name)) {
+        continue;
+      }
+      if (value === null) {
+        errors.push(
+          createError(
+            buildPath(entryPath, name),
+            "number (non-null per INV-3-08; zero is the valid sum over an empty extracted-subset)",
+            "null",
+            `by_repository_comments[${key}].${name} MUST be a non-null number (INV-3-08); null is not a valid sentinel — use 0 for an empty extracted-subset`,
+          ),
+        );
+      } else if (!isNumber(value)) {
+        errors.push(
+          createError(
+            buildPath(entryPath, name),
+            "number",
+            getTypeName(value),
+            `expected number at 'by_repository_comments[${key}].${name}', got ${getTypeName(value)}`,
+          ),
+        );
+      } else if (value < 0) {
+        errors.push(
+          createError(
+            buildPath(entryPath, name),
+            "non-negative number (counts cannot be negative)",
+            String(value),
+            `by_repository_comments[${key}].${name} MUST be non-negative; got ${value}`,
+          ),
+        );
+      } else if (!Number.isInteger(value)) {
+        errors.push(
+          createError(
+            buildPath(entryPath, name),
+            "integer (counts must be whole numbers)",
+            String(value),
+            `by_repository_comments[${key}].${name} MUST be an integer; got ${value}`,
+          ),
+        );
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(entry, "coverage_partial")) {
+      const coveragePartial = entry.coverage_partial;
+      if (!isBoolean(coveragePartial)) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "coverage_partial"),
+            "boolean",
+            getTypeName(coveragePartial),
+            `expected boolean at 'by_repository_comments[${key}].coverage_partial', got ${getTypeName(coveragePartial)}`,
+          ),
+        );
+      }
+    }
+
+    // INV-3-07 ordering: active_thread_count <= thread_count per entry.
+    const entryThread = entry.thread_count;
+    const entryActive = entry.active_thread_count;
+    if (
+      isNumber(entryThread) &&
+      isNumber(entryActive) &&
+      Number.isInteger(entryThread) &&
+      Number.isInteger(entryActive) &&
+      entryThread >= 0 &&
+      entryActive >= 0 &&
+      entryActive > entryThread
+    ) {
+      errors.push(
+        createError(
+          buildPath(entryPath, "active_thread_count"),
+          "<= thread_count (INV-3-07; active is a subset of total)",
+          `${entryActive} > ${entryThread}`,
+          `by_repository_comments[${key}] ordering violated (INV-3-07): active_thread_count (${entryActive}) MUST NOT exceed thread_count (${entryThread})`,
+        ),
+      );
+    }
+  }
+
+  return { errors };
+}
+
 // ============================================================================
 // Main Validator
 // ============================================================================
@@ -1221,6 +1437,24 @@ export function validateRollup(
       "by_author_comments",
     );
     errors.push(...byAuthorCommentsResult.errors);
+  }
+
+  // Feature 335 per-repo comments-density (rollup root).  Optional outer
+  // dict; per-entry atomic per INV-3-08.  STRICT ERROR atomicity posture
+  // mirrors Feature 334 / 333 (no legacy emissions to grandfather).
+  // Capability-off (FR-3-03 + INV-3-09) is signalled by the entire
+  // `by_repository_comments` key being absent — that path skips the
+  // validator with no warning.  Empty `{}` under capability-on is a
+  // contract violation per FR-1-10 (caught inside the validator).
+  if (
+    Object.prototype.hasOwnProperty.call(data, "by_repository_comments") &&
+    data.by_repository_comments !== undefined
+  ) {
+    const byRepositoryCommentsResult = validateRepositoryCommentsDensity(
+      data.by_repository_comments,
+      "by_repository_comments",
+    );
+    errors.push(...byRepositoryCommentsResult.errors);
   }
 
   // Check for unknown fields at root

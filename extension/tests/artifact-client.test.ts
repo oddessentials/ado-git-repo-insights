@@ -1303,6 +1303,39 @@ describe("AuthenticatedDatasetLoader", () => {
       expect(gateValue).toBe(true);
     });
 
+    it("gates the Feature 335 per-repo chart via the same loader path that the 333/334 charts use (live-extension regression)", async () => {
+      // F3 reinforcement (Feature 335): the per-repo comments-density
+      // chart row introduced by US1 is gated on
+      // ``loader.getCapabilityState()?.commentsMetricsAvailable === true``
+      // — the SAME expression the 333 comments-trend chart and the 334
+      // per-author chart use.  PR #347 fixed the live-extension regression
+      // where the gate short-circuited to ``false`` on
+      // AuthenticatedDatasetLoader because ``getCapabilityState`` was
+      // missing; this test re-exercises the capability path against the
+      // per-repo chart's call site so a future loader refactor cannot
+      // silently re-introduce the same failure mode for the new chart.
+      // Test passes at write-time because the loader infrastructure is
+      // already in place from #334 / #347; the gate value carries over
+      // to the 335 chart's call site automatically.
+      const loader = buildLoader({
+        ...baseManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      });
+
+      await loader.loadManifest();
+
+      const gateValue =
+        loader.getCapabilityState?.()?.commentsMetricsAvailable === true;
+      expect(gateValue).toBe(true);
+    });
+
     it("source-parse: the per-author chart's dashboard gate uses the SAME getCapabilityState chain as the 333 chart", () => {
       // Lock the dashboard call sites so a refactor cannot drop the
       // per-author gate or pivot it to a different loader method

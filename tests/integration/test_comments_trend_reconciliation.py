@@ -855,3 +855,414 @@ def test_sc05_reconciliation_per_week_by_author_pairwise_drilldown(
                     f"active_thread_count={drill_active!r} != independent "
                     f"re-computation {expected_atc} (FR-2-01)"
                 )
+
+
+# --------------------------------------------------------------------------- #
+# Feature 335 per-repo reconciliation extensions                              #
+# --------------------------------------------------------------------------- #
+#
+# Mirrors the 334 per-author block above with three changes per CL-03 / CL-04:
+#
+# - Bucket key is ``pr.repository_id`` directly — NO LEFT JOIN to a users-style
+#   table; the FK constraint at ``models.py:88``
+#   (``pull_requests.repository_id REFERENCES repositories(repository_id)``)
+#   guarantees every emitted ``repository_id`` corresponds to a row in
+#   ``repositories``.  No sentinel literal exists for the per-repo dimension
+#   (INV-3-12).
+# - There is NO sentinel-parity test — the 334 sentinel-parity test (T009 (c) /
+#   ``test_sc05_reconciliation_per_week_by_author_sentinel_parity``) does not
+#   apply.  Instead this block adds a NEW cross-aggregate sum-coherence test
+#   (FR-2-03) that closes the deferred 333 / 334 cross-aggregate parity
+#   obligation on truncated weeks.
+# - Round-9 isolation: same posture — re-implement everything inline; no
+#   imports from ``aggregators.py``.
+
+
+def _repo_bucket_for_uid(
+    conn: sqlite3.Connection,
+    pull_request_uid: str,
+) -> str:
+    """Resolve the per-repo bucket key for one PR — its raw ``repository_id``.
+
+    Independent of ``aggregators.py``.  Per CL-03 / FR-1-03 / INV-3-12,
+    the per-repo dimension uses the PR's ``repository_id`` value directly
+    as the bucket key — there is no sentinel branch and no LEFT JOIN to
+    the ``repositories`` table because the FK constraint at
+    ``models.py:88`` makes unknown-to-``repositories`` IDs impossible in
+    well-formed production data.
+    """
+    cursor = conn.execute(
+        "SELECT pr.repository_id FROM pull_requests pr WHERE pr.pull_request_uid = ?",
+        (pull_request_uid,),
+    )
+    row = cursor.fetchone()
+    assert row is not None, (
+        f"pull_request_uid={pull_request_uid!r}: row not found in "
+        "pull_requests table when independently resolving repository_id "
+        "for the per-repo reconciliation test (fixture builder bug)"
+    )
+    repo_id = row["repository_id"]
+    assert isinstance(repo_id, str), (
+        f"pull_request_uid={pull_request_uid!r}: repository_id is "
+        f"{repo_id!r} (expected string per FK constraint at models.py:88)"
+    )
+    assert repo_id, (
+        f"pull_request_uid={pull_request_uid!r}: repository_id is the "
+        "empty string (expected non-empty per NOT NULL constraint at "
+        "models.py:88)"
+    )
+    return repo_id
+
+
+def _build_expected_repo_buckets(
+    conn: sqlite3.Connection,
+    canonical_prs: list[_CanonicalPrRow],
+) -> dict[str, _ExpectedBucket]:
+    """Independent re-computation of one week's per-repo bucket emissions.
+
+    Mirrors ``_build_expected_buckets`` (per-author) but groups by
+    ``pr.repository_id`` directly.  No sentinel resolution branch.
+    """
+    grouped: dict[str, list[_CanonicalPrRow]] = {}
+    for pr in canonical_prs:
+        bucket = _repo_bucket_for_uid(conn, pr["pull_request_uid"])
+        grouped.setdefault(bucket, []).append(pr)
+
+    expected: dict[str, _ExpectedBucket] = {}
+    for bucket, prs in grouped.items():
+        thread_count = 0
+        comment_count = 0
+        active_thread_count = 0
+        any_unextracted = False
+        for pr in prs:
+            if pr["comments_extracted_at"] is None:
+                any_unextracted = True
+                continue
+            tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+            thread_count += tc
+            comment_count += cc
+            active_thread_count += atc
+        expected[bucket] = _ExpectedBucket(
+            thread_count=thread_count,
+            comment_count=comment_count,
+            active_thread_count=active_thread_count,
+            coverage_partial=any_unextracted,
+        )
+    return expected
+
+
+def _by_repository_comments_dict(
+    rollup: dict[str, object],
+    week_key: str,
+) -> dict[str, dict[str, object]]:
+    """Return ``rollup[W].by_repository_comments`` validated as dict-of-dicts.
+
+    Fails with a clear TDD-mode message when the producer has not yet
+    emitted the key (Phase 2.2 ``T011`` aggregator emission gating).
+    """
+    raw = rollup.get("by_repository_comments")
+    assert raw is not None, (
+        f"week {week_key}: rollup[W].by_repository_comments key MISSING. "
+        "FR-1-01 requires the aggregator to emit the per-repo bucket "
+        "outer dict on every weekly rollup when "
+        "capabilities.comments_metrics is enabled and the canonical set "
+        "is non-empty.  Until Feature 335's aggregator emission lands, "
+        "this assertion is the TDD failure mode for the per-repo "
+        "reconciliation tests."
+    )
+    assert isinstance(raw, dict), (
+        f"week {week_key}: rollup[W].by_repository_comments has unexpected "
+        f"type {type(raw).__name__}; expected dict per INV-3-08 atomicity"
+    )
+    typed: dict[str, dict[str, object]] = {}
+    for key, entry in raw.items():
+        assert isinstance(entry, dict), (
+            f"week {week_key}: by_repository_comments[{key!r}] has unexpected "
+            f"type {type(entry).__name__}; expected 4-field dict"
+        )
+        typed[str(key)] = entry
+    return typed
+
+
+def test_sc05_reconciliation_per_week_by_repository_independent(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-02 (Feature 335): per-(W, repo) independent re-computation parity.
+
+    For every week W and every bucket key in
+    ``rollup[W].by_repository_comments``, the four atomic fields MUST
+    equal the result of an independent re-computation that:
+
+    1. Determines W's canonical throughput PR set via direct SQL against
+       ``pull_requests`` (re-implemented week-attribution rule).
+    2. Groups each PR by ``pull_requests.repository_id`` (raw FK-
+       protected value; no sentinel).
+    3. Filters each bucket's PRs to W's extracted-subset.
+    4. Sums per-PR C1 counts.
+    5. Derives ``coverage_partial`` per bucket as
+       ``(∃ PR in bucket with comments_extracted_at IS NULL)``.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}; "
+        "fixture builder is broken"
+    )
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            if not canonical_prs:
+                # FR-1-10 omission contract: empty canonical set → key absent.
+                assert "by_repository_comments" not in rollup, (
+                    f"week {week_key}: rollup has empty canonical PR set "
+                    "but emits a non-omitted by_repository_comments key"
+                )
+                continue
+
+            buckets_emitted = _by_repository_comments_dict(rollup, week_key)
+            expected_buckets = _build_expected_repo_buckets(conn, canonical_prs)
+
+            assert set(buckets_emitted.keys()) == set(expected_buckets.keys()), (
+                f"week {week_key}: by_repository_comments key set "
+                f"{sorted(buckets_emitted.keys())!r} != independent "
+                f"re-computation {sorted(expected_buckets.keys())!r} "
+                "(FR-1-03 + FR-2-02: every repository with a canonical PR "
+                "in W MUST appear in the bucket dict)"
+            )
+
+            for bucket_key, emitted in buckets_emitted.items():
+                expected = expected_buckets[bucket_key]
+                assert emitted["thread_count"] == expected["thread_count"], (
+                    f"week {week_key}, repo {bucket_key!r}: thread_count="
+                    f"{emitted['thread_count']!r} != independent re-computation "
+                    f"{expected['thread_count']} (FR-2-02 violation)"
+                )
+                assert emitted["comment_count"] == expected["comment_count"], (
+                    f"week {week_key}, repo {bucket_key!r}: comment_count="
+                    f"{emitted['comment_count']!r} != independent re-computation "
+                    f"{expected['comment_count']} (FR-2-02 violation)"
+                )
+                assert (
+                    emitted["active_thread_count"] == expected["active_thread_count"]
+                ), (
+                    f"week {week_key}, repo {bucket_key!r}: "
+                    f"active_thread_count={emitted['active_thread_count']!r} != "
+                    f"independent re-computation {expected['active_thread_count']} "
+                    "(FR-2-02 violation)"
+                )
+                assert emitted["coverage_partial"] is expected["coverage_partial"], (
+                    f"week {week_key}, repo {bucket_key!r}: coverage_partial="
+                    f"{emitted['coverage_partial']!r} != independent re-computation "
+                    f"{expected['coverage_partial']!r} (FR-1-06 propagated to "
+                    "per-repo bucket)"
+                )
+
+
+def test_sc05_reconciliation_per_week_by_repository_pairwise_drilldown(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-01 (Feature 335): drill-down ∩ extracted-subset PRs map to a bucket.
+
+    For every PR P in ``rollup[W].prs`` AND in W's extracted-subset, P's
+    resolved repository_id MUST exist as a key in
+    ``rollup[W].by_repository_comments``, and P's drill-down per-PR
+    values MUST equal an independent C1 re-computation.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            extracted_prs = [
+                pr for pr in canonical_prs if pr["comments_extracted_at"] is not None
+            ]
+            if not canonical_prs:
+                continue
+
+            buckets_emitted = _by_repository_comments_dict(rollup, week_key)
+            id_to_uid_extracted: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"] for pr in extracted_prs
+            }
+
+            for record in _drilldown_pr_records(rollup):
+                pr_id_raw = record.get("id")
+                if not isinstance(pr_id_raw, int):
+                    continue
+                pr_id = pr_id_raw
+                if pr_id not in id_to_uid_extracted:
+                    # Unextracted drill-down PRs covered by 333's per-PR
+                    # round-9 positive sentinel test.
+                    continue
+
+                pr_uid = id_to_uid_extracted[pr_id]
+                bucket_key = _repo_bucket_for_uid(conn, pr_uid)
+                assert bucket_key in buckets_emitted, (
+                    f"week {week_key}, PR id={pr_id}: resolved repository "
+                    f"{bucket_key!r} is missing from "
+                    "rollup[W].by_repository_comments (FR-2-01: every "
+                    "drill-down ∩ extracted-subset PR's repository MUST "
+                    "have a bucket emission)"
+                )
+
+                expected_tc, expected_cc, expected_atc = _per_pr_counts(conn, pr_uid)
+                drill_thread = record.get("thread_count")
+                drill_comment = record.get("comment_count")
+                drill_active = record.get("active_thread_count")
+                assert drill_thread == expected_tc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down thread_count="
+                    f"{drill_thread!r} != independent re-computation "
+                    f"{expected_tc} (FR-2-01: per-repo surface coherence)"
+                )
+                assert drill_comment == expected_cc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down comment_count="
+                    f"{drill_comment!r} != independent re-computation "
+                    f"{expected_cc} (FR-2-01)"
+                )
+                assert drill_active == expected_atc, (
+                    f"week {week_key}, PR id={pr_id}: drill-down "
+                    f"active_thread_count={drill_active!r} != independent "
+                    f"re-computation {expected_atc} (FR-2-01)"
+                )
+
+
+def test_sc05_reconciliation_cross_aggregate_sum_coherence(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-03 (Feature 335 NEW): cross-aggregate sum-coherence between
+    ``rollup[W].comments`` (333) and ``rollup[W].by_repository_comments``
+    (this feature).
+
+    For every week W where both aggregates are emitted (non-empty), the
+    SUM over all repositories of each numeric field MUST equal
+    ``comments.<numeric_field>``, AND the OR over all repositories of
+    ``coverage_partial`` MUST equal ``comments.coverage_partial``.
+
+    Both aggregates compute over W's full canonical extracted-subset
+    (333 FR-2-03 / 334 INV-2-10 / 335 INV-3-10 propagation), so the
+    contract holds even on truncated weeks where the per-PR drill-down
+    ``prs`` field is capped (310 INV-02).  The truncated W26 demo
+    fixture is the most-interesting witness; the assertion is week-
+    agnostic so it survives demo regeneration if truncation shifts to a
+    different week.
+
+    Pre-loop fixture-validation guard (G3 from /speckit.analyze): asserts
+    at least ONE week W in the demo dataset satisfies "both ``comments``
+    AND ``by_repository_comments`` are emitted (non-empty)".  Without
+    this guard, a demo regeneration that breaks the witness condition
+    would let the loop iterate zero applicable weeks and silently pass —
+    no positive control.  A-11 documents the spec-level assumption this
+    guard enforces.
+    """
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}"
+    )
+
+    # Pre-loop fixture-validation guard (G3 / A-11).
+    applicable_weeks: list[str] = []
+    for rollup_path in rollup_paths:
+        rollup = _load_rollup(rollup_path)
+        comments_obj = rollup.get("comments")
+        by_repo = rollup.get("by_repository_comments")
+        if (
+            isinstance(comments_obj, dict)
+            and isinstance(by_repo, dict)
+            and len(by_repo) > 0
+        ):
+            applicable_weeks.append(rollup_path.stem)
+    assert applicable_weeks, (
+        "FR-2-03 fixture-validation guard (G3 / A-11): no week W in the "
+        "SC-05 demo fixture has BOTH ``rollup[W].comments`` AND "
+        "``rollup[W].by_repository_comments`` emitted (non-empty).  The "
+        "sum-coherence loop below would iterate zero weeks and silently "
+        "pass — no positive control.  This means the demo regeneration "
+        "has shifted past the assertion's domain (e.g., the truncated W26 "
+        "witness was lost, or capability-on emission has regressed).  "
+        "A-11 documents the spec-level assumption this guard enforces."
+    )
+
+    # Sum-coherence loop: assert per-week SUM equality for every applicable
+    # week.  Iterates ALL applicable weeks, not just truncated ones — the
+    # contract holds equally on non-truncated weeks (the truncated weeks
+    # are the most-interesting witness, but the assertion's domain is
+    # broader per ADR R002).
+    for rollup_path in rollup_paths:
+        week_key = rollup_path.stem
+        rollup = _load_rollup(rollup_path)
+        comments_obj = rollup.get("comments")
+        by_repo = rollup.get("by_repository_comments")
+        if not isinstance(comments_obj, dict) or not isinstance(by_repo, dict):
+            continue
+        if len(by_repo) == 0:
+            continue
+
+        sum_thread = 0
+        sum_comment = 0
+        sum_active = 0
+        any_partial = False
+        for repo_key, entry in by_repo.items():
+            if not isinstance(entry, dict):
+                continue
+            tc = entry.get("thread_count")
+            cc = entry.get("comment_count")
+            atc = entry.get("active_thread_count")
+            cp = entry.get("coverage_partial")
+            assert isinstance(tc, int), (
+                f"week {week_key}, repo {repo_key!r}: non-integer thread_count {tc!r}"
+            )
+            assert isinstance(cc, int), (
+                f"week {week_key}, repo {repo_key!r}: non-integer comment_count {cc!r}"
+            )
+            assert isinstance(atc, int), (
+                f"week {week_key}, repo {repo_key!r}: non-integer "
+                f"active_thread_count {atc!r}"
+            )
+            assert isinstance(cp, bool), (
+                f"week {week_key}, repo {repo_key!r}: non-boolean "
+                f"coverage_partial {cp!r}"
+            )
+            sum_thread += tc
+            sum_comment += cc
+            sum_active += atc
+            any_partial = any_partial or cp
+
+        c_thread = comments_obj.get("thread_count")
+        c_comment = comments_obj.get("comment_count")
+        c_active = comments_obj.get("active_thread_count")
+        c_partial = comments_obj.get("coverage_partial")
+        assert sum_thread == c_thread, (
+            f"week {week_key}: SUM_repo by_repository_comments[r].thread_count="
+            f"{sum_thread} != comments.thread_count={c_thread!r} "
+            "(FR-2-03 cross-aggregate sum-coherence violation: per-repo "
+            "and per-week aggregates disagree on the same set's numeric "
+            "thread total — possible truncation-vs-full-set scope drift "
+            "or an aggregator regression)"
+        )
+        assert sum_comment == c_comment, (
+            f"week {week_key}: SUM_repo by_repository_comments[r].comment_count="
+            f"{sum_comment} != comments.comment_count={c_comment!r} "
+            "(FR-2-03)"
+        )
+        assert sum_active == c_active, (
+            f"week {week_key}: SUM_repo by_repository_comments[r].active_thread_count="
+            f"{sum_active} != comments.active_thread_count={c_active!r} "
+            "(FR-2-03)"
+        )
+        assert any_partial == c_partial, (
+            f"week {week_key}: OR_repo by_repository_comments[r].coverage_partial="
+            f"{any_partial!r} != comments.coverage_partial={c_partial!r} "
+            "(FR-2-03 OR-coherence: any per-repo bucket marked partial "
+            "should equal the per-week aggregate's partial flag)"
+        )

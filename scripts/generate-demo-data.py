@@ -621,6 +621,103 @@ def _aggregate_by_author_comments_for_week(
     return buckets if buckets else None
 
 
+def _aggregate_by_repository_comments_for_week(
+    prs: list[PrRecord],
+    repository_name_to_id: dict[str, str],
+) -> dict[str, dict[str, int | bool]] | None:
+    """Per-(week, repo) comments-density emission for the synthetic demo.
+
+    Mirrors ``aggregators.py::_compute_weekly_by_repository_comments``
+    semantics so the demo and the real-data aggregator emit byte-aligned
+    shapes for the Feature 335 ``by_repository_comments`` rollup-root key.
+
+    Production aggregator emits outer-dict keys equal to
+    ``pull_requests.repository_id`` (UUID per FR-1-03 + the FK constraint
+    at ``models.py:88``).  In the synthetic demo, the pre-existing
+    ``by_repository`` throughput emission is keyed by ``repository_name``
+    (line 1736-1754), so each PrRecord's ``repository_id`` field holds
+    the synthetic repository_name (line 396-499 — ``repo_id = str(entry)``
+    where ``entry`` came from ``rollup.by_repository.keys()``).  This
+    helper RESOLVES that name back to the canonical UUID via
+    ``repository_name_to_id`` so the emitted ``by_repository_comments``
+    namespace matches production (UUID-keyed) — closing the namespace
+    divergence Codex flagged on Phase 2.4.  The broader demo's
+    ``by_repository`` keying is intentionally left as-is per the user's
+    "no broader cleanup" directive (NAME = stable identity throughout
+    the existing synthetic path).
+
+    One bucket per UUID-resolved ``repository_id`` appearing on any PR in
+    ``prs``.  Numeric fields sum over the bucket's extracted-subset (PRs
+    whose ``thread_count`` is not None per 310 INV-10).  ``coverage_partial``
+    is True iff at least one PR in the bucket has ``thread_count is None``
+    (FR-1-06).  Outer dict keys are emitted in ascending order by the
+    resolved UUID for byte-determinism (matches the aggregator's
+    ``ORDER BY pr.repository_id ASC`` plus ``json.dumps(sort_keys=True)``).
+
+    No sentinel concept (Feature 335 CL-03 / FR-1-03 / INV-3-12 —
+    repository_id is FK-protected at ``models.py:88``).  Lookup failures
+    in ``repository_name_to_id`` are FAIL-LOUD per CL-03: the helper
+    raises ``RuntimeError`` rather than silently coercing the name back
+    into the bucket key namespace.  Should be impossible in a well-
+    formed demo because the same ``repositories`` list seeds both the
+    dimension and the ``by_repository`` keys; a missing entry is a
+    demo-generator bug (e.g., the call site built the map from a
+    different list than the one used to construct ``rollup.by_repository``).
+
+    Returns ``None`` when ``prs`` is empty so callers can omit the
+    ``by_repository_comments`` key entirely (FR-3-03 / INV-3-09 / FR-1-10
+    omission contract).  Caller is responsible for capability gating.
+    """
+    if not prs:
+        return None
+    grouped: dict[str, list[PrRecord]] = {}
+    for pr in prs:
+        # In the demo path pr["repository_id"] holds a repository_name
+        # (pre-existing demo design — see this helper's docstring above).
+        # Resolve the name back to the canonical UUID so the emitted
+        # outer-dict keys match production's namespace (FR-1-03).
+        # FAIL-LOUD per CL-03 if the lookup misses — a silent fallback
+        # would re-emit the name as a key and re-introduce the namespace
+        # divergence Codex flagged.
+        name = str(pr["repository_id"])
+        repo_uuid = repository_name_to_id.get(name)
+        if repo_uuid is None:
+            raise RuntimeError(
+                "Feature 335 demo namespace FAIL-LOUD (CL-03): "
+                f'PrRecord["repository_id"]={name!r} has no matching entry '
+                "in repository_name_to_id (the map was built from the demo's "
+                "repositories list outside the per-week loop).  This should "
+                "be impossible in a well-formed demo because the same "
+                "repositories list seeds both the dimension and the "
+                "rollup.by_repository keys that PrRecord names are sampled "
+                "from — investigate the demo generator's data-flow integrity "
+                "(e.g., did the call site build the map from a different "
+                "list than the one used to construct rollup.by_repository?)."
+            )
+        grouped.setdefault(repo_uuid, []).append(pr)
+    buckets: dict[str, dict[str, int | bool]] = {}
+    for repo in sorted(grouped):
+        thread_total = 0
+        comment_total = 0
+        active_total = 0
+        coverage_partial = False
+        for pr in grouped[repo]:
+            thread = pr.get("thread_count")
+            if thread is None:
+                coverage_partial = True
+                continue
+            thread_total += int(thread)
+            comment_total += int(pr.get("comment_count") or 0)
+            active_total += int(pr.get("active_thread_count") or 0)
+        buckets[repo] = {
+            "thread_count": thread_total,
+            "comment_count": comment_total,
+            "active_thread_count": active_total,
+            "coverage_partial": coverage_partial,
+        }
+    return buckets if buckets else None
+
+
 # =============================================================================
 # UUID v5 Generation (T007)
 # =============================================================================
@@ -2137,6 +2234,17 @@ def main(argv: list[str] | None = None) -> int:
     contrast_weeks: set[str] = set(truncation_config["contrast_weeks"])
     contrast_max_count = truncation_config["contrast_max_pr_count"]
 
+    # Feature 335: pre-build the repository_name -> repository_id (UUID) map
+    # so the per-week by_repository_comments emission can resolve names to
+    # canonical UUIDs.  The demo's existing by_repository keying uses names
+    # (pre-existing design); the new by_repository_comments emission MUST
+    # match production's UUID-keyed namespace per FR-1-03 +
+    # contracts/per-repo-comments-density.md §1.  Build once outside the
+    # per-week loop since the repository roster is stable across weeks.
+    repository_name_to_id: dict[str, str] = {
+        str(r.repository_name): str(r.repository_id) for r in repositories
+    }
+
     for rollup in rollups:
         rollup_data: dict[str, object] = {
             "week": rollup.week,
@@ -2255,6 +2363,28 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if weekly_by_author_comments:
                     rollup_data["by_author_comments"] = weekly_by_author_comments
+                # Feature 335 per-repo bucketing.  Mirrors production
+                # ``_compute_weekly_by_repository_comments``; emits over
+                # the FULL extracted-subset (synthetic_prs_full, NOT the
+                # 500-row drill-down slice) per INV-3-10 — same scope
+                # choice 333 ``comments`` and 334 ``by_author_comments``
+                # use, so cross-aggregate sum-coherence (FR-2-03) holds
+                # on every week.  Omits the key when no buckets exist
+                # per FR-3-03 / INV-3-09 / FR-1-10.
+                # Pass repository_name_to_id so the helper can resolve
+                # the demo's name-keyed PrRecord["repository_id"] field
+                # back to canonical UUIDs — keeps by_repository_comments
+                # in production's namespace (FR-1-03) without disturbing
+                # the demo's broader name-keyed by_repository emission.
+                weekly_by_repository_comments = (
+                    _aggregate_by_repository_comments_for_week(
+                        synthetic_prs_full, repository_name_to_id
+                    )
+                )
+                if weekly_by_repository_comments:
+                    rollup_data["by_repository_comments"] = (
+                        weekly_by_repository_comments
+                    )
             else:
                 rollup_data["prs"] = [
                     _strip_comments_metrics_from_pr(pr) for pr in synthetic_prs

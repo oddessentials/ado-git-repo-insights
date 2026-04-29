@@ -54,6 +54,7 @@ import {
   attachCommentsTrendInfoIcon,
   detachCommentsTrendInfoIcon,
   renderCommentsAuthorDensityChart as renderCommentsAuthorDensityChartModule,
+  renderCommentsRepositoryDensityChart as renderCommentsRepositoryDensityChartModule,
   // Data availability signal derivation
   deriveAvailabilitySignal,
   // Filter constraint resolver
@@ -1114,6 +1115,25 @@ async function refreshMetrics(): Promise<void> {
       removeCommentsAuthorDensityContainer();
     }
 
+    // Feature 335 US1: per-repo comments-density chart row.  Same
+    // capability gate as 333 / 334 (commentsMetricsAvailable from the
+    // loader's getCapabilityState() chain — F3 live-loader regression
+    // already guarded by extension/tests/artifact-client.test.ts T010).
+    // Anchored BELOW the 334 per-author row per CL-10.  Per FR-4-09
+    // the chart is informational — no drill-down handle is installed
+    // below.
+    if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+      const crdContainer = ensureCommentsRepositoryDensityContainer();
+      if (crdContainer) {
+        renderCommentsRepositoryDensityChartModule(crdContainer, rollups, {
+          filters: currentFilters,
+          repositoriesDimension: currentDimensions?.repositories,
+        });
+      }
+    } else {
+      removeCommentsRepositoryDensityContainer();
+    }
+
     // Install per-chart drill-down handles AFTER the render block so the
     // container elements exist. US2–US4 push peers onto the same array.
     const throughputContainer = document.getElementById("throughput-chart");
@@ -1714,6 +1734,78 @@ function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
 function removeCommentsAuthorDensityContainer(): void {
   const row = document.querySelector(
     '[data-comments-author-density-row="true"]',
+  );
+  if (!row) return;
+  row.parentElement?.removeChild(row);
+}
+
+/**
+ * Idempotently ensure the per-repo comments-density chart row exists
+ * (Feature 335 US1).  Mirrors ``ensureCommentsAuthorDensityContainer``
+ * (334 idempotency contract) but anchors BELOW the 334 row per CL-10.
+ *
+ * Anchor preference (CL-10 + defensive fallbacks):
+ *   1. Per-author row (334) — the primary anchor; both charts share the
+ *      same capability gate so 334's row will normally be mounted by
+ *      the time the 335 render block fires (334's block runs first
+ *      in renderMetricsTab).
+ *   2. Comments-trend row (333) — fallback when 334's anchor is
+ *      missing (rare; would mean 334's ensure helper returned null).
+ *   3. ``cycle-distribution`` chart row — universal baseline anchor
+ *      shared with 333 / 334 for the unusual case where neither
+ *      sibling row is mounted.
+ *
+ * Returns ``null`` if no anchor is locatable.
+ */
+function ensureCommentsRepositoryDensityContainer(): HTMLElement | null {
+  const existing = document.getElementById("comments-repository-density");
+  if (existing) return existing;
+
+  const perAuthorRow = document.querySelector(
+    '[data-comments-author-density-row="true"]',
+  );
+  let anchorRow: Element | null = perAuthorRow;
+  if (!anchorRow) {
+    anchorRow = document.querySelector('[data-comments-trend-row="true"]');
+  }
+  if (!anchorRow) {
+    const cycleDist = document.getElementById("cycle-distribution");
+    anchorRow = cycleDist?.closest(".charts-row") ?? null;
+  }
+  if (!anchorRow || !anchorRow.parentElement) return null;
+
+  const row = document.createElement("div");
+  row.className = "charts-row";
+  row.setAttribute("data-comments-repository-density-row", "true");
+
+  const containerCell = document.createElement("div");
+  containerCell.className = "chart-container";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Comment Density by Repository";
+  containerCell.appendChild(heading);
+
+  const chart = document.createElement("div");
+  chart.id = "comments-repository-density";
+  chart.className = "chart";
+
+  containerCell.appendChild(chart);
+  row.appendChild(containerCell);
+
+  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+
+  return chart;
+}
+
+/**
+ * Remove the per-repo comments-density chart row from the DOM if
+ * present.  No-op when absent (initial capability-off; repeated
+ * capability-off renders).  Active cleanup happens on the on→off
+ * mid-session transition (FR-3-02).
+ */
+function removeCommentsRepositoryDensityContainer(): void {
+  const row = document.querySelector(
+    '[data-comments-repository-density-row="true"]',
   );
   if (!row) return;
   row.parentElement?.removeChild(row);

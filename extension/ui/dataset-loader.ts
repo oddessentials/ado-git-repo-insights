@@ -226,6 +226,25 @@ export interface Rollup {
       coverage_partial: boolean;
     }
   >;
+  // Feature 335 per-repo comments-density (FR-1-01..FR-1-10). Optional
+  // outer dict emitted only when capabilities.comments_metrics is enabled
+  // (FR-3-03 + INV-3-09). Each entry carries the same four atomic fields
+  // as the 333 ``comments`` aggregate (per-bucket scope rather than
+  // per-week). Keys are raw repository_id strings — no sentinel concept
+  // (CL-03 / FR-1-03 / INV-3-12; FK-protected at models.py:88).
+  // Validator: validateRepositoryCommentsDensity in rollup.schema.ts
+  // (STRICT-ERROR atomicity posture, both modes).  Renderer:
+  // comments-repository-density chart module under
+  // modules/charts/comments-repository-density.ts (Feature 335 US1).
+  by_repository_comments?: Record<
+    string,
+    {
+      thread_count: number;
+      comment_count: number;
+      active_thread_count: number;
+      coverage_partial: boolean;
+    }
+  >;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 
