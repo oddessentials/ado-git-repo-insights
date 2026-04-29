@@ -35,7 +35,7 @@ This is the second sibling Cap-2 dimension PR; #334 (per-author) is the pattern 
 - `--no-verify` forbidden (QG-38).
 - Zero inline suppressions (QG-41) — `# noqa` / `# type: ignore` / `// eslint-disable` are forbidden in new code.
 - No `typing.Any` (QG-40).
-- Partial-branches ratchet (memory: `.coverage-partial-branches-baseline.json` enforced by `scripts/check_partial_branches.py`) is NOT permitted to grow. Apply the same tie-break-ternary collapse 334 used to keep the ratchet at zero, OR cover defensive branches with mutation-based tests.
+- Partial-branches ratchet gate (memory: `.coverage-partial-branches-baseline.json`) is NOT permitted to grow. Apply the same tie-break-ternary collapse 334 used to keep the ratchet at zero, OR cover defensive branches with mutation-based tests.
 
 **Scale/Scope**: Demo dataset has ≥10 distinct repositories with mixed comment-load (per A-03), and at least one repository with mixed extraction exercising the per-row `coverage_partial` qualifier. Top-N display cap inherits the chart-truncation pattern (constant `MAX_COMMENTS_REPO_DENSITY_ROWS = 50`). Aggregator emits one `by_repository_comments` outer dict per week for capability-on datasets; per-week payload depends on repository cardinality (one entry per (week, repo) tuple under capability-on). Estimated payload increase per rollup file: ~100 bytes × repository cardinality.
 
