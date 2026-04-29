@@ -655,12 +655,14 @@ def _aggregate_by_repository_comments_for_week(
     ``ORDER BY pr.repository_id ASC`` plus ``json.dumps(sort_keys=True)``).
 
     No sentinel concept (Feature 335 CL-03 / FR-1-03 / INV-3-12 —
-    repository_id is FK-protected at ``models.py:88``).  When a PR's
-    name has no entry in ``repository_name_to_id`` (should be impossible
-    in a well-formed demo since the same ``repositories`` list seeds
-    both the dimension and the by_repository keys), the helper falls
-    back to using the raw name — preserving the bucket rather than
-    silently coercing it.
+    repository_id is FK-protected at ``models.py:88``).  Lookup failures
+    in ``repository_name_to_id`` are FAIL-LOUD per CL-03: the helper
+    raises ``RuntimeError`` rather than silently coercing the name back
+    into the bucket key namespace.  Should be impossible in a well-
+    formed demo because the same ``repositories`` list seeds both the
+    dimension and the ``by_repository`` keys; a missing entry is a
+    demo-generator bug (e.g., the call site built the map from a
+    different list than the one used to construct ``rollup.by_repository``).
 
     Returns ``None`` when ``prs`` is empty so callers can omit the
     ``by_repository_comments`` key entirely (FR-3-03 / INV-3-09 / FR-1-10
@@ -671,11 +673,27 @@ def _aggregate_by_repository_comments_for_week(
     grouped: dict[str, list[PrRecord]] = {}
     for pr in prs:
         # In the demo path pr["repository_id"] holds a repository_name
-        # (pre-existing demo design — see _aggregate_by_repository_comments_for_week
-        # docstring above).  Resolve the name back to the canonical UUID so
-        # the emitted outer-dict keys match production's namespace (FR-1-03).
+        # (pre-existing demo design — see this helper's docstring above).
+        # Resolve the name back to the canonical UUID so the emitted
+        # outer-dict keys match production's namespace (FR-1-03).
+        # FAIL-LOUD per CL-03 if the lookup misses — a silent fallback
+        # would re-emit the name as a key and re-introduce the namespace
+        # divergence Codex flagged.
         name = str(pr["repository_id"])
-        repo_uuid = repository_name_to_id.get(name, name)
+        repo_uuid = repository_name_to_id.get(name)
+        if repo_uuid is None:
+            raise RuntimeError(
+                "Feature 335 demo namespace FAIL-LOUD (CL-03): "
+                f'PrRecord["repository_id"]={name!r} has no matching entry '
+                "in repository_name_to_id (the map was built from the demo's "
+                "repositories list outside the per-week loop).  This should "
+                "be impossible in a well-formed demo because the same "
+                "repositories list seeds both the dimension and the "
+                "rollup.by_repository keys that PrRecord names are sampled "
+                "from — investigate the demo generator's data-flow integrity "
+                "(e.g., did the call site build the map from a different "
+                "list than the one used to construct rollup.by_repository?)."
+            )
         grouped.setdefault(repo_uuid, []).append(pr)
     buckets: dict[str, dict[str, int | bool]] = {}
     for repo in sorted(grouped):
