@@ -1,41 +1,53 @@
 {
   "rule": "S311",
-  "total_usages": 24,
+  "total_usages": 26,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 229,
+      "line": 256,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 264,
+      "line": 308,
       "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 265,
+      "line": 309,
       "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1585,
+      "line": 310,
+      "code": "comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 1998,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 2196,
+      "line": 2609,
       "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 2197,
+      "line": 2610,
       "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 2615,
+      "code": "comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
