@@ -480,4 +480,198 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     // gate that FR-4-08 mandates.
     expect(text.toLowerCase()).not.toContain("filterable");
   });
+
+  // ===========================================================================
+  // US2 / T023: sort-toggle behaviour — clicking a button or activating it
+  // via Enter/Space re-orders the rows by the new metric and updates the
+  // aria-pressed indicator.  Tie-break determinism (repository_name asc →
+  // repository_id asc) is reproducible across re-renders.  Sort respects
+  // the FR-4-02 zero-row suppression: the sorted candidate set excludes
+  // all-zero reduced rows before applying truncation logic (verified
+  // structurally via case (k) above; the chart's render path filters
+  // before sort, so a click-triggered re-render walks the same code
+  // path).  4 tests; floor +4.
+  // ===========================================================================
+
+  function clickSortButton(metric: string): HTMLButtonElement {
+    const btn = container.querySelector<HTMLButtonElement>(
+      `.comments-repository-density-sort-btn[data-sort-metric="${metric}"]`,
+    );
+    if (!btn) {
+      throw new Error(`sort button for metric ${metric} not found`);
+    }
+    btn.click();
+    return btn;
+  }
+
+  it("(T023-a) clicking the thread_count button re-orders rows and updates aria-pressed", () => {
+    const repos = buildRepositoriesDimension(3);
+    // thread_count and comment_count rank repos differently so the
+    // re-order is unambiguously visible.
+    const buckets: Record<string, RepoBucket> = {
+      [repos[0]!.repository_id]: makeBucket(1, 100, 0),
+      [repos[1]!.repository_id]: makeBucket(50, 1, 25),
+      [repos[2]!.repository_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+
+    clickSortButton("thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(orderedKeys).toEqual([
+      repos[1]!.repository_id, // 50 threads
+      repos[2]!.repository_id, // 20 threads
+      repos[0]!.repository_id, // 1 thread
+    ]);
+    const checked = container.querySelector(
+      '.comments-repository-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("thread_count");
+  });
+
+  it("(T023-b) clicking the active_thread_count button re-orders rows", () => {
+    const repos = buildRepositoriesDimension(3);
+    const buckets: Record<string, RepoBucket> = {
+      [repos[0]!.repository_id]: makeBucket(10, 50, 1),
+      [repos[1]!.repository_id]: makeBucket(10, 50, 8),
+      [repos[2]!.repository_id]: makeBucket(10, 50, 4),
+    };
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+
+    clickSortButton("active_thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(orderedKeys).toEqual([
+      repos[1]!.repository_id, // 8 active
+      repos[2]!.repository_id, // 4 active
+      repos[0]!.repository_id, // 1 active
+    ]);
+    const checked = container.querySelector(
+      '.comments-repository-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe(
+      "active_thread_count",
+    );
+  });
+
+  it("(T023-c) tie-break is reproducible across reloads on a duplicate-display-name fixture", () => {
+    // Fixture with deliberate ties on comment_count AND on
+    // repository_name (rename-collision shape: two repos sharing the
+    // same display name).  Per FR-4-05 the final tie-break is
+    // repository_id ascending — so the rendered order is fully
+    // determined by repository_id once the metric + name ties hit.
+    // Render twice and assert byte-identical row ordering — proves
+    // the chart's sort is reproducible across re-renders (no hidden
+    // state that varies between calls).
+    const repos = [
+      { repository_id: "repo-bbb", repository_name: "Beta" },
+      { repository_id: "repo-aaa", repository_name: "Alpha" },
+      // Same name as repo-bbb (rename collision); repository_id is
+      // the tie-breaker.
+      { repository_id: "repo-ccc", repository_name: "Beta" },
+    ];
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r) => {
+      // All three have identical comment_count so the metric tie
+      // delegates to repository_name asc → repository_id asc.
+      buckets[r.repository_id] = makeBucket(1, 7, 0);
+    });
+    const rollups = [makeRollup(0, buckets)];
+    const opts = {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    };
+
+    // First render.
+    renderCommentsRepositoryDensityChart(container, rollups, opts);
+    const firstOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+
+    // Expected: Alpha first (single-name tie-break wins), then the two
+    // Beta-named rows tie-broken by repository_id asc → bbb before ccc.
+    expect(firstOrder).toEqual(["repo-aaa", "repo-bbb", "repo-ccc"]);
+
+    // Second render: same inputs → same output byte-by-byte.
+    renderCommentsRepositoryDensityChart(container, rollups, opts);
+    const secondOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(secondOrder).toEqual(firstOrder);
+  });
+
+  it("(T023-d) keyboard activation (Enter / Space) re-orders rows like a click", () => {
+    const repos = buildRepositoriesDimension(3);
+    const buckets: Record<string, RepoBucket> = {
+      [repos[0]!.repository_id]: makeBucket(1, 100, 0),
+      [repos[1]!.repository_id]: makeBucket(50, 1, 25),
+      [repos[2]!.repository_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+
+    // Find the thread_count button and dispatch a keyboard Enter
+    // event with bubbles so the delegated container-level keydown
+    // handler picks it up (mirrors how a Tab-focused button + Enter
+    // press flows in real browsers).
+    const btn = container.querySelector<HTMLButtonElement>(
+      '.comments-repository-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    expect(btn).not.toBeNull();
+    btn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    const afterEnter = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(afterEnter).toEqual([
+      repos[1]!.repository_id, // 50 threads
+      repos[2]!.repository_id, // 20 threads
+      repos[0]!.repository_id, // 1 thread
+    ]);
+
+    // Now Space on the active_thread_count button.  Re-fetch since
+    // the prior render replaced the toolbar.
+    const activeBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-repository-density-sort-btn[data-sort-metric="active_thread_count"]',
+    );
+    expect(activeBtn).not.toBeNull();
+    activeBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", bubbles: true }),
+    );
+
+    const afterSpace = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(afterSpace).toEqual([
+      repos[1]!.repository_id, // 25 active
+      repos[2]!.repository_id, // 10 active
+      repos[0]!.repository_id, // 0 active
+    ]);
+  });
 });
