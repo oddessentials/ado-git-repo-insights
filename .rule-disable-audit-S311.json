@@ -1,6 +1,6 @@
 {
   "rule": "S311",
-  "total_usages": 23,
+  "total_usages": 24,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
@@ -22,19 +22,19 @@
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 1420,
+      "line": 1585,
       "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 2031,
+      "line": 2196,
       "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 2032,
+      "line": 2197,
       "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
@@ -139,6 +139,12 @@
       "line": 122,
       "code": "values = np.random.normal(100, 20, 52)",
       "purpose": "needs-review"
+    },
+    {
+      "file": "tests/unit/test_demo_synthetic_pr_comments.py",
+      "line": 168,
+      "code": "rng = random.Random(_SYNTH_SEED)",
+      "purpose": "deterministic-seeded"
     }
   ]
 }

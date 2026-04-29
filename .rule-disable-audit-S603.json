@@ -429,7 +429,7 @@
     },
     {
       "file": "tests/fixtures/sc05/fixture_builder.py",
-      "line": 512,
+      "line": 542,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -517,7 +517,7 @@
     },
     {
       "file": "tests/integration/test_comments_trend_meta_failure.py",
-      "line": 153,
+      "line": 158,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
