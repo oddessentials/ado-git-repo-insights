@@ -715,4 +715,175 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
       "active_thread_count",
     );
   });
+
+  // ===========================================================================
+  // US4 / T026: filter-not-supported posture (FR-4-07).
+  //
+  // When ANY of the dashboard's per-PR dimension filters (repos / teams /
+  // authors / reviewers) is active, the chart MUST render a self-explanatory
+  // empty state instead of rows.  The empty state MUST be visibly distinct
+  // from the no-data-in-range empty state (FR-4-08) AND MUST disappear cleanly
+  // when filters are cleared.
+  //
+  // 3 tests; floor +3.
+  // ===========================================================================
+
+  it("(T026-a) any of the four dimension filters (repos / teams / authors / reviewers) triggers filter-not-supported", () => {
+    // Same data fixture across all four sub-iterations so the filter
+    // dimension is the sole independent variable.  If any of the four
+    // filter slots is non-empty → the chart MUST render the
+    // filter-not-supported empty state, NOT the rows the data alone
+    // would produce.  This locks FR-4-07's "ANY" contract — a future
+    // refactor that narrowed the gate to only a subset of dimensions
+    // would surface here.
+    const repos = buildRepositoriesDimension(3);
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r) => {
+      buckets[r.repository_id] = makeBucket(2, 5, 1);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    const filterCases: { name: string; filters: FilterState }[] = [
+      {
+        name: "repos",
+        filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      },
+      {
+        name: "teams",
+        filters: { repos: [], teams: ["team-x"], reviewers: [], authors: [] },
+      },
+      {
+        name: "authors",
+        filters: { repos: [], teams: [], reviewers: [], authors: ["user-x"] },
+      },
+      {
+        name: "reviewers",
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["user-y"],
+          authors: [],
+        },
+      },
+    ];
+
+    for (const { name, filters } of filterCases) {
+      // Reset the container's content between iterations so each
+      // assertion stands alone (mirrors the way the dashboard re-
+      // renders into the same container as filters change).
+      container.innerHTML = "";
+      renderCommentsRepositoryDensityChart(container, rollups, {
+        filters,
+        repositoriesDimension: repos,
+      });
+
+      // No rows under any active filter — the data fixture would
+      // otherwise produce 3 rows.
+      const rows = container.querySelectorAll(
+        ".comments-repository-density-row",
+      );
+      expect(rows).toHaveLength(0);
+      // Filter-not-supported message present (text owned by renderNoData;
+      // the chart's filter short-circuit message contains "filterable").
+      expect(container.textContent?.toLowerCase() ?? "").toContain(
+        "filterable",
+      );
+      // And the no-data-in-range message is NOT present — that's the
+      // sibling empty state for capability-on + no contributions, gated
+      // separately (case (j) above).
+      expect(container.textContent?.toLowerCase() ?? "").not.toContain(
+        "no comments data",
+      );
+      // Sanity: this assertion fires per-iteration; if the chart
+      // accidentally rendered rows under a specific filter dimension,
+      // the diagnostic identifies which one via the iteration's name.
+      if (rows.length !== 0) {
+        throw new Error(
+          `filter dimension "${name}" did not trigger the filter-not-` +
+            `supported empty state; rendered ${rows.length} data rows`,
+        );
+      }
+    }
+  });
+
+  it("(T026-b) clearing the filter restores the rows", () => {
+    const repos = buildRepositoriesDimension(3);
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r, i) => {
+      buckets[r.repository_id] = makeBucket(2, 10 - i, 1);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    // Step 1: filter active → rows absent (filter-not-supported).
+    renderCommentsRepositoryDensityChart(container, rollups, {
+      filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      repositoriesDimension: repos,
+    });
+    expect(
+      container.querySelectorAll(".comments-repository-density-row").length,
+    ).toBe(0);
+    expect(container.textContent?.toLowerCase() ?? "").toContain("filterable");
+
+    // Step 2: filters cleared (same container, same data) → rows
+    // restored.  Verifies the empty state disappears cleanly when
+    // filters are cleared (FR-4-07 second-half contract).
+    renderCommentsRepositoryDensityChart(container, rollups, {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+    const rowsAfterClear = container.querySelectorAll(
+      ".comments-repository-density-row",
+    );
+    expect(rowsAfterClear).toHaveLength(3);
+    // The "filterable" message is gone — the chart's render path
+    // is on the rows path now, not the empty-state path.
+    expect(container.textContent?.toLowerCase() ?? "").not.toContain(
+      "filterable",
+    );
+  });
+
+  it("(T026-c) filter-not-supported empty state is visibly distinct from no-data-in-range", () => {
+    const repos = buildRepositoriesDimension(2);
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r) => {
+      buckets[r.repository_id] = makeBucket(1, 5, 0);
+    });
+    const dataRollups = [makeRollup(0, buckets)];
+
+    // Capture the filter-not-supported text (rollups have data; filters
+    // active is the reason rows are absent).
+    renderCommentsRepositoryDensityChart(container, dataRollups, {
+      filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      repositoriesDimension: repos,
+    });
+    const filterText = (container.textContent ?? "").toLowerCase();
+    expect(filterText).toContain("filterable");
+    // The filter-active message MUST NOT mention "no comments data" —
+    // that's the no-data-in-range sibling's wording.
+    expect(filterText).not.toContain("no comments data");
+
+    // Reset + render the no-data-in-range path (rollups have no
+    // by_repository_comments emission; filters cleared).  Asserts the
+    // two empty-state messages produce DIFFERENT user-facing text so
+    // a team lead can distinguish "I have a filter active" from
+    // "there's no comments data here".
+    container.innerHTML = "";
+    renderCommentsRepositoryDensityChart(
+      container,
+      [makeRollup(0, undefined), makeRollup(1, undefined)],
+      {
+        filters: emptyFilters(),
+        repositoriesDimension: repos,
+      },
+    );
+    const nodataText = (container.textContent ?? "").toLowerCase();
+    expect(nodataText).toContain("no comments data");
+    expect(nodataText).not.toContain("filterable");
+
+    // Final invariant: the two messages are textually DISTINCT — direct
+    // proof of FR-4-07 / FR-4-08 visible-distinctness.  A future refactor
+    // that accidentally shared one renderNoData call site for both
+    // states would surface here.
+    expect(filterText).not.toBe(nodataText);
+  });
 });
