@@ -1,3 +1,10 @@
+# [101.20.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.19.1...v101.20.0) (2026-04-29)
+
+
+### Features
+
+* [#334](https://github.com/oddessentials/ado-git-repo-insights/issues/334) per-author comments-density chart + dashboard wiring ([#349](https://github.com/oddessentials/ado-git-repo-insights/issues/349)) ([4fcb6c5](https://github.com/oddessentials/ado-git-repo-insights/commit/4fcb6c5db34cfad7a6b3997b46532717c534b062)), closes [#347](https://github.com/oddessentials/ado-git-repo-insights/issues/347)
+
 ## [101.19.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.19.0...v101.19.1) (2026-04-28)
 
 
