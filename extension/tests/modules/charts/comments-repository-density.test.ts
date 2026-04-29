@@ -850,23 +850,48 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     });
     const dataRollups = [makeRollup(0, buckets)];
 
-    // Capture the filter-not-supported text (rollups have data; filters
-    // active is the reason rows are absent).
+    // Capture the filter-not-supported state's structural surfaces
+    // (rollups have data; filters active is the reason rows are absent).
+    // renderNoData produces TWO paragraphs: ``.no-data`` (the heading
+    // message) and optional ``.no-data-hint`` (the actionable body
+    // text).  Visible distinctness per FR-4-07 means BOTH the heading
+    // AND the hint differ between the two empty states; otherwise a
+    // user reading one paragraph cannot tell the states apart.  This
+    // strengthened test (Codex caught the prior version that only
+    // compared concatenated textContent) locks heading-and-hint
+    // distinctness AND the specific actionable wording each state
+    // surfaces.
     renderCommentsRepositoryDensityChart(container, dataRollups, {
       filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
       repositoriesDimension: repos,
     });
-    const filterText = (container.textContent ?? "").toLowerCase();
-    expect(filterText).toContain("filterable");
-    // The filter-active message MUST NOT mention "no comments data" —
-    // that's the no-data-in-range sibling's wording.
-    expect(filterText).not.toContain("no comments data");
+
+    // Filter state MUST surface BOTH paragraphs — heading + hint.  A
+    // refactor that dropped the hint would surface here.
+    const filterHeading = container.querySelector(".no-data");
+    const filterHint = container.querySelector(".no-data-hint");
+    expect(filterHeading).not.toBeNull();
+    expect(filterHint).not.toBeNull();
+    const filterHeadingText = (filterHeading?.textContent ?? "").toLowerCase();
+    const filterHintText = (filterHint?.textContent ?? "").toLowerCase();
+
+    // Heading wording: filter state's actionable distinguishing word.
+    expect(filterHeadingText).toContain("filterable");
+    // Hint wording: filter state actionable body MUST mention the
+    // user-visible action ("Clear ... filters").  Asserts on the
+    // specific actionable verb so a future hint rewrite that dropped
+    // the user-action surfaces here.
+    expect(filterHintText).toContain("clear");
+    expect(filterHintText).toContain("filters");
+    // Each filter-state surface MUST NOT carry no-data-in-range marker
+    // words — neither in the heading nor in the hint.
+    expect(filterHeadingText).not.toContain("no comments data");
+    expect(filterHeadingText).not.toContain("widening");
+    expect(filterHintText).not.toContain("no comments data");
+    expect(filterHintText).not.toContain("widening");
 
     // Reset + render the no-data-in-range path (rollups have no
-    // by_repository_comments emission; filters cleared).  Asserts the
-    // two empty-state messages produce DIFFERENT user-facing text so
-    // a team lead can distinguish "I have a filter active" from
-    // "there's no comments data here".
+    // by_repository_comments emission; filters cleared).
     container.innerHTML = "";
     renderCommentsRepositoryDensityChart(
       container,
@@ -876,14 +901,39 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
         repositoriesDimension: repos,
       },
     );
-    const nodataText = (container.textContent ?? "").toLowerCase();
-    expect(nodataText).toContain("no comments data");
-    expect(nodataText).not.toContain("filterable");
 
-    // Final invariant: the two messages are textually DISTINCT — direct
-    // proof of FR-4-07 / FR-4-08 visible-distinctness.  A future refactor
-    // that accidentally shared one renderNoData call site for both
-    // states would surface here.
-    expect(filterText).not.toBe(nodataText);
+    const nodataHeading = container.querySelector(".no-data");
+    const nodataHint = container.querySelector(".no-data-hint");
+    expect(nodataHeading).not.toBeNull();
+    expect(nodataHint).not.toBeNull();
+    const nodataHeadingText = (nodataHeading?.textContent ?? "").toLowerCase();
+    const nodataHintText = (nodataHint?.textContent ?? "").toLowerCase();
+
+    // Heading wording: no-data state's distinguishing phrase.
+    expect(nodataHeadingText).toContain("no comments data");
+    // Hint wording: no-data state actionable body MUST mention the
+    // user-visible action ("widening the date range" / "extraction").
+    // At least one of the two markers must surface so a hint rewrite
+    // that dropped both actions surfaces here.
+    expect(
+      nodataHintText.includes("widening") ||
+        nodataHintText.includes("extraction"),
+    ).toBe(true);
+    // Each no-data-state surface MUST NOT carry filter-state marker
+    // words.
+    expect(nodataHeadingText).not.toContain("filterable");
+    expect(nodataHeadingText).not.toContain("clear");
+    expect(nodataHintText).not.toContain("filterable");
+    // ``clear`` would also be a hit in many natural-English nodata
+    // hints; check the actionable phrase the filter state owns instead.
+    expect(nodataHintText).not.toContain("clear repo");
+
+    // Final invariants: the heading AND the hint differ at the text
+    // level between the two states.  Direct proof of FR-4-07 /
+    // FR-4-08 visible-distinctness at BOTH paragraph granularities.
+    // A future refactor that accidentally shared one renderNoData
+    // call site for both states would surface here.
+    expect(filterHeadingText).not.toBe(nodataHeadingText);
+    expect(filterHintText).not.toBe(nodataHintText);
   });
 });
