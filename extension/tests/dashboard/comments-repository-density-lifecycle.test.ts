@@ -30,14 +30,41 @@
  * the full dashboard module (importing dashboard.ts would trigger
  * init() at module load and side-effect the entire dashboard chain).
  *
+ * Source-parse contract: a separate describe block below LOCKS the
+ * test-side mirrors to the production helpers in ``dashboard.ts`` via
+ * ``dashboardSrc.indexOf(...)`` + ``expect(helperBody).toContain(...)``
+ * assertions — so the mirrors cannot silently drift from the real
+ * helpers (Codex stop-time review caught a prior version that used
+ * the mirrors without the source-parse lock — the lifecycle scenarios
+ * verified the mirror's behavior, not production's).  Same contract
+ * shape as 334's lifecycle test (lines 236-317) but scoped to the
+ * 335 helpers + the CL-10 anchor (per-author row → per-repo row).
+ *
  * No F3 live-loader regression here — that's covered separately in
  * extension/tests/artifact-client.test.ts (T010, Phase 2.1a) per
- * FR-3-04 and the user's "scope narrowly to lifecycle" directive.
+ * FR-3-04.
  */
+
+import * as _fsOriginal from "fs";
+
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
+
+const _fs = _loadFs();
+
+import { resolve } from "path";
 
 import { renderCommentsRepositoryDensityChart } from "../../ui/modules/charts/comments-repository-density";
 import type { Rollup } from "../../ui/dataset-loader";
 import type { FilterState } from "../../ui/modules/filters";
+
+// ---------------------------------------------------------------------------
+// Source under test (read once for the contract-lock describe block).
+// ---------------------------------------------------------------------------
+
+const dashboardSrcPath = resolve(__dirname, "../../ui/dashboard.ts");
+const dashboardSrc = _fs.readFileSync(dashboardSrcPath, "utf-8");
 
 // ---------------------------------------------------------------------------
 // Test-side mirrors of the dashboard helpers in dashboard.ts.
@@ -240,6 +267,107 @@ const NO_FILTERS: FilterState = {
   reviewers: [],
   authors: [],
 };
+
+// ===========================================================================
+// Source-parse contract — locks the test-side mirrors to dashboard.ts.
+//
+// These assertions are the load-bearing binding between the mirror
+// helpers above and the production helpers in ``dashboard.ts``.
+// Without them the lifecycle scenarios (a)-(d) would only verify the
+// mirror's behavior, leaving production drift undetected (Codex
+// stop-time review caught this on a prior version of T025).
+// ===========================================================================
+
+describe("comments-repository-density dashboard lifecycle — source-parse contract", () => {
+  it("ensureCommentsRepositoryDensityContainer in dashboard.ts implements check-first idempotency + CL-10 (per-author) anchor preference", () => {
+    const helperStart = dashboardSrc.indexOf(
+      "function ensureCommentsRepositoryDensityContainer(",
+    );
+    expect(helperStart).toBeGreaterThan(-1);
+
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 2500);
+
+    // Check-first idempotency: the helper queries the existing leaf
+    // BEFORE building any new DOM.  Without this, scenario (d) would
+    // fail (a second render would insert a duplicate row).
+    expect(helperBody).toContain(
+      'document.getElementById("comments-repository-density")',
+    );
+    expect(helperBody).toMatch(/if \(existing\) return existing;/);
+
+    // CL-10 anchor: 334 per-author row primary, 333 trend row fallback,
+    // cycle-distribution baseline.  This locks the production anchor
+    // chain so any refactor that drops or reorders the fallbacks
+    // surfaces here.  scenario (c) verifies the resulting position,
+    // but the contract here verifies the lookup PREFERENCE is intact.
+    expect(helperBody).toContain('[data-comments-author-density-row="true"]');
+    expect(helperBody).toContain('[data-comments-trend-row="true"]');
+    expect(helperBody).toContain(
+      'document.getElementById("cycle-distribution")',
+    );
+    expect(helperBody).toContain('.closest(".charts-row")');
+
+    // Row markers used by the cleanup helper and by scenarios (a)-(d).
+    expect(helperBody).toContain('row.className = "charts-row"');
+    expect(helperBody).toContain(
+      'row.setAttribute("data-comments-repository-density-row", "true")',
+    );
+    expect(helperBody).toContain('chart.id = "comments-repository-density"');
+
+    // Insertion ordering: the new row sits immediately after the anchor
+    // row's next sibling so it lands BELOW the per-author row per CL-10.
+    expect(helperBody).toContain(
+      "anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling)",
+    );
+  });
+
+  it("ensureCommentsRepositoryDensityContainer mounts the heading", () => {
+    const helperStart = dashboardSrc.indexOf(
+      "function ensureCommentsRepositoryDensityContainer(",
+    );
+    expect(helperStart).toBeGreaterThan(-1);
+
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 2500);
+
+    // Peer-pattern parity with the 333 / 334 rows: every chart container
+    // has an <h3> title.  The locked text is asserted here so a future
+    // refactor that drops or renames it fails this contract.
+    expect(helperBody).toContain('document.createElement("h3")');
+    expect(helperBody).toContain(
+      'heading.textContent = "Comment Density by Repository"',
+    );
+  });
+
+  it("removeCommentsRepositoryDensityContainer in dashboard.ts targets the data-attribute selector", () => {
+    const helperStart = dashboardSrc.indexOf(
+      "function removeCommentsRepositoryDensityContainer(",
+    );
+    expect(helperStart).toBeGreaterThan(-1);
+
+    const helperBody = dashboardSrc.slice(helperStart, helperStart + 800);
+    expect(helperBody).toContain(
+      '[data-comments-repository-density-row="true"]',
+    );
+    expect(helperBody).toMatch(/if \(!row\) return;/);
+    expect(helperBody).toContain("row.parentElement?.removeChild(row)");
+  });
+
+  it("dashboard refresh path calls both helpers behind the capability gate", () => {
+    // The capability gate at dashboard.ts is the entry point all four
+    // lifecycle scenarios verify.  If the gate or call sites move,
+    // this assertion fails so scenario (d)'s "two consecutive
+    // refreshes" simulation can be re-validated.
+    expect(dashboardSrc).toContain(
+      "ensureCommentsRepositoryDensityContainer()",
+    );
+    expect(dashboardSrc).toContain(
+      "renderCommentsRepositoryDensityChartModule(crdContainer",
+    );
+    expect(dashboardSrc).toContain(
+      "removeCommentsRepositoryDensityContainer()",
+    );
+  });
+});
 
 // ===========================================================================
 // Lifecycle scenarios (a)-(d) per T025.
