@@ -1763,4 +1763,167 @@ describe("Rollup Schema Validator", () => {
       ).toBe(true);
     });
   });
+
+  // =========================================================================
+  // Feature 335 per-repo comments-density: rollup-root `by_repository_comments`
+  // outer dict.  Each entry is atomic per INV-3-08 (mirrors 333's per-week
+  // INV-1-08 and 334's per-author INV-2-08 at sub-object granularity).
+  // STRICT-ERROR atomicity posture in BOTH strict and permissive modes —
+  // same justification as the 334 / 333 validators (no legacy emissions to
+  // grandfather).  Capability-off (FR-3-03 + INV-3-09) signals via the
+  // entire key being absent.  NO sentinel concept (CL-03 / INV-3-12 —
+  // repository_id is FK-protected at models.py:88), so bucket keys are
+  // raw repository_id strings only — there is no reserved-literal case
+  // to test (334 (g) intentionally absent).
+  // =========================================================================
+  describe("rollup-root by_repository_comments outer dict (feature 335 INV-3-08)", () => {
+    const BASE_335 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+
+    it("(a) passes validation with a complete by_repository_comments entry", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_repository_comments"),
+      ).toBe(false);
+    });
+
+    it("(b) FAILS atomicity in BOTH strict and permissive modes when an entry is partial (INV-3-08)", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            // coverage_partial intentionally absent — INV-3-08 violation.
+          },
+        },
+      };
+      for (const strict of [false, true] as const) {
+        const result = validateRollup(rollup, strict);
+        expect(result.valid).toBe(false);
+        expect(
+          result.errors.some(
+            (e) =>
+              e.field.includes("by_repository_comments") &&
+              e.message.toLowerCase().includes("coverage_partial"),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("(c) FAILS when a numeric field is null (INV-3-08: zero is the empty-extracted-subset sum, null is not a sentinel)", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: null,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_repository_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("null"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(d) passes validation when by_repository_comments key is entirely absent (capability-off path)", () => {
+      const rollup = { ...BASE_335 };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_repository_comments"),
+      ).toBe(false);
+    });
+
+    it("(e) FAILS with wrong-typed numeric field (e.g., thread_count is a string)", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: "5" as unknown as number,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_repository_comments") &&
+            e.field.includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(f) FAILS when active_thread_count > thread_count per entry (INV-3-07 ordering)", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 4, // > thread_count, INV-3-07 violation
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_repository_comments") &&
+            e.field.includes("active_thread_count") &&
+            e.message.toLowerCase().includes("inv-3-07"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(g) FAILS when by_repository_comments is the empty object (FR-1-10: capability-on must omit, not emit `{}`)", () => {
+      const rollup = {
+        ...BASE_335,
+        by_repository_comments: {},
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "by_repository_comments" &&
+            e.message.toLowerCase().includes("must be omitted"),
+        ),
+      ).toBe(true);
+    });
+  });
 });
