@@ -728,6 +728,22 @@ class AggregateGenerator:
             if weekly_by_author_comments:
                 rollup_dict["by_author_comments"] = weekly_by_author_comments
 
+            # Feature 335: per-(week, repo) comments-density emission
+            # (FR-1-01..FR-1-10).  Capability-on emits the
+            # ``by_repository_comments`` outer dict on the rollup root,
+            # keyed by ``repository_id`` directly — NO sentinel concept
+            # (CL-03 / FR-1-03 / INV-3-12; the FK constraint at
+            # models.py:88 makes unknown-to-``repositories`` IDs
+            # impossible in well-formed production data).  Capability-off
+            # omits the key entirely (FR-3-03 + INV-3-09 atomicity).
+            # Empty outer dict (no PRs in the canonical set OR no buckets
+            # emitted) is also omitted (FR-1-10).
+            weekly_by_repository_comments = self._compute_weekly_by_repository_comments(
+                week_pr_uids
+            )
+            if weekly_by_repository_comments:
+                rollup_dict["by_repository_comments"] = weekly_by_repository_comments
+
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
             if by_author:
@@ -1204,6 +1220,181 @@ class AggregateGenerator:
                 # Defensive: a NULL author_id with no users-row would
                 # have been mapped to the sentinel by the CASE; a NULL
                 # author key here means an unexpected schema state.
+                # Skip rather than emit a NULL key into the JSON.
+                continue
+            key = str(key_raw)
+            coverage_raw = row["coverage_partial"]
+            coverage_partial = coverage_raw is not None and int(coverage_raw) > 0
+            buckets[key] = {
+                "thread_count": int(row["thread_count"]),
+                "comment_count": int(row["comment_count"]),
+                "active_thread_count": int(row["active_thread_count"]),
+                "coverage_partial": coverage_partial,
+            }
+
+        if not buckets:
+            return None
+        return buckets
+
+    def _compute_weekly_by_repository_comments(
+        self, week_pr_uids: set[str]
+    ) -> dict[str, dict[str, int | bool]] | None:
+        """Compute per-(week, repo) ``by_repository_comments`` emission for one week.
+
+        Returns ``None`` when ``_has_comments()`` is False or when
+        ``week_pr_uids`` is empty so callers can omit the
+        ``by_repository_comments`` key entirely (FR-3-03 + INV-3-09 +
+        FR-1-10 — the key MUST be absent under capability-off, NOT
+        ``None``-valued, NOT ``{}``-valued, NOT partial).
+
+        When capability-on with a non-empty canonical set, returns an
+        outer dict keyed by ``pull_requests.repository_id`` directly
+        (NO sentinel literal per Feature 335 CL-03 / FR-1-03 / INV-3-12;
+        the FK constraint at ``models.py:88``
+        (``pull_requests.repository_id REFERENCES
+        repositories(repository_id)``) guarantees every emitted
+        ``repository_id`` corresponds to a row in ``repositories`` for
+        well-formed production data).  Each inner dict carries the four
+        atomic fields:
+
+          - ``thread_count``: SUM over the bucket's extracted-subset
+            (PRs with ``comments_extracted_at IS NOT NULL``) of the
+            per-PR active-or-closed thread count, after C1 inclusion
+            (``pr_threads.is_deleted = 0``).  PRs in the canonical
+            set with ``comments_extracted_at IS NULL`` contribute zero
+            to this sum (FR-1-05).
+          - ``comment_count``: SUM over the same extracted-subset of
+            per-PR comment count after C1 (``pr_comments.is_deleted = 0``).
+          - ``active_thread_count``: SUM over the same extracted-subset
+            of per-PR active-thread count (threads with
+            ``status = 'active'`` after C1).
+          - ``coverage_partial``: ``True`` iff at least one PR in W's
+            canonical throughput PR set keyed under the same bucket
+            has ``comments_extracted_at IS NULL`` (FR-1-06).  Each
+            bucket's flag is independent of every other bucket's flag.
+
+        Outer dict key order is ascending by ``repository_id`` per
+        contracts/per-repo-comments-density.md §2 Determinism +
+        QG-05.  Display name is NOT used for producer-side ordering —
+        that's renderer-side tie-breaking per FR-4-05.
+
+        FK-violation FAIL-LOUD (CL-03 / FR-1-03): a pre-flight LEFT
+        JOIN query identifies any PR in the canonical set whose
+        ``repository_id`` is missing from the ``repositories`` table
+        and raises ``RuntimeError`` with the offending PR's identity.
+        Should be impossible in well-formed production data per the
+        FK constraint at ``models.py:88``; this guard surfaces the
+        edge case where FK enforcement was disabled during a migration
+        or the database is otherwise corrupted, preventing the
+        aggregator from silently coercing such rows into the emission.
+
+        SQL pattern mirrors ``_compute_weekly_by_author_comments`` but
+        groups by ``pr.repository_id`` directly (no LEFT JOIN to a
+        sentinel-bucket-resolution table).  S608 compliance — no
+        dynamic SQL strings; the ``week_pr_uids`` slice is materialized
+        in a temp table and joined.
+
+        Spec anchors: FR-1-01..FR-1-10, FR-3-03, INV-3-07, INV-3-08,
+        INV-3-09, INV-3-10, INV-3-12, CL-03, CL-04, CL-09.  C1 contract
+        authority: ``specs/310-comments-visualization/spec.md`` "Shared
+        inclusion-rule contract (C1)".
+        """
+        if not self._has_comments():
+            return None
+
+        if not week_pr_uids:
+            # Defensive: empty canonical set yields no bucket emission.
+            # Callers see ``None`` and omit the ``by_repository_comments``
+            # key (FR-1-10 + FR-3-03 omission contract).
+            return None
+
+        self.db.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS "
+            "_aggr_week_by_repository_comments_slice "
+            "(pull_request_uid TEXT PRIMARY KEY)"
+        )
+        self.db.execute("DELETE FROM _aggr_week_by_repository_comments_slice")
+        self.db.executemany(
+            "INSERT INTO _aggr_week_by_repository_comments_slice "
+            "(pull_request_uid) VALUES (?)",
+            [(uid,) for uid in week_pr_uids],
+        )
+
+        # Pre-flight FK-violation FAIL-LOUD per CL-03 / FR-1-03 /
+        # INV-3-12.  In well-formed production data this query returns
+        # zero rows (FK constraint at models.py:88 makes orphan
+        # repository_ids impossible).  If the query returns a row,
+        # database integrity has been violated — raise so the caller
+        # can investigate rather than silently coercing.
+        orphan_cursor = self.db.execute(
+            "SELECT pr.pull_request_uid AS pull_request_uid, "
+            "       pr.repository_id AS repository_id "
+            "FROM pull_requests pr "
+            "INNER JOIN _aggr_week_by_repository_comments_slice s "
+            "  ON s.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN repositories r ON r.repository_id = pr.repository_id "
+            "WHERE r.repository_id IS NULL "
+            "LIMIT 1"
+        )
+        orphan_row = orphan_cursor.fetchone()
+        if orphan_row is not None:
+            offending_uid = orphan_row["pull_request_uid"]
+            offending_repo_id = orphan_row["repository_id"]
+            raise RuntimeError(
+                "Feature 335 FR-1-03 / CL-03 FK-violation FAIL-LOUD: "
+                f"pull_request_uid={offending_uid!r} carries "
+                f"repository_id={offending_repo_id!r} which is missing "
+                "from the repositories table.  This violates the FK "
+                "constraint at models.py:88 (pull_requests.repository_id "
+                "REFERENCES repositories(repository_id)) and should be "
+                "impossible in well-formed production data — investigate "
+                "database integrity (e.g., FK enforcement disabled during "
+                "a migration?) before re-running the aggregator."
+            )
+
+        cursor = self.db.execute(
+            "SELECT "
+            "  pr.repository_id AS repository_id, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.thread_count ELSE 0 END), 0) "
+            "    AS thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.comment_count ELSE 0 END), 0) "
+            "    AS comment_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN t.active_thread_count ELSE 0 END), 0) "
+            "    AS active_thread_count, "
+            "  MAX(CASE WHEN pr.comments_extracted_at IS NULL "
+            "          THEN 1 ELSE 0 END) "
+            "    AS coverage_partial "
+            "FROM pull_requests pr "
+            "INNER JOIN _aggr_week_by_repository_comments_slice s "
+            "  ON s.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS thread_count, "
+            "         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) "
+            "           AS active_thread_count "
+            "  FROM pr_threads "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") t ON t.pull_request_uid = pr.pull_request_uid "
+            "LEFT JOIN ( "
+            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  FROM pr_comments "
+            "  WHERE is_deleted = 0 "
+            "  GROUP BY pull_request_uid "
+            ") c ON c.pull_request_uid = pr.pull_request_uid "
+            "GROUP BY pr.repository_id "
+            "ORDER BY pr.repository_id ASC"
+        )
+
+        buckets: dict[str, dict[str, int | bool]] = {}
+        for row in cursor.fetchall():
+            key_raw = row["repository_id"]
+            if key_raw is None:
+                # Defensive: repository_id is NOT NULL per models.py:77
+                # so a NULL key here means an unexpected schema state.
                 # Skip rather than emit a NULL key into the JSON.
                 continue
             key = str(key_raw)
