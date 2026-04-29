@@ -620,25 +620,48 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
 
   it("(T023-d) keyboard activation (Enter / Space) re-orders rows like a click", () => {
     const repos = buildRepositoriesDimension(3);
+    // Fixture chosen so the THREE orderings (default comment_count
+    // desc, thread_count desc, active_thread_count desc) are ALL
+    // distinct — this prevents the Space activation assertion from
+    // passing vacuously when Space is a no-op (Codex caught a prior
+    // version where thread_count and active_thread_count produced
+    // identical orderings, so an inert Space handler stayed on the
+    // thread_count ordering Enter had already established).  All
+    // entries satisfy INV-3-07 (active_thread_count <= thread_count).
     const buckets: Record<string, RepoBucket> = {
-      [repos[0]!.repository_id]: makeBucket(1, 100, 0),
-      [repos[1]!.repository_id]: makeBucket(50, 1, 25),
-      [repos[2]!.repository_id]: makeBucket(20, 50, 10),
+      [repos[0]!.repository_id]: makeBucket(50, 10, 5),
+      [repos[1]!.repository_id]: makeBucket(10, 20, 8),
+      [repos[2]!.repository_id]: makeBucket(20, 30, 3),
     };
     renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
       filters: emptyFilters(),
       repositoriesDimension: repos,
     });
 
-    // Find the thread_count button and dispatch a keyboard Enter
-    // event with bubbles so the delegated container-level keydown
-    // handler picks it up (mirrors how a Tab-focused button + Enter
-    // press flows in real browsers).
-    const btn = container.querySelector<HTMLButtonElement>(
+    // Initial-state guard: the default comment_count desc ordering
+    // is [repos[2] (30), repos[1] (20), repos[0] (10)].  Asserted so
+    // a future fixture drift that aligned default + Enter outcomes
+    // would surface here rather than masking a broken keyboard
+    // handler.
+    const initial = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    ).map((r) => r.getAttribute("data-repository-id"));
+    expect(initial).toEqual([
+      repos[2]!.repository_id, // 30 comments
+      repos[1]!.repository_id, // 20 comments
+      repos[0]!.repository_id, // 10 comments
+    ]);
+
+    // Enter on the thread_count button.  Re-orders by thread_count
+    // desc → [repos[0] (50), repos[2] (20), repos[1] (10)] which is
+    // a different sequence from the comment_count default.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
       '.comments-repository-density-sort-btn[data-sort-metric="thread_count"]',
     );
-    expect(btn).not.toBeNull();
-    btn?.dispatchEvent(
+    expect(threadBtn).not.toBeNull();
+    threadBtn?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
     );
 
@@ -648,13 +671,19 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
       ),
     ).map((r) => r.getAttribute("data-repository-id"));
     expect(afterEnter).toEqual([
-      repos[1]!.repository_id, // 50 threads
+      repos[0]!.repository_id, // 50 threads
       repos[2]!.repository_id, // 20 threads
-      repos[0]!.repository_id, // 1 thread
+      repos[1]!.repository_id, // 10 threads
     ]);
 
-    // Now Space on the active_thread_count button.  Re-fetch since
-    // the prior render replaced the toolbar.
+    // Space on the active_thread_count button.  Re-orders by
+    // active_thread_count desc → [repos[1] (8), repos[0] (5),
+    // repos[2] (3)] which is DISTINCT from BOTH the comment_count
+    // default and the thread_count Enter ordering — so an inert
+    // Space handler would leave the rows in their thread_count order
+    // and the assertion would fail loudly.  This is the Codex-fix
+    // that prevents the "afterSpace == afterEnter so Space could be
+    // a no-op" vacuous-pass mode.
     const activeBtn = container.querySelector<HTMLButtonElement>(
       '.comments-repository-density-sort-btn[data-sort-metric="active_thread_count"]',
     );
@@ -669,9 +698,21 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
       ),
     ).map((r) => r.getAttribute("data-repository-id"));
     expect(afterSpace).toEqual([
-      repos[1]!.repository_id, // 25 active
-      repos[2]!.repository_id, // 10 active
-      repos[0]!.repository_id, // 0 active
+      repos[1]!.repository_id, // 8 active
+      repos[0]!.repository_id, // 5 active
+      repos[2]!.repository_id, // 3 active
     ]);
+    // Final invariant: the post-Space ordering MUST differ from the
+    // post-Enter ordering — direct proof Space activation actually
+    // fired and was not silently masked by a sibling re-render path.
+    expect(afterSpace).not.toEqual(afterEnter);
+    // And the active button's aria-pressed reflects the Space
+    // activation (FR-4-10 keyboard parity with click).
+    const checkedBtn = container.querySelector(
+      '.comments-repository-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checkedBtn?.getAttribute("data-sort-metric")).toBe(
+      "active_thread_count",
+    );
   });
 });
