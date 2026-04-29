@@ -26,5 +26,8 @@ export * from "./comments-trend";
 // Comments-author-density chart (Feature 334 — per-author breakdown)
 export * from "./comments-author-density";
 
+// Comments-repository-density chart (Feature 335 — per-repo breakdown)
+export * from "./comments-repository-density";
+
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor
