@@ -485,10 +485,34 @@ def generate_pr_records(
             )
             # Typical ADO patterns: ~2-5 comments per thread, with a
             # floor of thread_count (one comment per thread minimum
-            # when threads exist).  Zero-thread PRs may still have a
-            # handful of drive-by system comments.
+            # when threads exist).
+            #
+            # Production schema (``models.py:170``) requires every
+            # ``pr_comments`` row to have a non-NULL ``thread_id`` with
+            # FK to ``pr_threads``.  Pre-#336 the demo allowed
+            # (thread_count=0, comment_count>0) "drive-by system
+            # comments" — a synthetic abstraction that does not map to
+            # production where system messages belong to system-
+            # generated threads.  Feature 336 per-reviewer dimension
+            # iterates ``pr_comments`` rows joined with ``pr_threads``
+            # to compute COUNT(DISTINCT thread_id) per commenter; the
+            # legacy abstraction made the per-reviewer synthesizer's
+            # contract (CL-14) unsatisfiable on existing demo PR
+            # shapes (Codex stop-time review caught this on the T007
+            # commit).  The fix forces ``comment_count = 0`` when
+            # ``thread_count = 0`` so the demo data is production-
+            # schema-compatible end to end.
+            #
+            # The historical ``randint(0, 3)`` draw is consumed and
+            # discarded so the rest of the byte-identity sequence
+            # stays in lockstep with the pre-#336 RNG state — only
+            # the per-PR ``comment_count`` (a gated key per
+            # ``test_demo_variants_byte_identity.py``) shifts on the
+            # affected PRs, plus the rollup-level aggregates that
+            # depend on it (also gated keys).
             if thread_count == 0:
-                comment_count = comments_metrics_rng.randint(0, 3)
+                _ = comments_metrics_rng.randint(0, 3)
+                comment_count = 0
             else:
                 comment_count = thread_count * comments_metrics_rng.randint(2, 5)
         records.append(

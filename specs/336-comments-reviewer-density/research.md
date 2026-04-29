@@ -41,6 +41,8 @@ This file consolidates the genuinely new ADRs (R001 – R006) for this feature. 
 
 **Decision**: Add two NEW internal per-week parallel lists in `scripts/generate-demo-data.py` alongside `synthetic_prs_full`, populated such that re-aggregating them yields each PR's pre-existing PrRecord aggregate counts. NOT serialized to rollup files (privacy posture; only aggregated `by_reviewer_comments` keys ship).
 
+**Precondition (added post-Codex-stop-time-review on the T007 commit)**: the existing demo generator at `generate-demo-data.py:486-493` previously emitted PrRecords with `(thread_count=0, comment_count>0)` "drive-by system comments" — a synthetic abstraction that violates the production schema FK at `models.py:170` (`pr_comments.thread_id NOT NULL` + FK to `pr_threads`). The Codex stop-time review on the T007 commit identified that CL-14's "Total count per PR MUST match `comment_count` aggregate" + "each emitted thread MUST have ≥1 comment" rules + production-schema FK semantics jointly forbid the unsatisfiable `(thread_count=0, comment_count>0)` shape. This ADR's implementation includes a small, byte-identity-preserving fix to the demo generator: enforce `comment_count = 0` when `thread_count = 0`; consume-and-discard the historical `randint(0, 3)` draw so the rest of the RNG sequence (and every other field in the demo's serialized output) stays in lockstep with pre-#336 state. The fix lands BEFORE T015's helper implementation so T015 can iterate `synthetic_prs_full` without special-casing the unsatisfiable shape.
+
 **Stream shapes**:
 
 ```python

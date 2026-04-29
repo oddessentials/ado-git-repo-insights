@@ -108,6 +108,8 @@ class SyntheticPrComment(TypedDict):
 
 **Generation rule** (per CL-14 step 2 / ADR R002): for each PR P with non-NULL `comment_count`, emit `P.comment_count` synthetic comment records distributed across P's threads such that each thread has ≥1 comment. Sample `author_id` deterministically from `author_pool` (excluding P's `author_id`); use the existing `init_random` seed for reproducibility. ≥1 demo week MUST sample from a synthetic ghost pool (UUIDs absent from seeded `users`) so the per-reviewer sentinel reconciliation branch is exercised non-vacuously.
 
+**Precondition (per CL-14 + Codex stop-time review fix)**: PrRecord shapes consumed by the synthesizer MUST satisfy `comment_count > 0 ⇒ thread_count > 0`. The demo generator at `scripts/generate-demo-data.py:486-493` enforces this by setting `comment_count = 0` when `thread_count = 0` (the historical "drive-by system comments" abstraction is dropped because it violated the production schema FK at `models.py:170`). The synthesizer relies on this precondition to avoid the unsatisfiable `(thread_count=0, comment_count>0)` case; it MUST NOT special-case PrRecord shapes that violate the precondition (instead, the demo generator's PrRecord-construction loop is the single seat for the production-schema invariant).
+
 **Coherence guard** (per CL-14 step 3 / A-12): for every PR P, re-aggregating both lists MUST yield P's pre-existing PrRecord aggregate counts:
 - `len([t for t in synthetic_pr_threads if t.pull_request_uid == P.pull_request_uid])` == `P.thread_count`
 - `len([t for t in synthetic_pr_threads if t.pull_request_uid == P.pull_request_uid and t.status == 'active'])` == `P.active_thread_count`
