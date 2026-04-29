@@ -621,6 +621,60 @@ def _aggregate_by_author_comments_for_week(
     return buckets if buckets else None
 
 
+def _aggregate_by_repository_comments_for_week(
+    prs: list[PrRecord],
+) -> dict[str, dict[str, int | bool]] | None:
+    """Per-(week, repo) comments-density emission for the synthetic demo.
+
+    Mirrors ``aggregators.py::_compute_weekly_by_repository_comments``
+    semantics so the demo and the real-data aggregator emit byte-aligned
+    shapes for the Feature 335 ``by_repository_comments`` rollup-root key.
+
+    One bucket per ``repository_id`` appearing on any PR in ``prs``.
+    Numeric fields sum over the bucket's extracted-subset (PRs whose
+    ``thread_count`` is not None per 310 INV-10).  ``coverage_partial``
+    is True iff at least one PR in the bucket has ``thread_count is None``
+    (FR-1-06).  Outer dict keys are emitted in ascending order by
+    ``repository_id`` for byte-determinism (matches the aggregator's
+    ``ORDER BY pr.repository_id ASC`` plus ``json.dumps(sort_keys=True)``).
+
+    No sentinel concept (Feature 335 CL-03 / FR-1-03 / INV-3-12 —
+    repository_id is FK-protected at ``models.py:88``).  Every key is a
+    raw repository_id string.
+
+    Returns ``None`` when ``prs`` is empty so callers can omit the
+    ``by_repository_comments`` key entirely (FR-3-03 / INV-3-09 / FR-1-10
+    omission contract).  Caller is responsible for capability gating.
+    """
+    if not prs:
+        return None
+    grouped: dict[str, list[PrRecord]] = {}
+    for pr in prs:
+        repo = str(pr["repository_id"])
+        grouped.setdefault(repo, []).append(pr)
+    buckets: dict[str, dict[str, int | bool]] = {}
+    for repo in sorted(grouped):
+        thread_total = 0
+        comment_total = 0
+        active_total = 0
+        coverage_partial = False
+        for pr in grouped[repo]:
+            thread = pr.get("thread_count")
+            if thread is None:
+                coverage_partial = True
+                continue
+            thread_total += int(thread)
+            comment_total += int(pr.get("comment_count") or 0)
+            active_total += int(pr.get("active_thread_count") or 0)
+        buckets[repo] = {
+            "thread_count": thread_total,
+            "comment_count": comment_total,
+            "active_thread_count": active_total,
+            "coverage_partial": coverage_partial,
+        }
+    return buckets if buckets else None
+
+
 # =============================================================================
 # UUID v5 Generation (T007)
 # =============================================================================
@@ -2255,6 +2309,21 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if weekly_by_author_comments:
                     rollup_data["by_author_comments"] = weekly_by_author_comments
+                # Feature 335 per-repo bucketing.  Mirrors production
+                # ``_compute_weekly_by_repository_comments``; emits over
+                # the FULL extracted-subset (synthetic_prs_full, NOT the
+                # 500-row drill-down slice) per INV-3-10 — same scope
+                # choice 333 ``comments`` and 334 ``by_author_comments``
+                # use, so cross-aggregate sum-coherence (FR-2-03) holds
+                # on every week.  Omits the key when no buckets exist
+                # per FR-3-03 / INV-3-09 / FR-1-10.
+                weekly_by_repository_comments = (
+                    _aggregate_by_repository_comments_for_week(synthetic_prs_full)
+                )
+                if weekly_by_repository_comments:
+                    rollup_data["by_repository_comments"] = (
+                        weekly_by_repository_comments
+                    )
             else:
                 rollup_data["prs"] = [
                     _strip_comments_metrics_from_pr(pr) for pr in synthetic_prs
