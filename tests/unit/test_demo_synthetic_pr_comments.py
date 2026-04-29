@@ -315,6 +315,105 @@ def test_commenter_excludes_self_and_uses_uuid_format(
         )
 
 
+def test_empty_week_does_not_raise_on_ghost_forcing(
+    generate_demo_data: ModuleType,
+) -> None:
+    """Case (h) — Codex stop-time review regression on commit 0705471e:
+    the synthesizer MUST return ``([], [])`` without raising when called
+    on a week with NO emitted comments.
+
+    The CL-14 step 4 ghost-commenter inclusion guarantee is a DATASET-
+    level requirement (">=1 demo week MUST include synthetic ghost
+    commenters"), NOT a per-week requirement.  Three legitimately-empty
+    week scenarios must NOT raise:
+
+    1. Empty PR list (``prs=[]``) — week with zero PRs.
+    2. PRs all with ``thread_count=0`` AND ``comment_count=0`` — every
+       PR is empty post-242bbd21 FK invariant.
+    3. PRs all with ``thread_count=None`` — 310 INV-10 partial-sentinel
+       week (every PR's comments-metrics triplet is None).
+
+    All three scenarios produce zero comments emitted; ghost-forcing
+    had no opportunity, so the post-loop ``raise RuntimeError`` MUST
+    NOT fire.  Pre-fix the synthesizer crashed on all three.
+    """
+    rng = random.Random(_SYNTH_SEED)
+
+    # Scenario 1: empty PR list.
+    threads_empty, comments_empty = (
+        generate_demo_data.synthesize_pr_comment_streams_for_week(
+            [],
+            _user_pool(),
+            _ghost_pool(),
+            rng,
+        )
+    )
+    assert threads_empty == [], (
+        f"empty PR list scenario: expected threads=[], got {threads_empty!r}"
+    )
+    assert comments_empty == [], (
+        f"empty PR list scenario: expected comments=[], got {comments_empty!r}"
+    )
+
+    # Scenario 2: all PRs empty post-FK-invariant (thread_count=0).
+    all_empty_prs: list[dict[str, object]] = [
+        {
+            "id": 100 + idx,
+            "title": f"empty PR {idx}",
+            "author_id": _AUTHOR_A,
+            "repository_id": "repo-001",
+            "cycle_time": 50,
+            "thread_count": 0,
+            "comment_count": 0,
+            "active_thread_count": 0,
+        }
+        for idx in range(3)
+    ]
+    threads_all_empty, comments_all_empty = (
+        generate_demo_data.synthesize_pr_comment_streams_for_week(
+            all_empty_prs,
+            _user_pool(),
+            _ghost_pool(),
+            rng,
+        )
+    )
+    assert threads_all_empty == [], (
+        f"all-empty-PRs scenario: expected threads=[], got {threads_all_empty!r}"
+    )
+    assert comments_all_empty == [], (
+        f"all-empty-PRs scenario: expected comments=[], got {comments_all_empty!r}"
+    )
+
+    # Scenario 3: all PRs partial sentinel (thread_count=None).
+    all_partial_prs: list[dict[str, object]] = [
+        {
+            "id": 200 + idx,
+            "title": f"partial PR {idx}",
+            "author_id": _AUTHOR_A,
+            "repository_id": "repo-001",
+            "cycle_time": 50,
+            "thread_count": None,
+            "comment_count": None,
+            "active_thread_count": None,
+        }
+        for idx in range(3)
+    ]
+    threads_partial, comments_partial = (
+        generate_demo_data.synthesize_pr_comment_streams_for_week(
+            all_partial_prs,
+            _user_pool(),
+            _ghost_pool(),
+            rng,
+        )
+    )
+    assert threads_partial == [], (
+        f"all-partial-PRs scenario: expected threads=[], got {threads_partial!r}"
+    )
+    assert comments_partial == [], (
+        f"all-partial-PRs scenario: expected comments=[], got {comments_partial!r}"
+    )
+
+
 def test_ghost_pool_yields_at_least_one_ghost_commenter_in_emission(
     generate_demo_data: ModuleType,
 ) -> None:

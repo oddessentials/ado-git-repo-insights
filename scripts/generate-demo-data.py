@@ -997,19 +997,32 @@ def synthesize_pr_comment_streams_for_week(
 
         comments.extend(per_pr_comments)
 
-    if ghost_pool and not ghost_used:
-        # Defensive: every PR's author equals every ghost (impossible
-        # in practice when ghost_pool is constructed from UUIDs absent
-        # from ``users``), OR every PR has thread_count=0/comment_count=0
-        # and produced no comments — degenerate fixture.
+    # Per-call ghost guarantee scope (Codex stop-time review fix on
+    # commit 0705471e): the ghost-commenter inclusion requirement
+    # (CL-14 step 4: ">=1 demo week MUST include synthetic ghost
+    # commenters") is a DATASET-level guarantee, not a per-week
+    # requirement.  When called on a week with NO emitted comments
+    # (every PR skipped via 310 INV-10 partial sentinel OR every PR
+    # has ``thread_count=0`` AND ``comment_count=0`` post-242bbd21 FK
+    # invariant), ``comments`` is legitimately empty and ghost-forcing
+    # had no opportunity — this is a valid empty-bucket week, not a
+    # contract violation.  Only raise when forcing FAILED despite
+    # having an opportunity (comments non-empty + ghost_pool non-empty
+    # + ghost_used False) — that would indicate every emitted PR's
+    # author equals every ghost (impossible if ghost_pool was
+    # constructed disjoint from user_pool, which is asserted at the
+    # call site via the ``_ghost_user_collision`` guard).
+    if ghost_pool and comments and not ghost_used:
         raise RuntimeError(
             "synthesize_pr_comment_streams_for_week: ghost_pool is "
-            f"non-empty ({ghost_pool!r}) but no PR yielded a ghost-"
-            "eligible comment slot — ghost-commenter inclusion guarantee "
-            "per CL-14 step 4 cannot be satisfied.  Either every PR's "
-            "author equals every ghost (impossible if ghost_pool was "
-            "constructed disjoint from user_pool), OR every PR has "
-            "thread_count=0/comment_count=0 and produced no comments."
+            f"non-empty ({ghost_pool!r}) and {len(comments)} comment(s) "
+            "were emitted, but ghost-forcing did not fire on any PR — "
+            "every emitted PR's author equals every ghost.  This is "
+            "structurally impossible if ghost_pool was constructed "
+            "disjoint from user_pool (the call site's "
+            "_ghost_user_collision guard enforces this); reaching this "
+            "branch indicates the guard is bypassed or the fixture's "
+            "PR authors overlap with ghost_pool by construction."
         )
 
     return threads, comments
