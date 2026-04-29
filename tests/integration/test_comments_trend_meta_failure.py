@@ -61,6 +61,11 @@ import sys
 from pathlib import Path
 from typing import Final
 
+import pytest
+
+from ado_git_repo_insights.transform.constants import (
+    FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
+)
 from tests.fixtures.sc05.fixture_builder import SC05Fixture
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
@@ -209,4 +214,92 @@ def test_meta_reconciliation_fails_on_inv_1_06_violation(
         "reading the mutated working copy, or an assertion has been "
         "short-circuited. Subprocess stdout follows:\n"
         f"{completed.stdout}\n--- stderr ---\n{completed.stderr}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Feature 334 per-author meta-failure test                                     #
+# --------------------------------------------------------------------------- #
+
+
+def _inject_per_author_inv207_violation(rollup_path: Path) -> tuple[str, str]:
+    """Inject a synthetic per-author INV-2-07 violation in by_author_comments.
+
+    Returns ``(week_key, bucket_key)`` so the meta-test failure message
+    can name both surfaces.  The injected entry uses the reserved
+    sentinel literal as its bucket key (guaranteed not to collide with
+    any real ``user_id`` per Feature 334 CL-03 / A-07), satisfies
+    INV-2-08 atomicity (all four fields present together) so the only
+    contract violated is INV-2-07's ordering rule
+    (``active_thread_count > thread_count``).  This isolates the
+    failure mode the meta-test is proving — per-author reconciliation
+    MUST detect the per-bucket active-vs-thread integrity violation
+    specifically, not simply reject any malformed sub-object.
+    """
+    payload = json.loads(rollup_path.read_text(encoding="utf-8"))
+    existing = payload.get("by_author_comments")
+    by_author_comments: dict[str, dict[str, int | bool]]
+    if isinstance(existing, dict):
+        by_author_comments = {
+            str(k): dict(v) if isinstance(v, dict) else {} for k, v in existing.items()
+        }
+    else:
+        by_author_comments = {}
+    by_author_comments[FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL] = {
+        "thread_count": _SYNTH_THREAD_COUNT,
+        "comment_count": _SYNTH_COMMENT_COUNT,
+        "active_thread_count": _SYNTH_ACTIVE_THREAD_COUNT,
+        "coverage_partial": _SYNTH_COVERAGE_PARTIAL,
+    }
+    payload["by_author_comments"] = by_author_comments
+    rollup_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return rollup_path.stem, FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+
+
+@pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "depends on the per-author reconciliation extension "
+        "(test_sc05_reconciliation_per_week_by_author_*) being green "
+        "on the clean demo before the per-author meta-failure can "
+        "evaluate cleanly; collection-stable per Principle XXVI"
+    ),
+)
+def test_meta_reconciliation_fails_on_per_author_inv_2_07_violation(
+    tmp_path: Path, sc05_fixture: SC05Fixture
+) -> None:
+    """FR-2-05 (Feature 334): reconciliation MUST fail on per-author INV-2-07 violation.
+
+    Mechanism:
+        1. Copy the SC-05 fixture into ``tmp_path``.
+        2. Pick the most recent weekly rollup; inject a synthetic
+           ``by_author_comments`` entry under the sentinel key with
+           ``active_thread_count = thread_count + 1`` (the spec-minimum
+           positive control for FR-2-05 propagated to per-author scope).
+        3. Invoke the FR-2-04 reconciliation test in a subprocess
+           pointed at the mutated working copy via ``ADO_SC05_FIXTURE_DIR``.
+        4. Assert subprocess returned non-zero (per-author reconciliation
+           detected the synthetic violation).  A return code of 0 means
+           per-author reconciliation has gone silently passive — exactly
+           the failure mode this meta-test exists to detect.
+    """
+    working_root = _copy_fixture_into(tmp_path, sc05_fixture)
+    target_rollup = _pick_target_rollup(working_root)
+    week_key, bucket_key = _inject_per_author_inv207_violation(target_rollup)
+
+    completed = _run_reconciliation_against(working_root)
+
+    assert completed.returncode != 0, (
+        "FR-2-05 violation (per-author scope): the FR-2-04 reconciliation "
+        f"test PASSED on a dataset where week {week_key} carries "
+        f"by_author_comments[{bucket_key!r}].active_thread_count="
+        f"{_SYNTH_ACTIVE_THREAD_COUNT} > thread_count={_SYNTH_THREAD_COUNT} "
+        "(INV-2-07 violation). Per-author reconciliation has gone silently "
+        "passive: either the per-bucket loop is skipping buckets, the "
+        "fixture loader is not reading the mutated working copy, or a "
+        "per-bucket assertion has been short-circuited. Subprocess stdout "
+        f"follows:\n{completed.stdout}\n--- stderr ---\n{completed.stderr}"
     )

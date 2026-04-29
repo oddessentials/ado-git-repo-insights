@@ -1330,7 +1330,11 @@ var PRInsightsArtifactClient = (() => {
     "_prs_cap",
     // Feature 333 weekly comments-aggregate (gated on capabilities.comments_metrics).
     // Atomic when present per INV-1-08; absent entirely when capability-off (FR-3-03).
-    "comments"
+    "comments",
+    // Feature 334 per-author comments-density (gated on capabilities.comments_metrics).
+    // Outer dict at rollup root; per-entry atomic per INV-2-08; absent entirely
+    // when capability-off (FR-3-03 + INV-2-09).
+    "by_author_comments"
   ]);
   var PR_RECORD_REQUIRED_FIELDS = [
     "id",
@@ -1742,6 +1746,126 @@ var PRInsightsArtifactClient = (() => {
     }
     return { errors };
   }
+  function validateAuthorCommentsDensity(data, path) {
+    const errors = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors };
+    }
+    const entries = Object.entries(
+      data
+    );
+    if (entries.length === 0) {
+      errors.push(
+        createError(
+          path,
+          "non-empty Record<string, AuthorCommentsDensityEntry>",
+          "{}",
+          `by_author_comments MUST be omitted entirely when no per-author buckets exist (FR-3-03 + INV-2-09); empty object is a contract violation`
+        )
+      );
+      return { errors };
+    }
+    const requiredFields = [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "coverage_partial"
+    ];
+    for (const [key, entry] of entries) {
+      const entryPath = buildPath(path, key);
+      if (!isObject(entry)) {
+        errors.push(createError(entryPath, "object", getTypeName(entry)));
+        continue;
+      }
+      const missing = requiredFields.filter(
+        (field) => !Object.prototype.hasOwnProperty.call(entry, field)
+      );
+      if (missing.length > 0) {
+        errors.push(
+          createError(
+            entryPath,
+            "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+            `missing: ${missing.join(", ")}`,
+            `by_author_comments[${key}] atomicity violated (INV-2-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+          )
+        );
+      }
+      const numericFieldChecks = [
+        { name: "thread_count", value: entry.thread_count },
+        { name: "comment_count", value: entry.comment_count },
+        { name: "active_thread_count", value: entry.active_thread_count }
+      ];
+      for (const { name, value } of numericFieldChecks) {
+        if (!Object.prototype.hasOwnProperty.call(entry, name)) {
+          continue;
+        }
+        if (value === null) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "number (non-null per INV-2-08; zero is the valid sum over an empty extracted-subset)",
+              "null",
+              `by_author_comments[${key}].${name} MUST be a non-null number (INV-2-08); null is not a valid sentinel \u2014 use 0 for an empty extracted-subset`
+            )
+          );
+        } else if (!isNumber(value)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "number",
+              getTypeName(value),
+              `expected number at 'by_author_comments[${key}].${name}', got ${getTypeName(value)}`
+            )
+          );
+        } else if (value < 0) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "non-negative number (counts cannot be negative)",
+              String(value),
+              `by_author_comments[${key}].${name} MUST be non-negative; got ${value}`
+            )
+          );
+        } else if (!Number.isInteger(value)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "integer (counts must be whole numbers)",
+              String(value),
+              `by_author_comments[${key}].${name} MUST be an integer; got ${value}`
+            )
+          );
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, "coverage_partial")) {
+        const coveragePartial = entry.coverage_partial;
+        if (!isBoolean(coveragePartial)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, "coverage_partial"),
+              "boolean",
+              getTypeName(coveragePartial),
+              `expected boolean at 'by_author_comments[${key}].coverage_partial', got ${getTypeName(coveragePartial)}`
+            )
+          );
+        }
+      }
+      const entryThread = entry.thread_count;
+      const entryActive = entry.active_thread_count;
+      if (isNumber(entryThread) && isNumber(entryActive) && Number.isInteger(entryThread) && Number.isInteger(entryActive) && entryThread >= 0 && entryActive >= 0 && entryActive > entryThread) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "active_thread_count"),
+            "<= thread_count (INV-2-07; active is a subset of total)",
+            `${entryActive} > ${entryThread}`,
+            `by_author_comments[${key}] ordering violated (INV-2-07): active_thread_count (${entryActive}) MUST NOT exceed thread_count (${entryThread})`
+          )
+        );
+      }
+    }
+    return { errors };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -1892,6 +2016,13 @@ var PRInsightsArtifactClient = (() => {
     if (Object.prototype.hasOwnProperty.call(data, "comments") && data.comments !== void 0) {
       const commentsResult = validateCommentsAggregate(data.comments, "comments");
       errors.push(...commentsResult.errors);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_author_comments") && data.by_author_comments !== void 0) {
+      const byAuthorCommentsResult = validateAuthorCommentsDensity(
+        data.by_author_comments,
+        "by_author_comments"
+      );
+      errors.push(...byAuthorCommentsResult.errors);
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);

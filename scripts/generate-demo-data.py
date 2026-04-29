@@ -399,15 +399,16 @@ def generate_pr_records(
     author_entries: list[object],
     pr_record_rng: random.Random,
     comments_metrics_rng: random.Random | None = None,
+    cap: int = _PR_DETAIL_CAP,
 ) -> list[PrRecord]:
     """Produce synthetic PR records for a single rollup week.
 
     Each entry in ``repo_entries`` represents one qualified PR in the week
     (the caller computes the qualified count; the helper assigns title,
-    cycle time, author, and id to each). Returns at most ``_PR_DETAIL_CAP``
-    records, sorted by ``(-cycle_time, id)``. Slice 2c scaffolds the
-    helper; slice 2d wires emission into the rollup loop and regenerates
-    ``docs/data/``.
+    cycle time, author, and id to each). Returns at most ``cap`` records
+    (default ``_PR_DETAIL_CAP``), sorted by ``(-cycle_time, id)``. Slice
+    2c scaffolds the helper; slice 2d wires emission into the rollup
+    loop and regenerates ``docs/data/``.
 
     Feature 310 (#182): the three comments-metrics fields
     (``thread_count`` / ``comment_count`` / ``active_thread_count``)
@@ -415,6 +416,16 @@ def generate_pr_records(
     Defaulting to the module-level stream keeps the standalone CLI
     path simple; test harnesses that check RNG isolation MUST pass a
     fresh ``random.Random`` so the two streams stay independent.
+
+    Feature 334 (#334): the optional ``cap`` parameter lets callers
+    request the FULL week of qualified PRs (``cap=len(repo_entries)``)
+    so the per-author comments-density aggregate (``by_author_comments``)
+    can be summed over W's full extracted-subset per INV-2-10 — not the
+    500-row drill-down slice.  Default behaviour is unchanged
+    (``cap=_PR_DETAIL_CAP``) so byte-determinism for the legacy
+    drill-down emission stays intact; callers wanting the full set MUST
+    snapshot/restore both RNG streams around the call so downstream
+    weeks see the original RNG state advancement.
 
     Contract:
         * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
@@ -432,7 +443,7 @@ def generate_pr_records(
         name: (mu, sigma) for name, mu, sigma in categories_tuple
     }
     base_id = _week_pr_id_base(week)
-    capped_entries = list(repo_entries)[:_PR_DETAIL_CAP]
+    capped_entries = list(repo_entries)[:cap]
 
     if not author_entries:
         raise ValueError("author_entries must be non-empty")
@@ -551,6 +562,63 @@ def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
         "active_thread_count": active_total,
         "coverage_partial": coverage_partial,
     }
+
+
+def _aggregate_by_author_comments_for_week(
+    prs: list[PrRecord],
+) -> dict[str, dict[str, int | bool]] | None:
+    """Per-(week, author) comments-density emission for the synthetic demo.
+
+    Mirrors ``aggregators.py::_compute_weekly_by_author_comments``
+    semantics so the demo and the real-data aggregator emit byte-aligned
+    shapes for the Feature 334 ``by_author_comments`` rollup-root key.
+
+    One bucket per ``author_id`` appearing on any PR in ``prs``.  Numeric
+    fields sum over the bucket's extracted-subset (PRs whose
+    ``thread_count`` is not None per 310 INV-10).  ``coverage_partial``
+    is True iff at least one PR in the bucket has ``thread_count is None``
+    (FR-1-06).  Outer dict keys are emitted in ascending order by
+    author key for byte-determinism (matches the aggregator's
+    ``ORDER BY author_or_sentinel ASC`` plus ``json.dumps(sort_keys=True)``).
+
+    All synthetic-demo authors exist in the users surface, so the
+    reserved sentinel literal ``__former_or_unavailable_author__`` is
+    never used here — sentinel-value parity is exercised by the SC05
+    reconciliation test against the production aggregator on a fixture
+    that DOES include a ghost author (see ``GHOST_USER_ID`` in
+    ``tests/fixtures/sc05/fixture_builder.py``).
+
+    Returns ``None`` when ``prs`` is empty so callers can omit the
+    ``by_author_comments`` key entirely (FR-3-03 / INV-2-09 omission
+    contract).  Caller is responsible for capability gating.
+    """
+    if not prs:
+        return None
+    grouped: dict[str, list[PrRecord]] = {}
+    for pr in prs:
+        author = str(pr["author_id"])
+        grouped.setdefault(author, []).append(pr)
+    buckets: dict[str, dict[str, int | bool]] = {}
+    for author in sorted(grouped):
+        thread_total = 0
+        comment_total = 0
+        active_total = 0
+        coverage_partial = False
+        for pr in grouped[author]:
+            thread = pr.get("thread_count")
+            if thread is None:
+                coverage_partial = True
+                continue
+            thread_total += int(thread)
+            comment_total += int(pr.get("comment_count") or 0)
+            active_total += int(pr.get("active_thread_count") or 0)
+        buckets[author] = {
+            "thread_count": thread_total,
+            "comment_count": comment_total,
+            "active_thread_count": active_total,
+            "coverage_partial": coverage_partial,
+        }
+    return buckets if buckets else None
 
 
 # =============================================================================
@@ -2123,6 +2191,31 @@ def main(argv: list[str] | None = None) -> int:
                 if rollup.by_author
                 else [f"fallback-author-{rollup.week}"]
             )
+            # Feature 334 INV-2-10: the per-author comments-density aggregate
+            # MUST sum over W's FULL extracted-subset, not the 500-row
+            # drill-down slice (production aggregator's
+            # ``_compute_weekly_by_author_comments`` is keyed on
+            # ``week_pr_uids`` which holds the entire week's PR set).
+            # To match that semantics in the synthetic demo without
+            # advancing the RNG streams differently from the legacy
+            # drill-down generation, snapshot both streams, generate the
+            # full uncapped set for the per-author aggregate, restore the
+            # streams, then generate the capped set as before.  After
+            # this block both RNG states are exactly where they would
+            # have been after a single ``generate_pr_records`` call —
+            # downstream weeks see byte-identical input.
+            pr_record_rng_state = pr_record_rng.getstate()
+            comments_metrics_rng_state = comments_metrics_rng.getstate()
+            synthetic_prs_full = generate_pr_records(
+                rollup.week,
+                repo_entries,
+                author_entries,
+                pr_record_rng,
+                comments_metrics_rng=comments_metrics_rng,
+                cap=len(repo_entries),
+            )
+            pr_record_rng.setstate(pr_record_rng_state)
+            comments_metrics_rng.setstate(comments_metrics_rng_state)
             synthetic_prs = generate_pr_records(
                 rollup.week, repo_entries, author_entries, pr_record_rng
             )
@@ -2137,16 +2230,31 @@ def main(argv: list[str] | None = None) -> int:
             # stay byte-identical across runs.
             if _EMIT_COMMENTS_METRICS:
                 rollup_data["prs"] = synthetic_prs
-                # Feature 333 (FR-2-06): rollup-level weekly comments aggregate.
-                # Sum per-PR triplet over the EXTRACTED-SUBSET (PRs where the
-                # per-PR partial sentinel is NOT applied — i.e., thread_count
-                # is not None per 310 INV-10).  PRs with thread_count is None
-                # contribute zero per FR-2-03 and flip coverage_partial to
-                # True.  Matches aggregators.py::_compute_weekly_comments_
-                # aggregate semantics exactly so synthetic and real-data
-                # rollups have identical shape (per the test_schema_guard
-                # KNOWN_ROOT_FIELDS contract).
-                rollup_data["comments"] = _aggregate_comments_for_week(synthetic_prs)
+                # Feature 333 (FR-2-06) + Feature 334 (FR-1-01..08, INV-2-10):
+                # both rollup-root comments aggregates MUST span W's FULL
+                # extracted-subset, NOT the 500-row drill-down slice.
+                # Production aggregators.py::_compute_weekly_comments_aggregate
+                # and _compute_weekly_by_author_comments are both keyed on
+                # week_pr_uids (the full week's PR set) — emitting them
+                # from the capped synthetic_prs would diverge from
+                # production on truncated weeks (qualified_count >
+                # _PR_DETAIL_CAP=500) AND inconsistently between the two
+                # rollup-root keys.  Aggregating both from
+                # synthetic_prs_full keeps the demo aligned with production
+                # and internally consistent (the per-week comments total
+                # equals the sum across by_author_comments buckets on every
+                # week, including W26 with 520 PRs).
+                rollup_data["comments"] = _aggregate_comments_for_week(
+                    synthetic_prs_full
+                )
+                # Feature 334 per-author bucketing.  Mirrors production
+                # ``_compute_weekly_by_author_comments``; omits the key
+                # when no buckets exist per FR-3-03 / INV-2-09.
+                weekly_by_author_comments = _aggregate_by_author_comments_for_week(
+                    synthetic_prs_full
+                )
+                if weekly_by_author_comments:
+                    rollup_data["by_author_comments"] = weekly_by_author_comments
             else:
                 rollup_data["prs"] = [
                     _strip_comments_metrics_from_pr(pr) for pr in synthetic_prs
