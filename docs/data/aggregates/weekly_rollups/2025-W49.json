@@ -1470,7 +1470,7 @@
     },
     "4507291f-28b5-5f92-b624-4262b17e2c4e": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1500,7 +1500,7 @@
     },
     "5b589f79-7cc3-5639-9824-ddc9500772f7": {
       "active_thread_count": 0,
-      "comment_count": 17,
+      "comment_count": 16,
       "coverage_partial": false,
       "thread_count": 8
     },
@@ -1554,7 +1554,7 @@
     },
     "7bfae255-fb96-5f69-8d1b-f086c2b3f494": {
       "active_thread_count": 1,
-      "comment_count": 7,
+      "comment_count": 6,
       "coverage_partial": false,
       "thread_count": 3
     },
@@ -1572,7 +1572,7 @@
     },
     "85bdd61e-de82-500a-b3bd-2a71d1c06a8a": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1638,7 +1638,7 @@
     },
     "c52a8434-8e4b-51ae-89db-010dc937ade2": {
       "active_thread_count": 3,
-      "comment_count": 36,
+      "comment_count": 35,
       "coverage_partial": false,
       "thread_count": 7
     },
@@ -1704,13 +1704,13 @@
     },
     "edd8ead8-cc32-5e8a-9f64-d88206710636": {
       "active_thread_count": 2,
-      "comment_count": 13,
+      "comment_count": 12,
       "coverage_partial": false,
       "thread_count": 3
     },
     "f04e5f18-a655-5fb2-9899-cfb66dfbdd40": {
       "active_thread_count": 16,
-      "comment_count": 137,
+      "comment_count": 135,
       "coverage_partial": false,
       "thread_count": 37
     },
@@ -1861,7 +1861,7 @@
   "by_repository_comments": {
     "17e15883-5fba-5295-ab83-514ecb34e89c": {
       "active_thread_count": 28,
-      "comment_count": 205,
+      "comment_count": 201,
       "coverage_partial": true,
       "thread_count": 66
     },
@@ -1885,13 +1885,13 @@
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 30,
-      "comment_count": 225,
+      "comment_count": 224,
       "coverage_partial": true,
       "thread_count": 71
     },
     "78ce1967-474d-5dec-a642-238085131cc2": {
       "active_thread_count": 16,
-      "comment_count": 57,
+      "comment_count": 56,
       "coverage_partial": false,
       "thread_count": 23
     },
@@ -1909,7 +1909,7 @@
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 36,
-      "comment_count": 295,
+      "comment_count": 293,
       "coverage_partial": true,
       "thread_count": 77
     },
@@ -1933,7 +1933,7 @@
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 14,
-      "comment_count": 144,
+      "comment_count": 142,
       "coverage_partial": false,
       "thread_count": 44
     },
@@ -2665,7 +2665,7 @@
   },
   "comments": {
     "active_thread_count": 299,
-    "comment_count": 2222,
+    "comment_count": 2212,
     "coverage_partial": true,
     "thread_count": 628
   },
@@ -3117,7 +3117,7 @@
     {
       "active_thread_count": 0,
       "author_id": "4507291f-28b5-5f92-b624-4262b17e2c4e",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 58.793,
       "id": 202549054,
       "repository_id": "ios-app",
@@ -3287,7 +3287,7 @@
     {
       "active_thread_count": 0,
       "author_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 8.736,
       "id": 202549060,
       "repository_id": "notification-service",
@@ -3377,7 +3377,7 @@
     {
       "active_thread_count": 0,
       "author_id": "edd8ead8-cc32-5e8a-9f64-d88206710636",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 5.633,
       "id": 202549007,
       "repository_id": "model-training",
@@ -3427,7 +3427,7 @@
     {
       "active_thread_count": 0,
       "author_id": "85bdd61e-de82-500a-b3bd-2a71d1c06a8a",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 3.897,
       "id": 202549035,
       "repository_id": "auth-service",
@@ -3467,7 +3467,7 @@
     {
       "active_thread_count": 0,
       "author_id": "f04e5f18-a655-5fb2-9899-cfb66dfbdd40",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 2.963,
       "id": 202549103,
       "repository_id": "react-shell",
@@ -3627,7 +3627,7 @@
     {
       "active_thread_count": 0,
       "author_id": "5b589f79-7cc3-5639-9824-ddc9500772f7",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.271,
       "id": 202549080,
       "repository_id": "model-training",
@@ -3737,7 +3737,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7bfae255-fb96-5f69-8d1b-f086c2b3f494",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.002,
       "id": 202549053,
       "repository_id": "ios-app",

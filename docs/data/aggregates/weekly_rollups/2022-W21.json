@@ -1300,7 +1300,7 @@
   "by_author_comments": {
     "03943000-b3aa-55b3-8033-bd4e5bab83fb": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
@@ -1336,7 +1336,7 @@
     },
     "1e6a1278-fa30-5862-ae60-0bd2208dbb3d": {
       "active_thread_count": 0,
-      "comment_count": 19,
+      "comment_count": 16,
       "coverage_partial": true,
       "thread_count": 4
     },
@@ -1396,7 +1396,7 @@
     },
     "46341819-09c7-5f56-af79-05d9be8b22af": {
       "active_thread_count": 12,
-      "comment_count": 113,
+      "comment_count": 112,
       "coverage_partial": false,
       "thread_count": 27
     },
@@ -1414,7 +1414,7 @@
     },
     "612fbb5d-1bbc-58bc-af66-928e26768f59": {
       "active_thread_count": 22,
-      "comment_count": 137,
+      "comment_count": 136,
       "coverage_partial": false,
       "thread_count": 36
     },
@@ -1480,7 +1480,7 @@
     },
     "b1238244-1dff-5232-aae6-73ad452a75a0": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
@@ -1504,7 +1504,7 @@
     },
     "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1540,7 +1540,7 @@
     },
     "ce701784-66e1-5265-bb39-3bafacb0d515": {
       "active_thread_count": 4,
-      "comment_count": 41,
+      "comment_count": 38,
       "coverage_partial": false,
       "thread_count": 12
     },
@@ -1564,7 +1564,7 @@
     },
     "dddf98ff-15e4-589c-a533-e853864dd614": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1733,7 +1733,7 @@
   "by_repository_comments": {
     "17e15883-5fba-5295-ab83-514ecb34e89c": {
       "active_thread_count": 31,
-      "comment_count": 320,
+      "comment_count": 315,
       "coverage_partial": true,
       "thread_count": 82
     },
@@ -1781,7 +1781,7 @@
     },
     "ae8d1613-b951-5a42-9dc1-c7783e0dd23f": {
       "active_thread_count": 2,
-      "comment_count": 20,
+      "comment_count": 18,
       "coverage_partial": false,
       "thread_count": 9
     },
@@ -1793,7 +1793,7 @@
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 43,
-      "comment_count": 335,
+      "comment_count": 330,
       "coverage_partial": true,
       "thread_count": 80
     },
@@ -1811,7 +1811,7 @@
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 94,
-      "comment_count": 595,
+      "comment_count": 593,
       "coverage_partial": true,
       "thread_count": 159
     },
@@ -2559,7 +2559,7 @@
   },
   "comments": {
     "active_thread_count": 346,
-    "comment_count": 2839,
+    "comment_count": 2825,
     "coverage_partial": true,
     "thread_count": 724
   },
@@ -2631,7 +2631,7 @@
     {
       "active_thread_count": 0,
       "author_id": "46341819-09c7-5f56-af79-05d9be8b22af",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 18095.336,
       "id": 202221078,
       "repository_id": "ios-app",
@@ -3021,7 +3021,7 @@
     {
       "active_thread_count": 0,
       "author_id": "dddf98ff-15e4-589c-a533-e853864dd614",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 17.929,
       "id": 202221104,
       "repository_id": "react-shell",
@@ -3261,7 +3261,7 @@
     {
       "active_thread_count": 0,
       "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 1.451,
       "id": 202221065,
       "repository_id": "ios-app",
@@ -3351,7 +3351,7 @@
     {
       "active_thread_count": 0,
       "author_id": "ce701784-66e1-5265-bb39-3bafacb0d515",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.557,
       "id": 202221063,
       "repository_id": "user-service",
@@ -3521,7 +3521,7 @@
     {
       "active_thread_count": 0,
       "author_id": "03943000-b3aa-55b3-8033-bd4e5bab83fb",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.061,
       "id": 202221102,
       "repository_id": "user-service",
@@ -3571,7 +3571,7 @@
     {
       "active_thread_count": 0,
       "author_id": "612fbb5d-1bbc-58bc-af66-928e26768f59",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.021,
       "id": 202221030,
       "repository_id": "user-service",
@@ -3631,7 +3631,7 @@
     {
       "active_thread_count": 0,
       "author_id": "b1238244-1dff-5232-aae6-73ad452a75a0",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.003,
       "id": 202221096,
       "repository_id": "gateway-core",
@@ -3641,7 +3641,7 @@
     {
       "active_thread_count": 0,
       "author_id": "1e6a1278-fa30-5862-ae60-0bd2208dbb3d",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.001,
       "id": 202221027,
       "repository_id": "ios-app",

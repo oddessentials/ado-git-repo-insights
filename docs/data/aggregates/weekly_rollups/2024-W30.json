@@ -1462,7 +1462,7 @@
     },
     "28dafc05-3b3a-5355-a7b0-f93b3539979b": {
       "active_thread_count": 6,
-      "comment_count": 31,
+      "comment_count": 30,
       "coverage_partial": false,
       "thread_count": 6
     },
@@ -1516,7 +1516,7 @@
     },
     "46341819-09c7-5f56-af79-05d9be8b22af": {
       "active_thread_count": 3,
-      "comment_count": 25,
+      "comment_count": 24,
       "coverage_partial": false,
       "thread_count": 8
     },
@@ -1546,7 +1546,7 @@
     },
     "53faba57-1084-584c-8873-637b1c8e9fa5": {
       "active_thread_count": 0,
-      "comment_count": 14,
+      "comment_count": 12,
       "coverage_partial": true,
       "thread_count": 3
     },
@@ -1618,7 +1618,7 @@
     },
     "8673d9b1-1769-5602-97ed-135c806c2b4e": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1666,7 +1666,7 @@
     },
     "a791accb-541c-5010-9202-d3d286437286": {
       "active_thread_count": 17,
-      "comment_count": 105,
+      "comment_count": 104,
       "coverage_partial": false,
       "thread_count": 26
     },
@@ -1762,7 +1762,7 @@
     },
     "d848df3b-5df7-5f9d-89dc-a735fefa3447": {
       "active_thread_count": 2,
-      "comment_count": 22,
+      "comment_count": 20,
       "coverage_partial": false,
       "thread_count": 4
     },
@@ -1973,19 +1973,19 @@
     },
     "ae8d1613-b951-5a42-9dc1-c7783e0dd23f": {
       "active_thread_count": 0,
-      "comment_count": 14,
+      "comment_count": 12,
       "coverage_partial": false,
       "thread_count": 4
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 95,
-      "comment_count": 583,
+      "comment_count": 581,
       "coverage_partial": true,
       "thread_count": 162
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 21,
-      "comment_count": 236,
+      "comment_count": 232,
       "coverage_partial": true,
       "thread_count": 61
     },
@@ -1997,7 +1997,7 @@
     },
     "e7425a0b-76df-58d6-a221-e4cc710c4232": {
       "active_thread_count": 2,
-      "comment_count": 77,
+      "comment_count": 75,
       "coverage_partial": true,
       "thread_count": 15
     },
@@ -2786,7 +2786,7 @@
   },
   "comments": {
     "active_thread_count": 382,
-    "comment_count": 2712,
+    "comment_count": 2702,
     "coverage_partial": true,
     "thread_count": 761
   },
@@ -2958,7 +2958,7 @@
     {
       "active_thread_count": 0,
       "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 2636.6,
       "id": 202430001,
       "repository_id": "model-training",
@@ -3118,7 +3118,7 @@
     {
       "active_thread_count": 0,
       "author_id": "46341819-09c7-5f56-af79-05d9be8b22af",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 233.66,
       "id": 202430028,
       "repository_id": "user-service",
@@ -3158,7 +3158,7 @@
     {
       "active_thread_count": 0,
       "author_id": "8673d9b1-1769-5602-97ed-135c806c2b4e",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 111.677,
       "id": 202430027,
       "repository_id": "user-service",
@@ -3328,7 +3328,7 @@
     {
       "active_thread_count": 0,
       "author_id": "53faba57-1084-584c-8873-637b1c8e9fa5",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 44.805,
       "id": 202430040,
       "repository_id": "inference-service",
@@ -3538,7 +3538,7 @@
     {
       "active_thread_count": 0,
       "author_id": "a791accb-541c-5010-9202-d3d286437286",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 8.112,
       "id": 202430113,
       "repository_id": "model-training",
@@ -3688,7 +3688,7 @@
     {
       "active_thread_count": 0,
       "author_id": "d848df3b-5df7-5f9d-89dc-a735fefa3447",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 3.774,
       "id": 202430036,
       "repository_id": "gateway-core",

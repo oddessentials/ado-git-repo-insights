@@ -1501,7 +1501,7 @@
     },
     "aa526dc1-3820-5712-8e50-ddac8478705f": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1573,7 +1573,7 @@
     },
     "cdc00a5c-993a-56ab-aa8a-9739fbb4d3a3": {
       "active_thread_count": 0,
-      "comment_count": 61,
+      "comment_count": 60,
       "coverage_partial": true,
       "thread_count": 12
     },
@@ -1603,7 +1603,7 @@
     },
     "e72fb699-499f-5db2-845b-bc719b31717e": {
       "active_thread_count": 7,
-      "comment_count": 45,
+      "comment_count": 42,
       "coverage_partial": false,
       "thread_count": 14
     },
@@ -1778,7 +1778,7 @@
     },
     "4f3d4a44-7faf-5ea0-8bc5-3ba1352c3e92": {
       "active_thread_count": 32,
-      "comment_count": 200,
+      "comment_count": 197,
       "coverage_partial": true,
       "thread_count": 60
     },
@@ -1814,7 +1814,7 @@
     },
     "ae8d1613-b951-5a42-9dc1-c7783e0dd23f": {
       "active_thread_count": 17,
-      "comment_count": 41,
+      "comment_count": 38,
       "coverage_partial": true,
       "thread_count": 19
     },
@@ -1832,7 +1832,7 @@
     },
     "e0281391-59a7-5ca4-af13-acba1fa2d21f": {
       "active_thread_count": 13,
-      "comment_count": 80,
+      "comment_count": 79,
       "coverage_partial": false,
       "thread_count": 16
     },
@@ -2552,7 +2552,7 @@
   },
   "comments": {
     "active_thread_count": 345,
-    "comment_count": 2494,
+    "comment_count": 2487,
     "coverage_partial": true,
     "thread_count": 678
   },
@@ -2674,7 +2674,7 @@
     {
       "active_thread_count": 0,
       "author_id": "e72fb699-499f-5db2-845b-bc719b31717e",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 2585.497,
       "id": 202235063,
       "repository_id": "gateway-core",
@@ -2884,7 +2884,7 @@
     {
       "active_thread_count": 0,
       "author_id": "aa526dc1-3820-5712-8e50-ddac8478705f",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 76.981,
       "id": 202235012,
       "repository_id": "etl-jobs",
@@ -3014,7 +3014,7 @@
     {
       "active_thread_count": 0,
       "author_id": "cdc00a5c-993a-56ab-aa8a-9739fbb4d3a3",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 20.118,
       "id": 202235038,
       "repository_id": "feature-store",

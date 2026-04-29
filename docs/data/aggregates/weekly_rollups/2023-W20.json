@@ -1492,7 +1492,7 @@
     },
     "7857d219-29d0-5f5e-a9bf-6fce154b062c": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1522,7 +1522,7 @@
     },
     "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28": {
       "active_thread_count": 16,
-      "comment_count": 143,
+      "comment_count": 140,
       "coverage_partial": true,
       "thread_count": 28
     },
@@ -1546,7 +1546,7 @@
     },
     "a791accb-541c-5010-9202-d3d286437286": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1564,19 +1564,19 @@
     },
     "b068b72e-177c-57d1-a77e-d84ada9e0990": {
       "active_thread_count": 11,
-      "comment_count": 58,
+      "comment_count": 55,
       "coverage_partial": false,
       "thread_count": 11
     },
     "b7b6ebbc-1829-5d25-8ccb-08fa6839cd2a": {
       "active_thread_count": 3,
-      "comment_count": 78,
+      "comment_count": 75,
       "coverage_partial": false,
       "thread_count": 15
     },
     "b83a510a-1a2f-564d-8eb7-37d406c889cc": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1612,7 +1612,7 @@
     },
     "d848df3b-5df7-5f9d-89dc-a735fefa3447": {
       "active_thread_count": 38,
-      "comment_count": 141,
+      "comment_count": 139,
       "coverage_partial": false,
       "thread_count": 45
     },
@@ -1811,13 +1811,13 @@
     },
     "32528f44-210b-555c-beaa-e9e507afe7a1": {
       "active_thread_count": 9,
-      "comment_count": 44,
+      "comment_count": 42,
       "coverage_partial": false,
       "thread_count": 21
     },
     "4f3d4a44-7faf-5ea0-8bc5-3ba1352c3e92": {
       "active_thread_count": 24,
-      "comment_count": 151,
+      "comment_count": 149,
       "coverage_partial": true,
       "thread_count": 46
     },
@@ -1829,13 +1829,13 @@
     },
     "6e8b564b-3915-592a-9c0c-f39a803583da": {
       "active_thread_count": 12,
-      "comment_count": 96,
+      "comment_count": 94,
       "coverage_partial": false,
       "thread_count": 21
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 20,
-      "comment_count": 188,
+      "comment_count": 185,
       "coverage_partial": false,
       "thread_count": 43
     },
@@ -1853,13 +1853,13 @@
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 113,
-      "comment_count": 713,
+      "comment_count": 710,
       "coverage_partial": true,
       "thread_count": 216
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 52,
-      "comment_count": 396,
+      "comment_count": 393,
       "coverage_partial": false,
       "thread_count": 103
     },
@@ -1877,7 +1877,7 @@
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 43,
-      "comment_count": 228,
+      "comment_count": 225,
       "coverage_partial": true,
       "thread_count": 74
     },
@@ -2611,7 +2611,7 @@
   },
   "comments": {
     "active_thread_count": 408,
-    "comment_count": 2925,
+    "comment_count": 2907,
     "coverage_partial": true,
     "thread_count": 822
   },
@@ -2793,7 +2793,7 @@
     {
       "active_thread_count": 0,
       "author_id": "b7b6ebbc-1829-5d25-8ccb-08fa6839cd2a",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 711.08,
       "id": 202320012,
       "repository_id": "auth-service",
@@ -2853,7 +2853,7 @@
     {
       "active_thread_count": 0,
       "author_id": "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 307.374,
       "id": 202320081,
       "repository_id": "model-training",
@@ -3063,7 +3063,7 @@
     {
       "active_thread_count": 0,
       "author_id": "a791accb-541c-5010-9202-d3d286437286",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 40.861,
       "id": 202320002,
       "repository_id": "android-app",
@@ -3443,7 +3443,7 @@
     {
       "active_thread_count": 0,
       "author_id": "b068b72e-177c-57d1-a77e-d84ada9e0990",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.917,
       "id": 202320043,
       "repository_id": "user-service",
@@ -3493,7 +3493,7 @@
     {
       "active_thread_count": 0,
       "author_id": "b83a510a-1a2f-564d-8eb7-37d406c889cc",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.58,
       "id": 202320069,
       "repository_id": "react-shell",
@@ -3573,7 +3573,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7857d219-29d0-5f5e-a9bf-6fce154b062c",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.178,
       "id": 202320058,
       "repository_id": "design-system",
@@ -3603,7 +3603,7 @@
     {
       "active_thread_count": 0,
       "author_id": "d848df3b-5df7-5f9d-89dc-a735fefa3447",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.026,
       "id": 202320032,
       "repository_id": "etl-jobs",

@@ -1309,7 +1309,7 @@
     },
     "0d020a1d-c429-5645-8677-5486ba08f044": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1375,13 +1375,13 @@
     },
     "3f9c13e9-a095-528f-8162-06d3ecbb33d9": {
       "active_thread_count": 0,
-      "comment_count": 39,
+      "comment_count": 36,
       "coverage_partial": true,
       "thread_count": 9
     },
     "45454a1f-599b-5b19-81c8-c01c423442c3": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1441,7 +1441,7 @@
     },
     "84434e77-3995-5517-aa30-e9724a4307ed": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1748,7 +1748,7 @@
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 25,
-      "comment_count": 214,
+      "comment_count": 212,
       "coverage_partial": true,
       "thread_count": 69
     },
@@ -1772,7 +1772,7 @@
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 42,
-      "comment_count": 203,
+      "comment_count": 202,
       "coverage_partial": true,
       "thread_count": 64
     },
@@ -1790,13 +1790,13 @@
     },
     "e7425a0b-76df-58d6-a221-e4cc710c4232": {
       "active_thread_count": 1,
-      "comment_count": 18,
+      "comment_count": 15,
       "coverage_partial": true,
       "thread_count": 5
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 40,
-      "comment_count": 246,
+      "comment_count": 245,
       "coverage_partial": true,
       "thread_count": 76
     },
@@ -2534,7 +2534,7 @@
   },
   "comments": {
     "active_thread_count": 300,
-    "comment_count": 2339,
+    "comment_count": 2332,
     "coverage_partial": true,
     "thread_count": 644
   },
@@ -2666,7 +2666,7 @@
     {
       "active_thread_count": 0,
       "author_id": "3f9c13e9-a095-528f-8162-06d3ecbb33d9",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 4987.063,
       "id": 202502070,
       "repository_id": "inference-service",
@@ -2686,7 +2686,7 @@
     {
       "active_thread_count": 0,
       "author_id": "45454a1f-599b-5b19-81c8-c01c423442c3",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 1811.777,
       "id": 202502028,
       "repository_id": "model-training",
@@ -2836,7 +2836,7 @@
     {
       "active_thread_count": 0,
       "author_id": "84434e77-3995-5517-aa30-e9724a4307ed",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 95.753,
       "id": 202502082,
       "repository_id": "auth-service",
@@ -3206,7 +3206,7 @@
     {
       "active_thread_count": 0,
       "author_id": "0d020a1d-c429-5645-8677-5486ba08f044",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 8.088,
       "id": 202502061,
       "repository_id": "react-shell",

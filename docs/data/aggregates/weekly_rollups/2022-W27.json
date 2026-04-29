@@ -1414,7 +1414,7 @@
     },
     "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1456,13 +1456,13 @@
     },
     "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
       "active_thread_count": 1,
-      "comment_count": 36,
+      "comment_count": 34,
       "coverage_partial": false,
       "thread_count": 8
     },
     "c0623aee-9084-5059-b49b-95a39425acb9": {
       "active_thread_count": 1,
-      "comment_count": 18,
+      "comment_count": 15,
       "coverage_partial": false,
       "thread_count": 3
     },
@@ -1667,7 +1667,7 @@
     },
     "58cb68bb-e496-5628-bc3c-fd1b217a6ce2": {
       "active_thread_count": 29,
-      "comment_count": 204,
+      "comment_count": 201,
       "coverage_partial": false,
       "thread_count": 65
     },
@@ -1679,7 +1679,7 @@
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 18,
-      "comment_count": 283,
+      "comment_count": 281,
       "coverage_partial": false,
       "thread_count": 88
     },
@@ -1715,7 +1715,7 @@
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 18,
-      "comment_count": 168,
+      "comment_count": 167,
       "coverage_partial": false,
       "thread_count": 45
     },
@@ -2408,7 +2408,7 @@
   },
   "comments": {
     "active_thread_count": 293,
-    "comment_count": 2280,
+    "comment_count": 2274,
     "coverage_partial": true,
     "thread_count": 673
   },
@@ -2450,7 +2450,7 @@
     {
       "active_thread_count": 0,
       "author_id": "c00ae966-ee3c-535a-8ee6-672cd76da36c",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 50210.376,
       "id": 202227072,
       "repository_id": "auth-service",
@@ -2820,7 +2820,7 @@
     {
       "active_thread_count": 0,
       "author_id": "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 100.73,
       "id": 202227037,
       "repository_id": "react-shell",
@@ -3330,7 +3330,7 @@
     {
       "active_thread_count": 0,
       "author_id": "c0623aee-9084-5059-b49b-95a39425acb9",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.09,
       "id": 202227075,
       "repository_id": "data-warehouse",

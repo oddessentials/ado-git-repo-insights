@@ -1420,7 +1420,7 @@
     },
     "12da521a-b144-5479-b2cc-f32c01d31acd": {
       "active_thread_count": 13,
-      "comment_count": 55,
+      "comment_count": 53,
       "coverage_partial": false,
       "thread_count": 19
     },
@@ -1576,7 +1576,7 @@
     },
     "864bbd27-2179-5171-a2fb-b9cb7d3f88db": {
       "active_thread_count": 14,
-      "comment_count": 132,
+      "comment_count": 131,
       "coverage_partial": false,
       "thread_count": 32
     },
@@ -1630,7 +1630,7 @@
     },
     "bc38140d-a62f-5b00-829c-7e251ddd9ef9": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
@@ -1690,19 +1690,19 @@
     },
     "e66599fd-1084-5ced-8b69-3aae3897238a": {
       "active_thread_count": 2,
-      "comment_count": 13,
+      "comment_count": 10,
       "coverage_partial": false,
       "thread_count": 2
     },
     "e8985549-5280-5da4-9c6f-6c70b09821dc": {
       "active_thread_count": 12,
-      "comment_count": 111,
+      "comment_count": 110,
       "coverage_partial": false,
       "thread_count": 22
     },
     "ed15254c-8741-5f52-a86a-763e430d271e": {
       "active_thread_count": 2,
-      "comment_count": 29,
+      "comment_count": 26,
       "coverage_partial": true,
       "thread_count": 13
     },
@@ -1877,7 +1877,7 @@
     },
     "58cb68bb-e496-5628-bc3c-fd1b217a6ce2": {
       "active_thread_count": 10,
-      "comment_count": 47,
+      "comment_count": 45,
       "coverage_partial": true,
       "thread_count": 15
     },
@@ -1889,7 +1889,7 @@
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 37,
-      "comment_count": 195,
+      "comment_count": 193,
       "coverage_partial": true,
       "thread_count": 59
     },
@@ -1913,7 +1913,7 @@
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 51,
-      "comment_count": 472,
+      "comment_count": 469,
       "coverage_partial": true,
       "thread_count": 131
     },
@@ -1931,7 +1931,7 @@
     },
     "ea5a0306-cd2a-5812-b714-93f788f0a8fa": {
       "active_thread_count": 58,
-      "comment_count": 394,
+      "comment_count": 388,
       "coverage_partial": true,
       "thread_count": 112
     },
@@ -2677,7 +2677,7 @@
   },
   "comments": {
     "active_thread_count": 335,
-    "comment_count": 2449,
+    "comment_count": 2436,
     "coverage_partial": true,
     "thread_count": 670
   },
@@ -2719,7 +2719,7 @@
     {
       "active_thread_count": 0,
       "author_id": "e8985549-5280-5da4-9c6f-6c70b09821dc",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 35921.861,
       "id": 202411100,
       "repository_id": "auth-service",
@@ -2989,7 +2989,7 @@
     {
       "active_thread_count": 0,
       "author_id": "bc38140d-a62f-5b00-829c-7e251ddd9ef9",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 244.495,
       "id": 202411046,
       "repository_id": "user-service",
@@ -3169,7 +3169,7 @@
     {
       "active_thread_count": 0,
       "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 28.21,
       "id": 202411061,
       "repository_id": "data-warehouse",
@@ -3619,7 +3619,7 @@
     {
       "active_thread_count": 0,
       "author_id": "e66599fd-1084-5ced-8b69-3aae3897238a",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.508,
       "id": 202411070,
       "repository_id": "react-shell",
@@ -3699,7 +3699,7 @@
     {
       "active_thread_count": 0,
       "author_id": "ed15254c-8741-5f52-a86a-763e430d271e",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.126,
       "id": 202411108,
       "repository_id": "react-shell",
@@ -3719,7 +3719,7 @@
     {
       "active_thread_count": 0,
       "author_id": "864bbd27-2179-5171-a2fb-b9cb7d3f88db",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.078,
       "id": 202411057,
       "repository_id": "auth-service",

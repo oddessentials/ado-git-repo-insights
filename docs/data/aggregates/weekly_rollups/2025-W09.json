@@ -1453,7 +1453,7 @@
     },
     "30598a16-77c5-5b20-b803-819d14be3441": {
       "active_thread_count": 0,
-      "comment_count": 6,
+      "comment_count": 5,
       "coverage_partial": false,
       "thread_count": 1
     },
@@ -1465,7 +1465,7 @@
     },
     "40d81568-152f-54d0-98c8-ef321164926e": {
       "active_thread_count": 16,
-      "comment_count": 85,
+      "comment_count": 83,
       "coverage_partial": false,
       "thread_count": 17
     },
@@ -1537,7 +1537,7 @@
     },
     "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
       "active_thread_count": 16,
-      "comment_count": 94,
+      "comment_count": 93,
       "coverage_partial": false,
       "thread_count": 24
     },
@@ -1886,13 +1886,13 @@
     },
     "abe19bfa-8922-591c-acc3-2a6e389aabd6": {
       "active_thread_count": 9,
-      "comment_count": 66,
+      "comment_count": 65,
       "coverage_partial": false,
       "thread_count": 13
     },
     "ae8d1613-b951-5a42-9dc1-c7783e0dd23f": {
       "active_thread_count": 17,
-      "comment_count": 190,
+      "comment_count": 188,
       "coverage_partial": true,
       "thread_count": 47
     },
@@ -1904,7 +1904,7 @@
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 38,
-      "comment_count": 367,
+      "comment_count": 366,
       "coverage_partial": false,
       "thread_count": 97
     },
@@ -2702,7 +2702,7 @@
   },
   "comments": {
     "active_thread_count": 371,
-    "comment_count": 2812,
+    "comment_count": 2808,
     "coverage_partial": true,
     "thread_count": 775
   },
@@ -2984,7 +2984,7 @@
     {
       "active_thread_count": 0,
       "author_id": "30598a16-77c5-5b20-b803-819d14be3441",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 645.291,
       "id": 202509066,
       "repository_id": "dashboard-api",
@@ -3364,7 +3364,7 @@
     {
       "active_thread_count": 0,
       "author_id": "40d81568-152f-54d0-98c8-ef321164926e",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 16.602,
       "id": 202509075,
       "repository_id": "gateway-core",
@@ -3404,7 +3404,7 @@
     {
       "active_thread_count": 0,
       "author_id": "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 13.571,
       "id": 202509029,
       "repository_id": "user-service",

@@ -1296,7 +1296,7 @@
     },
     "45454a1f-599b-5b19-81c8-c01c423442c3": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
@@ -1356,7 +1356,7 @@
     },
     "7a983fd7-ee82-530f-851a-70785c8fe4a5": {
       "active_thread_count": 2,
-      "comment_count": 77,
+      "comment_count": 76,
       "coverage_partial": true,
       "thread_count": 19
     },
@@ -1368,7 +1368,7 @@
     },
     "7efc5962-2947-5546-9c25-cd2a3c1bcf51": {
       "active_thread_count": 7,
-      "comment_count": 21,
+      "comment_count": 18,
       "coverage_partial": false,
       "thread_count": 9
     },
@@ -1681,13 +1681,13 @@
     },
     "ae8d1613-b951-5a42-9dc1-c7783e0dd23f": {
       "active_thread_count": 6,
-      "comment_count": 37,
+      "comment_count": 36,
       "coverage_partial": false,
       "thread_count": 15
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 33,
-      "comment_count": 249,
+      "comment_count": 246,
       "coverage_partial": true,
       "thread_count": 61
     },
@@ -1717,7 +1717,7 @@
     },
     "ef854f56-f5fa-56d3-a1e2-7462c89f9d4e": {
       "active_thread_count": 2,
-      "comment_count": 45,
+      "comment_count": 42,
       "coverage_partial": false,
       "thread_count": 12
     }
@@ -2385,7 +2385,7 @@
   },
   "comments": {
     "active_thread_count": 307,
-    "comment_count": 2173,
+    "comment_count": 2166,
     "coverage_partial": true,
     "thread_count": 625
   },
@@ -2907,7 +2907,7 @@
     {
       "active_thread_count": 0,
       "author_id": "45454a1f-599b-5b19-81c8-c01c423442c3",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 7.252,
       "id": 202443058,
       "repository_id": "stream-processor",
@@ -3107,7 +3107,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 0.702,
       "id": 202443028,
       "repository_id": "model-training",
@@ -3127,7 +3127,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7a983fd7-ee82-530f-851a-70785c8fe4a5",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.612,
       "id": 202443067,
       "repository_id": "gateway-core",

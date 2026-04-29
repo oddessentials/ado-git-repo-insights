@@ -1620,7 +1620,7 @@
     },
     "12da521a-b144-5479-b2cc-f32c01d31acd": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
@@ -1818,7 +1818,7 @@
     },
     "a87e4ad3-5fe4-5e75-951d-1abd77ebf161": {
       "active_thread_count": 2,
-      "comment_count": 52,
+      "comment_count": 51,
       "coverage_partial": false,
       "thread_count": 17
     },
@@ -1962,7 +1962,7 @@
     },
     "f8de20c9-af06-518c-8697-881b5334bd67": {
       "active_thread_count": 2,
-      "comment_count": 23,
+      "comment_count": 20,
       "coverage_partial": false,
       "thread_count": 10
     }
@@ -2131,7 +2131,7 @@
     },
     "6e8b564b-3915-592a-9c0c-f39a803583da": {
       "active_thread_count": 1,
-      "comment_count": 19,
+      "comment_count": 18,
       "coverage_partial": false,
       "thread_count": 4
     },
@@ -2161,13 +2161,13 @@
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 52,
-      "comment_count": 335,
+      "comment_count": 334,
       "coverage_partial": true,
       "thread_count": 100
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 85,
-      "comment_count": 642,
+      "comment_count": 639,
       "coverage_partial": true,
       "thread_count": 185
     },
@@ -3020,7 +3020,7 @@
   },
   "comments": {
     "active_thread_count": 438,
-    "comment_count": 2777,
+    "comment_count": 2772,
     "coverage_partial": true,
     "thread_count": 794
   },
@@ -3532,7 +3532,7 @@
     {
       "active_thread_count": 0,
       "author_id": "a87e4ad3-5fe4-5e75-951d-1abd77ebf161",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 31.044,
       "id": 202423017,
       "repository_id": "model-training",
@@ -3642,7 +3642,7 @@
     {
       "active_thread_count": 0,
       "author_id": "f8de20c9-af06-518c-8697-881b5334bd67",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 10.599,
       "id": 202423092,
       "repository_id": "user-service",
@@ -4242,7 +4242,7 @@
     {
       "active_thread_count": 0,
       "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 0.02,
       "id": 202423014,
       "repository_id": "design-system",

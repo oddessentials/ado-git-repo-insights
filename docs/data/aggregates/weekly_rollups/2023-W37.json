@@ -1321,7 +1321,7 @@
     },
     "04080230-eb2a-5a89-80a9-921bd67a5f12": {
       "active_thread_count": 10,
-      "comment_count": 48,
+      "comment_count": 45,
       "coverage_partial": false,
       "thread_count": 15
     },
@@ -1453,7 +1453,7 @@
     },
     "79bf5913-b79e-536d-b3fa-c7bc950a244b": {
       "active_thread_count": 1,
-      "comment_count": 37,
+      "comment_count": 34,
       "coverage_partial": false,
       "thread_count": 17
     },
@@ -1609,7 +1609,7 @@
     },
     "fea4a98a-8269-59fa-96bb-3b7fad5cd3f1": {
       "active_thread_count": 1,
-      "comment_count": 12,
+      "comment_count": 10,
       "coverage_partial": false,
       "thread_count": 2
     }
@@ -1754,7 +1754,7 @@
   "by_repository_comments": {
     "17e15883-5fba-5295-ab83-514ecb34e89c": {
       "active_thread_count": 51,
-      "comment_count": 295,
+      "comment_count": 294,
       "coverage_partial": true,
       "thread_count": 92
     },
@@ -1766,7 +1766,7 @@
     },
     "4f3d4a44-7faf-5ea0-8bc5-3ba1352c3e92": {
       "active_thread_count": 53,
-      "comment_count": 395,
+      "comment_count": 392,
       "coverage_partial": true,
       "thread_count": 99
     },
@@ -1814,13 +1814,13 @@
     },
     "e0281391-59a7-5ca4-af13-acba1fa2d21f": {
       "active_thread_count": 11,
-      "comment_count": 75,
+      "comment_count": 74,
       "coverage_partial": false,
       "thread_count": 20
     },
     "e7425a0b-76df-58d6-a221-e4cc710c4232": {
       "active_thread_count": 8,
-      "comment_count": 43,
+      "comment_count": 40,
       "coverage_partial": false,
       "thread_count": 20
     },
@@ -2555,7 +2555,7 @@
   },
   "comments": {
     "active_thread_count": 330,
-    "comment_count": 2328,
+    "comment_count": 2320,
     "coverage_partial": true,
     "thread_count": 680
   },
@@ -2717,7 +2717,7 @@
     {
       "active_thread_count": 0,
       "author_id": "fea4a98a-8269-59fa-96bb-3b7fad5cd3f1",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 1768.232,
       "id": 202337026,
       "repository_id": "ios-app",
@@ -2817,7 +2817,7 @@
     {
       "active_thread_count": 0,
       "author_id": "04080230-eb2a-5a89-80a9-921bd67a5f12",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 299.465,
       "id": 202337027,
       "repository_id": "inference-service",
@@ -3017,7 +3017,7 @@
     {
       "active_thread_count": 0,
       "author_id": "fea4a98a-8269-59fa-96bb-3b7fad5cd3f1",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 36.51,
       "id": 202337038,
       "repository_id": "feature-store",
@@ -3197,7 +3197,7 @@
     {
       "active_thread_count": 0,
       "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 3.981,
       "id": 202337020,
       "repository_id": "etl-jobs",

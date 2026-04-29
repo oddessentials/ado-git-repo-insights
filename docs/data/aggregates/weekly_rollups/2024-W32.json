@@ -1621,7 +1621,7 @@
     },
     "321f42a1-e6c8-5a9f-a514-989fefce50a2": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1693,7 +1693,7 @@
     },
     "6d720789-90aa-5ce3-b7fb-02533fcbcf70": {
       "active_thread_count": 4,
-      "comment_count": 56,
+      "comment_count": 55,
       "coverage_partial": false,
       "thread_count": 15
     },
@@ -1717,13 +1717,13 @@
     },
     "7efc5962-2947-5546-9c25-cd2a3c1bcf51": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": true,
       "thread_count": 0
     },
     "84434e77-3995-5517-aa30-e9724a4307ed": {
       "active_thread_count": 8,
-      "comment_count": 113,
+      "comment_count": 110,
       "coverage_partial": false,
       "thread_count": 22
     },
@@ -1795,7 +1795,7 @@
     },
     "b5084d1b-1d46-5f04-9abc-6f33ca3583b2": {
       "active_thread_count": 9,
-      "comment_count": 56,
+      "comment_count": 55,
       "coverage_partial": false,
       "thread_count": 11
     },
@@ -1873,7 +1873,7 @@
     },
     "dde0af13-4241-559b-9791-6efd249a207e": {
       "active_thread_count": 4,
-      "comment_count": 41,
+      "comment_count": 40,
       "coverage_partial": false,
       "thread_count": 12
     },
@@ -2066,7 +2066,7 @@
     },
     "4f3d4a44-7faf-5ea0-8bc5-3ba1352c3e92": {
       "active_thread_count": 28,
-      "comment_count": 207,
+      "comment_count": 204,
       "coverage_partial": true,
       "thread_count": 47
     },
@@ -2078,13 +2078,13 @@
     },
     "6e8b564b-3915-592a-9c0c-f39a803583da": {
       "active_thread_count": 21,
-      "comment_count": 117,
+      "comment_count": 114,
       "coverage_partial": false,
       "thread_count": 32
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 36,
-      "comment_count": 263,
+      "comment_count": 262,
       "coverage_partial": false,
       "thread_count": 67
     },
@@ -2108,13 +2108,13 @@
     },
     "b99293e2-ecf4-5e18-b518-4512920d953e": {
       "active_thread_count": 72,
-      "comment_count": 595,
+      "comment_count": 593,
       "coverage_partial": true,
       "thread_count": 164
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 19,
-      "comment_count": 249,
+      "comment_count": 247,
       "coverage_partial": true,
       "thread_count": 61
     },
@@ -2936,7 +2936,7 @@
   },
   "comments": {
     "active_thread_count": 414,
-    "comment_count": 3107,
+    "comment_count": 3096,
     "coverage_partial": true,
     "thread_count": 867
   },
@@ -3088,7 +3088,7 @@
     {
       "active_thread_count": 0,
       "author_id": "84434e77-3995-5517-aa30-e9724a4307ed",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 2979.124,
       "id": 202432103,
       "repository_id": "design-system",
@@ -3138,7 +3138,7 @@
     {
       "active_thread_count": 0,
       "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 974.966,
       "id": 202432072,
       "repository_id": "auth-service",
@@ -3198,7 +3198,7 @@
     {
       "active_thread_count": 0,
       "author_id": "321f42a1-e6c8-5a9f-a514-989fefce50a2",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 345.91,
       "id": 202432028,
       "repository_id": "etl-jobs",
@@ -3318,7 +3318,7 @@
     {
       "active_thread_count": 0,
       "author_id": "dde0af13-4241-559b-9791-6efd249a207e",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 129.154,
       "id": 202432005,
       "repository_id": "user-service",
@@ -3538,7 +3538,7 @@
     {
       "active_thread_count": 0,
       "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 14.872,
       "id": 202432063,
       "repository_id": "user-service",
@@ -4018,7 +4018,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7efc5962-2947-5546-9c25-cd2a3c1bcf51",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.302,
       "id": 202432032,
       "repository_id": "model-training",

@@ -1462,7 +1462,7 @@
     },
     "1fbcf577-0afe-5393-8090-5fd25137a8e8": {
       "active_thread_count": 0,
-      "comment_count": 1,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1480,7 +1480,7 @@
     },
     "2b44dd0c-c10e-562c-88e1-f34149fa431d": {
       "active_thread_count": 0,
-      "comment_count": 3,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1582,7 +1582,7 @@
     },
     "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
       "active_thread_count": 0,
-      "comment_count": 21,
+      "comment_count": 20,
       "coverage_partial": false,
       "thread_count": 4
     },
@@ -1600,7 +1600,7 @@
     },
     "7eae5e76-3be3-5341-8e00-3e3c8b208202": {
       "active_thread_count": 24,
-      "comment_count": 154,
+      "comment_count": 151,
       "coverage_partial": false,
       "thread_count": 37
     },
@@ -1624,7 +1624,7 @@
     },
     "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28": {
       "active_thread_count": 0,
-      "comment_count": 2,
+      "comment_count": 0,
       "coverage_partial": false,
       "thread_count": 0
     },
@@ -1690,7 +1690,7 @@
     },
     "ca1fbba8-960c-5feb-994a-5ff0d85b6064": {
       "active_thread_count": 1,
-      "comment_count": 24,
+      "comment_count": 22,
       "coverage_partial": true,
       "thread_count": 11
     },
@@ -1913,7 +1913,7 @@
     },
     "58cb68bb-e496-5628-bc3c-fd1b217a6ce2": {
       "active_thread_count": 9,
-      "comment_count": 63,
+      "comment_count": 60,
       "coverage_partial": false,
       "thread_count": 12
     },
@@ -1925,7 +1925,7 @@
     },
     "7731852b-07f9-5523-889c-9c1cc02661b6": {
       "active_thread_count": 39,
-      "comment_count": 270,
+      "comment_count": 266,
       "coverage_partial": false,
       "thread_count": 66
     },
@@ -1955,7 +1955,7 @@
     },
     "d8167d04-3536-53b3-9acd-438984f44445": {
       "active_thread_count": 47,
-      "comment_count": 306,
+      "comment_count": 303,
       "coverage_partial": true,
       "thread_count": 82
     },
@@ -1979,7 +1979,7 @@
     },
     "ef854f56-f5fa-56d3-a1e2-7462c89f9d4e": {
       "active_thread_count": 2,
-      "comment_count": 6,
+      "comment_count": 4,
       "coverage_partial": false,
       "thread_count": 2
     }
@@ -2757,7 +2757,7 @@
   },
   "comments": {
     "active_thread_count": 382,
-    "comment_count": 2755,
+    "comment_count": 2743,
     "coverage_partial": true,
     "thread_count": 763
   },
@@ -3019,7 +3019,7 @@
     {
       "active_thread_count": 0,
       "author_id": "7eae5e76-3be3-5341-8e00-3e3c8b208202",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 681.001,
       "id": 202321067,
       "repository_id": "auth-service",
@@ -3159,7 +3159,7 @@
     {
       "active_thread_count": 0,
       "author_id": "2b44dd0c-c10e-562c-88e1-f34149fa431d",
-      "comment_count": 3,
+      "comment_count": 0,
       "cycle_time": 137.601,
       "id": 202321025,
       "repository_id": "user-service",
@@ -3199,7 +3199,7 @@
     {
       "active_thread_count": 0,
       "author_id": "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 97.204,
       "id": 202321023,
       "repository_id": "auth-service",
@@ -3219,7 +3219,7 @@
     {
       "active_thread_count": 0,
       "author_id": "1fbcf577-0afe-5393-8090-5fd25137a8e8",
-      "comment_count": 1,
+      "comment_count": 0,
       "cycle_time": 84.133,
       "id": 202321078,
       "repository_id": "data-warehouse",
@@ -3749,7 +3749,7 @@
     {
       "active_thread_count": 0,
       "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.11,
       "id": 202321048,
       "repository_id": "data-warehouse",
@@ -3869,7 +3869,7 @@
     {
       "active_thread_count": 0,
       "author_id": "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28",
-      "comment_count": 2,
+      "comment_count": 0,
       "cycle_time": 0.002,
       "id": 202321036,
       "repository_id": "stream-processor",
