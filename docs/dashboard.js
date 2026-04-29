@@ -9067,17 +9067,12 @@ var PRInsightsDashboard = (() => {
     }
     const withByRepository = rollups.filter(hasByRepositoryComments);
     const reduced = reducePerRepository(withByRepository);
-    if (reduced.size === 0) {
-      renderNoData(
-        container,
-        "No comments data for selected range",
-        "Try widening the date range, or confirm comments extraction is enabled for this dataset."
-      );
-      return;
-    }
     const directory = buildRepositoriesDirectory(options?.repositoriesDimension);
     const rows = [];
     for (const [key, bucket] of reduced) {
+      if (bucket.thread_count === 0 && bucket.comment_count === 0 && bucket.active_thread_count === 0) {
+        continue;
+      }
       rows.push({
         repositoryId: key,
         displayName: resolveDisplayName2(key, directory),
@@ -9086,6 +9081,14 @@ var PRInsightsDashboard = (() => {
         active_thread_count: bucket.active_thread_count,
         coverage_partial: bucket.coverage_partial
       });
+    }
+    if (rows.length === 0) {
+      renderNoData(
+        container,
+        "No comments data for selected range",
+        "Try widening the date range, or confirm comments extraction is enabled for this dataset."
+      );
+      return;
     }
     let activeMetric;
     if (options?.sortMetric) {

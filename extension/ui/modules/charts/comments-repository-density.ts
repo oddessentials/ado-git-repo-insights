@@ -322,18 +322,23 @@ export function renderCommentsRepositoryDensityChart(
   const withByRepository = rollups.filter(hasByRepositoryComments);
   const reduced = reducePerRepository(withByRepository);
 
-  if (reduced.size === 0) {
-    renderNoData(
-      container,
-      "No comments data for selected range",
-      "Try widening the date range, or confirm comments extraction is enabled for this dataset.",
-    );
-    return;
-  }
-
   const directory = buildRepositoriesDirectory(options?.repositoriesDimension);
   const rows: RepoDensityRow[] = [];
   for (const [key, bucket] of reduced) {
+    // FR-4-02: repositories with zero contributions in the range MUST
+    // NOT render — even when their constituent weeks have
+    // ``coverage_partial: true``.  The producer emits all-zero buckets
+    // for repos whose entire canonical PR set is unextracted (per
+    // ``_compute_weekly_by_repository_comments``); the renderer
+    // suppresses them so the partial-coverage qualifier (FR-4-03) only
+    // attaches to RENDERED rows.  Zero-contribution = absent.
+    if (
+      bucket.thread_count === 0 &&
+      bucket.comment_count === 0 &&
+      bucket.active_thread_count === 0
+    ) {
+      continue;
+    }
     rows.push({
       repositoryId: key,
       displayName: resolveDisplayName(key, directory),
@@ -342,6 +347,19 @@ export function renderCommentsRepositoryDensityChart(
       active_thread_count: bucket.active_thread_count,
       coverage_partial: bucket.coverage_partial,
     });
+  }
+
+  // No-data fall-through merged here so it fires both when the reduced
+  // Map is empty (no rollup carries by_repository_comments) AND when
+  // every bucket is all-zero (every repo's range-total contribution is
+  // zero — same user-facing signal: "no comments data").
+  if (rows.length === 0) {
+    renderNoData(
+      container,
+      "No comments data for selected range",
+      "Try widening the date range, or confirm comments extraction is enabled for this dataset.",
+    );
+    return;
   }
 
   // Resolve the active sort metric: explicit option wins (e.g., the

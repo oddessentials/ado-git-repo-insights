@@ -412,6 +412,48 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     ).toBe("repo-orphan-uuid-not-in-dim");
   });
 
+  it("(k) FR-4-02 suppresses all-zero rows even when coverage_partial=true; renders only non-zero rows", () => {
+    // The aggregator emits all-zero buckets (thread_count=0,
+    // comment_count=0, active_thread_count=0, coverage_partial=true)
+    // for repos whose entire canonical PR set in W is unextracted (see
+    // _compute_weekly_by_repository_comments).  Per FR-4-02 the chart
+    // MUST NOT render these as data rows — even though the partial
+    // qualifier (FR-4-03) would otherwise attach.  This test constructs
+    // a mixed fixture (one zero+partial bucket + one non-zero bucket)
+    // and asserts only the non-zero row renders + the zero+partial row
+    // is suppressed.
+    const repos = [
+      { repository_id: "repo-non-zero", repository_name: "Active Repo" },
+      { repository_id: "repo-zero-partial", repository_name: "Quiet Repo" },
+    ];
+    const buckets: Record<string, RepoBucket> = {
+      [repos[0]!.repository_id]: makeBucket(3, 7, 1, false),
+      // All-zero numerics + partial=true — the contract violation
+      // surface FR-4-02 guards against.
+      [repos[1]!.repository_id]: makeBucket(0, 0, 0, true),
+    };
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+
+    const rows = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row",
+      ),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.getAttribute("data-repository-id")).toBe(
+      repos[0]!.repository_id,
+    );
+    // The zero+partial row MUST NOT appear — neither as a data row nor
+    // as a partial-coverage qualifier surface.
+    const zeroRow = container.querySelector(
+      `[data-repository-id="${repos[1]!.repository_id}"]`,
+    );
+    expect(zeroRow).toBeNull();
+  });
+
   it("(j) FR-4-08 no-data-in-range empty state visibly distinct from filter-not-supported", () => {
     // Capability-on path (filters CLEAR) but the visible range yields zero
     // contributions: every rollup either lacks by_repository_comments or
