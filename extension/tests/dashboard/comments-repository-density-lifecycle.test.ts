@@ -510,9 +510,8 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
 
     // Exactly one row marker and one chart leaf.
     expect(
-      document.querySelectorAll(
-        '[data-comments-repository-density-row="true"]',
-      ).length,
+      document.querySelectorAll('[data-comments-repository-density-row="true"]')
+        .length,
     ).toBe(1);
     expect(
       document.querySelectorAll("#comments-repository-density").length,
@@ -590,9 +589,8 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
     // the existing chart leaf instead of inserting a duplicate row.
     expect(chart2).toBe(chart1);
     expect(
-      document.querySelectorAll(
-        '[data-comments-repository-density-row="true"]',
-      ).length,
+      document.querySelectorAll('[data-comments-repository-density-row="true"]')
+        .length,
     ).toBe(1);
     expect(
       document.querySelectorAll("#comments-repository-density").length,

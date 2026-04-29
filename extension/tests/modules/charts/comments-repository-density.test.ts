@@ -394,8 +394,7 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     expect(rows).toHaveLength(2);
     const names = rows.map(
       (r) =>
-        r.querySelector(".comments-repository-density-name")?.textContent ??
-        "",
+        r.querySelector(".comments-repository-density-name")?.textContent ?? "",
     );
     // Both rows render — the orphan does NOT get omitted (would be the
     // contract violation FR-4-11 guards against).
@@ -408,7 +407,8 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     );
     expect(orphanRow).toBeDefined();
     expect(
-      orphanRow?.querySelector(".comments-repository-density-name")?.textContent,
+      orphanRow?.querySelector(".comments-repository-density-name")
+        ?.textContent,
     ).toBe("repo-orphan-uuid-not-in-dim");
   });
 
@@ -955,5 +955,147 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     // FR-4-08 visible-distinctness at BOTH paragraph granularities.
     expect(filterHeadingText).not.toBe(nodataHeadingText);
     expect(filterHintText).not.toBe(nodataHintText);
+  });
+
+  // ===========================================================================
+  // Phase 7 partial-branch ratchet covering tests (+3 in this block).
+  //
+  // These exercise defensive branches in the chart module that real
+  // production paths can trigger but the primary T015 / T023 / T026
+  // tests don't reach.  Per memory feedback_partial_branches_ratchet.md
+  // the ratchet does not grow; the user authorized covering tests
+  // (rather than source removal) for branches that represent real
+  // user/data behavior.
+  // ===========================================================================
+
+  it("(P7-a) is a no-op when the container is null (defensive null guard)", () => {
+    const repos = buildRepositoriesDimension(2);
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r) => {
+      buckets[r.repository_id] = makeBucket(1, 5, 0);
+    });
+    // Call with null container — production callers (dashboard.ts) guard
+    // null already, but the type signature allows it so any direct
+    // caller that doesn't guard MUST not throw.  Covers the
+    // ``if (!container) return;`` branch at the top of the chart's
+    // render function.
+    expect(() =>
+      renderCommentsRepositoryDensityChart(null, [makeRollup(0, buckets)], {
+        filters: emptyFilters(),
+        repositoriesDimension: repos,
+      }),
+    ).not.toThrow();
+  });
+
+  it("(P7-b) ignores repositoriesDimension entries with non-string fields (mirrors 334 dimension-shape defense)", () => {
+    const buckets: Record<string, RepoBucket> = {
+      "known-repo": makeBucket(1, 5, 0),
+      "unknown-repo": makeBucket(1, 4, 0),
+    };
+    // Mixed-shape dimension: one valid + one each invalid shape.  The
+    // chart MUST silently skip the invalid entries (typeof check at the
+    // directory builder) and render the valid mapping plus the raw key
+    // for the un-resolvable repo.  Covers both arms of the typeof
+    // entry.repository_id === "string" && typeof entry.repository_name
+    // === "string" branch.
+    const dim: { repository_id?: unknown; repository_name?: unknown }[] = [
+      { repository_id: "known-repo", repository_name: "Known Repo" },
+      { repository_id: "no-name" }, // missing name (undefined)
+      { repository_name: "no-id" }, // missing id (undefined)
+      { repository_id: 42, repository_name: "non-string-id" }, // wrong type
+      { repository_id: "ok-id", repository_name: 99 }, // wrong type for name
+    ];
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: dim as unknown as readonly {
+        repository_id?: string;
+        repository_name?: string;
+      }[],
+    });
+    const names = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".comments-repository-density-row .comments-repository-density-name",
+      ),
+    ).map((n) => n.textContent ?? "");
+    // Valid entry resolves to "Known Repo".
+    expect(names).toContain("Known Repo");
+    // Unknown-repo falls through to raw-ID per FR-4-11.
+    expect(names).toContain("unknown-repo");
+  });
+
+  it("(P7-c) delegated event handlers ignore non-button + invalid-metric + non-Enter/Space events", () => {
+    // The chart's click + keydown handlers attach at the container
+    // level (delegated).  They contain three defensive guards each that
+    // only fire on edge-case events:
+    //   1. ``findSortButton`` returns null when the event's target has
+    //      no .comments-repository-density-sort-btn ancestor — covers
+    //      line 268 (click) + line 280 (keydown).
+    //   2. ``resolveMetric`` returns undefined when data-sort-metric
+    //      doesn't map to a known metric — covers line 270 (click) +
+    //      line 284 (keydown).
+    //   3. keydown checks key !== "Enter" && key !== " " — covers
+    //      line 282 (other keys like Tab / Escape).
+    // ONE test exercises all five branches by dispatching crafted
+    // events and asserting the chart does NOT re-render (no metric
+    // change; aria-pressed indicator stays on default comment_count).
+    const repos = buildRepositoriesDimension(3);
+    const buckets: Record<string, RepoBucket> = {};
+    repos.forEach((r, i) => {
+      buckets[r.repository_id] = makeBucket(2, 50 - i, 1);
+    });
+    renderCommentsRepositoryDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      repositoriesDimension: repos,
+    });
+
+    // Sanity: the default comment_count button is initially active.
+    const initialActive = container.querySelector(
+      '.comments-repository-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(initialActive?.getAttribute("data-sort-metric")).toBe(
+      "comment_count",
+    );
+
+    // 1. Click on the chart container itself (no button ancestor).
+    //    The findSortButton path returns null → handler returns early.
+    container.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    // 2. Click on a button whose data-sort-metric is mutated to an
+    //    unknown value.  resolveMetric returns undefined → handler
+    //    returns early.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-repository-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    expect(threadBtn).not.toBeNull();
+    threadBtn?.setAttribute("data-sort-metric", "not-a-real-metric");
+    threadBtn?.click();
+    // Restore so subsequent renders find the button by metric again.
+    threadBtn?.setAttribute("data-sort-metric", "thread_count");
+
+    // 3. Keydown on the chart container itself (no button ancestor).
+    container.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    // 4. Keydown with a non-Enter/Space key on a real button.
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+    );
+
+    // 5. Keydown with valid key but mutated invalid metric.
+    threadBtn?.setAttribute("data-sort-metric", "still-not-a-real-metric");
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    threadBtn?.setAttribute("data-sort-metric", "thread_count");
+
+    // After all 5 defensive paths fired (each returning early), the
+    // chart should still be on the original sort metric — no
+    // re-render happened.  The aria-pressed indicator MUST still mark
+    // comment_count as active.
+    const finalActive = container.querySelector(
+      '.comments-repository-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(finalActive?.getAttribute("data-sort-metric")).toBe("comment_count");
   });
 });
