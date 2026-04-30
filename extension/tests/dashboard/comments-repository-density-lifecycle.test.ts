@@ -78,29 +78,47 @@ const dashboardSrc = _fs.readFileSync(dashboardSrcPath, "utf-8");
 // heading text, anchor selector) will surface as a scenario failure.
 // ---------------------------------------------------------------------------
 
-function ensureCommentsRepositoryDensityContainerContract(): HTMLElement | null {
-  const existing = document.getElementById("comments-repository-density");
+function ensureCommentsDensityGridContract(): HTMLElement | null {
+  const existing = document.querySelector<HTMLElement>(
+    '[data-comments-density-grid="true"]',
+  );
   if (existing) return existing;
 
-  const perAuthorRow = document.querySelector(
-    '[data-comments-author-density-row="true"]',
-  );
-  let anchorRow: Element | null = perAuthorRow;
-  if (!anchorRow) {
-    anchorRow = document.querySelector('[data-comments-trend-row="true"]');
-  }
+  const trendRow = document.querySelector('[data-comments-trend-row="true"]');
+  let anchorRow: Element | null = trendRow;
   if (!anchorRow) {
     const cycleDist = document.getElementById("cycle-distribution");
     anchorRow = cycleDist?.closest(".charts-row") ?? null;
   }
   if (!anchorRow || !anchorRow.parentElement) return null;
 
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-repository-density-row", "true");
+  const grid = document.createElement("div");
+  grid.className = "charts-row comments-density-grid";
+  grid.setAttribute("data-comments-density-grid", "true");
+
+  anchorRow.parentElement.insertBefore(grid, anchorRow.nextSibling);
+
+  return grid;
+}
+
+function removeCommentsDensityGridIfEmptyContract(): void {
+  const grid = document.querySelector('[data-comments-density-grid="true"]');
+  if (!grid) return;
+  if (grid.children.length === 0) {
+    grid.parentElement?.removeChild(grid);
+  }
+}
+
+function ensureCommentsRepositoryDensityContainerContract(): HTMLElement | null {
+  const existing = document.getElementById("comments-repository-density");
+  if (existing) return existing;
+
+  const grid = ensureCommentsDensityGridContract();
+  if (!grid) return null;
 
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-repository-density-row", "true");
 
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Repository";
@@ -111,9 +129,7 @@ function ensureCommentsRepositoryDensityContainerContract(): HTMLElement | null 
   chart.className = "chart";
 
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-
-  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+  grid.appendChild(containerCell);
 
   return chart;
 }
@@ -124,6 +140,7 @@ function removeCommentsRepositoryDensityContainerContract(): void {
   );
   if (!row) return;
   row.parentElement?.removeChild(row);
+  removeCommentsDensityGridIfEmptyContract();
 }
 
 // ---------------------------------------------------------------------------
@@ -194,21 +211,22 @@ function mount333Row(): HTMLElement {
   return chart;
 }
 
-// Insert a synthetic 334 per-author row immediately after the 333 row.
-// In production the 334 helper anchors on the 333 row; this mirror does
-// the same so the 335 row can anchor on the 334 row per CL-10.  Tests
-// (b), (c), (d) need both 333 + 334 rows mounted to exercise the 335
-// anchor-and-insert path correctly.
+// Insert a synthetic 334 per-author panel as the FIRST child of the
+// shared comments-density-grid wrapper (issue #357 reshape).  In the
+// pre-#357 world the 334 row was a sibling row inserted below 333; in
+// the new world it is the wrapper's first child.  Tests (b), (c), (d)
+// need a mounted 334 panel so the 335 anchor + insertion path can be
+// exercised: the 335 helper appends its own panel to the same wrapper
+// so 335 lands as the wrapper's SECOND child (sibling of 334 within
+// the grid, not within the metrics tab).
 function mount334Row(): HTMLElement {
-  const trendRow = document.querySelector('[data-comments-trend-row="true"]');
-  if (!trendRow || !trendRow.parentElement) {
-    throw new Error("333 row must be mounted before 334 row");
+  const grid = ensureCommentsDensityGridContract();
+  if (!grid) {
+    throw new Error("density grid not mountable (333 row missing?)");
   }
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-author-density-row", "true");
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-author-density-row", "true");
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Author";
   containerCell.appendChild(heading);
@@ -216,8 +234,7 @@ function mount334Row(): HTMLElement {
   chart.id = "comments-author-density";
   chart.className = "chart";
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-  trendRow.parentElement.insertBefore(row, trendRow.nextSibling);
+  grid.appendChild(containerCell);
   return chart;
 }
 
@@ -279,7 +296,7 @@ const NO_FILTERS: FilterState = {
 // ===========================================================================
 
 describe("comments-repository-density dashboard lifecycle — source-parse contract", () => {
-  it("ensureCommentsRepositoryDensityContainer in dashboard.ts implements check-first idempotency + CL-10 (per-author) anchor preference", () => {
+  it("ensureCommentsRepositoryDensityContainer in dashboard.ts implements check-first idempotency + density-grid mount (issue #357)", () => {
     const helperStart = dashboardSrc.indexOf(
       "function ensureCommentsRepositoryDensityContainer(",
     );
@@ -289,36 +306,38 @@ describe("comments-repository-density dashboard lifecycle — source-parse contr
 
     // Check-first idempotency: the helper queries the existing leaf
     // BEFORE building any new DOM.  Without this, scenario (d) would
-    // fail (a second render would insert a duplicate row).
+    // fail (a second render would insert a duplicate panel).
     expect(helperBody).toContain(
       'document.getElementById("comments-repository-density")',
     );
     expect(helperBody).toMatch(/if \(existing\) return existing;/);
 
-    // CL-10 anchor: 334 per-author row primary, 333 trend row fallback,
-    // cycle-distribution baseline.  This locks the production anchor
-    // chain so any refactor that drops or reorders the fallbacks
-    // surfaces here.  scenario (c) verifies the resulting position,
-    // but the contract here verifies the lookup PREFERENCE is intact.
-    expect(helperBody).toContain('[data-comments-author-density-row="true"]');
-    expect(helperBody).toContain('[data-comments-trend-row="true"]');
-    expect(helperBody).toContain(
-      'document.getElementById("cycle-distribution")',
-    );
-    expect(helperBody).toContain('.closest(".charts-row")');
+    // Issue #357: the per-author / per-repo / per-reviewer panels share
+    // a single comments-density-grid wrapper.  The pre-#357 fallback
+    // chain (334 → 333 → cycle-distribution) collapsed into the
+    // wrapper helper itself, locked by ensureCommentsDensityGrid's
+    // own source-parse contract in
+    // comments-density-subgrid-layout.test.ts; here we only assert
+    // this helper delegates to it.
+    expect(helperBody).toContain("ensureCommentsDensityGrid()");
+    expect(helperBody).toMatch(/if \(!grid\) return null;/);
 
-    // Row markers used by the cleanup helper and by scenarios (a)-(d).
-    expect(helperBody).toContain('row.className = "charts-row"');
+    // Container markers used by the cleanup helper, lifecycle scenarios
+    // (a)-(d), and dashboard parity gates.  The data-attribute moved
+    // from the old outer ``.charts-row`` element to the
+    // ``.chart-container`` cell — selector-by-attribute callers
+    // continue to find the panel because the attribute is still
+    // present on the same logical element.
+    expect(helperBody).toContain('containerCell.className = "chart-container"');
     expect(helperBody).toContain(
-      'row.setAttribute("data-comments-repository-density-row", "true")',
+      'containerCell.setAttribute("data-comments-repository-density-row", "true")',
     );
     expect(helperBody).toContain('chart.id = "comments-repository-density"');
 
-    // Insertion ordering: the new row sits immediately after the anchor
-    // row's next sibling so it lands BELOW the per-author row per CL-10.
-    expect(helperBody).toContain(
-      "anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling)",
-    );
+    // Insertion is now an appendChild on the wrapper rather than an
+    // insertBefore on a sibling — children fill the 2-up grid in
+    // call order (author → repo → reviewer).
+    expect(helperBody).toContain("grid.appendChild(containerCell)");
   });
 
   it("ensureCommentsRepositoryDensityContainer mounts the heading", () => {
@@ -338,7 +357,7 @@ describe("comments-repository-density dashboard lifecycle — source-parse contr
     );
   });
 
-  it("removeCommentsRepositoryDensityContainer in dashboard.ts targets the data-attribute selector", () => {
+  it("removeCommentsRepositoryDensityContainer targets the data-attribute selector and trims the empty wrapper (issue #357)", () => {
     const helperStart = dashboardSrc.indexOf(
       "function removeCommentsRepositoryDensityContainer(",
     );
@@ -350,6 +369,9 @@ describe("comments-repository-density dashboard lifecycle — source-parse contr
     );
     expect(helperBody).toMatch(/if \(!row\) return;/);
     expect(helperBody).toContain("row.parentElement?.removeChild(row)");
+    // Issue #357: cleanup must ALSO trim the wrapper when the panel
+    // was the last density child.
+    expect(helperBody).toContain("removeCommentsDensityGridIfEmpty()");
   });
 
   it("dashboard refresh path calls both helpers behind the capability gate", () => {
@@ -459,14 +481,19 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
     expect(
       document.querySelectorAll(".comments-repository-density-row").length,
     ).toBe(5);
-    // 2 pre-feature rows + 333 row + 334 row + 335 row = 5
-    expect(document.querySelectorAll(".charts-row").length).toBe(5);
+    // Issue #357: 2 pre-feature rows + 333 trend row + density-grid
+    // wrapper (containing author + repo) = 4.  The wrapper counts as
+    // a single ``.charts-row`` regardless of how many density panels
+    // it hosts.
+    expect(document.querySelectorAll(".charts-row").length).toBe(4);
 
     // Step 2: capability-off reload runs only the remove helper.
     removeCommentsRepositoryDensityContainerContract();
 
-    // Cleanup: per-repo row gone, but the 333 + 334 rows stay (each
-    // owned by its own remove helper, not by this one).
+    // Cleanup: per-repo row gone, but the 333 trend row and the
+    // density-grid wrapper (still hosting the author panel) survive
+    // because the wrapper is only trimmed when its child count
+    // drops to zero.
     expect(document.getElementById("comments-repository-density")).toBeNull();
     expect(
       document.querySelector('[data-comments-repository-density-row="true"]'),
@@ -476,7 +503,7 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
         '[data-comments-repository-density-row="true"] h3',
       ),
     ).toHaveLength(0);
-    // 333 + 334 rows still present.
+    // 333 row + density-grid wrapper (with author) still present.
     expect(
       document.querySelectorAll('[data-comments-trend-row="true"]').length,
     ).toBe(1);
@@ -484,7 +511,10 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
       document.querySelectorAll('[data-comments-author-density-row="true"]')
         .length,
     ).toBe(1);
-    // 2 pre-feature rows + 333 row + 334 row = 4
+    expect(
+      document.querySelectorAll('[data-comments-density-grid="true"]').length,
+    ).toBe(1);
+    // 2 pre-feature rows + 333 row + density-grid (with author) = 4.
     expect(document.querySelectorAll(".charts-row").length).toBe(4);
     expect(metricsTabHtml()).toBe(baselineWith333And334);
   });
@@ -522,16 +552,22 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
       ),
     ).toHaveLength(1);
 
-    // Total `.charts-row` count is now 5 (row-1 + row-2 + 333 + 334 + 335).
-    expect(document.querySelectorAll(".charts-row").length).toBe(5);
+    // Issue #357: 2 pre-feature rows + 333 trend row + density-grid
+    // wrapper (now hosting author + repo as children) = 4.
+    expect(document.querySelectorAll(".charts-row").length).toBe(4);
 
-    // CL-10 anchor: the 335 row sits IMMEDIATELY AFTER the 334 row
-    // (per-repo breakdown is mounted below the per-author row in the
-    // capability-on render order).
+    // CL-10 ordering inside the density-grid wrapper: the per-repo
+    // panel sits IMMEDIATELY AFTER the per-author panel (siblings
+    // within the wrapper, not within the metrics tab).  This keeps
+    // the original "repo follows author" reading order even though
+    // they now share a parent.
     const perAuthorRow = document.querySelector(
       '[data-comments-author-density-row="true"]',
     );
     expect(perAuthorRow).not.toBeNull();
+    expect(
+      perAuthorRow!.parentElement?.getAttribute("data-comments-density-grid"),
+    ).toBe("true");
     expect(perAuthorRow!.nextElementSibling).not.toBeNull();
     expect(
       perAuthorRow!.nextElementSibling?.getAttribute(
@@ -613,6 +649,8 @@ describe("comments-repository-density dashboard lifecycle — four scenarios (T0
         '[data-comments-repository-density-row="true"] h3',
       ).length,
     ).toBe(1);
-    expect(document.querySelectorAll(".charts-row").length).toBe(5);
+    // Issue #357: 2 pre-feature + 333 + density-grid = 4 (wrapper
+    // counts as one row regardless of how many density panels it hosts).
+    expect(document.querySelectorAll(".charts-row").length).toBe(4);
   });
 });

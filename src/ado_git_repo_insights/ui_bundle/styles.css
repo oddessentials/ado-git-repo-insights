@@ -734,6 +734,36 @@ input[type="search"]::placeholder {
     gap: 20px;
 }
 
+/* Issue #357 — comments-density panels share a single 2-up sub-grid so
+ * the per-author / per-repo / per-reviewer panels read as a coherent
+ * group rather than a four-row vertical wall.  The trend chart remains
+ * full-width on its own ``.charts-row`` above this wrapper (timeseries
+ * vs cross-section reading order), so the wrapper itself is a sibling
+ * of the trend row, NOT its parent.
+ *
+ * The wrapper carries the base ``.charts-row`` class so it inherits the
+ * 20px gap + grid baseline.  This rule overrides ONLY
+ * ``grid-template-columns`` to lock 2-up (instead of the parent's
+ * ``auto-fit, minmax(400px, 1fr)`` which would expand to 3-up at wide
+ * viewports — explicitly out of scope per the issue's "2-up reads
+ * better than 3-up cramped" verdict).  The narrow-viewport fallback
+ * below collapses to 1-up around the same breakpoint the rest of the
+ * dashboard uses for column collapse.
+ *
+ * With three children in 2 columns, the third (reviewer) lands in the
+ * bottom-left cell; the bottom-right is empty.  This is intentional —
+ * spanning reviewer would compress per-row scan-density at the only
+ * width where 2-up is actively useful. */
+.charts-row.comments-density-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 700px) {
+    .charts-row.comments-density-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .summary-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
