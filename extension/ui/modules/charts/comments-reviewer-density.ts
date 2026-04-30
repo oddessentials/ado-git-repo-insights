@@ -379,7 +379,7 @@ export function renderCommentsReviewerDensityChart(
     renderNoData(
       container,
       "Comments density is not yet filterable",
-      "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322.",
+      "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comment breakdowns are coming soon.",
     );
     return;
   }
@@ -475,7 +475,7 @@ function metricLabel(metric: CommentsReviewerDensitySortMetric): string {
     case "thread_count":
       return "Threads";
     case "active_thread_count":
-      return "Active threads";
+      return "Unresolved threads";
   }
 }
 
@@ -500,7 +500,7 @@ function renderSortControls(
 
 function renderTable(rows: readonly ReviewerDensityRow[]): string {
   const rowsHtml = rows.map((row) => renderRow(row)).join("");
-  return `<div class="comments-reviewer-density-table" role="table" aria-label="Per-reviewer comment density"><div class="comments-reviewer-density-thead" role="row"><div role="columnheader">Reviewer</div><div role="columnheader" class="comments-reviewer-density-numeric">Threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Active threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+  return `<div class="comments-reviewer-density-table" role="table" aria-label="Per-reviewer comments"><div class="comments-reviewer-density-thead" role="row"><div role="columnheader">Reviewer</div><div role="columnheader" class="comments-reviewer-density-numeric">Threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Comments</div><div role="columnheader" class="comments-reviewer-density-numeric">Unresolved</div></div>${rowsHtml}</div>`;
 }
 
 function renderRow(row: ReviewerDensityRow): string {
@@ -519,6 +519,6 @@ function renderRow(row: ReviewerDensityRow): string {
   const partialNote = row.coverage_partial
     ? " (partial week coverage; reviewer activity may be incomplete this week)"
     : "";
-  const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
-  return `<div class="comments-reviewer-density-row${partialClass}" role="row" data-reviewer-key="${escapeHtml(row.reviewerKey)}"${partialAttr}${partialTitle} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-reviewer-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+  const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.comment_count.toLocaleString()} comments, ${row.active_thread_count.toLocaleString()} unresolved threads${partialNote}`;
+  return `<div class="comments-reviewer-density-row${partialClass}" role="row" data-reviewer-key="${escapeHtml(row.reviewerKey)}"${partialAttr}${partialTitle} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-reviewer-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div></div>`;
 }

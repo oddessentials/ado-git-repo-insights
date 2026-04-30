@@ -105,7 +105,7 @@ function ensureCommentsReviewerDensityContainerContract(): HTMLElement | null {
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Reviewer";
+  heading.textContent = "Comments by Reviewer";
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -213,7 +213,7 @@ function mount334Row(): HTMLElement {
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Author";
+  heading.textContent = "Comments by Author";
   containerCell.appendChild(heading);
   const chart = document.createElement("div");
   chart.id = "comments-author-density";
@@ -242,7 +242,7 @@ function mount335Row(): HTMLElement {
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Repository";
+  heading.textContent = "Comments by Repository";
   containerCell.appendChild(heading);
   const chart = document.createElement("div");
   chart.id = "comments-repository-density";
@@ -374,7 +374,7 @@ describe("comments-reviewer-density dashboard lifecycle — source-parse contrac
     // contract.
     expect(helperBody).toContain('document.createElement("h3")');
     expect(helperBody).toContain(
-      'heading.textContent = "Comment Density by Reviewer"',
+      'heading.textContent = "Comments by Reviewer"',
     );
   });
 

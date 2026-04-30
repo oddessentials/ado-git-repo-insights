@@ -3854,8 +3854,8 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-author-density-sort-btn {
-    border: 1px solid var(--border-color, #d0d7de);
-    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
     color: var(--text-primary, inherit);
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
@@ -3865,14 +3865,14 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-author-density-sort-btn:focus-visible {
-    outline: 2px solid var(--primary, #0969da);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
 .comments-author-density-sort-btn.is-active {
-    background: var(--primary, #0969da);
-    color: var(--bg-primary, #ffffff);
-    border-color: var(--primary, #0969da);
+    background: var(--primary);
+    color: var(--bg-primary);
+    border-color: var(--primary);
 }
 
 .comments-author-density-table {
@@ -3893,9 +3893,9 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-secondary, #57606a);
+    color: var(--text-secondary);
     padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border-color, #d0d7de);
+    border-bottom: 1px solid var(--border);
 }
 
 .comments-author-density-row > [role="cell"] {
@@ -3918,11 +3918,11 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
  * (FR-4-03).  Shares the .coverage-partial class hook with 333 so the
  * convention stays visually consistent across the two surfaces. */
 .comments-author-density-row.coverage-partial > [role="cell"] {
-    color: var(--text-tertiary, #6e7781);
+    color: var(--text-tertiary);
     background-image: repeating-linear-gradient(
         45deg,
-        rgba(110, 119, 129, 0.08) 0,
-        rgba(110, 119, 129, 0.08) 4px,
+        rgba(110, 119, 129, 0.18) 0,
+        rgba(110, 119, 129, 0.18) 4px,
         transparent 4px,
         transparent 8px
     );
@@ -3947,8 +3947,8 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-repository-density-sort-btn {
-    border: 1px solid var(--border-color, #d0d7de);
-    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
     color: var(--text-primary, inherit);
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
@@ -3958,14 +3958,14 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-repository-density-sort-btn:focus-visible {
-    outline: 2px solid var(--primary, #0969da);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
 .comments-repository-density-sort-btn.is-active {
-    background: var(--primary, #0969da);
-    color: var(--bg-primary, #ffffff);
-    border-color: var(--primary, #0969da);
+    background: var(--primary);
+    color: var(--bg-primary);
+    border-color: var(--primary);
 }
 
 .comments-repository-density-table {
@@ -3986,9 +3986,9 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-secondary, #57606a);
+    color: var(--text-secondary);
     padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border-color, #d0d7de);
+    border-bottom: 1px solid var(--border);
 }
 
 .comments-repository-density-row > [role="cell"] {
@@ -4012,11 +4012,11 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
  * the convention stays visually consistent across all three comments-
  * density surfaces. */
 .comments-repository-density-row.coverage-partial > [role="cell"] {
-    color: var(--text-tertiary, #6e7781);
+    color: var(--text-tertiary);
     background-image: repeating-linear-gradient(
         45deg,
-        rgba(110, 119, 129, 0.08) 0,
-        rgba(110, 119, 129, 0.08) 4px,
+        rgba(110, 119, 129, 0.18) 0,
+        rgba(110, 119, 129, 0.18) 4px,
         transparent 4px,
         transparent 8px
     );
@@ -4041,8 +4041,8 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-reviewer-density-sort-btn {
-    border: 1px solid var(--border-color, #d0d7de);
-    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
     color: var(--text-primary, inherit);
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
@@ -4052,14 +4052,14 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
 }
 
 .comments-reviewer-density-sort-btn:focus-visible {
-    outline: 2px solid var(--primary, #0969da);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
 .comments-reviewer-density-sort-btn.is-active {
-    background: var(--primary, #0969da);
-    color: var(--bg-primary, #ffffff);
-    border-color: var(--primary, #0969da);
+    background: var(--primary);
+    color: var(--bg-primary);
+    border-color: var(--primary);
 }
 
 .comments-reviewer-density-table {
@@ -4080,9 +4080,9 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-secondary, #57606a);
+    color: var(--text-secondary);
     padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border-color, #d0d7de);
+    border-bottom: 1px solid var(--border);
 }
 
 .comments-reviewer-density-row > [role="cell"] {
@@ -4106,11 +4106,11 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
  * 335 so the convention stays visually consistent across all four
  * comments-density surfaces. */
 .comments-reviewer-density-row.coverage-partial > [role="cell"] {
-    color: var(--text-tertiary, #6e7781);
+    color: var(--text-tertiary);
     background-image: repeating-linear-gradient(
         45deg,
-        rgba(110, 119, 129, 0.08) 0,
-        rgba(110, 119, 129, 0.08) 4px,
+        rgba(110, 119, 129, 0.18) 0,
+        rgba(110, 119, 129, 0.18) 4px,
         transparent 4px,
         transparent 8px
     );

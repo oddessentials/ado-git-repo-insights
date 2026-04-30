@@ -103,7 +103,7 @@ function ensureCommentsRepositoryDensityContainerContract(): HTMLElement | null 
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Repository";
+  heading.textContent = "Comments by Repository";
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -210,7 +210,7 @@ function mount334Row(): HTMLElement {
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Author";
+  heading.textContent = "Comments by Author";
   containerCell.appendChild(heading);
   const chart = document.createElement("div");
   chart.id = "comments-author-density";
@@ -334,7 +334,7 @@ describe("comments-repository-density dashboard lifecycle — source-parse contr
     // refactor that drops or renames it fails this contract.
     expect(helperBody).toContain('document.createElement("h3")');
     expect(helperBody).toContain(
-      'heading.textContent = "Comment Density by Repository"',
+      'heading.textContent = "Comments by Repository"',
     );
   });
 

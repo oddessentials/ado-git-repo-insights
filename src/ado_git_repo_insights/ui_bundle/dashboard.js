@@ -8670,14 +8670,14 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/charts/comments-trend.ts
   var MAX_COMMENTS_TREND_POINTS = 104;
   var COMMENTS_TREND_TOOLTIP = "Bars show resolved (lower) and unresolved (upper) review threads per week. The line shows total comments. Hatched bars indicate partial coverage \u2014 some PRs in the week aren't yet extracted, so totals are partial.";
-  var commentsTrendInfoIconControllers = /* @__PURE__ */ new WeakMap();
-  function attachCommentsTrendInfoIcon(heading) {
+  var chartInfoIconControllers = /* @__PURE__ */ new WeakMap();
+  function attachChartInfoIcon(heading, tooltipText, instanceId) {
     const existing = heading.querySelector(
       ".info-icon-btn"
     );
     if (existing) {
-      commentsTrendInfoIconControllers.get(existing)?.abort();
-      commentsTrendInfoIconControllers.delete(existing);
+      chartInfoIconControllers.get(existing)?.abort();
+      chartInfoIconControllers.delete(existing);
       existing.remove();
     }
     const controller = new AbortController();
@@ -8686,12 +8686,12 @@ var PRInsightsDashboard = (() => {
     btn.className = "info-icon-btn";
     btn.setAttribute("type", "button");
     btn.setAttribute("aria-label", "About this chart");
-    btn.setAttribute("data-info-tooltip", "comments-trend");
+    btn.setAttribute("data-info-tooltip", instanceId);
     btn.textContent = "\u2139";
     btn.addEventListener(
       "pointerenter",
       () => {
-        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+        showInfoTooltip(btn, tooltipText);
       },
       { signal }
     );
@@ -8711,7 +8711,7 @@ var PRInsightsDashboard = (() => {
           dismissAllTooltips();
           return;
         }
-        showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+        showInfoTooltip(btn, tooltipText);
         requestAnimationFrame(() => {
           const dismissOnce = () => {
             dismissAllTooltips();
@@ -8722,16 +8722,22 @@ var PRInsightsDashboard = (() => {
       },
       { signal }
     );
-    commentsTrendInfoIconControllers.set(btn, controller);
+    chartInfoIconControllers.set(btn, controller);
     heading.appendChild(btn);
   }
-  function detachCommentsTrendInfoIcon(heading) {
+  function detachChartInfoIcon(heading) {
     const btn = heading.querySelector(".info-icon-btn");
     if (!btn) return;
-    commentsTrendInfoIconControllers.get(btn)?.abort();
-    commentsTrendInfoIconControllers.delete(btn);
+    chartInfoIconControllers.get(btn)?.abort();
+    chartInfoIconControllers.delete(btn);
     btn.remove();
     dismissAllTooltips();
+  }
+  function attachCommentsTrendInfoIcon(heading) {
+    attachChartInfoIcon(heading, COMMENTS_TREND_TOOLTIP, "comments-trend");
+  }
+  function detachCommentsTrendInfoIcon(heading) {
+    detachChartInfoIcon(heading);
   }
   var MAX_VISIBLE_LABELS2 = 16;
   var CHART_HEIGHT_PX = 200;
@@ -8746,7 +8752,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "Comments trend is not yet filterable",
-        "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+        "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comment breakdowns are coming soon."
       );
       return;
     }
@@ -8989,7 +8995,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "Comments density is not yet filterable",
-        "Clear repo / team / author / reviewer filters to view per-author review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+        "Clear repo / team / author / reviewer filters to view per-author review-conversation totals. Per-dimension comment breakdowns are coming soon."
       );
       return;
     }
@@ -9047,7 +9053,7 @@ var PRInsightsDashboard = (() => {
       case "thread_count":
         return "Threads";
       case "active_thread_count":
-        return "Active threads";
+        return "Unresolved threads";
     }
   }
   function renderSortControls(activeMetric) {
@@ -9061,14 +9067,14 @@ var PRInsightsDashboard = (() => {
   }
   function renderTable(rows) {
     const rowsHtml = rows.map((row) => renderRow(row)).join("");
-    return `<div class="comments-author-density-table" role="table" aria-label="Per-author comment density"><div class="comments-author-density-thead" role="row"><div role="columnheader">Author</div><div role="columnheader" class="comments-author-density-numeric">Threads</div><div role="columnheader" class="comments-author-density-numeric">Active threads</div><div role="columnheader" class="comments-author-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+    return `<div class="comments-author-density-table" role="table" aria-label="Per-author comments"><div class="comments-author-density-thead" role="row"><div role="columnheader">Author</div><div role="columnheader" class="comments-author-density-numeric">Threads</div><div role="columnheader" class="comments-author-density-numeric">Comments</div><div role="columnheader" class="comments-author-density-numeric">Unresolved</div></div>${rowsHtml}</div>`;
   }
   function renderRow(row) {
     const partialClass = row.coverage_partial ? " coverage-partial" : "";
     const partialAttr = row.coverage_partial ? ' data-coverage-partial="true"' : "";
     const partialNote = row.coverage_partial ? " (partial coverage)" : "";
-    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
-    return `<div class="comments-author-density-row${partialClass}" role="row" data-author-key="${escapeHtml(row.authorKey)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-author-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.comment_count.toLocaleString()} comments, ${row.active_thread_count.toLocaleString()} unresolved threads${partialNote}`;
+    return `<div class="comments-author-density-row${partialClass}" role="row" data-author-key="${escapeHtml(row.authorKey)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-author-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div><div class="comments-author-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div></div>`;
   }
 
   // ../ui/modules/charts/comments-repository-density.ts
@@ -9195,7 +9201,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "Comments density is not yet filterable",
-        "Clear repo / team / author / reviewer filters to view per-repo review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+        "Clear repo / team / author / reviewer filters to view per-repo review-conversation totals. Per-dimension comment breakdowns are coming soon."
       );
       return;
     }
@@ -9256,7 +9262,7 @@ var PRInsightsDashboard = (() => {
       case "thread_count":
         return "Threads";
       case "active_thread_count":
-        return "Active threads";
+        return "Unresolved threads";
     }
   }
   function renderSortControls2(activeMetric) {
@@ -9270,14 +9276,14 @@ var PRInsightsDashboard = (() => {
   }
   function renderTable2(rows) {
     const rowsHtml = rows.map((row) => renderRow2(row)).join("");
-    return `<div class="comments-repository-density-table" role="table" aria-label="Per-repository comment density"><div class="comments-repository-density-thead" role="row"><div role="columnheader">Repository</div><div role="columnheader" class="comments-repository-density-numeric">Threads</div><div role="columnheader" class="comments-repository-density-numeric">Active threads</div><div role="columnheader" class="comments-repository-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+    return `<div class="comments-repository-density-table" role="table" aria-label="Per-repository comments"><div class="comments-repository-density-thead" role="row"><div role="columnheader">Repository</div><div role="columnheader" class="comments-repository-density-numeric">Threads</div><div role="columnheader" class="comments-repository-density-numeric">Comments</div><div role="columnheader" class="comments-repository-density-numeric">Unresolved</div></div>${rowsHtml}</div>`;
   }
   function renderRow2(row) {
     const partialClass = row.coverage_partial ? " coverage-partial" : "";
     const partialAttr = row.coverage_partial ? ' data-coverage-partial="true"' : "";
     const partialNote = row.coverage_partial ? " (partial coverage)" : "";
-    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
-    return `<div class="comments-repository-density-row${partialClass}" role="row" data-repository-id="${escapeHtml(row.repositoryId)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-repository-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.comment_count.toLocaleString()} comments, ${row.active_thread_count.toLocaleString()} unresolved threads${partialNote}`;
+    return `<div class="comments-repository-density-row${partialClass}" role="row" data-repository-id="${escapeHtml(row.repositoryId)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-repository-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div></div>`;
   }
 
   // ../ui/modules/charts/comments-reviewer-density.ts
@@ -9409,7 +9415,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "Comments density is not yet filterable",
-        "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+        "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comment breakdowns are coming soon."
       );
       return;
     }
@@ -9470,7 +9476,7 @@ var PRInsightsDashboard = (() => {
       case "thread_count":
         return "Threads";
       case "active_thread_count":
-        return "Active threads";
+        return "Unresolved threads";
     }
   }
   function renderSortControls3(activeMetric) {
@@ -9484,15 +9490,15 @@ var PRInsightsDashboard = (() => {
   }
   function renderTable3(rows) {
     const rowsHtml = rows.map((row) => renderRow3(row)).join("");
-    return `<div class="comments-reviewer-density-table" role="table" aria-label="Per-reviewer comment density"><div class="comments-reviewer-density-thead" role="row"><div role="columnheader">Reviewer</div><div role="columnheader" class="comments-reviewer-density-numeric">Threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Active threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+    return `<div class="comments-reviewer-density-table" role="table" aria-label="Per-reviewer comments"><div class="comments-reviewer-density-thead" role="row"><div role="columnheader">Reviewer</div><div role="columnheader" class="comments-reviewer-density-numeric">Threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Comments</div><div role="columnheader" class="comments-reviewer-density-numeric">Unresolved</div></div>${rowsHtml}</div>`;
   }
   function renderRow3(row) {
     const partialClass = row.coverage_partial ? " coverage-partial" : "";
     const partialAttr = row.coverage_partial ? ' data-coverage-partial="true"' : "";
     const partialTitle = row.coverage_partial ? ` title="${escapeHtml("This week's comments extraction is partial; reviewer activity may be incomplete")}"` : "";
     const partialNote = row.coverage_partial ? " (partial week coverage; reviewer activity may be incomplete this week)" : "";
-    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
-    return `<div class="comments-reviewer-density-row${partialClass}" role="row" data-reviewer-key="${escapeHtml(row.reviewerKey)}"${partialAttr}${partialTitle} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-reviewer-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.comment_count.toLocaleString()} comments, ${row.active_thread_count.toLocaleString()} unresolved threads${partialNote}`;
+    return `<div class="comments-reviewer-density-row${partialClass}" role="row" data-reviewer-key="${escapeHtml(row.reviewerKey)}"${partialAttr}${partialTitle} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-reviewer-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div></div>`;
   }
 
   // ../ui/modules/filter-constraint-resolver.ts
@@ -10837,6 +10843,9 @@ var PRInsightsDashboard = (() => {
   var lastEffectiveState = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+  var COMMENTS_AUTHOR_DENSITY_TOOLTIP = "Each row shows one author's review-conversation totals across the selected range. Threads = review threads on PRs the author opened; Unresolved threads = the subset still in the Active state. Comments = every comment posted on those threads. Hatched rows mean some weeks in this author's range are partially extracted.";
+  var COMMENTS_REPOSITORY_DENSITY_TOOLTIP = "Each row shows one repository's review-conversation totals across the selected range. Threads = review threads on PRs in this repository; Unresolved threads = the subset still in the Active state. Comments = every comment posted on those threads. Hatched rows mean some weeks in this repository's range are partially extracted.";
+  var COMMENTS_REVIEWER_DENSITY_TOOLTIP = "Each row shows one reviewer's commenting activity across the selected range. Threads = review threads this reviewer commented in. A thread with multiple commenters contributes one to each, so the total of this column may exceed total threads on the trend chart above. Unresolved threads = the subset still in the Active state. Comments = every comment posted by this reviewer on those threads.";
   var cachedDataService = null;
   async function getDataService() {
     if (!cachedDataService) {
@@ -11719,7 +11728,12 @@ var PRInsightsDashboard = (() => {
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
     const heading = document.createElement("h3");
-    heading.textContent = "Comment Density by Author";
+    heading.textContent = "Comments by Author";
+    attachChartInfoIcon(
+      heading,
+      COMMENTS_AUTHOR_DENSITY_TOOLTIP,
+      "comments-author-density"
+    );
     containerCell.appendChild(heading);
     const chart = document.createElement("div");
     chart.id = "comments-author-density";
@@ -11734,6 +11748,10 @@ var PRInsightsDashboard = (() => {
       '[data-comments-author-density-row="true"]'
     );
     if (!row) return;
+    const heading = row.querySelector("h3");
+    if (heading instanceof HTMLElement) {
+      detachChartInfoIcon(heading);
+    }
     row.parentElement?.removeChild(row);
   }
   function ensureCommentsRepositoryDensityContainer() {
@@ -11757,7 +11775,12 @@ var PRInsightsDashboard = (() => {
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
     const heading = document.createElement("h3");
-    heading.textContent = "Comment Density by Repository";
+    heading.textContent = "Comments by Repository";
+    attachChartInfoIcon(
+      heading,
+      COMMENTS_REPOSITORY_DENSITY_TOOLTIP,
+      "comments-repository-density"
+    );
     containerCell.appendChild(heading);
     const chart = document.createElement("div");
     chart.id = "comments-repository-density";
@@ -11772,6 +11795,10 @@ var PRInsightsDashboard = (() => {
       '[data-comments-repository-density-row="true"]'
     );
     if (!row) return;
+    const heading = row.querySelector("h3");
+    if (heading instanceof HTMLElement) {
+      detachChartInfoIcon(heading);
+    }
     row.parentElement?.removeChild(row);
   }
   function ensureCommentsReviewerDensityContainer() {
@@ -11800,7 +11827,12 @@ var PRInsightsDashboard = (() => {
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
     const heading = document.createElement("h3");
-    heading.textContent = "Comment Density by Reviewer";
+    heading.textContent = "Comments by Reviewer";
+    attachChartInfoIcon(
+      heading,
+      COMMENTS_REVIEWER_DENSITY_TOOLTIP,
+      "comments-reviewer-density"
+    );
     containerCell.appendChild(heading);
     const chart = document.createElement("div");
     chart.id = "comments-reviewer-density";
@@ -11815,6 +11847,10 @@ var PRInsightsDashboard = (() => {
       '[data-comments-reviewer-density-row="true"]'
     );
     if (!row) return;
+    const heading = row.querySelector("h3");
+    if (heading instanceof HTMLElement) {
+      detachChartInfoIcon(heading);
+    }
     row.parentElement?.removeChild(row);
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
