@@ -55,6 +55,7 @@ import {
   detachCommentsTrendInfoIcon,
   renderCommentsAuthorDensityChart as renderCommentsAuthorDensityChartModule,
   renderCommentsRepositoryDensityChart as renderCommentsRepositoryDensityChartModule,
+  renderCommentsReviewerDensityChart as renderCommentsReviewerDensityChartModule,
   // Data availability signal derivation
   deriveAvailabilitySignal,
   // Filter constraint resolver
@@ -1134,6 +1135,40 @@ async function refreshMetrics(): Promise<void> {
       removeCommentsRepositoryDensityContainer();
     }
 
+    // Feature 336 US1: per-reviewer comments-density chart row.  Same
+    // capability gate as 333 / 334 / 335.  Anchored BELOW the 335
+    // per-repo row per CL-11 (with author / trend / cycle-distribution
+    // fallbacks inside the helper).  Per FR-4-09 the chart is
+    // informational — no drill-down handle is installed below.
+    // Sort-toggle activation (FR-4-05 click/Enter/Space reordering) and
+    // filter-not-supported short-circuit (FR-4-07) are deferred to
+    // dedicated follow-up slices; this slice ships only the static
+    // chart + lifecycle-mounted row.
+    if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+      const crvContainer = ensureCommentsReviewerDensityContainer();
+      if (crvContainer) {
+        // ``currentDimensions.users`` is typed in ``types.ts`` with only
+        // ``id?`` / ``name?`` fields explicitly modelled; the production
+        // ``user_id`` / ``display_name`` keys are accessible through the
+        // ``[key: string]: unknown`` index signature but require an
+        // explicit cast to fit the chart module's
+        // ``UserDirectoryEntry`` shape.  The chart module's typeof guard
+        // in ``buildUsersDirectory`` filters non-string values at
+        // runtime, so the cast is safe — entries lacking the production
+        // fields drop out of the directory and render via the
+        // raw-``user_id`` fallback per FR-4-11.
+        renderCommentsReviewerDensityChartModule(crvContainer, rollups, {
+          filters: currentFilters,
+          usersDimension: currentDimensions?.users?.map((u) => ({
+            user_id: u.user_id as string | undefined,
+            display_name: u.display_name as string | undefined,
+          })),
+        });
+      }
+    } else {
+      removeCommentsReviewerDensityContainer();
+    }
+
     // Install per-chart drill-down handles AFTER the render block so the
     // container elements exist. US2–US4 push peers onto the same array.
     const throughputContainer = document.getElementById("throughput-chart");
@@ -1806,6 +1841,84 @@ function ensureCommentsRepositoryDensityContainer(): HTMLElement | null {
 function removeCommentsRepositoryDensityContainer(): void {
   const row = document.querySelector(
     '[data-comments-repository-density-row="true"]',
+  );
+  if (!row) return;
+  row.parentElement?.removeChild(row);
+}
+
+/**
+ * Idempotently ensure the per-reviewer comments-density chart row
+ * exists (Feature 336 US1).  Mirrors
+ * ``ensureCommentsRepositoryDensityContainer`` (335 idempotency
+ * contract) but anchors BELOW the 335 row per CL-11.
+ *
+ * Anchor preference (CL-11 + defensive fallbacks):
+ *   1. Per-repo row (335) — primary; both charts share the capability
+ *      gate so 335's row will normally be mounted by the time the 336
+ *      render block fires (335's block runs first in renderMetricsTab).
+ *   2. Per-author row (334) — fallback when 335's row is absent.
+ *   3. Comments-trend row (333) — fallback when neither 334 nor 335 is
+ *      mounted.
+ *   4. ``cycle-distribution`` chart row — universal baseline anchor
+ *      shared with 333 / 334 / 335 for the unusual case where no
+ *      sibling row is mounted.
+ *
+ * Returns ``null`` if no anchor is locatable.
+ */
+function ensureCommentsReviewerDensityContainer(): HTMLElement | null {
+  const existing = document.getElementById("comments-reviewer-density");
+  if (existing) return existing;
+
+  const perRepoRow = document.querySelector(
+    '[data-comments-repository-density-row="true"]',
+  );
+  let anchorRow: Element | null = perRepoRow;
+  if (!anchorRow) {
+    anchorRow = document.querySelector(
+      '[data-comments-author-density-row="true"]',
+    );
+  }
+  if (!anchorRow) {
+    anchorRow = document.querySelector('[data-comments-trend-row="true"]');
+  }
+  if (!anchorRow) {
+    const cycleDist = document.getElementById("cycle-distribution");
+    anchorRow = cycleDist?.closest(".charts-row") ?? null;
+  }
+  if (!anchorRow || !anchorRow.parentElement) return null;
+
+  const row = document.createElement("div");
+  row.className = "charts-row";
+  row.setAttribute("data-comments-reviewer-density-row", "true");
+
+  const containerCell = document.createElement("div");
+  containerCell.className = "chart-container";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Comment Density by Reviewer";
+  containerCell.appendChild(heading);
+
+  const chart = document.createElement("div");
+  chart.id = "comments-reviewer-density";
+  chart.className = "chart";
+
+  containerCell.appendChild(chart);
+  row.appendChild(containerCell);
+
+  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+
+  return chart;
+}
+
+/**
+ * Remove the per-reviewer comments-density chart row from the DOM if
+ * present.  No-op when absent (initial capability-off; repeated
+ * capability-off renders).  Active cleanup happens on the on→off
+ * mid-session transition (FR-3-02).
+ */
+function removeCommentsReviewerDensityContainer(): void {
+  const row = document.querySelector(
+    '[data-comments-reviewer-density-row="true"]',
   );
   if (!row) return;
   row.parentElement?.removeChild(row);

@@ -28,11 +28,14 @@
  * the active metric comes from ``options.sortMetric`` (or
  * ``"comment_count"`` default), with no per-container persistence.
  *
- * Filter-not-supported posture (FR-4-07): the dimension-filter
- * short-circuit ships in a later slice with the dedicated filter-posture
- * surfaces.  This slice does NOT short-circuit on filters; the
- * ``options.filters`` field is currently silently unused at the chart
- * level (forward-compat with the filter-posture slice's API).
+ * Filter-not-supported posture (FR-4-07, full 333 / 334 / 335 parity):
+ * when ANY of the dashboard's per-PR dimension filters
+ * (repos / teams / authors / reviewers) is active, the chart renders
+ * a self-explanatory empty state instead of rows.  ``buildFilteredRollup``
+ * spreads ``...rollup`` and only overrides top-level throughput fields,
+ * so the rollup-root ``by_reviewer_comments`` carries through unchanged
+ * under filters — emitting rows off filtered rollups would silently
+ * show unfiltered totals (the inverse of an honest UI).
  *
  * No click-through (FR-4-09): rows are informational.  No
  * ``data-drilldown-*`` attributes; no click handler attachment.
@@ -54,6 +57,7 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { FilterState } from "../filters";
+import { hasActiveFilters } from "../filters";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 
@@ -270,6 +274,25 @@ export function renderCommentsReviewerDensityChart(
   options?: CommentsReviewerDensityOptions,
 ): void {
   if (!container) return;
+
+  // FR-4-07 filter-not-supported short-circuit (mirrors 334
+  // ``comments-author-density.ts`` and 335 ``comments-repository-
+  // density.ts``).  ``buildFilteredRollup`` spreads ``...rollup`` and
+  // only overrides top-level throughput fields, so the rollup-root
+  // ``by_reviewer_comments`` carries through unchanged under filters
+  // — emitting rows off filter-active rollups would silently show
+  // unfiltered totals (the inverse of an honest UI).  The chart MUST
+  // render a self-explanatory empty state instead.  Per-dimension
+  // filtering of comments aggregates is tracked under follow-up
+  // issue #322.
+  if (options?.filters && hasActiveFilters(options.filters)) {
+    renderNoData(
+      container,
+      "Comments density is not yet filterable",
+      "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322.",
+    );
+    return;
+  }
 
   const withByReviewer = rollups.filter(hasByReviewerComments);
   const reduced = reducePerReviewer(withByReviewer);

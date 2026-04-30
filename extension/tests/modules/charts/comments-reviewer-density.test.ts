@@ -763,4 +763,36 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
       "user-ddd",
     ]);
   });
+
+  it("(P7-e) FR-4-07 filter-not-supported empty state fires when any dimension filter is active", () => {
+    // Codex stop-hook regression coverage: without this branch
+    // (introduced after T026 dashboard wiring), filter-active rollups
+    // pass through ``buildFilteredRollup`` with by_reviewer_comments
+    // unchanged, so the chart would render unfiltered totals while the
+    // rest of the dashboard reflects filters — silently lying to the
+    // user.  The chart MUST render the filter-not-supported empty
+    // state instead.
+    //
+    // This micro-test is the partial-branches covering test that
+    // makes the new empty-state branch reachable from the test corpus.
+    // Full T031 cross-state-exclusion + per-dimension iteration tests
+    // land in the dedicated filter-posture slice; this asserts only
+    // the minimum surface needed to exercise the branch.
+    const users = buildUsersDimension(2);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u) => {
+      buckets[u.user_id] = makeBucket(2, 5, 1);
+    });
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      usersDimension: users,
+    });
+    // No rows render under active filter.
+    expect(
+      container.querySelectorAll(".comments-reviewer-density-row").length,
+    ).toBe(0);
+    // Filter-not-supported wording present (renderNoData heading
+    // contains "filterable" — the FR-4-07 message hook).
+    expect(container.textContent?.toLowerCase() ?? "").toContain("filterable");
+  });
 });
