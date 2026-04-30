@@ -3318,6 +3318,26 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     text-align: right;
 }
 
+/* Issue #338: visually subordinate the Unresolved header cell.
+ * Unresolved is a subset of Threads (INV-09: active_thread_count <=
+ * thread_count), so the column should weigh visually less than its
+ * parent rather than equal to it.  Two non-geometric tweaks recover
+ * the subset relation without removing the dedicated sortable column
+ * (the verdict on #338 explicitly preserved sort affordance):
+ *   - lighter header weight (500 vs the parent header's 600)
+ *   - slight content indent via padding-right so the right-aligned
+ *     label pulls inward from the column's right edge
+ * Track widths are unchanged — the geometric Playwright guard
+ * (button rect within cell rect ±0.5px) still holds because padding
+ * affects content placement inside the cell box, not the cell box
+ * itself.  Width narrowing was deliberately deferred (would require
+ * relaxing the Ubuntu fallback metric buffer locked at :3267-3307). */
+.detail-panel-pr-list-header-cell--unresolved {
+    font-weight: 500;
+    padding-right: 8px;
+    color: var(--text-tertiary, var(--text-secondary));
+}
+
 .detail-panel-pr-list-header-sort {
     appearance: none;
     background: transparent;
@@ -3515,8 +3535,15 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     opacity: 0.45;
 }
 
+/* Issue #338: visually subordinate the Unresolved data column.
+ * The previous ``font-weight: 600`` rule made Unresolved BOLDER than
+ * Threads, the opposite of the subset relation (INV-09).  Replaced
+ * with a muted color + slight right-edge indent so the per-row
+ * Unresolved value reads as "child of Threads" rather than peer.
+ * Sort affordance and column position unchanged. */
 .detail-panel-pr-list--with-comments .comments-metric--unresolved {
-    font-weight: 600;
+    color: var(--text-secondary);
+    padding-right: 8px;
 }
 
 /* Issue #331 / C2 + C3 — in-panel coverage notice.
