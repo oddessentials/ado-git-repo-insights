@@ -1,3 +1,10 @@
+# [101.23.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.22.1...v101.23.0) (2026-04-30)
+
+
+### Features
+
+* **354:** comments-density UX polish ([#358](https://github.com/oddessentials/ado-git-repo-insights/issues/358)) ([0050ed0](https://github.com/oddessentials/ado-git-repo-insights/commit/0050ed042ee70c9f5758eb4b080ef257757271ed)), closes [#354](https://github.com/oddessentials/ado-git-repo-insights/issues/354) [#322](https://github.com/oddessentials/ado-git-repo-insights/issues/322)
+
 ## [101.22.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.22.0...v101.22.1) (2026-04-30)
 
 
