@@ -21,12 +21,15 @@
  * ``capabilityState.commentsMetricsAvailable``, but the chart-side filter
  * is the load-bearing defense for capability-mixed inputs.
  *
- * Sort-toggle wiring (FR-4-05): this slice ships the static toolbar UI
- * scaffold ONLY — three keyboard-reachable <button>s with default
- * aria-pressed state mirroring the chosen metric.  Click / Enter / Space
- * state-change wiring lands in the later sort-toggle slice; until then
- * the active metric comes from ``options.sortMetric`` (or
- * ``"comment_count"`` default), with no per-container persistence.
+ * Sort-toggle wiring (FR-4-05): three keyboard-reachable <button>s with
+ * aria-pressed tracking the active metric.  Click + keydown (Enter /
+ * Space) handlers update the per-container metric state and re-render
+ * the chart.  Per-container state is held in ``sortMetricByContainer``
+ * (a WeakMap keyed on the container element) so the chart preserves
+ * its toggle selection across re-renders triggered by filter / range
+ * changes.  Listeners are tracked in ``sortListenerControllers`` so
+ * each render aborts the prior set before attaching fresh handlers
+ * (mirrors 333 / 334 / 335 info-icon + sort-handler pattern).
  *
  * Filter-not-supported posture (FR-4-07, full 333 / 334 / 335 parity):
  * when ANY of the dashboard's per-PR dimension filters
@@ -253,6 +256,93 @@ export interface CommentsReviewerDensityOptions {
 }
 
 /**
+ * Per-container sort metric state.  Keys are the chart container
+ * element so a single dashboard with multiple chart instances (none
+ * today, but the contract leaves the door open) keeps state isolated.
+ * Set when the user clicks a sort button; read when ``options.sortMetric``
+ * is not provided so the chart preserves its toggle state across
+ * re-renders triggered by filter / range changes.
+ */
+const sortMetricByContainer = new WeakMap<
+  HTMLElement,
+  CommentsReviewerDensitySortMetric
+>();
+
+/**
+ * Per-container listener controllers.  Each render aborts the prior
+ * set before attaching fresh button handlers so re-renders never
+ * accumulate duplicate listeners (mirrors 333 / 334 / 335 info-icon +
+ * sort-handler pattern).
+ */
+const sortListenerControllers = new WeakMap<HTMLElement, AbortController>();
+
+function attachSortToggleListeners(
+  container: HTMLElement,
+  rollups: Rollup[],
+  options: CommentsReviewerDensityOptions | undefined,
+): void {
+  // Drop any prior listeners attached on a previous render.  Single
+  // delegated handler on the container itself rather than per-button
+  // listeners so re-attach is a one-listener swap and so the metric is
+  // resolved AT click time from the rendered ``data-sort-metric``
+  // attribute — the latter lets tests exercise the malformed-attribute
+  // branch by mutating the attribute between render and click.
+  sortListenerControllers.get(container)?.abort();
+  const controller = new AbortController();
+  sortListenerControllers.set(container, controller);
+  const { signal } = controller;
+
+  const resolveMetric = (
+    raw: string | undefined,
+  ): CommentsReviewerDensitySortMetric | undefined => {
+    return COMMENTS_REVIEWER_DENSITY_SORT_METRICS.find((m) => m === raw);
+  };
+
+  const activate = (metric: CommentsReviewerDensitySortMetric): void => {
+    sortMetricByContainer.set(container, metric);
+    // Re-render with the same rollups + options but the new metric.
+    // The new render replaces these listeners via the controller-abort
+    // pattern at the top of this function.
+    renderCommentsReviewerDensityChart(container, rollups, {
+      ...options,
+      sortMetric: metric,
+    });
+  };
+
+  const findSortButton = (event: Event): HTMLElement | null => {
+    const target = event.target as Element;
+    return target.closest<HTMLElement>(".comments-reviewer-density-sort-btn");
+  };
+
+  container.addEventListener(
+    "click",
+    (event) => {
+      const button = findSortButton(event);
+      if (!button) return;
+      const metric = resolveMetric(button.dataset.sortMetric);
+      if (!metric) return;
+      activate(metric);
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    "keydown",
+    (event) => {
+      const button = findSortButton(event);
+      if (!button) return;
+      const key = (event as KeyboardEvent).key;
+      if (key !== "Enter" && key !== " ") return;
+      const metric = resolveMetric(button.dataset.sortMetric);
+      if (!metric) return;
+      event.preventDefault();
+      activate(metric);
+    },
+    { signal },
+  );
+}
+
+/**
  * Render the per-reviewer comments-density breakdown.
  *
  * @param container Target container element.  The dashboard call site
@@ -339,12 +429,16 @@ export function renderCommentsReviewerDensityChart(
   }
 
   // Resolve the active sort metric: explicit option wins (e.g., the
-  // dashboard hard-overrides per render); otherwise the default
-  // ``comment_count`` per CL-06.  Per-container toggle persistence
-  // (WeakMap state) ships in the later sort-toggle slice along with
-  // the click + keydown listener attach.
-  const activeMetric: CommentsReviewerDensitySortMetric =
-    options?.sortMetric ?? "comment_count";
+  // dashboard hard-overrides per render), then per-container state set
+  // by the user's last button click, then the default ``comment_count``
+  // per CL-06.
+  let activeMetric: CommentsReviewerDensitySortMetric;
+  if (options?.sortMetric) {
+    activeMetric = options.sortMetric;
+    sortMetricByContainer.set(container, activeMetric);
+  } else {
+    activeMetric = sortMetricByContainer.get(container) ?? "comment_count";
+  }
   rows.sort((a, b) => compareRows(a, b, activeMetric));
 
   const truncated = rows.length > MAX_COMMENTS_REVIEWER_DENSITY_ROWS;
@@ -367,6 +461,8 @@ export function renderCommentsReviewerDensityChart(
     container,
     `${truncationHtml}${sortControlsHtml}${tableHtml}${partialLegendHtml}`,
   );
+
+  attachSortToggleListeners(container, rollups, options);
 }
 
 function metricLabel(metric: CommentsReviewerDensitySortMetric): string {
@@ -390,11 +486,9 @@ function renderSortControls(
   // _reachability.md): each button is an independently Tab-reachable
   // <button> with aria-pressed tracking the active sort metric.
   // <button> elements default to tabindex=0 and natively activate on
-  // Enter / Space.  Click + keydown listener attach lands in the later
-  // sort-toggle slice; this slice ships the STATIC scaffold only — the
-  // buttons are visible and keyboard-reachable, with the correct
-  // aria-pressed state for the active metric, but clicks/Enter/Space
-  // do not yet reorder the rows (no listeners attached).
+  // Enter / Space.  The delegated click + keydown handlers in
+  // ``attachSortToggleListeners`` catch both sequences and re-render
+  // the chart with the new metric.
   const buttons = COMMENTS_REVIEWER_DENSITY_SORT_METRICS.map((metric) => {
     const checked = metric === activeMetric;
     const ariaPressed = checked ? "true" : "false";

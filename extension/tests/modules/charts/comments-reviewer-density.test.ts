@@ -764,6 +764,221 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     ]);
   });
 
+  // ===========================================================================
+  // T027: sort-toggle behaviour — clicking a button or activating it via
+  // Enter / Space re-orders the rows by the new metric and updates the
+  // aria-pressed indicator.  Tie-break determinism (display name asc →
+  // reviewer key asc) is reproducible across re-renders.  Sort respects
+  // the FR-4-02 zero-row suppression: the sorted candidate set excludes
+  // all-zero reduced rows before applying truncation logic (verified
+  // structurally via case (e) above; the chart's render path filters
+  // before sort, so a click-triggered re-render walks the same code
+  // path).  4 tests; floor delta measured by ``test:coverage`` (not
+  // assumed) per the kickoff directive.
+  // ===========================================================================
+
+  function clickReviewerSortButton(metric: string): HTMLButtonElement {
+    const btn = container.querySelector<HTMLButtonElement>(
+      `.comments-reviewer-density-sort-btn[data-sort-metric="${metric}"]`,
+    );
+    if (!btn) {
+      throw new Error(`sort button for metric ${metric} not found`);
+    }
+    btn.click();
+    return btn;
+  }
+
+  it("(T027-a) clicking the thread_count button re-orders rows and updates aria-pressed", () => {
+    const users = buildUsersDimension(3);
+    // thread_count and comment_count rank reviewers differently so the
+    // re-order is unambiguously visible (mirrors #335 T023-a fixture).
+    const buckets: Record<string, ReviewerBucket> = {
+      [users[0]!.user_id]: makeBucket(1, 100, 0),
+      [users[1]!.user_id]: makeBucket(50, 1, 25),
+      [users[2]!.user_id]: makeBucket(20, 50, 10),
+    };
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    clickReviewerSortButton("thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(orderedKeys).toEqual([
+      users[1]!.user_id, // 50 threads
+      users[2]!.user_id, // 20 threads
+      users[0]!.user_id, // 1 thread
+    ]);
+    const checked = container.querySelector(
+      '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe("thread_count");
+  });
+
+  it("(T027-b) clicking the active_thread_count button re-orders rows", () => {
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {
+      [users[0]!.user_id]: makeBucket(10, 50, 1),
+      [users[1]!.user_id]: makeBucket(10, 50, 8),
+      [users[2]!.user_id]: makeBucket(10, 50, 4),
+    };
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    clickReviewerSortButton("active_thread_count");
+
+    const orderedKeys = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(orderedKeys).toEqual([
+      users[1]!.user_id, // 8 active
+      users[2]!.user_id, // 4 active
+      users[0]!.user_id, // 1 active
+    ]);
+    const checked = container.querySelector(
+      '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checked?.getAttribute("data-sort-metric")).toBe(
+      "active_thread_count",
+    );
+  });
+
+  it("(T027-c) tie-break is reproducible across reloads on a duplicate-display-name fixture", () => {
+    // Fixture with deliberate ties on comment_count AND on display_name
+    // (rename-collision shape: two reviewers sharing the same display
+    // name).  Per FR-4-05 the final tie-break is reviewer-key
+    // ascending — so the rendered order is fully determined by reviewer
+    // key once the metric + name ties hit.  Render twice and assert
+    // byte-identical row ordering — proves the chart's sort is
+    // reproducible across re-renders (no hidden state that varies
+    // between calls).
+    const users = [
+      { user_id: "user-bbb", display_name: "Beta" },
+      { user_id: "user-aaa", display_name: "Alpha" },
+      // Same display name as user-bbb (rename collision); reviewer key
+      // is the tie-breaker.
+      { user_id: "user-ccc", display_name: "Beta" },
+    ];
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u) => {
+      // All three have identical comment_count so the metric tie
+      // delegates to display name asc → reviewer key asc.
+      buckets[u.user_id] = makeBucket(1, 7, 0);
+    });
+    const rollups = [makeRollup(0, buckets)];
+    const opts = {
+      filters: emptyFilters(),
+      usersDimension: users,
+    };
+
+    renderCommentsReviewerDensityChart(container, rollups, opts);
+    const firstOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+
+    // Expected: Alpha first (single-name tie-break wins), then the two
+    // Beta-named rows tie-broken by reviewer-key asc → bbb before ccc.
+    expect(firstOrder).toEqual(["user-aaa", "user-bbb", "user-ccc"]);
+
+    renderCommentsReviewerDensityChart(container, rollups, opts);
+    const secondOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(secondOrder).toEqual(firstOrder);
+  });
+
+  it("(T027-d) keyboard activation (Enter / Space) re-orders rows like a click", () => {
+    const users = buildUsersDimension(3);
+    // Fixture chosen so the THREE orderings (default comment_count
+    // desc, thread_count desc, active_thread_count desc) are ALL
+    // distinct — this prevents the Space activation assertion from
+    // passing vacuously when Space is a no-op (mirrors #335 T023-d
+    // anti-vacuous fixture per the kickoff directive).  All entries
+    // satisfy INV-4-07 (active_thread_count <= thread_count).
+    const buckets: Record<string, ReviewerBucket> = {
+      [users[0]!.user_id]: makeBucket(50, 10, 5),
+      [users[1]!.user_id]: makeBucket(10, 20, 8),
+      [users[2]!.user_id]: makeBucket(20, 30, 3),
+    };
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    // Initial-state guard: the default comment_count desc ordering is
+    // [users[2] (30), users[1] (20), users[0] (10)].  Asserted so a
+    // future fixture drift that aligned default + Enter outcomes would
+    // surface here rather than masking a broken keyboard handler.
+    const initial = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(initial).toEqual([
+      users[2]!.user_id, // 30 comments
+      users[1]!.user_id, // 20 comments
+      users[0]!.user_id, // 10 comments
+    ]);
+
+    // Enter on the thread_count button.  Re-orders by thread_count desc
+    // → [users[0] (50), users[2] (20), users[1] (10)] which is a
+    // different sequence from the comment_count default.
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-reviewer-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    expect(threadBtn).not.toBeNull();
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    const afterEnter = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(afterEnter).toEqual([
+      users[0]!.user_id, // 50 threads
+      users[2]!.user_id, // 20 threads
+      users[1]!.user_id, // 10 threads
+    ]);
+
+    // Space on the active_thread_count button.  Re-orders by
+    // active_thread_count desc → [users[1] (8), users[0] (5), users[2]
+    // (3)] which is DISTINCT from BOTH the comment_count default and
+    // the thread_count Enter ordering — so an inert Space handler
+    // would leave the rows in their thread_count order and the
+    // assertion would fail loudly.
+    const activeBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-reviewer-density-sort-btn[data-sort-metric="active_thread_count"]',
+    );
+    expect(activeBtn).not.toBeNull();
+    activeBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", bubbles: true }),
+    );
+
+    const afterSpace = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(afterSpace).toEqual([
+      users[1]!.user_id, // 8 active
+      users[0]!.user_id, // 5 active
+      users[2]!.user_id, // 3 active
+    ]);
+    // Final invariant: the post-Space ordering MUST differ from the
+    // post-Enter ordering — direct proof Space activation actually
+    // fired and was not silently masked by a sibling re-render path.
+    expect(afterSpace).not.toEqual(afterEnter);
+    // And the active button's aria-pressed reflects the Space
+    // activation (FR-4-10 keyboard parity with click).
+    const checkedBtn = container.querySelector(
+      '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(checkedBtn?.getAttribute("data-sort-metric")).toBe(
+      "active_thread_count",
+    );
+  });
+
   it("(P7-e) FR-4-07 filter-not-supported empty state fires when any dimension filter is active", () => {
     // Codex stop-hook regression coverage: without this branch
     // (introduced after T026 dashboard wiring), filter-active rollups
@@ -794,5 +1009,96 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     // Filter-not-supported wording present (renderNoData heading
     // contains "filterable" — the FR-4-07 message hook).
     expect(container.textContent?.toLowerCase() ?? "").toContain("filterable");
+  });
+
+  it("(P7-f) delegated sort handlers ignore non-button + invalid-metric + non-Enter/Space events", () => {
+    // The chart's click + keydown handlers attach at the container
+    // level (delegated).  They contain five defensive guards that only
+    // fire on edge-case events (lines 321 / 323 / 333 / 335 / 337):
+    //   - findSortButton returns null when the event's target has no
+    //     .comments-reviewer-density-sort-btn ancestor (covers click +
+    //     keydown).
+    //   - resolveMetric returns undefined when data-sort-metric does
+    //     not map to a known metric (covers click + keydown).
+    //   - keydown checks key !== "Enter" && key !== " " (covers other
+    //     keys like Tab / Escape).
+    // ONE test exercises all five branches by dispatching crafted
+    // events and asserting the chart does NOT re-render — the active
+    // metric and aria-pressed indicator stay on the default
+    // comment_count throughout (mirrors #335's P7-c at
+    // comments-repository-density.test.ts:1026-1100).
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u, i) => {
+      buckets[u.user_id] = makeBucket(2, 50 - i, 1);
+    });
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    // Sanity: the default comment_count button is initially active.
+    const initialActive = container.querySelector(
+      '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(initialActive?.getAttribute("data-sort-metric")).toBe(
+      "comment_count",
+    );
+    const initialOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+
+    // 1. Click on the chart container itself (no button ancestor).
+    //    findSortButton returns null → click handler returns early
+    //    (line 321).
+    container.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    // 2. Click on a button whose data-sort-metric is mutated to an
+    //    unknown value.  resolveMetric returns undefined → click
+    //    handler returns early (line 323).
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-reviewer-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    expect(threadBtn).not.toBeNull();
+    threadBtn?.setAttribute("data-sort-metric", "not-a-real-metric");
+    threadBtn?.click();
+    threadBtn?.setAttribute("data-sort-metric", "thread_count");
+
+    // 3. Keydown on the chart container itself (no button ancestor).
+    //    findSortButton returns null → keydown handler returns early
+    //    (line 333).
+    container.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    // 4. Keydown with a non-Enter/Space key on a real button (line
+    //    335).
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+    );
+
+    // 5. Keydown with valid key but mutated invalid metric (line 337).
+    threadBtn?.setAttribute("data-sort-metric", "still-not-a-real-metric");
+    threadBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    threadBtn?.setAttribute("data-sort-metric", "thread_count");
+
+    // After all 5 defensive paths fired (each returning early), the
+    // chart should still be on the original sort metric — no
+    // re-render happened.  The aria-pressed indicator MUST still
+    // mark comment_count as active.
+    const finalActive = container.querySelector(
+      '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
+    );
+    expect(finalActive?.getAttribute("data-sort-metric")).toBe(
+      "comment_count",
+    );
+    // And the row order is unchanged from the initial render —
+    // proves no defensive path leaked into a real activate() call.
+    const finalOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(finalOrder).toEqual(initialOrder);
   });
 });
