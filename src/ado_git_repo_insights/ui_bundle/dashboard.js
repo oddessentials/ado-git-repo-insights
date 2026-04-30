@@ -1321,7 +1321,14 @@ var PRInsightsDashboard = (() => {
     // Outer dict at rollup root; per-entry atomic per INV-3-08; absent entirely
     // when capability-off (FR-3-03 + INV-3-09 + FR-1-10 — including the empty-{}
     // omission contract).  No sentinel concept (CL-03 / INV-3-12 — FK-protected).
-    "by_repository_comments"
+    "by_repository_comments",
+    // Feature 336 per-reviewer comments-density (gated on capabilities.comments_metrics).
+    // Outer dict at rollup root; per-entry atomic per INV-4-08; absent entirely
+    // when capability-off (FR-3-03 + INV-4-09 + FR-1-11 — including the empty-{}
+    // omission contract).  Sentinel APPLIES (CL-03 / INV-4-12 — divergence from
+    // 335's FK-protected no-sentinel posture); the reserved literal
+    // `__former_or_unavailable_author__` is a permitted outer-dict key.
+    "by_reviewer_comments"
   ]);
   var PR_RECORD_REQUIRED_FIELDS = [
     "id",
@@ -1973,6 +1980,126 @@ var PRInsightsDashboard = (() => {
     }
     return { errors };
   }
+  function validateReviewerCommentsDensity(data, path) {
+    const errors = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors };
+    }
+    const entries = Object.entries(
+      data
+    );
+    if (entries.length === 0) {
+      errors.push(
+        createError(
+          path,
+          "non-empty Record<string, ReviewerCommentsDensityEntry>",
+          "{}",
+          `by_reviewer_comments MUST be omitted entirely when no per-reviewer buckets exist (FR-3-03 + INV-4-09 + FR-1-11); empty object is a contract violation`
+        )
+      );
+      return { errors };
+    }
+    const requiredFields = [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "coverage_partial"
+    ];
+    for (const [key, entry] of entries) {
+      const entryPath = buildPath(path, key);
+      if (!isObject(entry)) {
+        errors.push(createError(entryPath, "object", getTypeName(entry)));
+        continue;
+      }
+      const missing = requiredFields.filter(
+        (field) => !Object.prototype.hasOwnProperty.call(entry, field)
+      );
+      if (missing.length > 0) {
+        errors.push(
+          createError(
+            entryPath,
+            "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+            `missing: ${missing.join(", ")}`,
+            `by_reviewer_comments[${key}] atomicity violated (INV-4-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+          )
+        );
+      }
+      const numericFieldChecks = [
+        { name: "thread_count", value: entry.thread_count },
+        { name: "comment_count", value: entry.comment_count },
+        { name: "active_thread_count", value: entry.active_thread_count }
+      ];
+      for (const { name, value } of numericFieldChecks) {
+        if (!Object.prototype.hasOwnProperty.call(entry, name)) {
+          continue;
+        }
+        if (value === null) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "number (non-null per INV-4-08; zero is the valid sum over an empty extracted-subset)",
+              "null",
+              `by_reviewer_comments[${key}].${name} MUST be a non-null number (INV-4-08); null is not a valid sentinel \u2014 use 0 for an empty extracted-subset`
+            )
+          );
+        } else if (!isNumber(value)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "number",
+              getTypeName(value),
+              `expected number at 'by_reviewer_comments[${key}].${name}', got ${getTypeName(value)}`
+            )
+          );
+        } else if (value < 0) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "non-negative number (counts cannot be negative)",
+              String(value),
+              `by_reviewer_comments[${key}].${name} MUST be non-negative; got ${value}`
+            )
+          );
+        } else if (!Number.isInteger(value)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, name),
+              "integer (counts must be whole numbers)",
+              String(value),
+              `by_reviewer_comments[${key}].${name} MUST be an integer; got ${value}`
+            )
+          );
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, "coverage_partial")) {
+        const coveragePartial = entry.coverage_partial;
+        if (!isBoolean(coveragePartial)) {
+          errors.push(
+            createError(
+              buildPath(entryPath, "coverage_partial"),
+              "boolean",
+              getTypeName(coveragePartial),
+              `expected boolean at 'by_reviewer_comments[${key}].coverage_partial', got ${getTypeName(coveragePartial)}`
+            )
+          );
+        }
+      }
+      const entryThread = entry.thread_count;
+      const entryActive = entry.active_thread_count;
+      if (isNumber(entryThread) && isNumber(entryActive) && Number.isInteger(entryThread) && Number.isInteger(entryActive) && entryThread >= 0 && entryActive >= 0 && entryActive > entryThread) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "active_thread_count"),
+            "<= thread_count (INV-4-07; active is a subset of total)",
+            `${entryActive} > ${entryThread}`,
+            `by_reviewer_comments[${key}] ordering violated (INV-4-07): active_thread_count (${entryActive}) MUST NOT exceed thread_count (${entryThread})`
+          )
+        );
+      }
+    }
+    return { errors };
+  }
   function validateRollup(data, strict) {
     const errors = [];
     const warnings = [];
@@ -2137,6 +2264,13 @@ var PRInsightsDashboard = (() => {
         "by_repository_comments"
       );
       errors.push(...byRepositoryCommentsResult.errors);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_reviewer_comments") && data.by_reviewer_comments !== void 0) {
+      const byReviewerCommentsResult = validateReviewerCommentsDensity(
+        data.by_reviewer_comments,
+        "by_reviewer_comments"
+      );
+      errors.push(...byReviewerCommentsResult.errors);
     }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);
@@ -6497,7 +6631,7 @@ var PRInsightsDashboard = (() => {
     const historicalPath = calculateLinePath(historicalPoints);
     const forecastPath = calculateLinePath(forecastPoints);
     const bandPath = calculateBandPath(upperPoints, lowerPoints);
-    const metricLabel3 = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const metricLabel4 = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const allWeeks = [];
     if (historicalData) {
       historicalData.forEach((h2) => allWeeks.push(h2.week));
@@ -6511,12 +6645,12 @@ var PRInsightsDashboard = (() => {
     }).join("");
     const latestValue = values[values.length - 1];
     const rangeClause = latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : "";
-    const accessibleSummary = `${metricLabel3} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${rangeClause}`;
+    const accessibleSummary = `${metricLabel4} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${rangeClause}`;
     const safeMetricId = sanitizeForId(forecast.metric);
     return `
-    <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel3)} forecast">
+    <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel4)} forecast">
       <div class="chart-header">
-        <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel3)}</h4>
+        <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel4)}</h4>
         <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
         ${wasTruncated ? `<span class="truncation-badge" title="Showing last ${MAX_CHART_POINTS} data points">Partial history</span>` : ""}
       </div>
@@ -7052,14 +7186,14 @@ var PRInsightsDashboard = (() => {
   }
   function renderInsightDataSection(data) {
     if (!data) return "";
-    const metricLabel3 = data.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const metricLabel4 = data.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const trendIcon = TREND_ICONS[data.trend_direction] || "";
     const trendClass = `trend-${data.trend_direction}`;
     const changeDisplay = data.change_percent !== void 0 ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%` : "";
     return `
     <div class="insight-data-section">
       <div class="insight-metric">
-        <span class="metric-label">${escapeHtml(metricLabel3)}</span>
+        <span class="metric-label">${escapeHtml(metricLabel4)}</span>
         <span class="metric-value">${escapeHtml(String(data.current_value))}</span>
         ${changeDisplay ? `<span class="metric-change ${trendClass}">${trendIcon} ${escapeHtml(changeDisplay)}</span>` : ""}
       </div>
@@ -9146,6 +9280,221 @@ var PRInsightsDashboard = (() => {
     return `<div class="comments-repository-density-row${partialClass}" role="row" data-repository-id="${escapeHtml(row.repositoryId)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-repository-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
   }
 
+  // ../ui/modules/charts/comments-reviewer-density.ts
+  var MAX_COMMENTS_REVIEWER_DENSITY_ROWS = 50;
+  var FORMER_OR_UNAVAILABLE_AUTHOR_KEY2 = "__former_or_unavailable_author__";
+  var FORMER_OR_UNAVAILABLE_AUTHOR_LABEL2 = "Former / unavailable author";
+  var COMMENTS_REVIEWER_DENSITY_SORT_METRICS = [
+    "comment_count",
+    "thread_count",
+    "active_thread_count"
+  ];
+  function hasByReviewerComments(rollup) {
+    const value = rollup.by_reviewer_comments;
+    return value !== void 0 && value !== null && typeof value === "object";
+  }
+  function reducePerReviewer(rollups) {
+    const reduced = /* @__PURE__ */ new Map();
+    for (const rollup of rollups) {
+      for (const entry of Object.entries(rollup.by_reviewer_comments)) {
+        const key = entry[0];
+        const bucket = entry[1];
+        const existing = reduced.get(key);
+        if (existing) {
+          existing.thread_count += bucket.thread_count;
+          existing.comment_count += bucket.comment_count;
+          existing.active_thread_count += bucket.active_thread_count;
+          existing.coverage_partial = existing.coverage_partial || bucket.coverage_partial;
+        } else {
+          reduced.set(key, {
+            thread_count: bucket.thread_count,
+            comment_count: bucket.comment_count,
+            active_thread_count: bucket.active_thread_count,
+            coverage_partial: bucket.coverage_partial
+          });
+        }
+      }
+    }
+    return reduced;
+  }
+  function buildUsersDirectory(usersDimension) {
+    if (!usersDimension) return null;
+    const map = /* @__PURE__ */ new Map();
+    for (const entry of usersDimension) {
+      if (typeof entry.user_id === "string" && typeof entry.display_name === "string") {
+        map.set(entry.user_id, entry.display_name);
+      }
+    }
+    return map;
+  }
+  function resolveDisplayName3(reviewerKey, directory) {
+    if (reviewerKey === FORMER_OR_UNAVAILABLE_AUTHOR_KEY2) {
+      return FORMER_OR_UNAVAILABLE_AUTHOR_LABEL2;
+    }
+    if (directory) {
+      const found = directory.get(reviewerKey);
+      if (typeof found === "string" && found.length > 0) {
+        return found;
+      }
+    }
+    return reviewerKey;
+  }
+  function metricValue3(row, metric) {
+    switch (metric) {
+      case "comment_count":
+        return row.comment_count;
+      case "thread_count":
+        return row.thread_count;
+      case "active_thread_count":
+        return row.active_thread_count;
+    }
+  }
+  function compareRows3(a2, b2, metric) {
+    const primary = metricValue3(b2, metric) - metricValue3(a2, metric);
+    if (primary !== 0) return primary;
+    const displayCmp = a2.displayName.localeCompare(b2.displayName);
+    if (displayCmp !== 0) return displayCmp;
+    return a2.reviewerKey < b2.reviewerKey ? -1 : 1;
+  }
+  var sortMetricByContainer3 = /* @__PURE__ */ new WeakMap();
+  var sortListenerControllers3 = /* @__PURE__ */ new WeakMap();
+  function attachSortToggleListeners3(container, rollups, options) {
+    sortListenerControllers3.get(container)?.abort();
+    const controller = new AbortController();
+    sortListenerControllers3.set(container, controller);
+    const { signal } = controller;
+    const resolveMetric = (raw) => {
+      return COMMENTS_REVIEWER_DENSITY_SORT_METRICS.find((m2) => m2 === raw);
+    };
+    const activate = (metric) => {
+      sortMetricByContainer3.set(container, metric);
+      renderCommentsReviewerDensityChart(container, rollups, {
+        ...options,
+        sortMetric: metric
+      });
+    };
+    const findSortButton = (event) => {
+      const target = event.target;
+      return target.closest(".comments-reviewer-density-sort-btn");
+    };
+    container.addEventListener(
+      "click",
+      (event) => {
+        const button = findSortButton(event);
+        if (!button) return;
+        const metric = resolveMetric(button.dataset.sortMetric);
+        if (!metric) return;
+        activate(metric);
+      },
+      { signal }
+    );
+    container.addEventListener(
+      "keydown",
+      (event) => {
+        const button = findSortButton(event);
+        if (!button) return;
+        const key = event.key;
+        if (key !== "Enter" && key !== " ") return;
+        const metric = resolveMetric(button.dataset.sortMetric);
+        if (!metric) return;
+        event.preventDefault();
+        activate(metric);
+      },
+      { signal }
+    );
+  }
+  function renderCommentsReviewerDensityChart(container, rollups, options) {
+    if (!container) return;
+    if (options?.filters && hasActiveFilters2(options.filters)) {
+      renderNoData(
+        container,
+        "Comments density is not yet filterable",
+        "Clear repo / team / author / reviewer filters to view per-reviewer review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322."
+      );
+      return;
+    }
+    const withByReviewer = rollups.filter(hasByReviewerComments);
+    const reduced = reducePerReviewer(withByReviewer);
+    const directory = buildUsersDirectory(options?.usersDimension);
+    const rows = [];
+    for (const [key, bucket] of reduced) {
+      if (bucket.thread_count === 0 && bucket.comment_count === 0 && bucket.active_thread_count === 0) {
+        continue;
+      }
+      rows.push({
+        reviewerKey: key,
+        displayName: resolveDisplayName3(key, directory),
+        thread_count: bucket.thread_count,
+        comment_count: bucket.comment_count,
+        active_thread_count: bucket.active_thread_count,
+        coverage_partial: bucket.coverage_partial
+      });
+    }
+    if (rows.length === 0) {
+      renderNoData(
+        container,
+        "No comments data for selected range",
+        "Try widening the date range, or confirm comments extraction is enabled for this dataset."
+      );
+      return;
+    }
+    let activeMetric;
+    if (options?.sortMetric) {
+      activeMetric = options.sortMetric;
+      sortMetricByContainer3.set(container, activeMetric);
+    } else {
+      activeMetric = sortMetricByContainer3.get(container) ?? "comment_count";
+    }
+    rows.sort((a2, b2) => compareRows3(a2, b2, activeMetric));
+    const truncated = rows.length > MAX_COMMENTS_REVIEWER_DENSITY_ROWS;
+    const display = truncated ? rows.slice(0, MAX_COMMENTS_REVIEWER_DENSITY_ROWS) : rows;
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_COMMENTS_REVIEWER_DENSITY_ROWS,
+      "reviewers"
+    );
+    const sortControlsHtml = renderSortControls3(activeMetric);
+    const tableHtml = renderTable3(display);
+    const anyPartial = display.some((r2) => r2.coverage_partial);
+    const partialLegendHtml = anyPartial ? `<div class="chart-legend"><div class="legend-item legend-coverage-partial-item"><span class="legend-bar legend-bar-coverage-partial"></span><span>Partial coverage</span></div></div>` : "";
+    renderTrustedHtml(
+      container,
+      `${truncationHtml}${sortControlsHtml}${tableHtml}${partialLegendHtml}`
+    );
+    attachSortToggleListeners3(container, rollups, options);
+  }
+  function metricLabel3(metric) {
+    switch (metric) {
+      case "comment_count":
+        return "Comments";
+      case "thread_count":
+        return "Threads";
+      case "active_thread_count":
+        return "Active threads";
+    }
+  }
+  function renderSortControls3(activeMetric) {
+    const buttons = COMMENTS_REVIEWER_DENSITY_SORT_METRICS.map((metric) => {
+      const checked = metric === activeMetric;
+      const ariaPressed = checked ? "true" : "false";
+      const label = metricLabel3(metric);
+      return `<button type="button" class="comments-reviewer-density-sort-btn${checked ? " is-active" : ""}" aria-pressed="${ariaPressed}" data-sort-metric="${escapeHtml(metric)}">${escapeHtml(label)}</button>`;
+    }).join("");
+    return `<div class="comments-reviewer-density-sort" role="toolbar" aria-label="Sort reviewer rows by metric">${buttons}</div>`;
+  }
+  function renderTable3(rows) {
+    const rowsHtml = rows.map((row) => renderRow3(row)).join("");
+    return `<div class="comments-reviewer-density-table" role="table" aria-label="Per-reviewer comment density"><div class="comments-reviewer-density-thead" role="row"><div role="columnheader">Reviewer</div><div role="columnheader" class="comments-reviewer-density-numeric">Threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Active threads</div><div role="columnheader" class="comments-reviewer-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+  }
+  function renderRow3(row) {
+    const partialClass = row.coverage_partial ? " coverage-partial" : "";
+    const partialAttr = row.coverage_partial ? ' data-coverage-partial="true"' : "";
+    const partialTitle = row.coverage_partial ? ` title="${escapeHtml("This week's comments extraction is partial; reviewer activity may be incomplete")}"` : "";
+    const partialNote = row.coverage_partial ? " (partial week coverage; reviewer activity may be incomplete this week)" : "";
+    const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
+    return `<div class="comments-reviewer-density-row${partialClass}" role="row" data-reviewer-key="${escapeHtml(row.reviewerKey)}"${partialAttr}${partialTitle} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-reviewer-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-reviewer-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+  }
+
   // ../ui/modules/filter-constraint-resolver.ts
   function resolveFilterConstraints(raw, lastChanged) {
     const notices = [];
@@ -9833,7 +10182,7 @@ var PRInsightsDashboard = (() => {
   window.addEventListener(COMPARISON_TOGGLED_EVENT, comparisonListener);
 
   // ../ui/modules/shared/identity-fallback.ts
-  function resolveDisplayName3(id, map) {
+  function resolveDisplayName4(id, map) {
     const mapped = map.get(id);
     return mapped !== void 0 ? mapped : id;
   }
@@ -9872,7 +10221,7 @@ var PRInsightsDashboard = (() => {
       return makeEmptyState(title, emptyDetail);
     }
     const rows = Object.entries(entries).sort((a2, b2) => b2[1].pr_count - a2[1].pr_count).map(([key, entry]) => ({
-      label: nameByKey ? resolveDisplayName3(key, nameByKey) : key,
+      label: nameByKey ? resolveDisplayName4(key, nameByKey) : key,
       values: [String(entry.pr_count)]
     }));
     return makeBreakdownTable(title, columns, rows);
@@ -10257,7 +10606,7 @@ var PRInsightsDashboard = (() => {
   function buildPanelContent3(rollups, reviewerId, reviewerNameByKey) {
     const stats = buildStatRow(rollups, reviewerId);
     const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
-    const displayName = resolveDisplayName3(reviewerId, reviewerNameByKey);
+    const displayName = resolveDisplayName4(reviewerId, reviewerNameByKey);
     return makePanelContent(displayName, subtitle, [
       stats.section,
       buildWeeklyTable(rollups, reviewerId)
@@ -11067,6 +11416,20 @@ var PRInsightsDashboard = (() => {
       } else {
         removeCommentsRepositoryDensityContainer();
       }
+      if (loader?.getCapabilityState?.()?.commentsMetricsAvailable === true) {
+        const crvContainer = ensureCommentsReviewerDensityContainer();
+        if (crvContainer) {
+          renderCommentsReviewerDensityChart(crvContainer, rollups, {
+            filters: currentFilters,
+            usersDimension: currentDimensions?.users?.map((u2) => ({
+              user_id: u2.user_id,
+              display_name: u2.display_name
+            }))
+          });
+        }
+      } else {
+        removeCommentsReviewerDensityContainer();
+      }
       const throughputContainer = document.getElementById("throughput-chart");
       if (throughputContainer) {
         activeDrilldownHandles.push(
@@ -11293,7 +11656,7 @@ var PRInsightsDashboard = (() => {
         r2.reviewer_name
       ])
     );
-    const filterReviewerName = filterReviewerId !== void 0 ? resolveDisplayName3(filterReviewerId, reviewerNameByKey) : void 0;
+    const filterReviewerName = filterReviewerId !== void 0 ? resolveDisplayName4(filterReviewerId, reviewerNameByKey) : void 0;
     renderReviewerActivity(
       elements.get("reviewer-activity") ?? null,
       rollups,
@@ -11407,6 +11770,49 @@ var PRInsightsDashboard = (() => {
   function removeCommentsRepositoryDensityContainer() {
     const row = document.querySelector(
       '[data-comments-repository-density-row="true"]'
+    );
+    if (!row) return;
+    row.parentElement?.removeChild(row);
+  }
+  function ensureCommentsReviewerDensityContainer() {
+    const existing = document.getElementById("comments-reviewer-density");
+    if (existing) return existing;
+    const perRepoRow = document.querySelector(
+      '[data-comments-repository-density-row="true"]'
+    );
+    let anchorRow = perRepoRow;
+    if (!anchorRow) {
+      anchorRow = document.querySelector(
+        '[data-comments-author-density-row="true"]'
+      );
+    }
+    if (!anchorRow) {
+      anchorRow = document.querySelector('[data-comments-trend-row="true"]');
+    }
+    if (!anchorRow) {
+      const cycleDist = document.getElementById("cycle-distribution");
+      anchorRow = cycleDist?.closest(".charts-row") ?? null;
+    }
+    if (!anchorRow || !anchorRow.parentElement) return null;
+    const row = document.createElement("div");
+    row.className = "charts-row";
+    row.setAttribute("data-comments-reviewer-density-row", "true");
+    const containerCell = document.createElement("div");
+    containerCell.className = "chart-container";
+    const heading = document.createElement("h3");
+    heading.textContent = "Comment Density by Reviewer";
+    containerCell.appendChild(heading);
+    const chart = document.createElement("div");
+    chart.id = "comments-reviewer-density";
+    chart.className = "chart";
+    containerCell.appendChild(chart);
+    row.appendChild(containerCell);
+    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    return chart;
+  }
+  function removeCommentsReviewerDensityContainer() {
+    const row = document.querySelector(
+      '[data-comments-reviewer-density-row="true"]'
     );
     if (!row) return;
     row.parentElement?.removeChild(row);

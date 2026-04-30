@@ -518,23 +518,42 @@ def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
     namespace-safe (production author_ids are UUID-format strings —
     32 hex + 4 hyphens — and cannot collide with the leading-double-
     underscore literal).  This test is the executable closure: scan
-    every committed demo fixture surface where an ``author_id`` value
-    could appear and assert the literal never shows up there.
+    every committed demo fixture surface where an ``author_id`` (or
+    its renamed-by-dimension peers ``user_id`` / ``reviewer_id``)
+    value could appear and assert the literal never shows up there.
 
     Surfaces scanned:
 
-    * ``docs/data/aggregates/dimensions.json`` — every
-      ``authors[].author_id`` value (the canonical authors directory
-      the dashboard renders display names from).
-    * ``docs/data/aggregates/weekly_rollups/*.json`` — every key in
-      ``rollup[W].by_author`` (the throughput per-author slice; one
-      bucket per real author_id).  This is the pre-existing
-      throughput-side mirror of the same author_id space.
+    * ``docs/data/aggregates/dimensions.json``:
+      - every ``authors[].author_id`` value (the canonical authors
+        directory the dashboard renders display names from).
+      - every ``users[].user_id`` value (Feature 336 widening — the
+        ``pr_comments.author_id`` FK target per ``models.py:172``;
+        scanning users[].user_id covers the per-reviewer dimension's
+        bucket-key namespace because every commenter ``author_id``
+        references this ``user_id`` via FK).
+      - every ``reviewers[].reviewer_id`` value (Feature 336 widening
+        — the throughput per-reviewer dimension's identity namespace,
+        which is the same UUID space as ``user_id`` / ``author_id``).
+    * ``docs/data/aggregates/weekly_rollups/*.json``:
+      - every key in ``rollup[W].by_author`` (the throughput per-
+        author slice; pre-existing throughput-side mirror of the
+        author_id space).
+      - every key in ``rollup[W].by_reviewer`` (Feature 336 widening
+        — the throughput per-reviewer slice; one bucket per real
+        ``reviewer_id`` / ``user_id``).
 
-    The test does NOT scan ``rollup[W].by_author_comments`` — that is
-    the producer's own emission and the literal IS a valid bucket key
-    there by design (CL-03).  The check only asserts that NO REAL
-    author_id collides with it.
+    The test does NOT scan ``rollup[W].by_author_comments`` or
+    ``rollup[W].by_reviewer_comments`` — those are the producers' own
+    emissions and the literal IS a valid bucket key there by design
+    (CL-03 / INV-2-12 / INV-4-12).  The check only asserts that NO
+    REAL author_id / user_id / reviewer_id collides with it.
+
+    Per kickoff directive on #336: "extend its assertion list, don't
+    duplicate the test" — this test is the single executable closure
+    for the sentinel literal's namespace-safety guarantee across all
+    UUID-shaped identity spaces (author / user / reviewer) that appear
+    in the demo fixture's serialized surfaces.
     """
     repo_root = Path(__file__).resolve().parents[2]
     docs_data = repo_root / "docs" / "data" / "aggregates"
@@ -561,6 +580,47 @@ def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
             "specs/334-comments-author-density/spec.md Assumption A-07."
         )
 
+    # Feature 336 widening: scan users[].user_id (the FK target for
+    # pr_comments.author_id) and reviewers[].reviewer_id (throughput's
+    # per-reviewer identity namespace).  Both are UUID-shaped strings
+    # in the same namespace as authors[].author_id; collisions with
+    # the sentinel literal are equally forbidden.
+    users_dim_raw = dimensions.get("users")
+    assert isinstance(users_dim_raw, list), (
+        "dimensions.json missing or non-list users array — Feature 336 "
+        "T014 widened scan requires this surface"
+    )
+    for entry in users_dim_raw:
+        if not isinstance(entry, dict):
+            continue
+        user_id = entry.get("user_id")
+        assert user_id != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL, (
+            "Feature 336 A-07 violation: dimensions.json carries a users[] "
+            f"entry whose user_id collides with the reserved sentinel "
+            f"literal {FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Real "
+            "user_ids must NEVER equal the sentinel literal — see "
+            "specs/336-comments-reviewer-density/spec.md Assumption A-07.  "
+            "The pr_comments.author_id FK at models.py:172 references this "
+            "user_id; a collision would corrupt the per-reviewer "
+            "by_reviewer_comments bucket-key namespace (INV-4-12)."
+        )
+
+    reviewers_dim_raw = dimensions.get("reviewers")
+    assert isinstance(reviewers_dim_raw, list), (
+        "dimensions.json missing or non-list reviewers array — Feature 336 "
+        "T014 widened scan requires this surface"
+    )
+    for entry in reviewers_dim_raw:
+        if not isinstance(entry, dict):
+            continue
+        reviewer_id = entry.get("reviewer_id")
+        assert reviewer_id != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL, (
+            "Feature 336 A-07 violation: dimensions.json carries a "
+            f"reviewers[] entry whose reviewer_id collides with the reserved "
+            f"sentinel literal {FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  "
+            "Real reviewer_ids must NEVER equal the sentinel literal."
+        )
+
     rollups_dir = docs_data / "weekly_rollups"
     assert rollups_dir.is_dir(), (
         f"docs/data/aggregates/weekly_rollups missing at {rollups_dir}"
@@ -572,16 +632,29 @@ def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
     for rollup_path in rollup_files:
         payload = json.loads(rollup_path.read_text(encoding="utf-8"))
         by_author = payload.get("by_author")
-        if not isinstance(by_author, dict):
-            continue
-        assert FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL not in by_author, (
-            f"Feature 334 A-07 violation: {rollup_path.name} carries a "
-            f"by_author bucket keyed by the reserved sentinel literal "
-            f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Throughput's "
-            "per-author slice must NEVER use a real author_id equal to "
-            "the sentinel literal — that would collide with Feature 334's "
-            "by_author_comments sentinel-bucket convention (CL-03)."
-        )
+        if isinstance(by_author, dict):
+            assert FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL not in by_author, (
+                f"Feature 334 A-07 violation: {rollup_path.name} carries a "
+                f"by_author bucket keyed by the reserved sentinel literal "
+                f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Throughput's "
+                "per-author slice must NEVER use a real author_id equal to "
+                "the sentinel literal — that would collide with Feature "
+                "334's by_author_comments sentinel-bucket convention (CL-03)."
+            )
+        # Feature 336 widening: the throughput per-reviewer slice's bucket
+        # keys are the same UUID space as authors / users — collisions
+        # equally forbidden.
+        by_reviewer = payload.get("by_reviewer")
+        if isinstance(by_reviewer, dict):
+            assert FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL not in by_reviewer, (
+                f"Feature 336 A-07 violation: {rollup_path.name} carries a "
+                f"by_reviewer bucket keyed by the reserved sentinel literal "
+                f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Throughput's "
+                "per-reviewer slice must NEVER use a real reviewer_id equal "
+                "to the sentinel literal — that would collide with Feature "
+                "336's by_reviewer_comments sentinel-bucket convention "
+                "(CL-03 / INV-4-12)."
+            )
 
 
 def test_determinism_outer_dict_key_order_ascending(

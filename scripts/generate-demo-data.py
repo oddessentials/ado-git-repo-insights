@@ -54,6 +54,33 @@ _schema_mod = importlib.util.module_from_spec(_schema_spec)
 _schema_spec.loader.exec_module(_schema_mod)
 AGGREGATES_SCHEMA_VERSION: int = _schema_mod.AGGREGATES_SCHEMA_VERSION
 
+# Feature 336 (T015): the per-reviewer demo synthesizer + helper
+# (``synthesize_pr_comment_streams_for_week`` /
+# ``_aggregate_by_reviewer_comments_for_week``) reuse the production
+# aggregator's reserved sentinel literal for ghost-commenter bucketing
+# (CL-03 / INV-4-12).  Load the canonical Python constant from
+# ``src/ado_git_repo_insights/transform/constants.py`` via importlib so
+# the demo path cannot drift from production.  The widened T029
+# collision-safety test
+# (``tests/unit/test_aggregators_author_comments.py:test_sentinel_literal_does_not_collide_with_real_author_ids``)
+# additionally asserts no real user_id / reviewer_id / author_id in any
+# committed demo fixture surface collides with this literal.
+_constants_spec = importlib.util.spec_from_file_location(
+    "transform_constants",
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "ado_git_repo_insights"
+    / "transform"
+    / "constants.py",
+)
+assert _constants_spec is not None
+assert _constants_spec.loader is not None
+_constants_mod = importlib.util.module_from_spec(_constants_spec)
+_constants_spec.loader.exec_module(_constants_mod)
+FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL: str = (
+    _constants_mod.FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+)
+
 # Load demo_generation_common from scripts/ via importlib
 _common_spec = importlib.util.spec_from_file_location(
     "demo_generation_common",
@@ -261,8 +288,26 @@ _PR_TITLE_TOKEN_COUNT_RANGE: Final[tuple[int, int]] = (2, 6)
 # R-08 byte-identity test strips.
 _COMMENTS_METRICS_SEED_OFFSET: Final[int] = 3_000_000
 
+# Feature 336 (T015): synthetic pr_comments stream RNG.  The offset is
+# intentionally far from ``_PR_RECORD_SEED_OFFSET``,
+# ``_COMMENTS_METRICS_SEED_OFFSET``, and ``_REVIEW_TIME_SEED_OFFSET`` so
+# the synthesizer's choice sequence cannot collide with any pre-existing
+# stream.  Per CL-14 the synthetic streams are demo-internal (NOT
+# serialized to rollup files); only the AGGREGATED ``by_reviewer_comments``
+# key reaches disk, so this RNG's draws affect ONLY that one rollup-root
+# key and never perturb the existing demo's serialized output.
+_COMMENT_STREAM_SEED_OFFSET: Final[int] = 4_000_000
+# Per CL-14 step 4: ≥1 demo week MUST include synthetic ghost commenters
+# (UUIDs absent from the seeded ``users`` table) so the per-reviewer
+# sentinel reconciliation branch is exercised non-vacuously.  Three
+# ghost UUIDs is a small, easily-attributable set; the synthesizer's
+# ghost-forcing logic guarantees ≥1 ghost commenter is emitted across
+# the full year regardless of the choice RNG's distribution.
+_GHOST_POOL_SIZE: Final[int] = 3
+
 pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
 comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)
+comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)
 
 # Feature 310 serialization-layer flag.  ``generate-demo-data.py`` sets
 # this in ``main`` from the ``--comments-metrics {true,false}`` CLI arg
@@ -273,6 +318,40 @@ comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)
 # ``manifest.features.comments``, ``manifest.coverage.comments``,
 # ``prs[*].thread_count`` / ``comment_count`` / ``active_thread_count``).
 _EMIT_COMMENTS_METRICS: bool = True
+
+
+class SyntheticPrThread(TypedDict):
+    """Feature 336 CL-14: per-(PR, thread) demo-internal record.
+
+    Mirrors the production ``pr_threads`` row shape (``models.py:143``)
+    enough for the demo's ``synthesize_pr_comment_streams_for_week`` +
+    ``_aggregate_by_reviewer_comments_for_week`` round-trip to validate
+    against the per-reviewer aggregator's contract.  NOT serialized to
+    any rollup file (privacy posture per CL-14 step 5); only the
+    AGGREGATED ``by_reviewer_comments`` key reaches disk.
+    """
+
+    pull_request_uid: str
+    thread_id: str
+    status: str  # ``"active"`` or ``"fixed"``; mirrors pr_threads.status
+    is_deleted: int  # always 0 per C1
+
+
+class SyntheticPrComment(TypedDict):
+    """Feature 336 CL-14: per-(PR, thread, comment) demo-internal record.
+
+    Mirrors the production ``pr_comments`` row shape (``models.py:156``)
+    enough for the demo's per-reviewer aggregator round-trip.  Synthesis
+    enforces CL-04 self-comment exclusion at construction time
+    (``author_id != PR's author_id`` is invariant on every emitted row).
+    NOT serialized to any rollup file (privacy posture per CL-14 step 5);
+    only the AGGREGATED ``by_reviewer_comments`` key reaches disk.
+    """
+
+    pull_request_uid: str
+    thread_id: str
+    author_id: str  # commenter; never == PR's author_id (CL-04)
+    is_deleted: int  # always 0 per C1
 
 
 class _TruncationExerciseConfig(TypedDict):
@@ -485,10 +564,34 @@ def generate_pr_records(
             )
             # Typical ADO patterns: ~2-5 comments per thread, with a
             # floor of thread_count (one comment per thread minimum
-            # when threads exist).  Zero-thread PRs may still have a
-            # handful of drive-by system comments.
+            # when threads exist).
+            #
+            # Production schema (``models.py:170``) requires every
+            # ``pr_comments`` row to have a non-NULL ``thread_id`` with
+            # FK to ``pr_threads``.  Pre-#336 the demo allowed
+            # (thread_count=0, comment_count>0) "drive-by system
+            # comments" — a synthetic abstraction that does not map to
+            # production where system messages belong to system-
+            # generated threads.  Feature 336 per-reviewer dimension
+            # iterates ``pr_comments`` rows joined with ``pr_threads``
+            # to compute COUNT(DISTINCT thread_id) per commenter; the
+            # legacy abstraction made the per-reviewer synthesizer's
+            # contract (CL-14) unsatisfiable on existing demo PR
+            # shapes (Codex stop-time review caught this on the T007
+            # commit).  The fix forces ``comment_count = 0`` when
+            # ``thread_count = 0`` so the demo data is production-
+            # schema-compatible end to end.
+            #
+            # The historical ``randint(0, 3)`` draw is consumed and
+            # discarded so the rest of the byte-identity sequence
+            # stays in lockstep with the pre-#336 RNG state — only
+            # the per-PR ``comment_count`` (a gated key per
+            # ``test_demo_variants_byte_identity.py``) shifts on the
+            # affected PRs, plus the rollup-level aggregates that
+            # depend on it (also gated keys).
             if thread_count == 0:
-                comment_count = comments_metrics_rng.randint(0, 3)
+                _ = comments_metrics_rng.randint(0, 3)
+                comment_count = 0
             else:
                 comment_count = thread_count * comments_metrics_rng.randint(2, 5)
         records.append(
@@ -716,6 +819,329 @@ def _aggregate_by_repository_comments_for_week(
             "coverage_partial": coverage_partial,
         }
     return buckets if buckets else None
+
+
+def synthesize_pr_comment_streams_for_week(
+    prs: list[PrRecord],
+    user_pool: list[str],
+    ghost_pool: list[str],
+    rng: random.Random,
+) -> tuple[list[SyntheticPrThread], list[SyntheticPrComment]]:
+    """Feature 336 CL-14 / T015: synthesize per-(PR, thread) and
+    per-(PR, thread, comment) demo-internal records for one week.
+
+    The production ``pr_comments`` table is the per-reviewer aggregator's
+    iteration unit (CL-13 / INV-4-13); the demo path has no live
+    ``pr_comments`` source.  This synthesizer fabricates the missing
+    rows from each PR's pre-existing PrRecord aggregate counts
+    (``thread_count`` / ``comment_count`` / ``active_thread_count``) such
+    that re-aggregating the synthetic streams yields P's aggregate
+    counts back (the coherence guard at
+    ``tests/unit/test_demo_synthetic_pr_comments.py`` enforces this
+    round-trip per CL-14 step 3).
+
+    Inputs:
+
+    - ``prs``: per-week PrRecord list (the SAME ``synthetic_prs_full``
+      list the existing per-author / per-repo aggregators consume; per
+      INV-4-10 the per-reviewer aggregator MUST also span W's full
+      extracted-subset, NOT the 500-row drill-down slice).
+    - ``user_pool``: real user UUIDs from the demo's ``users`` directory
+      (the FK target for ``pr_comments.author_id`` per ``models.py:172``).
+      Synthesizer samples commenters from this pool minus the PR's
+      author (CL-04 self-comment exclusion enforced at synthesis time).
+    - ``ghost_pool``: synthetic UUIDs ABSENT from ``user_pool`` (per
+      CL-14 step 4 ghost-commenter inclusion guarantee).  ≥1 ghost MUST
+      appear in the emitted comment stream so the per-reviewer sentinel
+      reconciliation branch is exercised non-vacuously.
+    - ``rng``: deterministic ``random.Random`` (seeded via
+      ``_COMMENT_STREAM_SEED_OFFSET`` so synthesis cannot perturb
+      ``pr_record_rng`` / ``comments_metrics_rng`` / ``RNG`` streams).
+
+    Outputs (NOT serialized to rollup files per CL-14 step 5):
+
+    - ``synthetic_pr_threads``: ``SyntheticPrThread`` list.  For each
+      PR with non-NULL ``thread_count``, emits ``thread_count`` rows;
+      the first ``active_thread_count`` carry ``status='active'`` and
+      the remainder carry ``status='fixed'``; ``is_deleted=0`` per C1.
+    - ``synthetic_pr_comments``: ``SyntheticPrComment`` list.  For each
+      PR with non-NULL ``comment_count > 0``, emits ``comment_count``
+      rows distributed across the PR's threads (each thread gets ≥1
+      comment first; remaining comments distributed uniformly).
+      Commenters sampled from ``user_pool ∪ ghost_pool`` excluding PR
+      author.  ``is_deleted=0`` per C1.
+
+    Coherence guarantees (per CL-14 step 3):
+
+    - ``len([t for t in synthetic_pr_threads if t.pull_request_uid == str(P.id)]) == P.thread_count``
+    - ``len([t for t in synthetic_pr_threads if t.pull_request_uid == str(P.id) and t.status == 'active']) == P.active_thread_count``
+    - ``len([c for c in synthetic_pr_comments if c.pull_request_uid == str(P.id)]) == P.comment_count``
+    - Every emitted thread has ≥1 comment in synthetic_pr_comments
+      (no orphan threads).
+    - Every commenter ``author_id`` ≠ corresponding PR's
+      ``author_id`` (CL-04 self-comment exclusion at synthesis time).
+    - When ``ghost_pool`` is non-empty AND any PR yields a
+      ghost-eligible comment slot, ≥1 emitted commenter is drawn from
+      ``ghost_pool``.
+
+    Per the FK invariant from commit 242bbd21 (``scripts/generate-demo-data.py:486-510``),
+    PrRecord shapes ALWAYS satisfy ``comment_count > 0 ⇒ thread_count > 0``;
+    this helper does NOT need to special-case the legacy "drive-by
+    system comments" shape (which is now structurally absent).
+
+    310 INV-10 partial sentinel: PRs with ``thread_count is None`` are
+    skipped entirely (no threads or comments emitted for them); the
+    same-W ``coverage_partial`` flag at the AGGREGATOR level captures
+    the partial-coverage signal independently.
+    """
+    threads: list[SyntheticPrThread] = []
+    comments: list[SyntheticPrComment] = []
+
+    # Phase 1: synthesize threads for every PR with non-NULL aggregates.
+    for pr in prs:
+        thread_count_raw = pr.get("thread_count")
+        active_thread_count_raw = pr.get("active_thread_count")
+        if thread_count_raw is None or active_thread_count_raw is None:
+            # 310 INV-10 partial sentinel — skip synthesis.
+            continue
+        thread_count = int(thread_count_raw)
+        active_thread_count = int(active_thread_count_raw)
+        pr_uid = str(pr["id"])
+        for thread_idx in range(thread_count):
+            threads.append(
+                {
+                    "pull_request_uid": pr_uid,
+                    "thread_id": f"thread-{pr_uid}-{thread_idx}",
+                    "status": (
+                        "active" if thread_idx < active_thread_count else "fixed"
+                    ),
+                    "is_deleted": 0,
+                }
+            )
+
+    # Phase 2: synthesize comments + ghost-forcing.
+    ghost_used = False
+    for pr in prs:
+        thread_count_raw = pr.get("thread_count")
+        comment_count_raw = pr.get("comment_count")
+        if thread_count_raw is None or comment_count_raw is None:
+            continue
+        thread_count = int(thread_count_raw)
+        comment_count = int(comment_count_raw)
+        if thread_count == 0 or comment_count == 0:
+            # FK invariant from commit 242bbd21: comment_count == 0 when
+            # thread_count == 0.  Skip both branches uniformly — no
+            # comments emitted for empty PRs.
+            continue
+        pr_uid = str(pr["id"])
+        pr_author = str(pr["author_id"])
+
+        # Eligible commenter pools (CL-04 self-comment exclusion at
+        # synthesis time): drop the PR's author from both pools.  If
+        # ghost_pool happens to contain the PR's author, the ghost-pool
+        # filter drops them too — ghost UUIDs are intended to be
+        # synthetic UUIDs absent from ``users``, so this is defensive
+        # (the same UUID being both a ``users`` author and in
+        # ghost_pool would be a setup-stage construction bug).
+        eligible_user_pool = [u for u in user_pool if u != pr_author]
+        eligible_ghost_pool = [g for g in ghost_pool if g != pr_author]
+        if not eligible_user_pool and not eligible_ghost_pool:
+            raise RuntimeError(
+                "synthesize_pr_comment_streams_for_week: no eligible "
+                f"commenter pool for PR {pr_uid!r} (author "
+                f"{pr_author!r}); user_pool={user_pool!r}, "
+                f"ghost_pool={ghost_pool!r} — every entry equals the PR's "
+                "author, making CL-04 self-comment exclusion unsatisfiable"
+            )
+        eligible_pool = eligible_user_pool + eligible_ghost_pool
+
+        # Each thread gets ≥1 comment first (CL-14 step 2: no orphan
+        # threads).  Then distribute the remaining comments uniformly
+        # across the PR's threads.
+        pr_thread_ids = [f"thread-{pr_uid}-{i}" for i in range(thread_count)]
+        per_pr_comments: list[SyntheticPrComment] = []
+        for thread_id in pr_thread_ids:
+            commenter = rng.choice(eligible_pool)
+            per_pr_comments.append(
+                {
+                    "pull_request_uid": pr_uid,
+                    "thread_id": thread_id,
+                    "author_id": commenter,
+                    "is_deleted": 0,
+                }
+            )
+        # comment_count >= thread_count holds by FK invariant + the
+        # generator's distribution rule (lines 480-510).
+        remaining = comment_count - thread_count
+        for _ in range(remaining):
+            thread_id = rng.choice(pr_thread_ids)
+            commenter = rng.choice(eligible_pool)
+            per_pr_comments.append(
+                {
+                    "pull_request_uid": pr_uid,
+                    "thread_id": thread_id,
+                    "author_id": commenter,
+                    "is_deleted": 0,
+                }
+            )
+
+        # Ghost-forcing per CL-14 step 4: if ghost_pool is non-empty AND
+        # not yet used AND this PR has eligible ghosts, rewrite the FIRST
+        # comment to use a ghost commenter.  This guarantees ≥1 ghost
+        # emission across the full week regardless of the RNG's choice
+        # distribution (without forcing, a small fixture or unlucky
+        # seed could miss the ghost pool entirely).
+        if not ghost_used and eligible_ghost_pool and per_pr_comments:
+            per_pr_comments[0]["author_id"] = rng.choice(eligible_ghost_pool)
+            ghost_used = True
+
+        comments.extend(per_pr_comments)
+
+    # Per-call ghost guarantee scope (Codex stop-time review fix on
+    # commit 0705471e): the ghost-commenter inclusion requirement
+    # (CL-14 step 4: ">=1 demo week MUST include synthetic ghost
+    # commenters") is a DATASET-level guarantee, not a per-week
+    # requirement.  When called on a week with NO emitted comments
+    # (every PR skipped via 310 INV-10 partial sentinel OR every PR
+    # has ``thread_count=0`` AND ``comment_count=0`` post-242bbd21 FK
+    # invariant), ``comments`` is legitimately empty and ghost-forcing
+    # had no opportunity — this is a valid empty-bucket week, not a
+    # contract violation.  Only raise when forcing FAILED despite
+    # having an opportunity (comments non-empty + ghost_pool non-empty
+    # + ghost_used False) — that would indicate every emitted PR's
+    # author equals every ghost (impossible if ghost_pool was
+    # constructed disjoint from user_pool, which is asserted at the
+    # call site via the ``_ghost_user_collision`` guard).
+    if ghost_pool and comments and not ghost_used:
+        raise RuntimeError(
+            "synthesize_pr_comment_streams_for_week: ghost_pool is "
+            f"non-empty ({ghost_pool!r}) and {len(comments)} comment(s) "
+            "were emitted, but ghost-forcing did not fire on any PR — "
+            "every emitted PR's author equals every ghost.  This is "
+            "structurally impossible if ghost_pool was constructed "
+            "disjoint from user_pool (the call site's "
+            "_ghost_user_collision guard enforces this); reaching this "
+            "branch indicates the guard is bypassed or the fixture's "
+            "PR authors overlap with ghost_pool by construction."
+        )
+
+    return threads, comments
+
+
+def _aggregate_by_reviewer_comments_for_week(
+    prs: list[PrRecord],
+    synthetic_pr_threads: list[SyntheticPrThread],
+    synthetic_pr_comments: list[SyntheticPrComment],
+    users_uuid_set: set[str],
+) -> dict[str, dict[str, int | bool]] | None:
+    """Per-(week, reviewer) comments-density emission for the synthetic demo.
+
+    Mirrors ``aggregators.py::_compute_weekly_by_reviewer_comments``
+    semantics so the demo and the real-data aggregator emit byte-aligned
+    shapes for the Feature 336 ``by_reviewer_comments`` rollup-root key.
+
+    Iteration unit is ``synthetic_pr_comments`` (NOT ``prs`` — divergence
+    from ``_aggregate_by_author_comments_for_week`` and
+    ``_aggregate_by_repository_comments_for_week`` per CL-13 / INV-4-13;
+    the per-reviewer dimension's aggregator iterates pr_comments rows).
+
+    For each comment row:
+
+    - Skip ``is_deleted != 0`` rows (C1).
+    - Resolve the PR's author from ``prs`` for self-comment exclusion;
+      a missing PR is FAIL-LOUD per CL-15 (defense against fixture
+      drift between the synthesizer's PrRecord set and the aggregator's).
+    - If ``commenter == pr_author``: skip (CL-04 self-comment exclusion;
+      defensive — synthesis already enforces this invariant).
+    - Resolve the bucket key: ``commenter`` if ``commenter in users_uuid_set``,
+      else ``FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL`` (CL-03 / INV-4-12).
+    - Increment ``comment_count`` (raw row count).  Add the
+      ``(pull_request_uid, thread_id)`` tuple to the bucket's distinct-
+      thread set; if the thread has ``status='active'``, also add to the
+      active-thread set.
+
+    Per-bucket emission: ``thread_count = COUNT(DISTINCT thread_id)``
+    (FR-1-05 — divergence from #334 / #335 raw row count); same for
+    ``active_thread_count`` restricted to active threads;
+    ``comment_count`` is the raw count; ``coverage_partial`` is the
+    same-W flag per CL-10 (every reviewer in W shares the same value =
+    ``any PR in prs has thread_count is None``).
+
+    Outer dict keys ascending by bucket key for byte-determinism (matches
+    the production aggregator's ``ORDER BY commenter_or_sentinel ASC``
+    plus ``json.dumps(sort_keys=True)``).
+
+    Returns ``None`` when no eligible-reviewer-comment rows exist after
+    filtering (FR-1-11 omission contract — caller MUST omit the
+    ``by_reviewer_comments`` key entirely; not ``{}``-valued, not
+    ``null``-valued).  Caller is responsible for capability gating.
+    """
+    if not prs:
+        return None
+
+    # Same-W coverage_partial flag per CL-10: every reviewer in W shares
+    # the W-level value (NOT bucket-specific).  Computed once before the
+    # iteration so every emitted bucket inherits the same flag.
+    same_w_partial = any(pr.get("thread_count") is None for pr in prs)
+
+    # PR -> author_id lookup for self-comment exclusion + FAIL-LOUD
+    # defense against fixture drift (synthetic_pr_comments referencing a
+    # PR uid not in prs).
+    pr_authors: dict[str, str] = {str(pr["id"]): str(pr["author_id"]) for pr in prs}
+
+    # (pull_request_uid, thread_id) -> status lookup for the
+    # active_thread_count subset filter.
+    thread_status: dict[tuple[str, str], str] = {
+        (t["pull_request_uid"], t["thread_id"]): t["status"]
+        for t in synthetic_pr_threads
+    }
+
+    comment_count_by_bucket: dict[str, int] = {}
+    threads_by_bucket: dict[str, set[tuple[str, str]]] = {}
+    active_threads_by_bucket: dict[str, set[tuple[str, str]]] = {}
+
+    for c in synthetic_pr_comments:
+        if int(c.get("is_deleted", 0)) != 0:
+            continue
+        pr_uid = c["pull_request_uid"]
+        commenter = c["author_id"]
+        pr_author = pr_authors.get(pr_uid)
+        if pr_author is None:
+            raise RuntimeError(
+                "_aggregate_by_reviewer_comments_for_week: synthetic_pr_comments "
+                f"row references pull_request_uid={pr_uid!r} which is NOT in "
+                "the prs list — fixture drift between synthesizer output and "
+                "aggregator input (CL-15 FAIL-LOUD)"
+            )
+        if commenter == pr_author:
+            # CL-04 self-comment exclusion (defensive — synthesizer already
+            # enforces this invariant at construction time).
+            continue
+        bucket_key = (
+            commenter
+            if commenter in users_uuid_set
+            else FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+        )
+        comment_count_by_bucket[bucket_key] = (
+            comment_count_by_bucket.get(bucket_key, 0) + 1
+        )
+        thread_key = (pr_uid, c["thread_id"])
+        threads_by_bucket.setdefault(bucket_key, set()).add(thread_key)
+        if thread_status.get(thread_key) == "active":
+            active_threads_by_bucket.setdefault(bucket_key, set()).add(thread_key)
+
+    if not comment_count_by_bucket:
+        return None
+
+    buckets: dict[str, dict[str, int | bool]] = {}
+    for bucket_key in sorted(comment_count_by_bucket):
+        buckets[bucket_key] = {
+            "thread_count": len(threads_by_bucket.get(bucket_key, set())),
+            "comment_count": comment_count_by_bucket[bucket_key],
+            "active_thread_count": len(active_threads_by_bucket.get(bucket_key, set())),
+            "coverage_partial": same_w_partial,
+        }
+    return buckets
 
 
 # =============================================================================
@@ -2195,6 +2621,11 @@ def main(argv: list[str] | None = None) -> int:
     RNG = init_random(SEED)
     pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
     comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)
+    # Feature 336 (T015): comment-stream RNG for the per-reviewer
+    # synthesizer.  Independent of pr_record_rng / comments_metrics_rng
+    # so synthesis cannot perturb existing serialized output (per
+    # _COMMENT_STREAM_SEED_OFFSET rationale at module-load init).
+    comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)
 
     # Generate entities
     print("\n[1/6] Generating entities...")
@@ -2244,6 +2675,40 @@ def main(argv: list[str] | None = None) -> int:
     repository_name_to_id: dict[str, str] = {
         str(r.repository_name): str(r.repository_id) for r in repositories
     }
+
+    # Feature 336 (T015 / CL-14): pre-build the per-reviewer synthesis
+    # inputs once outside the per-week loop.  user_pool_for_reviewer is
+    # the list of real user UUIDs the synthesizer samples from (the FK
+    # target for pr_comments.author_id per models.py:172);
+    # users_uuid_set is the O(1)-lookup form for the aggregator's
+    # sentinel-resolution branch (commenter in users → user_id bucket
+    # key, else FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL per CL-03 /
+    # INV-4-12); ghost_pool_for_reviewer is the deterministic synthetic
+    # UUID set ABSENT from users (per CL-14 step 4 — ≥1 ghost commenter
+    # MUST appear in the emitted stream so the per-reviewer sentinel
+    # reconciliation branch is exercised non-vacuously).
+    user_pool_for_reviewer: list[str] = sorted(str(u.user_id) for u in users)
+    users_uuid_set_for_reviewer: set[str] = set(user_pool_for_reviewer)
+    ghost_pool_for_reviewer: list[str] = sorted(
+        str(generate_uuid(f"ghost/{idx:03d}")) for idx in range(1, _GHOST_POOL_SIZE + 1)
+    )
+    # Defensive: ghost UUIDs MUST be disjoint from user UUIDs (otherwise
+    # the per-reviewer sentinel branch would never fire for "ghost"
+    # commenters because the LEFT JOIN to users would match them as
+    # real users).  generate_uuid is deterministic UUIDv5 with a fixed
+    # namespace; collision would mean the demo's user-name-derived UUID
+    # set + the ghost-key-derived UUID set share an input that hashed
+    # to the same UUID — astronomically unlikely but worth guarding.
+    _ghost_user_collision = set(ghost_pool_for_reviewer) & users_uuid_set_for_reviewer
+    if _ghost_user_collision:
+        raise RuntimeError(
+            "Feature 336 ghost-pool collision: ghost UUIDs overlap with "
+            f"users ({sorted(_ghost_user_collision)!r}).  generate_uuid is "
+            "deterministic; this means the demo's user-name and ghost-name "
+            "spaces share at least one collision-producing key.  Either "
+            "the user roster grew to include a name like 'ghost/001' OR "
+            "the UUID v5 namespace was changed."
+        )
 
     for rollup in rollups:
         rollup_data: dict[str, object] = {
@@ -2385,6 +2850,36 @@ def main(argv: list[str] | None = None) -> int:
                     rollup_data["by_repository_comments"] = (
                         weekly_by_repository_comments
                     )
+                # Feature 336 per-reviewer bucketing.  Mirrors production
+                # ``aggregators.py::_compute_weekly_by_reviewer_comments``;
+                # iterates the SYNTHETIC pr_comments stream (CL-13 /
+                # INV-4-13 — the per-reviewer dimension's iteration unit
+                # is pr_comments rows, NOT pull_requests).  Same FULL-
+                # extracted-subset scope as 333 / 334 / 335 (uses
+                # ``synthetic_prs_full``, NOT capped ``synthetic_prs``)
+                # per INV-4-10.  Sentinel applies for ghost commenters
+                # (CL-03 / INV-4-12) — divergence from 335 which is
+                # FK-protected.  Self-comment exclusion enforced at
+                # synthesis time per CL-04.  Emits the
+                # ``by_reviewer_comments`` key when at least one
+                # eligible non-self comment row exists; omits the key
+                # entirely otherwise per FR-3-03 / FR-1-11.
+                synthetic_pr_threads, synthetic_pr_comments = (
+                    synthesize_pr_comment_streams_for_week(
+                        synthetic_prs_full,
+                        user_pool_for_reviewer,
+                        ghost_pool_for_reviewer,
+                        comment_stream_rng,
+                    )
+                )
+                weekly_by_reviewer_comments = _aggregate_by_reviewer_comments_for_week(
+                    synthetic_prs_full,
+                    synthetic_pr_threads,
+                    synthetic_pr_comments,
+                    users_uuid_set_for_reviewer,
+                )
+                if weekly_by_reviewer_comments:
+                    rollup_data["by_reviewer_comments"] = weekly_by_reviewer_comments
             else:
                 rollup_data["prs"] = [
                     _strip_comments_metrics_from_pr(pr) for pr in synthetic_prs

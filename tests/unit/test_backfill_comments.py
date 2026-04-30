@@ -1998,7 +1998,24 @@ class TestEndToEnd:
         db.close()
 
         args = _make_args(tmp_path, tmp_path / "test.db", limit=1, max_threads=0)
-        client = _mock_client(per_pr={"1": [_make_thread(10)]})
+        # Author UUID-format per FR-1-12 / CL-15: the per-reviewer
+        # aggregator added in #336 FAIL-LOUDs on non-UUID
+        # pr_comments.author_id values; this test exercises the
+        # AggregateGenerator path so the helper's default ``"ua"``
+        # author_id would trip the gate.  Use a UUID author who is
+        # absent from the users table — sentinel branch routes the
+        # comment without affecting the metadata-shape assertions
+        # under test.
+        client = _mock_client(
+            per_pr={
+                "1": [
+                    _make_thread(
+                        10,
+                        author_id="00000000-0000-0000-0000-000000000001",
+                    )
+                ]
+            }
+        )
         exit_code, artifact = _run_backfill(args, client=client)
 
         assert exit_code == 0, artifact

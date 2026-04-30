@@ -29,5 +29,8 @@ export * from "./comments-author-density";
 // Comments-repository-density chart (Feature 335 — per-repo breakdown)
 export * from "./comments-repository-density";
 
+// Comments-reviewer-density chart (Feature 336 — per-reviewer breakdown)
+export * from "./comments-reviewer-density";
+
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor

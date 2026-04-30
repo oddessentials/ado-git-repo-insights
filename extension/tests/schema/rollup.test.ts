@@ -2058,4 +2058,368 @@ describe("Rollup Schema Validator", () => {
       ).toBe(true);
     });
   });
+
+  // Feature 336 per-reviewer comments-density: rollup-root `by_reviewer_comments`
+  // outer dict (INV-4-08 atomicity).  Mirrors the 334 per-author test
+  // structure — sentinel applies (CL-03 / INV-4-12, divergence from 335
+  // which is FK-protected); the bucket-key shape is "user_id strings or
+  // sentinel literal" (mirrors 334).
+  describe("rollup-root by_reviewer_comments outer dict (feature 336 INV-4-08)", () => {
+    const BASE_336 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+    const SENTINEL_LITERAL = "__former_or_unavailable_author__";
+
+    it("(a) passes validation with a complete by_reviewer_comments entry", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_reviewer_comments"),
+      ).toBe(false);
+    });
+
+    it("(b) FAILS atomicity in BOTH strict and permissive modes when an entry is partial (mirrors 334 ADR T003 STRICT-ERROR posture)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            // coverage_partial intentionally absent — INV-4-08 violation.
+          },
+        },
+      };
+      for (const strict of [false, true] as const) {
+        const result = validateRollup(rollup, strict);
+        expect(result.valid).toBe(false);
+        expect(
+          result.errors.some(
+            (e) =>
+              e.field.includes("by_reviewer_comments") &&
+              e.message.toLowerCase().includes("coverage_partial"),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("(c) FAILS when a numeric field is null (INV-4-08: zero is the empty-extracted-subset sum, null is not a sentinel)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: null,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("null"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(d) passes validation when by_reviewer_comments key is entirely absent (capability-off path)", () => {
+      const rollup = { ...BASE_336 };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(
+        result.warnings.some((w) => w.field === "by_reviewer_comments"),
+      ).toBe(false);
+    });
+
+    it("(e) FAILS with wrong-typed numeric field (e.g., thread_count is a string)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: "2" as unknown as number,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(f) FAILS when active_thread_count > thread_count per entry (INV-4-07 ordering)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 3, // > thread_count, INV-4-07 violation
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("active_thread_count") &&
+            e.message.toLowerCase().includes("inv-4-07"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(g) FAILS when by_reviewer_comments is the empty object (FR-1-11: capability-on must omit, not emit `{}`)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {},
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "by_reviewer_comments" &&
+            e.message.toLowerCase().includes("must be omitted"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(h) accepts the reserved sentinel literal as a bucket key with an atomic entry (CL-03 / INV-4-12)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          [SENTINEL_LITERAL]: {
+            thread_count: 1,
+            comment_count: 3,
+            active_thread_count: 0,
+            coverage_partial: true,
+          },
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: true,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
+  // Feature 336 partial-branch ratchet covering tests for
+  // ``validateReviewerCommentsDensity`` (latent uncovered defensive paths
+  // from the T017 commit ``a2a4b1b0``; surfaced by the
+  // ``pnpm test:partial-branches`` gate when this feature's chart-MVP
+  // slice ran ``test:coverage``).
+  //
+  // Primary cases (a)-(h) above don't reach: non-object outer value,
+  // non-object inner entry, missing-numeric-field continue, negative
+  // value, non-integer value, wrong-typed coverage_partial.  These
+  // branches handle real malformed-input shapes (any external JSON
+  // source can deliver them — extractor regressions, hand-edited
+  // fixtures, version-skew across clients) so removal is not
+  // appropriate; the gate fix is targeted coverage.  Per memory
+  // ``feedback_partial_branches_ratchet.md`` the ratchet does not grow.
+  //
+  // 6 tests cover 6 partial-branch lines: 1275 + 1310 + 1339 + 1360 +
+  // 1369 + 1383 inside ``validateReviewerCommentsDensity``.
+  // ===========================================================================
+  describe("rollup-root by_reviewer_comments validator partial-branch coverage (feature 336 T017 latent)", () => {
+    const BASE_336 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+
+    it("(P-i) FAILS when by_reviewer_comments outer value is non-object (line 1275)", () => {
+      // Non-object outer value (string here; numbers / arrays / booleans
+      // would also exercise the same branch).  The validator's first
+      // ``isObject`` guard rejects with a single error keyed at the
+      // outer field path.
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: "not-an-object" as unknown as Record<
+          string,
+          unknown
+        >,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field === "by_reviewer_comments" &&
+            e.expected.toLowerCase().includes("object"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(P-ii) FAILS when an inner entry is non-object (line 1310)", () => {
+      // Outer is a valid object but one inner entry is a primitive.
+      // The per-entry ``isObject`` guard rejects that single entry and
+      // ``continue``s, leaving any sibling well-formed entries to
+      // validate normally — but with a malformed entry present the
+      // overall result MUST be invalid.
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": "not-an-entry-object" as unknown as Record<
+            string,
+            unknown
+          >,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("bob-uid") &&
+            e.expected.toLowerCase().includes("object"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(P-iii) per-field loop short-circuits when a numeric field is absent (line 1339)", () => {
+      // Entry missing ``thread_count`` BUT has the other 3 fields.
+      // The per-numeric-field validation loop hits ``thread_count``
+      // first and the ``hasOwnProperty`` guard short-circuits via
+      // ``continue`` (line 1339 false branch).  The atomicity error
+      // for the missing field is reported separately; both errors
+      // appear in the result.
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            // thread_count intentionally absent
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      // Atomicity error mentions ``thread_count`` as the missing field.
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.message.toLowerCase().includes("thread_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(P-iv) FAILS when a numeric field is negative (line 1360)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: -1,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("non-negative"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(P-v) FAILS when a numeric field is non-integer (line 1369)", () => {
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2.5,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("thread_count") &&
+            e.message.toLowerCase().includes("integer"),
+        ),
+      ).toBe(true);
+    });
+
+    it("(P-vi) FAILS when coverage_partial is wrong-typed (line 1383)", () => {
+      // Wrong-typed coverage_partial (string here; numbers / arrays /
+      // null values would also exercise the same ``isBoolean`` guard).
+      // The validator emits a typed error at the
+      // ``by_reviewer_comments[bob-uid].coverage_partial`` path.
+      const rollup = {
+        ...BASE_336,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: "true" as unknown as boolean,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("coverage_partial") &&
+            e.expected.toLowerCase().includes("boolean"),
+        ),
+      ).toBe(true);
+    });
+  });
 });

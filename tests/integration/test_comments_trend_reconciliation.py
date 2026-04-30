@@ -1266,3 +1266,601 @@ def test_sc05_reconciliation_cross_aggregate_sum_coherence(
             "(FR-2-03 OR-coherence: any per-repo bucket marked partial "
             "should equal the per-week aggregate's partial flag)"
         )
+
+
+# --------------------------------------------------------------------------- #
+# Feature 336 per-reviewer reconciliation extensions                           #
+# --------------------------------------------------------------------------- #
+#
+# Mirrors the 334 per-author block at lines 462-857 with three substantive
+# divergences per CL-04 / CL-10 / CL-12:
+#
+# - Iteration unit is ``pr_comments`` rows (NOT ``pull_requests`` rows).  The
+#   bucket key resolves from ``pr_comments.author_id`` (with sentinel branch
+#   per CL-03 when absent from ``users``); self-comments are excluded by an
+#   INNER JOIN to ``pull_requests`` filtering ``pc.author_id != pr.user_id``
+#   per CL-04.
+# - ``coverage_partial`` is a same-W flag per CL-10: every reviewer in W
+#   shares ``comments.coverage_partial`` value.  Bucket-specific definition
+#   would be degenerate because R's commenter relationship to a PR is
+#   invisible until extraction.
+# - Cross-aggregate parity (FR-2-03) compares ``SUM_R(comment_count)`` to an
+#   INDEPENDENT count of eligible-reviewer-comment rows (commenter ≠ PR
+#   author) computed by direct SQL — NOT to ``comments.comment_count``
+#   which over-counts by the self-comment delta per CL-12.  ``thread_count`` /
+#   ``active_thread_count`` sum-coherence is NOT asserted (multi-counting
+#   metrics — a thread with N distinct non-self commenters contributes 1
+#   to each commenter's thread_count and N to ``SUM_R(thread_count)``).
+# - Round-9 isolation: same posture — re-implement everything inline; no
+#   imports from ``aggregators.py``.
+
+
+def _reviewer_bucket_for_author_id(
+    conn: sqlite3.Connection,
+    author_id: str,
+) -> str:
+    """Resolve the per-(week, reviewer) bucket key for one ``pr_comments.author_id``.
+
+    Per FR-1-03 / CL-03 / INV-4-12: the bucket key is the commenter's
+    ``user_id`` when present in ``users``, else
+    ``FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL``.  Mirrors #334's
+    ``_author_bucket_for_uid`` posture but applied to the commenter's
+    ``author_id`` from ``pr_comments`` (NOT to the PR's ``user_id``).
+    """
+    cursor = conn.execute(
+        "SELECT user_id FROM users WHERE user_id = ?",
+        (author_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+    return author_id
+
+
+_RW_PR_AUTHOR_SQL: Final[str] = (
+    "SELECT user_id FROM pull_requests WHERE pull_request_uid = ?"
+)
+
+# Iterates ``pr_comments`` rows for one PR: returns (commenter_author_id,
+# thread_id, thread_status) for every C1-included row whose commenter is
+# NOT the PR's author (self-comment exclusion per CL-04).  LEFT JOIN to
+# ``pr_threads`` so the thread's status is available for the
+# ``active_thread_count`` filter (per FR-1-05's COUNT(DISTINCT thread_id
+# WHERE status='active') semantics).
+_RW_NON_SELF_COMMENTS_SQL: Final[str] = (
+    "SELECT pc.author_id AS commenter, pc.thread_id AS thread_id, "
+    "       t.status AS thread_status, "
+    "       t.is_deleted AS thread_is_deleted "
+    "FROM pr_comments pc "
+    "INNER JOIN pull_requests pr ON pr.pull_request_uid = pc.pull_request_uid "
+    "LEFT JOIN pr_threads t "
+    "  ON t.pull_request_uid = pc.pull_request_uid "
+    "  AND t.thread_id = pc.thread_id "
+    "WHERE pc.pull_request_uid = ? "
+    "  AND pc.is_deleted = 0 "
+    "  AND pc.author_id != pr.user_id"
+)
+
+_RW_SELF_COMMENT_COUNT_SQL: Final[str] = (
+    "SELECT COUNT(*) AS self_count "
+    "FROM pr_comments pc "
+    "INNER JOIN pull_requests pr ON pr.pull_request_uid = pc.pull_request_uid "
+    "WHERE pc.pull_request_uid = ? "
+    "  AND pc.is_deleted = 0 "
+    "  AND pc.author_id = pr.user_id"
+)
+
+
+def _build_expected_reviewer_buckets(
+    conn: sqlite3.Connection,
+    canonical_prs: list[_CanonicalPrRow],
+) -> tuple[dict[str, _ExpectedBucket], int]:
+    """Independent re-computation of one week's per-reviewer bucket emissions.
+
+    Iterates each PR's eligible non-self ``pr_comments`` rows (commenter ≠
+    PR author per CL-04, ``is_deleted = 0`` per C1).  Groups by commenter
+    bucket key (``user_id`` or sentinel literal per FR-1-03).  Computes:
+
+    - ``comment_count``: raw row count per commenter (FR-1-05).
+    - ``thread_count``: COUNT(DISTINCT thread_id) per commenter (FR-1-05 —
+      divergence from #334 / #335 raw row count).
+    - ``active_thread_count``: COUNT(DISTINCT thread_id) where thread's
+      status='active' per commenter (FR-1-05).
+    - ``coverage_partial``: same-W flag per CL-10 — True iff any PR in
+      ``canonical_prs`` is unextracted.  Bucket-independent.
+
+    Returns ``(buckets_dict, eligible_comment_count)`` where the second
+    element is the independent count of all eligible-reviewer-comment rows
+    in W's extracted-subset (= sum of comment_count across buckets).  This
+    is the right-hand side for FR-2-03 sum-coherence vs INDEPENDENT count.
+    """
+    same_w_partial = any(pr["comments_extracted_at"] is None for pr in canonical_prs)
+
+    threads_by_bucket: dict[str, set[tuple[str, object]]] = {}
+    active_threads_by_bucket: dict[str, set[tuple[str, object]]] = {}
+    comment_count_by_bucket: dict[str, int] = {}
+
+    for pr in canonical_prs:
+        if pr["comments_extracted_at"] is None:
+            # FR-1-06 extracted-subset rule: unextracted PRs contribute zero
+            # to every bucket.  same_w_partial above already captured the
+            # W-level partial signal.
+            continue
+        cursor = conn.execute(
+            _RW_NON_SELF_COMMENTS_SQL,
+            (pr["pull_request_uid"],),
+        )
+        for row in cursor.fetchall():
+            commenter_raw = row["commenter"]
+            assert isinstance(commenter_raw, str), (
+                f"pr {pr['pull_request_uid']!r}: pr_comments.author_id is "
+                f"{commenter_raw!r} (expected string per NOT NULL + extractor "
+                "UUID convention)"
+            )
+            bucket = _reviewer_bucket_for_author_id(conn, commenter_raw)
+            # Comment count is raw row count: includes non-deleted comments
+            # on deleted threads (matches FR-2-03's INDEPENDENT count
+            # right-hand side which filters only pc.is_deleted = 0).
+            comment_count_by_bucket[bucket] = comment_count_by_bucket.get(bucket, 0) + 1
+            # Thread tracking applies the C1 rule
+            # (specs/310-comments-visualization/spec.md line 81:
+            # "pr_threads.is_deleted = 1 MUST be excluded from every
+            # thread count").  Match the production aggregator's
+            # ``t.is_deleted = 0`` CASE filter so the per-bucket
+            # thread_count + active_thread_count expectations align with
+            # the SQL output post-Codex stop-time review fix.  Threads
+            # with no pr_threads row (LEFT JOIN miss → thread_is_deleted
+            # IS NULL) are also excluded — by C1 a thread that doesn't
+            # exist in pr_threads cannot count toward thread_count.
+            thread_is_deleted = row["thread_is_deleted"]
+            if thread_is_deleted == 0:
+                thread_key = (pr["pull_request_uid"], row["thread_id"])
+                threads_by_bucket.setdefault(bucket, set()).add(thread_key)
+                if row["thread_status"] == "active":
+                    active_threads_by_bucket.setdefault(bucket, set()).add(thread_key)
+
+    expected: dict[str, _ExpectedBucket] = {}
+    for bucket, count in comment_count_by_bucket.items():
+        expected[bucket] = _ExpectedBucket(
+            thread_count=len(threads_by_bucket.get(bucket, set())),
+            comment_count=count,
+            active_thread_count=len(active_threads_by_bucket.get(bucket, set())),
+            coverage_partial=same_w_partial,
+        )
+    return expected, sum(comment_count_by_bucket.values())
+
+
+def _by_reviewer_comments_dict(
+    rollup: dict[str, object],
+    week_key: str,
+) -> dict[str, dict[str, object]]:
+    """Return ``rollup[W].by_reviewer_comments`` validated as dict-of-dicts.
+
+    Fails the test with a clear TDD-mode message when the producer has
+    not yet emitted the key (Phase 2.5 ``T016`` aggregator emission
+    gating).
+    """
+    raw = rollup.get("by_reviewer_comments")
+    assert raw is not None, (
+        f"week {week_key}: rollup[W].by_reviewer_comments key MISSING. "
+        "FR-1-01 requires the aggregator to emit the per-reviewer bucket "
+        "outer dict on every weekly rollup when "
+        "capabilities.comments_metrics is enabled and the canonical set "
+        "has at least one eligible-reviewer-comment row.  Until Feature "
+        "336's aggregator emission lands (T016), this assertion is the "
+        "TDD failure mode for the per-reviewer reconciliation tests."
+    )
+    assert isinstance(raw, dict), (
+        f"week {week_key}: rollup[W].by_reviewer_comments has unexpected "
+        f"type {type(raw).__name__}; expected dict per INV-4-08 atomicity"
+    )
+    typed: dict[str, dict[str, object]] = {}
+    for key, entry in raw.items():
+        assert isinstance(entry, dict), (
+            f"week {week_key}: by_reviewer_comments[{key!r}] has unexpected "
+            f"type {type(entry).__name__}; expected 4-field dict"
+        )
+        typed[str(key)] = entry
+    return typed
+
+
+def test_sc05_reconciliation_per_week_by_reviewer_independent(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-02 (Feature 336): per-(W, reviewer) independent re-computation parity.
+
+    For every week W and every bucket key in ``rollup[W].by_reviewer_comments``,
+    the four atomic fields MUST equal the result of an independent
+    re-computation that:
+
+    1. Determines W's canonical throughput PR set via direct SQL against
+       ``pull_requests`` (re-implemented week-attribution rule).
+    2. For each PR P in the extracted-subset, iterates ``pr_comments`` rows
+       where ``pc.author_id != pr.user_id`` AND ``is_deleted = 0`` (CL-04
+       self-comment exclusion + C1).
+    3. Resolves each commenter's bucket key (``user_id`` or sentinel
+       literal per FR-1-03).
+    4. Aggregates per bucket: comment_count = raw row count;
+       thread_count = COUNT(DISTINCT thread_id); active_thread_count =
+       COUNT(DISTINCT thread_id where status='active').
+    5. Same-W coverage_partial per CL-10.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}; "
+        "fixture builder is broken"
+    )
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            if not canonical_prs:
+                # FR-1-11 omission contract: empty canonical set → key absent.
+                assert "by_reviewer_comments" not in rollup, (
+                    f"week {week_key}: rollup has empty canonical PR set "
+                    "but emits a non-omitted by_reviewer_comments key"
+                )
+                continue
+
+            expected_buckets, _ = _build_expected_reviewer_buckets(conn, canonical_prs)
+
+            if not expected_buckets:
+                # No eligible-reviewer-comment rows in W's extracted-subset
+                # → key absent per FR-1-11 (ALL comments in W are
+                # self-comments, OR W's extracted-subset is empty).
+                assert "by_reviewer_comments" not in rollup, (
+                    f"week {week_key}: no eligible non-self comments in W's "
+                    "extracted-subset but rollup emits a non-omitted "
+                    "by_reviewer_comments key"
+                )
+                continue
+
+            buckets_emitted = _by_reviewer_comments_dict(rollup, week_key)
+
+            assert set(buckets_emitted.keys()) == set(expected_buckets.keys()), (
+                f"week {week_key}: by_reviewer_comments key set "
+                f"{sorted(buckets_emitted.keys())!r} != independent "
+                f"re-computation {sorted(expected_buckets.keys())!r} "
+                "(FR-1-03 + FR-2-02: every commenter (user_id or sentinel) "
+                "with at least one eligible non-self comment in W's "
+                "extracted-subset MUST appear in the bucket dict)"
+            )
+
+            for bucket_key, emitted in buckets_emitted.items():
+                expected = expected_buckets[bucket_key]
+                assert emitted["thread_count"] == expected["thread_count"], (
+                    f"week {week_key}, reviewer {bucket_key!r}: "
+                    f"thread_count={emitted['thread_count']!r} != independent "
+                    f"re-computation {expected['thread_count']} "
+                    "(FR-2-02: must equal COUNT(DISTINCT thread_id) per "
+                    "commenter, NOT raw row count)"
+                )
+                assert emitted["comment_count"] == expected["comment_count"], (
+                    f"week {week_key}, reviewer {bucket_key!r}: "
+                    f"comment_count={emitted['comment_count']!r} != "
+                    f"independent re-computation {expected['comment_count']} "
+                    "(FR-2-02 violation)"
+                )
+                assert (
+                    emitted["active_thread_count"] == expected["active_thread_count"]
+                ), (
+                    f"week {week_key}, reviewer {bucket_key!r}: "
+                    f"active_thread_count={emitted['active_thread_count']!r} != "
+                    f"independent re-computation "
+                    f"{expected['active_thread_count']} (FR-2-02 violation)"
+                )
+                assert emitted["coverage_partial"] is expected["coverage_partial"], (
+                    f"week {week_key}, reviewer {bucket_key!r}: "
+                    f"coverage_partial={emitted['coverage_partial']!r} != "
+                    f"independent re-computation "
+                    f"{expected['coverage_partial']!r} (FR-2-02 + CL-10 "
+                    "same-W flag: every reviewer in W shares the same "
+                    "value, equal to comments.coverage_partial)"
+                )
+
+
+def test_sc05_reconciliation_per_week_by_reviewer_cross_aggregate_parity(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-03 (Feature 336 NEW shape): cross-aggregate parity vs INDEPENDENT count.
+
+    For every week W where ``by_reviewer_comments`` is emitted (non-empty),
+    asserts:
+
+    1. ``SUM_R(by_reviewer_comments[R].comment_count)`` EQUALS an INDEPENDENT
+       count of ``pr_comments`` rows in W's extracted-subset where
+       ``pc.author_id != pr.user_id`` AND ``pc.is_deleted = 0`` (computed
+       INDEPENDENTLY by direct SQL — NOT vs ``comments.comment_count``
+       which over-counts by the self-comment delta per CL-12).
+    2. ``thread_count`` and ``active_thread_count`` sum-coherence is NOT
+       asserted at FR-2-03 level (multi-counting metrics: a thread with
+       N distinct non-self commenters contributes 1 to each commenter's
+       thread_count and N to ``SUM_R(thread_count)`` — bound is non-
+       closed-form per CL-12).  FR-2-02 covers per-bucket correctness.
+    3. ``OR_R(coverage_partial)`` EQUALS ``comments.coverage_partial``
+       (drift guard against CL-10 same-W lock breakage).  Tautological
+       under same-W lock; valuable as a producer regression guard.
+
+    Pre-loop fixture-validation guard: asserts at least ONE week W in the
+    SC-05 fixture satisfies "both ``comments`` AND ``by_reviewer_comments``
+    are emitted (non-empty)".  Without the guard, a fixture regression
+    (e.g., all PRs become self-comment-only) would let the loop iterate
+    zero applicable weeks and silently pass — no positive control.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}"
+    )
+
+    # Pre-loop guard.
+    applicable_weeks: list[str] = []
+    for rollup_path in rollup_paths:
+        rollup = _load_rollup(rollup_path)
+        comments_obj = rollup.get("comments")
+        by_reviewer = rollup.get("by_reviewer_comments")
+        if (
+            isinstance(comments_obj, dict)
+            and isinstance(by_reviewer, dict)
+            and len(by_reviewer) > 0
+        ):
+            applicable_weeks.append(rollup_path.stem)
+    assert applicable_weeks, (
+        "FR-2-03 fixture-validation guard: no week W in the SC-05 fixture "
+        "has BOTH ``rollup[W].comments`` AND ``rollup[W].by_reviewer_comments``"
+        " emitted (non-empty).  The cross-aggregate parity loop below would "
+        "iterate zero weeks and silently pass — no positive control.  This "
+        "means the fixture has regressed past the assertion's domain (e.g., "
+        "all comments are self-comments, OR capability-on emission has "
+        "regressed in the aggregator)."
+    )
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            comments_obj = rollup.get("comments")
+            by_reviewer = rollup.get("by_reviewer_comments")
+            if not isinstance(comments_obj, dict) or not isinstance(by_reviewer, dict):
+                continue
+            if len(by_reviewer) == 0:
+                continue
+
+            # Aggregate-side: SUM_R(comment_count).
+            sum_comment = 0
+            any_partial = False
+            for reviewer_key, entry in by_reviewer.items():
+                if not isinstance(entry, dict):
+                    continue
+                cc = entry.get("comment_count")
+                cp = entry.get("coverage_partial")
+                assert isinstance(cc, int), (
+                    f"week {week_key}, reviewer {reviewer_key!r}: non-integer "
+                    f"comment_count {cc!r}"
+                )
+                assert isinstance(cp, bool), (
+                    f"week {week_key}, reviewer {reviewer_key!r}: non-boolean "
+                    f"coverage_partial {cp!r}"
+                )
+                sum_comment += cc
+                any_partial = any_partial or cp
+
+            # Independent-side: count pr_comments rows in W's extracted-subset
+            # where commenter != PR author AND is_deleted = 0.  Computed via
+            # the same direct SQL the per-bucket independent re-computation
+            # uses, but summed across all buckets — gives the eligible-
+            # reviewer-comments total for the week.
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            _expected_buckets, eligible_count = _build_expected_reviewer_buckets(
+                conn,
+                canonical_prs,
+            )
+
+            assert sum_comment == eligible_count, (
+                f"week {week_key}: SUM_R by_reviewer_comments[r].comment_count="
+                f"{sum_comment} != INDEPENDENT eligible-reviewer-comments "
+                f"count={eligible_count} (FR-2-03 cross-aggregate parity "
+                "violation: per-reviewer aggregator's comment_count sum "
+                "disagrees with the direct-SQL count of pr_comments rows in "
+                "W's extracted-subset where commenter != PR author).  The "
+                "right-hand side is computed INDEPENDENTLY, NOT vs "
+                "comments.comment_count which would over-count by the "
+                "self-comment delta per CL-12."
+            )
+
+            c_partial = comments_obj.get("coverage_partial")
+            assert any_partial == c_partial, (
+                f"week {week_key}: OR_R by_reviewer_comments[r].coverage_partial="
+                f"{any_partial!r} != comments.coverage_partial={c_partial!r} "
+                "(FR-2-03 OR-coherence drift guard: tautological under CL-10 "
+                "same-W lock; surfaced here to catch a producer regression "
+                "where the W-level flag fails to propagate uniformly across "
+                "reviewer buckets in W)"
+            )
+
+
+def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
+    sc05_fixture: SC05Fixture,
+) -> None:
+    """FR-2-01 (Feature 336 narrowed): per-PR drill-down ↔ per-reviewer
+    aggregator ``comment_count`` distribution coherence.
+
+    For every PR P in the drill-down's slice for week W AND in W's
+    extracted-subset, asserts:
+
+        P.comment_count_drilldown - count_self_comments(P) ==
+            count_non_self_comments(P)
+
+    where the right-hand side is the count of ``pr_comments`` rows for P
+    where ``pc.author_id != pr.user_id`` AND ``is_deleted = 0``.  The
+    equality witnesses that no eligible non-self comment is dropped during
+    bucket attribution at the per-PR level.
+
+    NOTE per spec FR-2-01 narrowing (post-/speckit.analyze C1+U1
+    remediation): ``thread_count`` and ``active_thread_count`` distribution
+    are NOT asserted at the per-PR level.  The "PR with mixed self-only
+    and non-self threads" edge case makes the per-PR bound non-closed-form
+    for those metrics (self-only threads contribute to drill-down
+    thread_count but 0 to any reviewer bucket).  FR-2-02 covers per-bucket
+    correctness for thread_count / active_thread_count.
+    """
+    db_path = sc05_fixture.sqlite_path
+    weeks_to_prs = _attribute_prs_to_weeks(db_path)
+    rollup_paths = sorted(sc05_fixture.rollups_dir.glob("*.json"))
+    assert rollup_paths, (
+        f"sc05_fixture has no weekly rollups under {sc05_fixture.rollups_dir}"
+    )
+
+    # Pre-loop guard: at least one PR in drilldown ∩ extracted-subset MUST
+    # carry ≥1 non-self comment.  Without the guard, a fixture regression
+    # (e.g., all comments become self-comments, OR no PRs are extracted)
+    # would let the per-PR loop iterate zero load-bearing PRs and silently
+    # pass — no positive control on the bucket-existence check below.
+    #
+    # Drilldown records use ``id`` (int) per 310 PrRecord shape, NOT
+    # ``pull_request_uid`` — mirrors the per-author pairwise_drilldown
+    # test's ``id_to_uid_extracted`` mapping at line 813-814.
+    applicable_pr_count = 0
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as guard_conn:
+        guard_conn.row_factory = sqlite3.Row
+        for rollup_path in rollup_paths:
+            rollup = _load_rollup(rollup_path)
+            prs_field = rollup.get("prs")
+            if not isinstance(prs_field, list):
+                continue
+            canonical_prs = weeks_to_prs.get(rollup_path.stem, [])
+            id_to_uid_extracted: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"]
+                for pr in canonical_prs
+                if pr["comments_extracted_at"] is not None
+            }
+            for drilldown_entry in prs_field:
+                if not isinstance(drilldown_entry, dict):
+                    continue
+                pr_id = drilldown_entry.get("id")
+                if not isinstance(pr_id, int) or pr_id not in id_to_uid_extracted:
+                    continue
+                uid = id_to_uid_extracted[pr_id]
+                non_self_rows = guard_conn.execute(
+                    _RW_NON_SELF_COMMENTS_SQL,
+                    (uid,),
+                ).fetchall()
+                if non_self_rows:
+                    applicable_pr_count += 1
+    assert applicable_pr_count > 0, (
+        "FR-2-01 fixture-validation guard: no PR in any week's drilldown ∩ "
+        "extracted-subset has ≥1 non-self comment in the SC-05 fixture.  The "
+        "per-PR loop below would iterate zero load-bearing PRs and silently "
+        "pass — no positive control on the bucket-existence check.  Either "
+        "the fixture builder no longer seeds non-self comments (e.g., all "
+        "comments became self-comments), OR the drilldown is empty/all-"
+        "unextracted across every week."
+    )
+
+    with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        for rollup_path in rollup_paths:
+            week_key = rollup_path.stem
+            rollup = _load_rollup(rollup_path)
+            prs_field = rollup.get("prs")
+            if not isinstance(prs_field, list):
+                continue
+            canonical_prs = weeks_to_prs.get(week_key, [])
+            id_to_uid_extracted_inner: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"]
+                for pr in canonical_prs
+                if pr["comments_extracted_at"] is not None
+            }
+            by_reviewer_raw = rollup.get("by_reviewer_comments")
+            for drilldown_entry in prs_field:
+                if not isinstance(drilldown_entry, dict):
+                    continue
+                pr_id = drilldown_entry.get("id")
+                if not isinstance(pr_id, int):
+                    continue
+                if pr_id not in id_to_uid_extracted_inner:
+                    # Unextracted drill-down PRs are out of scope — covered
+                    # by the 333 / 334 round-9 positive sentinel test.
+                    continue
+                uid = id_to_uid_extracted_inner[pr_id]
+                cc_raw = drilldown_entry.get("comment_count")
+                if not isinstance(cc_raw, int):
+                    # 310 partial sentinel (None) — skip; FR-2-01 only
+                    # constrains extracted-subset PRs.
+                    continue
+                drilldown_cc = cc_raw
+
+                self_row = conn.execute(
+                    _RW_SELF_COMMENT_COUNT_SQL,
+                    (uid,),
+                ).fetchone()
+                self_cc = (
+                    int(self_row["self_count"])
+                    if self_row is not None and self_row["self_count"] is not None
+                    else 0
+                )
+
+                non_self_rows = conn.execute(
+                    _RW_NON_SELF_COMMENTS_SQL,
+                    (uid,),
+                ).fetchall()
+                non_self_cc = len(non_self_rows)
+
+                # Identity check: drilldown_cc partitions cleanly into self
+                # + non-self counts (310 PrRecord coherence with the
+                # per-reviewer dimension's CL-04 split).
+                assert drilldown_cc - self_cc == non_self_cc, (
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: "
+                    f"drill-down comment_count={drilldown_cc} MINUS "
+                    f"self-comments={self_cc} ({drilldown_cc - self_cc}) "
+                    f"!= non-self pr_comments rows={non_self_cc} (FR-2-01 "
+                    "identity: drilldown_cc must partition into self + "
+                    "non-self per CL-04; an inequality means the "
+                    "drilldown's per-PR comment_count includes/excludes "
+                    "self-comments inconsistently with the direct-SQL "
+                    "counts, OR the SQL queries are buggy)"
+                )
+
+                # Bucket-existence check (load-bearing for FR-2-01 narrowed):
+                # if P has ≥1 non-self comment, every non-self commenter's
+                # resolved bucket key MUST be present in
+                # rollup[W].by_reviewer_comments.  This witnesses that no
+                # eligible non-self comment is dropped during bucket
+                # attribution at the aggregator level.
+                if non_self_cc == 0:
+                    continue
+                assert isinstance(by_reviewer_raw, dict), (
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: has "
+                    f"{non_self_cc} non-self comments in W's extracted-"
+                    "subset but rollup has no by_reviewer_comments "
+                    "emission (FR-2-01 bucket-existence: every non-self "
+                    "commenter MUST appear as a bucket key)"
+                )
+                emitted_keys = set(by_reviewer_raw.keys())
+                seen_buckets: set[str] = set()
+                for row in non_self_rows:
+                    commenter_raw = row["commenter"]
+                    assert isinstance(commenter_raw, str)
+                    bucket = _reviewer_bucket_for_author_id(conn, commenter_raw)
+                    seen_buckets.add(bucket)
+                missing_buckets = seen_buckets - emitted_keys
+                assert not missing_buckets, (
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: "
+                    f"non-self commenters resolve to buckets "
+                    f"{sorted(seen_buckets)!r} but rollup's "
+                    f"by_reviewer_comments only emits "
+                    f"{sorted(emitted_keys)!r}; missing: "
+                    f"{sorted(missing_buckets)!r} (FR-2-01 bucket-"
+                    "existence violation: no eligible non-self comment "
+                    "may be dropped during bucket attribution)"
+                )

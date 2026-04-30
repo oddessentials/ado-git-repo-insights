@@ -350,6 +350,21 @@ class TestGoldenOutputs:
             "WHERE pull_request_uid = ?",
             ("2024-02-16T00:00:00Z", "repo-002-50"),
         )
+
+        # Seed a UUID-format user for the comment author (FR-1-12 /
+        # CL-15: per-reviewer aggregator FAIL-LOUDs on non-UUID
+        # pr_comments.author_id, AND pr_comments.author_id is FK to
+        # users.user_id so the user must exist).  This test asserts
+        # only on the per-PR triplet; the user identity is incidental.
+        db.execute(
+            "INSERT OR IGNORE INTO users (user_id, display_name, email) "
+            "VALUES (?, ?, ?)",
+            (
+                "00000000-0000-0000-0000-00000000bbbb",
+                "Bob Jones",
+                "bob@acme.com",
+            ),
+        )
         # repo-003-25 left with NULL → all three fields emit as null.
 
         # pr_threads + pr_comments seed on repo-001-100:
@@ -379,10 +394,38 @@ class TestGoldenOutputs:
                     deleted,
                 ),
             )
+        # Author UUID-format per FR-1-12 / CL-15: the per-reviewer aggregator
+        # FAIL-LOUDs on non-UUID pr_comments.author_id values added in #336.
+        # The test does not assert on by_reviewer_comments; the comment
+        # author is unknown to the users table, so the LEFT JOIN routes
+        # this through the sentinel branch — which is a valid path that
+        # leaves the per-PR triplet assertions (the actual contract under
+        # test) unaffected.
         comment_rows = (
-            ("c1", "t1", "repo-001-100", "user-bob", "text", 0),
-            ("c2", "t2", "repo-001-100", "user-bob", "system", 0),
-            ("c3", "t2", "repo-001-100", "user-bob", "text", 1),  # deleted
+            (
+                "c1",
+                "t1",
+                "repo-001-100",
+                "00000000-0000-0000-0000-00000000bbbb",
+                "text",
+                0,
+            ),
+            (
+                "c2",
+                "t2",
+                "repo-001-100",
+                "00000000-0000-0000-0000-00000000bbbb",
+                "system",
+                0,
+            ),
+            (
+                "c3",
+                "t2",
+                "repo-001-100",
+                "00000000-0000-0000-0000-00000000bbbb",
+                "text",
+                1,
+            ),  # deleted
         )
         for comment_id, thread_id, uid, author, ctype, deleted in comment_rows:
             db.execute(

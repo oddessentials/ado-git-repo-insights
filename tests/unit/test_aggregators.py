@@ -426,11 +426,22 @@ class TestAggregateGenerator:
             last_updated="2026-01-06T15:00:00Z",
             created_at="2026-01-06T14:30:00Z",
         )
+        # Seed a UUID-format user for the comment author (FR-1-12 /
+        # CL-15: per-reviewer aggregator FAIL-LOUDs on non-UUID
+        # pr_comments.author_id, AND pr_comments.author_id is FK to
+        # users.user_id so the user must exist).  Test asserts on
+        # capability + coverage shape, not on by_reviewer_comments —
+        # user identity is incidental.
+        repo.upsert_user(
+            "00000000-0000-0000-0000-000000000002",
+            "Reviewer Two",
+            "rev2@acme.com",
+        )
         repo.upsert_comment(
             comment_id="comment-1",
             thread_id="thread-1",
             pull_request_uid="repo1-1",
-            author_id="user2",
+            author_id="00000000-0000-0000-0000-000000000002",
             content="Looks good",
             comment_type="text",
             created_at="2026-01-06T14:40:00Z",
