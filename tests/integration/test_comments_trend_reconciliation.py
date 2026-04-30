@@ -1709,6 +1709,10 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
     # (e.g., all comments become self-comments, OR no PRs are extracted)
     # would let the per-PR loop iterate zero load-bearing PRs and silently
     # pass — no positive control on the bucket-existence check below.
+    #
+    # Drilldown records use ``id`` (int) per 310 PrRecord shape, NOT
+    # ``pull_request_uid`` — mirrors the per-author pairwise_drilldown
+    # test's ``id_to_uid_extracted`` mapping at line 813-814.
     applicable_pr_count = 0
     with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as guard_conn:
         guard_conn.row_factory = sqlite3.Row
@@ -1718,20 +1722,21 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
             if not isinstance(prs_field, list):
                 continue
             canonical_prs = weeks_to_prs.get(rollup_path.stem, [])
-            extracted_uids = {
-                pr["pull_request_uid"]
+            id_to_uid_extracted: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"]
                 for pr in canonical_prs
                 if pr["comments_extracted_at"] is not None
             }
             for drilldown_entry in prs_field:
                 if not isinstance(drilldown_entry, dict):
                     continue
-                uid_raw = drilldown_entry.get("pull_request_uid")
-                if not isinstance(uid_raw, str) or uid_raw not in extracted_uids:
+                pr_id = drilldown_entry.get("id")
+                if not isinstance(pr_id, int) or pr_id not in id_to_uid_extracted:
                     continue
+                uid = id_to_uid_extracted[pr_id]
                 non_self_rows = guard_conn.execute(
                     _RW_NON_SELF_COMMENTS_SQL,
-                    (uid_raw,),
+                    (uid,),
                 ).fetchall()
                 if non_self_rows:
                     applicable_pr_count += 1
@@ -1755,8 +1760,8 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
             if not isinstance(prs_field, list):
                 continue
             canonical_prs = weeks_to_prs.get(week_key, [])
-            extracted_uids = {
-                pr["pull_request_uid"]
+            id_to_uid_extracted_inner: dict[int, str] = {
+                pr["pull_request_id"]: pr["pull_request_uid"]
                 for pr in canonical_prs
                 if pr["comments_extracted_at"] is not None
             }
@@ -1764,11 +1769,14 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
             for drilldown_entry in prs_field:
                 if not isinstance(drilldown_entry, dict):
                     continue
-                uid_raw = drilldown_entry.get("pull_request_uid")
-                if not isinstance(uid_raw, str):
+                pr_id = drilldown_entry.get("id")
+                if not isinstance(pr_id, int):
                     continue
-                if uid_raw not in extracted_uids:
+                if pr_id not in id_to_uid_extracted_inner:
+                    # Unextracted drill-down PRs are out of scope — covered
+                    # by the 333 / 334 round-9 positive sentinel test.
                     continue
+                uid = id_to_uid_extracted_inner[pr_id]
                 cc_raw = drilldown_entry.get("comment_count")
                 if not isinstance(cc_raw, int):
                     # 310 partial sentinel (None) — skip; FR-2-01 only
@@ -1778,7 +1786,7 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
 
                 self_row = conn.execute(
                     _RW_SELF_COMMENT_COUNT_SQL,
-                    (uid_raw,),
+                    (uid,),
                 ).fetchone()
                 self_cc = (
                     int(self_row["self_count"])
@@ -1788,7 +1796,7 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
 
                 non_self_rows = conn.execute(
                     _RW_NON_SELF_COMMENTS_SQL,
-                    (uid_raw,),
+                    (uid,),
                 ).fetchall()
                 non_self_cc = len(non_self_rows)
 
@@ -1796,15 +1804,15 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
                 # + non-self counts (310 PrRecord coherence with the
                 # per-reviewer dimension's CL-04 split).
                 assert drilldown_cc - self_cc == non_self_cc, (
-                    f"week {week_key}, PR {uid_raw!r}: drill-down "
-                    f"comment_count={drilldown_cc} MINUS self-comments="
-                    f"{self_cc} ({drilldown_cc - self_cc}) != non-self "
-                    f"pr_comments rows={non_self_cc} (FR-2-01 identity: "
-                    "drilldown_cc must partition into self + non-self per "
-                    "CL-04; an inequality means the drilldown's per-PR "
-                    "comment_count includes/excludes self-comments "
-                    "inconsistently with the direct-SQL counts, OR the SQL "
-                    "queries are buggy)"
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: "
+                    f"drill-down comment_count={drilldown_cc} MINUS "
+                    f"self-comments={self_cc} ({drilldown_cc - self_cc}) "
+                    f"!= non-self pr_comments rows={non_self_cc} (FR-2-01 "
+                    "identity: drilldown_cc must partition into self + "
+                    "non-self per CL-04; an inequality means the "
+                    "drilldown's per-PR comment_count includes/excludes "
+                    "self-comments inconsistently with the direct-SQL "
+                    "counts, OR the SQL queries are buggy)"
                 )
 
                 # Bucket-existence check (load-bearing for FR-2-01 narrowed):
@@ -1816,11 +1824,11 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
                 if non_self_cc == 0:
                     continue
                 assert isinstance(by_reviewer_raw, dict), (
-                    f"week {week_key}, PR {uid_raw!r}: has {non_self_cc} "
-                    "non-self comments in W's extracted-subset but rollup "
-                    "has no by_reviewer_comments emission (FR-2-01 "
-                    "bucket-existence: every non-self commenter MUST "
-                    "appear as a bucket key)"
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: has "
+                    f"{non_self_cc} non-self comments in W's extracted-"
+                    "subset but rollup has no by_reviewer_comments "
+                    "emission (FR-2-01 bucket-existence: every non-self "
+                    "commenter MUST appear as a bucket key)"
                 )
                 emitted_keys = set(by_reviewer_raw.keys())
                 seen_buckets: set[str] = set()
@@ -1831,11 +1839,12 @@ def test_sc05_reconciliation_per_week_by_reviewer_pairwise_drilldown(
                     seen_buckets.add(bucket)
                 missing_buckets = seen_buckets - emitted_keys
                 assert not missing_buckets, (
-                    f"week {week_key}, PR {uid_raw!r}: non-self commenters "
-                    f"resolve to buckets {sorted(seen_buckets)!r} but "
-                    f"rollup's by_reviewer_comments only emits "
+                    f"week {week_key}, PR id={pr_id}, uid={uid!r}: "
+                    f"non-self commenters resolve to buckets "
+                    f"{sorted(seen_buckets)!r} but rollup's "
+                    f"by_reviewer_comments only emits "
                     f"{sorted(emitted_keys)!r}; missing: "
-                    f"{sorted(missing_buckets)!r} (FR-2-01 bucket-existence "
-                    "violation: no eligible non-self comment may be dropped "
-                    "during bucket attribution)"
+                    f"{sorted(missing_buckets)!r} (FR-2-01 bucket-"
+                    "existence violation: no eligible non-self comment "
+                    "may be dropped during bucket attribution)"
                 )

@@ -79,7 +79,10 @@ from typing import Final
 import pytest
 
 from ado_git_repo_insights.persistence.database import DatabaseManager
-from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+from ado_git_repo_insights.transform.aggregators import (
+    AggregateGenerator,
+    AggregationError,
+)
 from ado_git_repo_insights.transform.constants import (
     FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
 )
@@ -825,11 +828,27 @@ def test_fail_loud_on_non_uuid_author_id(
         author_id=NON_UUID_USER,
     )
 
-    with pytest.raises(RuntimeError) as exc_info:
+    # The helper raises RuntimeError per FR-1-12 / CL-15.  The
+    # AggregateGenerator.generate_all() wrapper catches all exceptions
+    # and re-raises as AggregationError preserving the original via
+    # ``raise ... from e`` (existing behavior since #334 / #335 — not
+    # part of the per-reviewer dimension's contract).  The test
+    # validates BOTH: (1) the wrapper fires (AggregationError caught),
+    # AND (2) the root cause is RuntimeError per the FR-1-12 helper
+    # contract.
+    with pytest.raises(AggregationError) as exc_info:
         _generate_rollup(tmp_path, db)
+    root_cause = exc_info.value.__cause__
+    assert isinstance(root_cause, RuntimeError), (
+        f"FR-1-12 / CL-15: per-reviewer helper must raise RuntimeError "
+        f"(got {type(root_cause).__name__ if root_cause else 'None'} "
+        f"via the AggregationError wrapper).  The wrapper preserves the "
+        f"original exception via ``raise ... from e``; the helper's "
+        f"contract is RuntimeError, not AggregationError."
+    )
     # Helpful diagnostic — the error message should mention the offending
     # value or shape constraint so debugging is straightforward.
-    error_msg = str(exc_info.value)
+    error_msg = str(root_cause)
     assert NON_UUID_USER in error_msg or "UUID" in error_msg or "shape" in error_msg, (
         f"RuntimeError raised but message lacks a clue about the offending "
         f"non-UUID value or shape contract: {error_msg!r}"

@@ -66,7 +66,22 @@ ORG_NAME: Final[str] = "demo-org"
 PROJECT_NAME: Final[str] = "demo-project"
 REPO_ID: Final[str] = "demo-repo"
 REPO_NAME: Final[str] = "Demo Repository"
-USER_ID: Final[str] = "user-001"
+# Feature 336 / T016 production-vs-fixture parity (FR-1-12 / CL-15):
+# the production extractor emits ``users.user_id`` and
+# ``pr_comments.author_id`` as canonical UUID-format strings (32 hex +
+# 4 hyphens) per the kickoff comment-2 directive ("demo key-shape
+# verification — do this FIRST.  ...verify it produces author_id values
+# that match the canonical extractor's UUID shape").  The
+# ``_compute_weekly_by_reviewer_comments`` helper (T016) raises
+# ``RuntimeError`` on non-UUID-format author_id values per FR-1-12.
+# Pre-#336 these constants were short opaque strings (``"user-001"`` /
+# ``"ghost-001"``); T016's FAIL-LOUD check fired on the legacy values
+# and broke the SC-05 reconciliation fixture.  The fix is to bring the
+# fixture's identity space into shape compliance with the production
+# extractor — UUID-format strings whose contents remain human-readable
+# enough to debug fixture failures (``...000001`` for the real user;
+# ``...0000ff`` for the ghost, sortable last lexicographically).
+USER_ID: Final[str] = "00000000-0000-0000-0000-000000000001"
 USER_NAME: Final[str] = "Demo User"
 USER_EMAIL: Final[str] = "demo@example.local"
 
@@ -77,7 +92,7 @@ USER_EMAIL: Final[str] = "demo@example.local"
 # fixture insert path toggles ``PRAGMA foreign_keys = OFF`` before
 # inserting these PRs to mirror the production reality where deletions /
 # legacy migrations may leave orphaned PRs.
-GHOST_USER_ID: Final[str] = "ghost-001"
+GHOST_USER_ID: Final[str] = "00000000-0000-0000-0000-0000000000ff"
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import random
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -81,6 +82,24 @@ STUB_GENERATOR_ID = "phase3.5-stub-v1"
 # Feature 060 (FR-002): cap for per-week PR-level detail arrays. Locked at 500
 # by the spec; expanding requires a fresh scoping round.
 _PR_DETAIL_CAP = 500
+
+# Feature 336 (T016 / FR-1-12 / CL-15): pr_comments.author_id shape contract.
+# The production extractor emits user_ids as canonical UUID v4 strings (32
+# lower/upper-case hex digits + 4 hyphens; the FK constraint at
+# ``models.py:172`` references ``users.user_id`` which carries the same
+# shape).  ``_compute_weekly_by_reviewer_comments`` raises ``RuntimeError``
+# if it encounters a non-UUID-format ``commenter_or_sentinel`` row value
+# during iteration (the sentinel literal is the by-design exception per
+# CL-03 / INV-4-12).  The NULL clause from FR-1-12 is structurally
+# unreachable through the SQL CASE expression (LEFT JOIN to users on
+# ``pc.author_id`` returns NULL ONLY when no user matches, and the CASE
+# branch maps that to the sentinel literal — so ``commenter_or_sentinel``
+# is never NULL); the defensive NULL check below is retained for
+# forward-compat.
+_PR_COMMENTS_AUTHOR_ID_UUID_REGEX = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class AggregationError(Exception):
@@ -744,6 +763,24 @@ class AggregateGenerator:
             if weekly_by_repository_comments:
                 rollup_dict["by_repository_comments"] = weekly_by_repository_comments
 
+            # Feature 336: per-(week, reviewer) comments-density emission
+            # (FR-1-01..FR-1-12).  Capability-on emits the
+            # ``by_reviewer_comments`` outer dict on the rollup root,
+            # keyed by commenter ``user_id`` (or the SENTINEL literal
+            # when commenter is absent from ``users`` per CL-03 /
+            # INV-4-12 — divergence from 335 which is FK-protected).
+            # Iteration unit is ``pr_comments`` rows (CL-13 / INV-4-13);
+            # self-comment exclusion enforced by SQL WHERE filter
+            # (``pc.author_id != pr.user_id`` per CL-04).  Capability-off
+            # omits the key entirely (FR-3-03 + INV-4-09 atomicity).
+            # Empty outer dict (no eligible-reviewer-comment rows in
+            # W's extracted-subset) is also omitted (FR-1-11).
+            weekly_by_reviewer_comments = self._compute_weekly_by_reviewer_comments(
+                week_pr_uids
+            )
+            if weekly_by_reviewer_comments:
+                rollup_dict["by_reviewer_comments"] = weekly_by_reviewer_comments
+
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
             if by_author:
@@ -1405,6 +1442,211 @@ class AggregateGenerator:
                 "comment_count": int(row["comment_count"]),
                 "active_thread_count": int(row["active_thread_count"]),
                 "coverage_partial": coverage_partial,
+            }
+
+        if not buckets:
+            return None
+        return buckets
+
+    def _compute_weekly_by_reviewer_comments(
+        self, week_pr_uids: set[str]
+    ) -> dict[str, dict[str, int | bool]] | None:
+        """Compute per-(week, reviewer) ``by_reviewer_comments`` emission for one week.
+
+        Feature 336 / T016.  Iteration unit is ``pr_comments`` rows
+        (NOT ``pull_requests`` rows — divergence from
+        ``_compute_weekly_by_author_comments`` and
+        ``_compute_weekly_by_repository_comments`` per CL-13 / INV-4-13;
+        the per-reviewer dimension's aggregator is the only one that
+        groups by commenter ``author_id``).
+
+        Returns ``None`` when ``_has_comments()`` is False, when
+        ``week_pr_uids`` is empty, or when no eligible-reviewer-comment
+        rows exist after C1 + CL-04 filtering — callers omit the
+        ``by_reviewer_comments`` key entirely (FR-3-03 + FR-1-11
+        atomicity — the key MUST be absent under capability-off / empty,
+        NOT ``None``-valued, NOT ``{}``-valued, NOT partial).
+
+        When capability-on with eligible-reviewer-comment rows present,
+        returns an outer dict keyed by ``commenter_or_sentinel`` (per
+        CL-03 / INV-4-12 — sentinel APPLIES, divergence from per-repo
+        which is FK-protected); each inner dict carries the four atomic
+        fields:
+
+          - ``thread_count``: COUNT(DISTINCT ``pr_comments.thread_id``)
+            per commenter (FR-1-05 — divergence from #334 / #335 raw
+            row count).  Distinct eligible threads with at least one
+            non-self comment by R.
+          - ``comment_count``: raw COUNT(*) of ``pr_comments`` rows
+            where ``author_id = R``, ``pull_request_uid`` ∈ W's
+            extracted-subset, ``author_id != pull_requests.user_id``
+            (CL-04 self-comment exclusion), ``is_deleted = 0`` (C1).
+          - ``active_thread_count``: COUNT(DISTINCT thread_id) where R
+            commented AND ``pr_threads.status = 'active'`` (FR-1-05).
+            The active subset of ``thread_count``.
+          - ``coverage_partial``: same-W flag per CL-10.  Computed once
+            via a separate query and applied uniformly to ALL emitted
+            buckets.  ``True`` iff at least one PR in W's canonical
+            throughput PR set has ``comments_extracted_at IS NULL``.
+            Bucket-specific definition is degenerate for per-reviewer
+            because R's commenter relationship to a PR is invisible
+            until extraction (an unextracted PR's commenter set is
+            unknowable).
+
+        Outer dict key order is ascending by commenter key (the stable
+        identity string, including the sentinel literal which sorts
+        deterministically among UUID-shaped real keys at the leading-
+        ``__`` position) per QG-05 + contracts/per-reviewer-comments-density.md
+        §2 Determinism.  Display name is NOT used for producer-side
+        ordering — that's renderer-side tie-breaking per FR-4-05.
+
+        SQL pattern (per contract §2): INNER JOIN ``pull_requests`` for
+        the ``pc.author_id != pr.user_id`` self-comment-exclusion filter
+        + the ``comments_extracted_at`` extracted-subset filter; LEFT
+        JOIN ``users`` for sentinel detection (CASE WHEN u.user_id IS
+        NULL THEN sentinel ELSE pc.author_id); LEFT JOIN ``pr_threads``
+        for the ``active_thread_count`` filter on ``pr_threads.status =
+        'active'``.  Sentinel literal bound via parameter (NOT f-string
+        interpolation) per S608 compliance / ``reference_s608_refactor_pattern.md``.
+
+        FAIL-LOUD per FR-1-12 / CL-15: raise ``RuntimeError`` if the
+        cursor returns a row whose ``commenter_or_sentinel`` value is
+        NULL OR is non-UUID-format (and not the sentinel literal).
+        Database integrity violation that should be impossible under
+        the FK constraint at ``models.py:172`` + the ``pr_comments.author_id
+        NOT NULL`` constraint at ``models.py:160``.
+
+        Spec anchors: FR-1-01..FR-1-12, FR-3-03, INV-4-07, INV-4-08,
+        INV-4-09, INV-4-10, INV-4-12, INV-4-13, CL-03, CL-04, CL-10,
+        CL-13, CL-15.  C1 contract authority:
+        ``specs/310-comments-visualization/spec.md`` "Shared
+        inclusion-rule contract (C1)".  C2 reviewer-semantics
+        authority: same file under "Reviewer activity (C2)".
+        """
+        if not self._has_comments():
+            return None
+
+        if not week_pr_uids:
+            # FR-1-11 + FR-3-03 omission contract: empty canonical set
+            # → no buckets; caller omits the key entirely.
+            return None
+
+        self.db.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS "
+            "_aggr_week_by_reviewer_comments_slice "
+            "(pull_request_uid TEXT PRIMARY KEY)"
+        )
+        self.db.execute("DELETE FROM _aggr_week_by_reviewer_comments_slice")
+        self.db.executemany(
+            "INSERT INTO _aggr_week_by_reviewer_comments_slice "
+            "(pull_request_uid) VALUES (?)",
+            [(uid,) for uid in week_pr_uids],
+        )
+
+        # Step 1: compute the same-W coverage_partial flag per CL-10.
+        # One boolean for the entire week, applied uniformly to every
+        # emitted bucket.  Defined as "any PR in W's canonical throughput
+        # PR set has ``comments_extracted_at IS NULL``" (NOT bucket-
+        # specific because the per-reviewer dimension's bucket-vs-PR
+        # relationship is invisible until extraction).
+        coverage_cursor = self.db.execute(
+            "SELECT MAX(CASE WHEN pr.comments_extracted_at IS NULL "
+            "             THEN 1 ELSE 0 END) AS coverage_partial "
+            "FROM pull_requests pr "
+            "INNER JOIN _aggr_week_by_reviewer_comments_slice s "
+            "  ON s.pull_request_uid = pr.pull_request_uid"
+        )
+        coverage_row = coverage_cursor.fetchone()
+        coverage_raw = (
+            coverage_row["coverage_partial"] if coverage_row is not None else None
+        )
+        same_w_coverage_partial = coverage_raw is not None and int(coverage_raw) > 0
+
+        # Step 2: per-(week, reviewer) aggregation.  Iterate
+        # ``pr_comments`` rows (CL-13 / INV-4-13); apply C1
+        # (``is_deleted = 0``) + CL-04 self-comment exclusion + extracted-
+        # subset filter; group by ``commenter_or_sentinel``; compute
+        # COUNT(DISTINCT thread_id) for thread_count + active_thread_count
+        # (FR-1-05 — divergence from #334 / #335 raw row count).
+        cursor = self.db.execute(
+            "SELECT "
+            "  CASE WHEN u.user_id IS NULL THEN ? ELSE pc.author_id END "
+            "    AS commenter_or_sentinel, "
+            "  COUNT(*) AS comment_count, "
+            "  COUNT(DISTINCT pc.thread_id) AS thread_count, "
+            "  COUNT(DISTINCT CASE WHEN t.status = 'active' "
+            "                      THEN pc.thread_id ELSE NULL END) "
+            "    AS active_thread_count "
+            "FROM pr_comments pc "
+            "INNER JOIN _aggr_week_by_reviewer_comments_slice s "
+            "  ON s.pull_request_uid = pc.pull_request_uid "
+            "INNER JOIN pull_requests pr "
+            "  ON pr.pull_request_uid = pc.pull_request_uid "
+            "LEFT JOIN users u "
+            "  ON u.user_id = pc.author_id "
+            "LEFT JOIN pr_threads t "
+            "  ON t.pull_request_uid = pc.pull_request_uid "
+            "  AND t.thread_id = pc.thread_id "
+            "WHERE pr.comments_extracted_at IS NOT NULL "
+            "  AND pc.is_deleted = 0 "
+            "  AND pc.author_id != pr.user_id "
+            "GROUP BY commenter_or_sentinel "
+            "ORDER BY commenter_or_sentinel ASC",
+            (FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,),
+        )
+
+        buckets: dict[str, dict[str, int | bool]] = {}
+        for row in cursor.fetchall():
+            key_raw = row["commenter_or_sentinel"]
+            # FR-1-12 / CL-15 FAIL-LOUD on shape corruption.  NULL is
+            # structurally unreachable here (the CASE expression maps
+            # absent-from-users rows to the sentinel literal, and
+            # pr_comments.author_id NOT NULL prevents NULL at INSERT) —
+            # the defensive raise is retained for forward-compat against
+            # a hypothetical future SQL refactor.
+            if key_raw is None:
+                raise RuntimeError(
+                    "_compute_weekly_by_reviewer_comments: cursor "
+                    "returned a row with NULL commenter_or_sentinel.  "
+                    "This is structurally unreachable through the "
+                    "production SQL path (CASE maps absent-user to "
+                    "sentinel literal; pr_comments.author_id NOT NULL "
+                    "at models.py:160 prevents NULL at INSERT) — "
+                    "reaching this branch indicates either schema "
+                    "corruption OR a future SQL refactor regressed the "
+                    "CASE expression.  See spec FR-1-12 + CL-15."
+                )
+            key = str(key_raw)
+            # Non-UUID-format check fires when the value is not the
+            # by-design sentinel literal AND not UUID-shaped (the
+            # production extractor's UUID convention per
+            # ``users.user_id`` references at models.py:172).  Reaches
+            # this branch when FK enforcement is OFF AND someone
+            # inserted a non-UUID author_id into pr_comments — a
+            # database integrity violation worth surfacing loudly per
+            # CL-15 rather than silently coercing into the emission.
+            if (
+                key != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
+                and not _PR_COMMENTS_AUTHOR_ID_UUID_REGEX.match(key)
+            ):
+                raise RuntimeError(
+                    "_compute_weekly_by_reviewer_comments: cursor "
+                    f"returned a row with commenter_or_sentinel={key!r} "
+                    "— not the sentinel literal "
+                    f"({FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}) AND "
+                    "not UUID-format (32 hex + 4 hyphens per the "
+                    "extractor convention).  This violates the "
+                    "pr_comments.author_id shape contract (FR-1-12 / "
+                    "CL-15) and indicates database integrity has "
+                    "regressed (FK at models.py:172 disabled OR a "
+                    "non-extractor writer bypassed the shape rule) — "
+                    "investigate before re-running the aggregator."
+                )
+            buckets[key] = {
+                "thread_count": int(row["thread_count"]),
+                "comment_count": int(row["comment_count"]),
+                "active_thread_count": int(row["active_thread_count"]),
+                "coverage_partial": same_w_coverage_partial,
             }
 
         if not buckets:
