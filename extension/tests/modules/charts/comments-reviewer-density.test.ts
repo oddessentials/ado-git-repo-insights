@@ -1292,4 +1292,240 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     ).map((r) => r.getAttribute("data-reviewer-key"));
     expect(finalOrder).toEqual(initialOrder);
   });
+
+  // ===========================================================================
+  // T031 (US5): filter-posture matrix.
+  //
+  // When ANY of the dashboard's per-PR dimension filters
+  // (repos / teams / authors / reviewers) is active, the chart MUST
+  // render a self-explanatory empty state instead of rows.  The empty
+  // state MUST be visibly distinct from the no-data-in-range empty
+  // state (FR-4-08) AND MUST disappear cleanly when filters are
+  // cleared.  Existing P7-e provides single-dimension partial-branches
+  // coverage; T031 extends to the full matrix per the kickoff
+  // directive.
+  //
+  // Marker constants FILTER_STATE_UNIQUE_MARKERS /
+  // NODATA_STATE_UNIQUE_MARKERS were forward-defined at the top of
+  // the file in the T020 chart MVP slice; T031-c uses them in the
+  // exhaustive cross-state-exclusion loop pattern adopted from #335
+  // (memory feedback_atomic_crossfile_sweep_before_edit.md — keep
+  // drift-prone enumerations in one place).  3 tests; floor delta
+  // measured by test:coverage (not assumed).
+  // ===========================================================================
+
+  it("(T031-a) any of the four dimension filters (repos / teams / authors / reviewers) triggers filter-not-supported", () => {
+    // Same data fixture across all four sub-iterations so the filter
+    // dimension is the sole independent variable.  If any of the four
+    // filter slots is non-empty → the chart MUST render the
+    // filter-not-supported empty state, NOT the rows the data alone
+    // would produce.  Locks FR-4-07's "ANY" contract — a future
+    // refactor that narrowed the gate to a subset of dimensions would
+    // surface here.  Mirrors #335's T026-a iteration shape.
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u) => {
+      buckets[u.user_id] = makeBucket(2, 5, 1);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    const filterCases: { name: string; filters: FilterState }[] = [
+      {
+        name: "repos",
+        filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      },
+      {
+        name: "teams",
+        filters: { repos: [], teams: ["team-x"], reviewers: [], authors: [] },
+      },
+      {
+        name: "authors",
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: ["user-x"],
+        },
+      },
+      {
+        name: "reviewers",
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["user-y"],
+          authors: [],
+        },
+      },
+    ];
+
+    for (const { name, filters } of filterCases) {
+      // Reset the container's content between iterations so each
+      // assertion stands alone (mirrors the way the dashboard re-
+      // renders into the same container as filters change).
+      container.innerHTML = "";
+      renderCommentsReviewerDensityChart(container, rollups, {
+        filters,
+        usersDimension: users,
+      });
+
+      // No rows under any active filter — the data fixture would
+      // otherwise produce 3 rows.
+      const rows = container.querySelectorAll(
+        ".comments-reviewer-density-row",
+      );
+      expect(rows).toHaveLength(0);
+      // Filter-not-supported message present (text owned by
+      // renderNoData; the chart's filter short-circuit message
+      // contains "filterable").
+      expect(container.textContent?.toLowerCase() ?? "").toContain(
+        "filterable",
+      );
+      // And the no-data-in-range message is NOT present — that's the
+      // sibling empty state for capability-on + no contributions,
+      // gated separately (case (l) above).
+      expect(container.textContent?.toLowerCase() ?? "").not.toContain(
+        "no comments data",
+      );
+      // Diagnostic: per-iteration error identifies which dimension
+      // regressed if the chart accidentally rendered rows under a
+      // specific filter.
+      if (rows.length !== 0) {
+        throw new Error(
+          `filter dimension "${name}" did not trigger the filter-not-` +
+            `supported empty state; rendered ${rows.length} data rows`,
+        );
+      }
+    }
+  });
+
+  it("(T031-b) clearing the filter restores the rows", () => {
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u, i) => {
+      buckets[u.user_id] = makeBucket(2, 10 - i, 1);
+    });
+    const rollups = [makeRollup(0, buckets)];
+
+    // Step 1: filter active → rows absent (filter-not-supported).
+    renderCommentsReviewerDensityChart(container, rollups, {
+      filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      usersDimension: users,
+    });
+    expect(
+      container.querySelectorAll(".comments-reviewer-density-row").length,
+    ).toBe(0);
+    expect(container.textContent?.toLowerCase() ?? "").toContain("filterable");
+
+    // Step 2: filters cleared (same container, same data) → rows
+    // restored.  Verifies the empty state disappears cleanly when
+    // filters are cleared (FR-4-07 second-half contract).
+    renderCommentsReviewerDensityChart(container, rollups, {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+    const rowsAfterClear = container.querySelectorAll(
+      ".comments-reviewer-density-row",
+    );
+    expect(rowsAfterClear).toHaveLength(3);
+    // The "filterable" message is gone — the chart's render path
+    // is on the rows path now, not the empty-state path.
+    expect(container.textContent?.toLowerCase() ?? "").not.toContain(
+      "filterable",
+    );
+  });
+
+  it("(T031-c) filter-not-supported empty state is visibly distinct from no-data-in-range", () => {
+    // FULL CROSS-STATE EXCLUSION using the forward-defined marker
+    // constants.  Each state's heading + hint paragraph is queried
+    // SEPARATELY (per A-14 kickoff lesson — mirroring the way
+    // renderNoData splits content across .no-data + .no-data-hint).
+    // The cross-state exclusion loop iterates the FULL marker list
+    // for each state, catching any future text rewrite that
+    // accidentally introduced an other-state marker into the wrong
+    // state.  Mirrors #335's T026-c at
+    // comments-repository-density.test.ts:845-958.
+    const users = buildUsersDimension(2);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u) => {
+      buckets[u.user_id] = makeBucket(1, 5, 0);
+    });
+    const dataRollups = [makeRollup(0, buckets)];
+
+    // Filter-not-supported state.
+    renderCommentsReviewerDensityChart(container, dataRollups, {
+      filters: { repos: ["repo-x"], teams: [], reviewers: [], authors: [] },
+      usersDimension: users,
+    });
+
+    const filterHeading = container.querySelector(".no-data");
+    const filterHint = container.querySelector(".no-data-hint");
+    expect(filterHeading).not.toBeNull();
+    expect(filterHint).not.toBeNull();
+    const filterHeadingText = (filterHeading?.textContent ?? "").toLowerCase();
+    const filterHintText = (filterHint?.textContent ?? "").toLowerCase();
+
+    // Heading actionable wording — filter state's distinguishing word.
+    expect(filterHeadingText).toContain("filterable");
+    // Hint actionable wording — filter state's call-to-action ("Clear
+    // ... filters") MUST be present so a hint rewrite that dropped
+    // the user-action surfaces here.
+    expect(filterHintText).toContain("clear");
+    expect(filterHintText).toContain("filters");
+
+    // FULL CROSS-STATE EXCLUSION: no NODATA marker may appear in
+    // EITHER paragraph of the filter state.  Iterating the full
+    // marker list catches any future text rewrite that introduced a
+    // no-data marker into the filter state.
+    for (const marker of NODATA_STATE_UNIQUE_MARKERS) {
+      expect(filterHeadingText).not.toContain(marker);
+      expect(filterHintText).not.toContain(marker);
+    }
+
+    // Reset + render the no-data-in-range path (rollups have no
+    // by_reviewer_comments emission; filters cleared).
+    container.innerHTML = "";
+    renderCommentsReviewerDensityChart(
+      container,
+      [makeRollup(0, undefined), makeRollup(1, undefined)],
+      {
+        filters: emptyFilters(),
+        usersDimension: users,
+      },
+    );
+
+    const nodataHeading = container.querySelector(".no-data");
+    const nodataHint = container.querySelector(".no-data-hint");
+    expect(nodataHeading).not.toBeNull();
+    expect(nodataHint).not.toBeNull();
+    const nodataHeadingText = (nodataHeading?.textContent ?? "").toLowerCase();
+    const nodataHintText = (nodataHint?.textContent ?? "").toLowerCase();
+
+    // Heading actionable wording — no-data state's distinguishing
+    // phrase.
+    expect(nodataHeadingText).toContain("no comments data");
+    // Hint actionable wording — no-data state's user-visible
+    // remediation MUST surface either widening the range or
+    // confirming extraction (at least one of the two markers).  A
+    // hint rewrite that dropped both actions surfaces here.
+    expect(
+      nodataHintText.includes("widening") ||
+        nodataHintText.includes("extraction"),
+    ).toBe(true);
+
+    // FULL CROSS-STATE EXCLUSION: no FILTER marker may appear in
+    // EITHER paragraph of the no-data state.  Iterating the full
+    // marker list catches any future text rewrite that introduced a
+    // filter marker into the no-data state.
+    for (const marker of FILTER_STATE_UNIQUE_MARKERS) {
+      expect(nodataHeadingText).not.toContain(marker);
+      expect(nodataHintText).not.toContain(marker);
+    }
+
+    // Final invariants: heading AND hint texts differ at the
+    // paragraph level between the two states.  Direct proof of
+    // FR-4-07 / FR-4-08 visible-distinctness at BOTH paragraph
+    // granularities.
+    expect(filterHeadingText).not.toBe(nodataHeadingText);
+    expect(filterHintText).not.toBe(nodataHintText);
+  });
 });
