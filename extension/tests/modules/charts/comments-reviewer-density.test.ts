@@ -284,12 +284,12 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
       partialRow.getAttribute("aria-label") ?? ""
     ).toLowerCase();
     expect(titleText.length).toBeGreaterThan(0);
-    expect(
-      titleText.includes("week") || titleText.includes("weekly"),
-    ).toBe(true);
-    expect(
-      ariaLabel.includes("week") || ariaLabel.includes("weekly"),
-    ).toBe(true);
+    expect(titleText.includes("week") || titleText.includes("weekly")).toBe(
+      true,
+    );
+    expect(ariaLabel.includes("week") || ariaLabel.includes("weekly")).toBe(
+      true,
+    );
   });
 
   it("(e) FR-4-02 filters all-zero rows BEFORE sort/truncate across all 3 sort metrics", () => {
@@ -503,8 +503,7 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     // The orphan row's data-reviewer-key matches the raw key.
     const orphanRow = rows.find(
       (r) =>
-        r.getAttribute("data-reviewer-key") ===
-        "user-orphan-uuid-not-in-dim",
+        r.getAttribute("data-reviewer-key") === "user-orphan-uuid-not-in-dim",
     );
     expect(orphanRow).toBeDefined();
     expect(
@@ -756,7 +755,9 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
 
     // The 3 real-reviewer rows render normally (sanity — proves the
     // zero-ghost case hasn't accidentally suppressed real rows).
-    const allRows = container.querySelectorAll(".comments-reviewer-density-row");
+    const allRows = container.querySelectorAll(
+      ".comments-reviewer-density-row",
+    );
     expect(allRows).toHaveLength(3);
 
     // The sentinel label string MUST NOT appear anywhere in the
@@ -1282,9 +1283,7 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     const finalActive = container.querySelector(
       '.comments-reviewer-density-sort-btn[aria-pressed="true"]',
     );
-    expect(finalActive?.getAttribute("data-sort-metric")).toBe(
-      "comment_count",
-    );
+    expect(finalActive?.getAttribute("data-sort-metric")).toBe("comment_count");
     // And the row order is unchanged from the initial render —
     // proves no defensive path leaked into a real activate() call.
     const finalOrder = Array.from(
@@ -1370,9 +1369,7 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
 
       // No rows under any active filter — the data fixture would
       // otherwise produce 3 rows.
-      const rows = container.querySelectorAll(
-        ".comments-reviewer-density-row",
-      );
+      const rows = container.querySelectorAll(".comments-reviewer-density-row");
       expect(rows).toHaveLength(0);
       // Filter-not-supported message present (text owned by
       // renderNoData; the chart's filter short-circuit message

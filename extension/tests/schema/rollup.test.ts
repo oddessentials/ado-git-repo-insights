@@ -2242,8 +2242,9 @@ describe("Rollup Schema Validator", () => {
   // ===========================================================================
   // Feature 336 partial-branch ratchet covering tests for
   // ``validateReviewerCommentsDensity`` (latent uncovered defensive paths
-  // from the T017 commit ``a2a4b1b0``; surfaced by ``check_partial_branches.py``
-  // when this feature's chart-MVP slice ran ``test:coverage``).
+  // from the T017 commit ``a2a4b1b0``; surfaced by the
+  // ``pnpm test:partial-branches`` gate when this feature's chart-MVP
+  // slice ran ``test:coverage``).
   //
   // Primary cases (a)-(h) above don't reach: non-object outer value,
   // non-object inner entry, missing-numeric-field continue, negative
@@ -2272,8 +2273,10 @@ describe("Rollup Schema Validator", () => {
       // outer field path.
       const rollup = {
         ...BASE_336,
-        by_reviewer_comments:
-          "not-an-object" as unknown as Record<string, unknown>,
+        by_reviewer_comments: "not-an-object" as unknown as Record<
+          string,
+          unknown
+        >,
       };
       const result = validateRollup(rollup, false);
       expect(result.valid).toBe(false);
@@ -2295,8 +2298,10 @@ describe("Rollup Schema Validator", () => {
       const rollup = {
         ...BASE_336,
         by_reviewer_comments: {
-          "bob-uid":
-            "not-an-entry-object" as unknown as Record<string, unknown>,
+          "bob-uid": "not-an-entry-object" as unknown as Record<
+            string,
+            unknown
+          >,
         },
       };
       const result = validateRollup(rollup, false);

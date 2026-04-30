@@ -33,7 +33,7 @@ import re
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Final
+from typing import Final, cast
 
 import pytest
 
@@ -432,7 +432,13 @@ def test_ghost_pool_yields_at_least_one_ghost_commenter_in_emission(
     """
     _threads, comments = _synth_for_test(generate_demo_data)
     ghost_set = set(_ghost_pool())
-    emitted_commenters = {c["author_id"] for c in comments}
+    # ``c["author_id"]`` is typed ``object`` via the ``dict[str, object]``
+    # synth-helper return type; cast to ``str`` so ``sorted()`` (below in
+    # the failure message) type-checks under mypy.  The producer's
+    # contract guarantees author_id is a string (UUID or sentinel
+    # literal); other tests in this file runtime-assert the same via
+    # ``isinstance`` at the per-comment iteration level.
+    emitted_commenters: set[str] = {cast(str, c["author_id"]) for c in comments}
     ghost_commenters = emitted_commenters & ghost_set
     assert ghost_commenters, (
         f"no ghost commenter present in synthesis (ghost_pool={sorted(ghost_set)}; "

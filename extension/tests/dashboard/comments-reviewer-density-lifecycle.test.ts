@@ -287,7 +287,10 @@ function makeReviewerRollup(index: number, reviewerCount: number): Rollup {
   };
 }
 
-function makeReviewerRollups(weekCount: number, reviewerCount: number): Rollup[] {
+function makeReviewerRollups(
+  weekCount: number,
+  reviewerCount: number,
+): Rollup[] {
   return Array.from({ length: weekCount }, (_, i) =>
     makeReviewerRollup(i, reviewerCount),
   );
@@ -382,9 +385,7 @@ describe("comments-reviewer-density dashboard lifecycle — source-parse contrac
     expect(helperStart).toBeGreaterThan(-1);
 
     const helperBody = dashboardSrc.slice(helperStart, helperStart + 800);
-    expect(helperBody).toContain(
-      '[data-comments-reviewer-density-row="true"]',
-    );
+    expect(helperBody).toContain('[data-comments-reviewer-density-row="true"]');
     expect(helperBody).toMatch(/if \(!row\) return;/);
     expect(helperBody).toContain("row.parentElement?.removeChild(row)");
   });
@@ -403,15 +404,11 @@ describe("comments-reviewer-density dashboard lifecycle — source-parse contrac
     // leave the assertions matching the definition and the contract would
     // pass vacuously.  The ``();`` form distinguishes call statements
     // from the ``():`` definition headers.
-    expect(dashboardSrc).toContain(
-      "ensureCommentsReviewerDensityContainer();",
-    );
+    expect(dashboardSrc).toContain("ensureCommentsReviewerDensityContainer();");
     expect(dashboardSrc).toContain(
       "renderCommentsReviewerDensityChartModule(crvContainer",
     );
-    expect(dashboardSrc).toContain(
-      "removeCommentsReviewerDensityContainer();",
-    );
+    expect(dashboardSrc).toContain("removeCommentsReviewerDensityContainer();");
   });
 });
 
@@ -493,9 +490,7 @@ describe("comments-reviewer-density dashboard lifecycle — four scenarios (T029
     });
 
     // Sanity: per-reviewer row + chart leaf + rendered rows present.
-    expect(
-      document.getElementById("comments-reviewer-density"),
-    ).not.toBeNull();
+    expect(document.getElementById("comments-reviewer-density")).not.toBeNull();
     expect(
       document.querySelector('[data-comments-reviewer-density-row="true"]'),
     ).not.toBeNull();
@@ -533,9 +528,8 @@ describe("comments-reviewer-density dashboard lifecycle — four scenarios (T029
         .length,
     ).toBe(1);
     expect(
-      document.querySelectorAll(
-        '[data-comments-repository-density-row="true"]',
-      ).length,
+      document.querySelectorAll('[data-comments-repository-density-row="true"]')
+        .length,
     ).toBe(1);
     // 2 pre-feature rows + 333 row + 334 row + 335 row = 5
     expect(document.querySelectorAll(".charts-row").length).toBe(5);
@@ -567,9 +561,9 @@ describe("comments-reviewer-density dashboard lifecycle — four scenarios (T029
       document.querySelectorAll('[data-comments-reviewer-density-row="true"]')
         .length,
     ).toBe(1);
-    expect(
-      document.querySelectorAll("#comments-reviewer-density").length,
-    ).toBe(1);
+    expect(document.querySelectorAll("#comments-reviewer-density").length).toBe(
+      1,
+    );
     expect(
       document.querySelectorAll(
         '[data-comments-reviewer-density-row="true"] h3',
@@ -648,9 +642,9 @@ describe("comments-reviewer-density dashboard lifecycle — four scenarios (T029
       document.querySelectorAll('[data-comments-reviewer-density-row="true"]')
         .length,
     ).toBe(1);
-    expect(
-      document.querySelectorAll("#comments-reviewer-density").length,
-    ).toBe(1);
+    expect(document.querySelectorAll("#comments-reviewer-density").length).toBe(
+      1,
+    );
 
     // CHART-LAYER IDEMPOTENCY: renderTrustedHtml replaces content, so
     // row + sort-toolbar counts stay stable instead of doubling.
