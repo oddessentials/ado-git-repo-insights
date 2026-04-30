@@ -45,14 +45,29 @@ const baselinesPath = path.join(
 console.log("[PERF] Updating performance baselines...");
 console.log("[PERF] Running performance tests to collect actual timings...\n");
 
-// Run performance tests in trend mode and capture output
+// Run performance tests in trend mode and capture output. The pattern
+// list covers every Jest file that emits a `{"test": "...", "duration_ms": ...}`
+// JSON log via the shared helper at `tests/helpers/perf-measure.ts` —
+// extend this list (and the mapping table below) when a new perf test
+// is added.
+//
+// Shell quoting: the `--testPathPatterns=<regex>` value is wrapped in
+// double quotes inside the command string so the regex's `|` is
+// preserved as a regex-alternation char, not interpreted as a shell
+// pipe. Both `/bin/sh` (POSIX) and `cmd.exe` (Windows) treat double
+// quotes as a literal-preserving wrapper for `|`, so this is the
+// cross-OS form. (Without quoting, the shell would parse the line as
+// three piped commands and the test runner would never see the args.)
 let testOutput: string;
 try {
-  testOutput = execSync("npm test -- performance.test.ts --verbose", {
-    cwd: path.join(__dirname, ".."),
-    encoding: "utf-8",
-    env: { ...process.env, PERF_MODE: "trend" },
-  });
+  testOutput = execSync(
+    'npm test -- "--testPathPatterns=performance|chart-scalability|throughput-drilldown-perf" --verbose',
+    {
+      cwd: path.join(__dirname, ".."),
+      encoding: "utf-8",
+      env: { ...process.env, PERF_MODE: "trend" },
+    },
+  );
 } catch (error: unknown) {
   console.error(
     "[ERROR] Performance tests failed. Fix failures before updating baselines.",
@@ -69,20 +84,34 @@ jsonLogs.forEach((log) => {
   try {
     const data: TestLogData = JSON.parse(log);
     if (data.test && data.duration_ms) {
-      // Map test names to baseline keys
+      // Map test names to baseline metrics. The mapping variable is
+      // named `metricName` (not `key`) so that gitleaks's
+      // `generic-api-key` rule does not classify the high-entropy
+      // metric-name literals (e.g. "156wk_throughput_render_ms") as
+      // suspected secrets — issue #348 push surfaced one such false
+      // positive before this rename.
       const testName = data.test;
-      let key: string | undefined;
+      let metricName: string | undefined;
 
       if (testName.includes("fixture_generation_1000pr"))
-        key = "1000pr_fixture_gen_ms";
+        metricName = "1000pr_fixture_gen_ms";
       else if (testName.includes("fixture_generation_5000pr"))
-        key = "5000pr_fixture_gen_ms";
+        metricName = "5000pr_fixture_gen_ms";
       else if (testName.includes("fixture_generation_10000pr"))
-        key = "10000pr_fixture_gen_ms";
+        metricName = "10000pr_fixture_gen_ms";
+      // Issue #348 — chart-scalability + throughput-drilldown perf tests
+      // emit logs under these `test:` field values via the shared
+      // `tests/helpers/perf-measure.ts` helper.
+      else if (testName.includes("156wk_throughput_render"))
+        metricName = "156wk_throughput_render_ms";
+      else if (testName.includes("156wk_cycle_time_render"))
+        metricName = "156wk_cycle_time_render_ms";
+      else if (testName.includes("drilldown_500pr_open"))
+        metricName = "drilldown_500pr_open_ms";
       // Add more mappings as needed
 
-      if (key) {
-        timings[key] = Math.round(data.duration_ms);
+      if (metricName) {
+        timings[metricName] = Math.round(data.duration_ms);
       }
     }
   } catch (_e) {

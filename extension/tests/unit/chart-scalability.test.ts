@@ -24,6 +24,12 @@ import { DatasetLoader } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
 import type { ManifestSchema } from "../../ui/types";
 import { pathExists, readJsonFile } from "../helpers/fs-test-utils";
+import {
+  checkRegression,
+  getMetricBaseline,
+  loadPerfBaselines,
+  measureWithWarmup,
+} from "../helpers/perf-measure";
 
 type RealDataManifest = ManifestSchema & {
   coverage: { total_prs: number; date_range: { min: string; max: string } };
@@ -65,14 +71,36 @@ describe("Throughput Chart Scalability", () => {
     document.body.removeChild(container);
   });
 
+  // The previous single-shot `performance.now()` check tripped on rare
+  // CI cold-render outliers (issue #348 — the same job rendered 156
+  // weeks in 56-77 ms in T028/T029/T031 but spiked to 1087 ms once on
+  // the first throughput render). Warmup + median absorbs that single-
+  // shot outlier without loosening the literal 1000 ms ceiling required
+  // by FR-010 / QG-28; the regression check additionally captures any
+  // sustained slowdown against the committed baseline.
   it("T027: renders 156 weeks in < 1000ms", () => {
     const rollups = createRollups(156);
-    const start = performance.now();
-    renderThroughputChart(container, rollups);
-    const elapsed = performance.now() - start;
+    const median = measureWithWarmup(
+      () => renderThroughputChart(container, rollups),
+      { beforeEach: () => (container.innerHTML = "") },
+    );
 
-    expect(elapsed).toBeLessThan(1000);
+    expect(median).toBeLessThan(1000);
     expect(container.innerHTML).not.toBe("");
+
+    const baseline = getMetricBaseline(
+      loadPerfBaselines(),
+      "156wk_throughput_render_ms",
+    );
+    checkRegression("156wk-throughput-render", median, baseline);
+    console.log(
+      JSON.stringify({
+        test: "156wk_throughput_render",
+        duration_ms: median,
+        budget_ms: 1000,
+        baseline_ms: baseline ?? "N/A",
+      }),
+    );
   });
 
   it("T029: caps DOM bar elements at MAX_THROUGHPUT_POINTS (104)", () => {
@@ -130,14 +158,30 @@ describe("Cycle Time Chart Scalability", () => {
     document.body.removeChild(container);
   });
 
+  // Warmup + median for the same reason as T027 — see the comment there.
   it("T028: renders 156 weeks in < 1000ms", () => {
     const rollups = createRollups(156);
-    const start = performance.now();
-    renderCycleTimeTrend(container, rollups);
-    const elapsed = performance.now() - start;
+    const median = measureWithWarmup(
+      () => renderCycleTimeTrend(container, rollups),
+      { beforeEach: () => (container.innerHTML = "") },
+    );
 
-    expect(elapsed).toBeLessThan(1000);
+    expect(median).toBeLessThan(1000);
     expect(container.innerHTML).not.toBe("");
+
+    const baseline = getMetricBaseline(
+      loadPerfBaselines(),
+      "156wk_cycle_time_render_ms",
+    );
+    checkRegression("156wk-cycle-time-render", median, baseline);
+    console.log(
+      JSON.stringify({
+        test: "156wk_cycle_time_render",
+        duration_ms: median,
+        budget_ms: 1000,
+        baseline_ms: baseline ?? "N/A",
+      }),
+    );
   });
 
   it("T030: caps DOM dot elements at MAX_CYCLE_TIME_POINTS per metric", () => {
