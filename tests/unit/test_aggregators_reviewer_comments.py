@@ -45,15 +45,23 @@ Covers the invariants asserted by the producer contract
                absent (NOT ``{}``-valued, NOT ``null``-valued, NOT
                partial-fielded).
 - FR-1-12      FAIL-LOUD per CL-15: ``RuntimeError`` raised when the
-               aggregator encounters a non-UUID ``pr_comments.author_id``
-               value during iteration.  NOTE: the FR-1-12 NULL clause is
-               structurally unreachable in the production SQL path (the
-               CASE expression maps absent-from-users rows to the
-               sentinel literal, and ``pr_comments.author_id NOT NULL``
-               at ``models.py:160`` prevents NULL at INSERT) — the
-               defensive NULL check in the helper is retained for
-               forward-compat but no test exercises it (mock-based
-               testing would couple to internal SQL invocations).
+               aggregator encounters an empty-string ``commenter_or_sentinel``
+               during iteration (extractor or writer corruption — empty
+               author_id is structurally meaningless, neither a valid
+               user identity nor the sentinel literal).  PR review
+               retargeted this contract from a UUID-shape gate to an
+               empty-string gate: the persisted schema does not constrain
+               identifier format, so non-UUID stable IDs are accepted.
+               UUID-shape enforcement now lives only in the demo
+               synthesizer (deterministic demo generation).
+               NOTE: the FR-1-12 NULL clause is structurally unreachable
+               in the production SQL path (the CASE expression maps
+               absent-from-users rows to the sentinel literal, and
+               ``pr_comments.author_id NOT NULL`` at ``models.py:160``
+               prevents NULL at INSERT) — the defensive NULL check in
+               the helper is retained for forward-compat but no test
+               exercises it (mock-based testing would couple to internal
+               SQL invocations).
 - Determinism  Outer dict key order is ascending by commenter key (the
                stable identity string, including the sentinel which
                sorts deterministically among UUID-shaped real keys at
@@ -92,16 +100,20 @@ PROJECT_NAME: Final[str] = "proj1"
 REPOSITORY_ID: Final[str] = "repo-001"
 REPOSITORY_NAME: Final[str] = "Repository 1"
 
-# UUID-shaped user identifiers for the fixture (32 hex + 4 hyphens per the
-# existing extractor's convention).  All fixture users + the ghost-user
-# UUID are valid UUID-shape strings; the FAIL-LOUD test deliberately
-# inserts a non-UUID-shaped author_id to exercise CL-15 / FR-1-12.
+# UUID-shaped user identifiers for the fixture (32 hex + 4 hyphens) match
+# the demo synthesizer's deterministic generation pattern.  Production
+# datasets are NOT required to use UUID-shape — the persisted schema's
+# ``users.user_id`` is TEXT NOT NULL with no format constraint — but
+# UUID-shape works equally for tests and is convenient.  The FAIL-LOUD
+# test (post PR review) exercises empty-string corruption rather than
+# non-UUID format, since the persisted contract does not constrain
+# identifier shape.
 USER_ALICE: Final[str] = "00000000-0000-0000-0000-00000000000a"
 USER_BOB: Final[str] = "00000000-0000-0000-0000-00000000000b"
 USER_CHARLIE: Final[str] = "00000000-0000-0000-0000-00000000000c"
 USER_DAVE: Final[str] = "00000000-0000-0000-0000-00000000000d"
 GHOST_USER: Final[str] = "00000000-0000-0000-0000-00000000000f"  # absent from users
-NON_UUID_USER: Final[str] = "not-a-uuid-shaped-string"
+EMPTY_AUTHOR_ID: Final[str] = ""  # extractor-corruption marker for the FAIL-LOUD test
 
 
 def _week_monday(year: int, iso_week: int) -> date:
@@ -214,8 +226,10 @@ def reviewer_comments_db(
     - PRs whose author commented on themselves (self-comment exclusion).
     - ``pr_comments`` rows whose ``author_id`` is the GHOST_USER UUID
       (absent from ``users``) — exercises the CL-03 sentinel branch.
-    - ``pr_comments`` rows whose ``author_id`` is a non-UUID-shaped
-      string — exercises the CL-15 / FR-1-12 FAIL-LOUD branch.
+    - ``pr_comments`` rows whose ``author_id`` is the empty string —
+      exercises the CL-15 / FR-1-12 FAIL-LOUD branch (post PR review;
+      the prior UUID-shape gate was removed because the persisted
+      schema does not constrain identifier format).
 
     Mirrors the FK-off pattern from
     ``tests/unit/test_aggregators_author_comments.py`` (Feature 334).
@@ -784,32 +798,47 @@ def test_sentinel_bucketing_for_unknown_to_users_commenter(
     assert buckets[USER_BOB]["comment_count"] == 1
 
 
-def test_fail_loud_on_non_uuid_author_id(
+def test_fail_loud_on_empty_string_author_id(
     reviewer_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
-    """FR-1-12 / CL-15 (case xii): RuntimeError on non-UUID pr_comments.author_id.
+    """FR-1-12 / CL-15 (case xii): RuntimeError on empty-string commenter_or_sentinel.
 
-    The non-UUID-shaped author_id ``not-a-uuid-shaped-string`` is
-    inserted into both ``users`` (so the LEFT JOIN matches) and
-    ``pr_comments`` (so the SELECT row carries the non-UUID value
-    through the CASE expression as ``commenter_or_sentinel``).  The
-    aggregator's defensive shape-corruption check raises ``RuntimeError``
-    per CL-15 because the value violates the production extractor's
-    UUID convention (32 hex + 4 hyphens).
+    PR review retargeted this contract from a UUID-shape gate to an
+    empty-string gate.  The persisted schema's
+    ``pr_comments.author_id`` and ``users.user_id`` are TEXT NOT NULL
+    with no format constraint — non-UUID stable identifiers are valid
+    in pre-UUID datasets.  The aggregator therefore validates only
+    structural invariants the schema actually guarantees: non-NULL
+    (defensive; structurally unreachable) and non-empty.  An
+    empty-string ``commenter_or_sentinel`` is structurally meaningless
+    (it can be neither a valid user identity nor the sentinel literal,
+    which is non-empty by construction) and indicates extractor or
+    writer corruption.
 
-    NOTE: the FR-1-12 NULL clause (RuntimeError on NULL author_id) is
-    NOT exercised by this suite — the SQL CASE expression maps absent-
-    from-users rows to the sentinel literal, and ``pr_comments.author_id
-    NOT NULL`` at ``models.py:160`` prevents NULL at INSERT, making the
-    NULL path structurally unreachable.  Tasks.md T008 records this
-    explicitly.
+    Fixture: insert a user with empty-string ``user_id`` (FK off + the
+    schema's TEXT NOT NULL allows the empty string at the column
+    level), then a comment whose ``author_id`` is the empty string.
+    The LEFT JOIN matches (empty-string ``user_id`` → empty-string row),
+    so the CASE expression returns the empty string as
+    ``commenter_or_sentinel`` and the aggregator's empty-string guard
+    fires.
+
+    NOTE: the FR-1-12 NULL clause is structurally unreachable — the SQL
+    CASE expression maps absent-from-users rows to the sentinel literal,
+    and ``pr_comments.author_id NOT NULL`` at ``models.py:160`` prevents
+    NULL at INSERT.  The defensive NULL guard in the helper is retained
+    for forward-compat but no test exercises it (mock-based testing
+    would couple to internal SQL invocations).  Tasks.md T008 records
+    this explicitly.
     """
     db, tmp_path = reviewer_comments_db
     monday = _week_monday(2026, 2)
-    # Insert a user with a non-UUID-shaped user_id (FK off allows this).
+    # Insert a user with an empty-string user_id (FK off + TEXT NOT
+    # NULL allows the empty string at the column level — only the FK
+    # would normally prevent the comment from referencing this row).
     db.execute(
         "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
-        (NON_UUID_USER, "Non-UUID User", "non-uuid@example.com"),
+        (EMPTY_AUTHOR_ID, "Empty User", "empty@example.com"),
     )
     _insert_pr(
         db,
@@ -825,7 +854,7 @@ def test_fail_loud_on_non_uuid_author_id(
         uid="pr-1",
         thread_id="t1",
         comment_id="c-bad",
-        author_id=NON_UUID_USER,
+        author_id=EMPTY_AUTHOR_ID,
     )
 
     # The helper raises RuntimeError per FR-1-12 / CL-15.  The
@@ -846,12 +875,134 @@ def test_fail_loud_on_non_uuid_author_id(
         f"original exception via ``raise ... from e``; the helper's "
         f"contract is RuntimeError, not AggregationError."
     )
-    # Helpful diagnostic — the error message should mention the offending
-    # value or shape constraint so debugging is straightforward.
+    # Helpful diagnostic — the error message should mention the
+    # empty-string corruption so debugging is straightforward.
     error_msg = str(root_cause)
-    assert NON_UUID_USER in error_msg or "UUID" in error_msg or "shape" in error_msg, (
-        f"RuntimeError raised but message lacks a clue about the offending "
-        f"non-UUID value or shape contract: {error_msg!r}"
+    assert "empty" in error_msg.lower() or "empty-string" in error_msg.lower(), (
+        f"RuntimeError raised but message lacks a clue about the "
+        f"empty-string corruption: {error_msg!r}"
+    )
+
+
+def test_fail_loud_on_empty_author_id_with_no_matching_user(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """FR-1-12 / CL-15: empty-string ``pr_comments.author_id`` with NO
+    matching empty-string ``users.user_id`` must fail loud, not silently
+    route through the sentinel branch.
+
+    Without the SQL CASE empty-detection branch, an empty pc.author_id
+    with no matching empty-string users row would have ``u.user_id IS
+    NULL`` after the LEFT JOIN, the CASE would return the sentinel
+    literal, and the iteration guard (which inspects the post-CASE
+    bucket key) would never see the empty raw value — the corruption
+    would silently bucket as the sentinel.  The CASE is structured
+    to detect raw NULL / empty pc.author_id BEFORE the LEFT JOIN
+    branch so the iteration guard fires on the empty string.
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 2)
+    # NOT inserting an empty-string user — the bypass scenario depends
+    # on the LEFT JOIN finding no match for the empty author_id.
+    _insert_pr(
+        db,
+        uid="pr-1",
+        pr_id=1,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-1", thread_id="t1", status="active")
+    _insert_comment(
+        db,
+        uid="pr-1",
+        thread_id="t1",
+        comment_id="c-bypass",
+        author_id=EMPTY_AUTHOR_ID,
+    )
+
+    with pytest.raises(AggregationError) as exc_info:
+        _generate_rollup(tmp_path, db)
+    root_cause = exc_info.value.__cause__
+    assert isinstance(root_cause, RuntimeError), (
+        f"FR-1-12 / CL-15: empty-author_id bypass must raise RuntimeError "
+        f"(got {type(root_cause).__name__ if root_cause else 'None'} via "
+        f"the AggregationError wrapper)."
+    )
+    error_msg = str(root_cause)
+    assert "empty" in error_msg.lower(), (
+        f"RuntimeError raised but message lacks a clue about the "
+        f"empty-string corruption: {error_msg!r}"
+    )
+
+
+def test_fail_loud_on_sentinel_collision_in_users_table(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """CL-03 / FR-1-03 / INV-4-12: RuntimeError when users.user_id collides
+    with the reserved sentinel literal.
+
+    PR review introduced this guard after the UUID-shape gate was removed:
+    the persisted schema's TEXT identifier column does not constrain
+    format, so without the pre-flight check nothing would prevent a real
+    user from having ``user_id = "__former_or_unavailable_author__"``.
+    The LEFT JOIN would match such a user, the CASE expression would
+    return ``pc.author_id`` (= sentinel literal), and the renderer would
+    erroneously label that real user's comments as "Former / unavailable
+    author".  The aggregator therefore pre-flights the users table and
+    fails loud before the main aggregation if any row collides with the
+    reserved literal.
+
+    Fixture: insert a user whose user_id equals the sentinel literal +
+    a single PR + thread + comment authored by that user.  The
+    aggregator's pre-flight check fires; the helper's RuntimeError
+    surfaces through the AggregateGenerator wrapper as
+    AggregationError with __cause__ pointing to RuntimeError.
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 2)
+    db.execute(
+        "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+        (
+            FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
+            "Sentinel Collider",
+            "collider@example.com",
+        ),
+    )
+    _insert_pr(
+        db,
+        uid="pr-1",
+        pr_id=1,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-1", thread_id="t1", status="active")
+    _insert_comment(
+        db,
+        uid="pr-1",
+        thread_id="t1",
+        comment_id="c-collide",
+        author_id=FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
+    )
+
+    with pytest.raises(AggregationError) as exc_info:
+        _generate_rollup(tmp_path, db)
+    root_cause = exc_info.value.__cause__
+    assert isinstance(root_cause, RuntimeError), (
+        f"CL-03 / FR-1-03 / INV-4-12: per-reviewer helper must raise "
+        f"RuntimeError on sentinel-literal collision in users (got "
+        f"{type(root_cause).__name__ if root_cause else 'None'} via "
+        f"the AggregationError wrapper)."
+    )
+    error_msg = str(root_cause)
+    assert (
+        "sentinel" in error_msg.lower()
+        or "collide" in error_msg.lower()
+        or "reserved" in error_msg.lower()
+    ), (
+        f"RuntimeError raised but message lacks a clue about the "
+        f"sentinel collision: {error_msg!r}"
     )
 
 

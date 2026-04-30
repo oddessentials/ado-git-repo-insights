@@ -16,7 +16,6 @@ import json
 import logging
 import os
 import random
-import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -83,23 +82,22 @@ STUB_GENERATOR_ID = "phase3.5-stub-v1"
 # by the spec; expanding requires a fresh scoping round.
 _PR_DETAIL_CAP = 500
 
-# Feature 336 (T016 / FR-1-12 / CL-15): pr_comments.author_id shape contract.
-# The production extractor emits user_ids as canonical UUID v4 strings (32
-# lower/upper-case hex digits + 4 hyphens; the FK constraint at
-# ``models.py:172`` references ``users.user_id`` which carries the same
-# shape).  ``_compute_weekly_by_reviewer_comments`` raises ``RuntimeError``
-# if it encounters a non-UUID-format ``commenter_or_sentinel`` row value
-# during iteration (the sentinel literal is the by-design exception per
-# CL-03 / INV-4-12).  The NULL clause from FR-1-12 is structurally
-# unreachable through the SQL CASE expression (LEFT JOIN to users on
-# ``pc.author_id`` returns NULL ONLY when no user matches, and the CASE
-# branch maps that to the sentinel literal — so ``commenter_or_sentinel``
-# is never NULL); the defensive NULL check below is retained for
-# forward-compat.
-_PR_COMMENTS_AUTHOR_ID_UUID_REGEX = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    re.IGNORECASE,
-)
+# Feature 336 (T016 / FR-1-12 / CL-15): pr_comments.author_id structural
+# invariants enforced by ``_compute_weekly_by_reviewer_comments``.  The
+# persisted schema's ``users.user_id`` / ``pr_comments.author_id`` columns
+# are TEXT NOT NULL with a FK relationship — the aggregator validates
+# only what the schema actually guarantees:
+#   * ``commenter_or_sentinel`` is non-NULL.
+#   * ``commenter_or_sentinel`` is non-empty (an empty string would imply
+#     extractor corruption AND a matching empty-string ``users.user_id``;
+#     it is never a valid commenter identity).
+# An earlier draft of the aggregator additionally enforced UUID-shape on
+# the value, but that gate was stricter than the persisted contract and
+# rejected legitimate non-UUID stable IDs in datasets that pre-dated the
+# UUID convention.  PR review removed the UUID gate; UUID-shape lives
+# on in the demo synthesizer (deterministic demo generation only) but is
+# NOT a production aggregation invariant.  The sentinel literal is the
+# by-design exception per CL-03 / INV-4-12 and passes through unchanged.
 
 
 class AggregationError(Exception):
@@ -1509,12 +1507,19 @@ class AggregateGenerator:
         'active'``.  Sentinel literal bound via parameter (NOT f-string
         interpolation) per S608 compliance / ``reference_s608_refactor_pattern.md``.
 
-        FAIL-LOUD per FR-1-12 / CL-15: raise ``RuntimeError`` if the
-        cursor returns a row whose ``commenter_or_sentinel`` value is
-        NULL OR is non-UUID-format (and not the sentinel literal).
-        Database integrity violation that should be impossible under
-        the FK constraint at ``models.py:172`` + the ``pr_comments.author_id
-        NOT NULL`` constraint at ``models.py:160``.
+        FAIL-LOUD per FR-1-12 / CL-15 (post PR review):
+          * Pre-flight: raise ``RuntimeError`` if any ``users.user_id``
+            collides with the reserved sentinel literal — without the
+            collision check, a real user with that exact id would be
+            routed through the LEFT JOIN's matched branch (the CASE
+            returns ``pc.author_id`` = sentinel literal) and the
+            renderer would mislabel real comments as the sentinel.
+            Per CL-03 / FR-1-03 / INV-4-12: the literal is reserved.
+          * Iteration guard: raise ``RuntimeError`` if the cursor
+            returns a row with NULL or empty-string
+            ``commenter_or_sentinel`` — extractor or writer corruption.
+        UUID-shape is NOT enforced; the persisted schema's TEXT
+        identifier columns accept stable non-UUID IDs.
 
         Spec anchors: FR-1-01..FR-1-12, FR-3-03, INV-4-07, INV-4-08,
         INV-4-09, INV-4-10, INV-4-12, INV-4-13, CL-03, CL-04, CL-10,
@@ -1530,6 +1535,33 @@ class AggregateGenerator:
             # FR-1-11 + FR-3-03 omission contract: empty canonical set
             # → no buckets; caller omits the key entirely.
             return None
+
+        # Sentinel-collision pre-flight (CL-03 / FR-1-03 / INV-4-12):
+        # ensure no ``users.user_id`` row collides with the reserved
+        # sentinel literal.  The persisted schema's TEXT identifier
+        # column does not constrain format, so without this check
+        # nothing would prevent a literal collision; if such a row
+        # existed, the LEFT JOIN below would route real comments
+        # through the matched branch (CASE returns pc.author_id =
+        # sentinel literal) and the renderer would mislabel real-user
+        # comments as "Former / unavailable author".  PR review
+        # introduced this guard after removing the prior UUID-shape
+        # gate that incidentally prevented the collision.
+        collision_row = self.db.execute(
+            "SELECT 1 FROM users WHERE user_id = ? LIMIT 1",
+            (FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,),
+        ).fetchone()
+        if collision_row is not None:
+            raise RuntimeError(
+                "_compute_weekly_by_reviewer_comments: users table "
+                "contains a row whose user_id collides with the "
+                "reserved sentinel literal "
+                f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  This "
+                "would corrupt the per-reviewer breakdown's display "
+                "labels (real-user comments would render as 'Former / "
+                "unavailable author').  See spec CL-03 / FR-1-03 / "
+                "INV-4-12."
+            )
 
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
@@ -1599,7 +1631,19 @@ class AggregateGenerator:
         #     thread state — sum-coherence preserved).
         cursor = self.db.execute(
             "SELECT "
-            "  CASE WHEN u.user_id IS NULL THEN ? ELSE pc.author_id END "
+            # Raw commenter-ID corruption (NULL or empty pc.author_id)
+            # MUST be detected BEFORE the LEFT JOIN sentinel branch.
+            # A row with pc.author_id = '' (or NULL) and no matching
+            # users.user_id = '' would otherwise route through
+            # u.user_id IS NULL → sentinel literal, silently bucketing
+            # extractor corruption as the sentinel.  The outer CASE
+            # returns '' for both NULL and empty raw values so the
+            # iteration guard fires (FR-1-12 / CL-15).
+            "  CASE "
+            "    WHEN pc.author_id IS NULL OR pc.author_id = '' THEN '' "
+            "    WHEN u.user_id IS NULL THEN ? "
+            "    ELSE pc.author_id "
+            "  END "
             "    AS commenter_or_sentinel, "
             "  COUNT(*) AS comment_count, "
             "  COUNT(DISTINCT CASE WHEN t.is_deleted = 0 "
@@ -1651,30 +1695,30 @@ class AggregateGenerator:
                     "CASE expression.  See spec FR-1-12 + CL-15."
                 )
             key = str(key_raw)
-            # Non-UUID-format check fires when the value is not the
-            # by-design sentinel literal AND not UUID-shaped (the
-            # production extractor's UUID convention per
-            # ``users.user_id`` references at models.py:172).  Reaches
-            # this branch when FK enforcement is OFF AND someone
-            # inserted a non-UUID author_id into pr_comments — a
-            # database integrity violation worth surfacing loudly per
-            # CL-15 rather than silently coercing into the emission.
-            if (
-                key != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL
-                and not _PR_COMMENTS_AUTHOR_ID_UUID_REGEX.match(key)
-            ):
+            # Empty-string check fires when the value is not the
+            # by-design sentinel literal AND has zero length.  The
+            # schema's TEXT NOT NULL constraint allows the empty
+            # string, but an empty author_id is structurally
+            # meaningless — it can never be a valid user identity nor
+            # the sentinel literal (which is non-empty by
+            # construction).  Reaching this branch implies extractor
+            # corruption (or a non-extractor writer bypassing data
+            # validation); fail loud rather than emit a bucket keyed
+            # on the empty string.  Per CL-15 / FR-1-12 (revised by PR
+            # review): UUID-shape is NOT enforced — non-UUID stable
+            # IDs are accepted because the persisted schema does not
+            # constrain identifier format.
+            if key != FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL and key == "":
                 raise RuntimeError(
                     "_compute_weekly_by_reviewer_comments: cursor "
-                    f"returned a row with commenter_or_sentinel={key!r} "
-                    "— not the sentinel literal "
-                    f"({FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}) AND "
-                    "not UUID-format (32 hex + 4 hyphens per the "
-                    "extractor convention).  This violates the "
-                    "pr_comments.author_id shape contract (FR-1-12 / "
-                    "CL-15) and indicates database integrity has "
-                    "regressed (FK at models.py:172 disabled OR a "
-                    "non-extractor writer bypassed the shape rule) — "
-                    "investigate before re-running the aggregator."
+                    "returned a row with empty-string "
+                    "commenter_or_sentinel.  An empty author_id is "
+                    "structurally meaningless (it can never be a valid "
+                    "user identity nor the sentinel literal "
+                    f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}) and "
+                    "indicates extractor or writer corruption — "
+                    "investigate before re-running the aggregator.  "
+                    "See spec FR-1-12 + CL-15."
                 )
             buckets[key] = {
                 "thread_count": int(row["thread_count"]),
