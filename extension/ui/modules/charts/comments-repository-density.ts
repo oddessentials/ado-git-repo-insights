@@ -314,7 +314,7 @@ export function renderCommentsRepositoryDensityChart(
     renderNoData(
       container,
       "Comments density is not yet filterable",
-      "Clear repo / team / author / reviewer filters to view per-repo review-conversation totals. Per-dimension comments breakdowns are tracked under follow-up issue #322.",
+      "Clear repo / team / author / reviewer filters to view per-repo review-conversation totals. Per-dimension comment breakdowns are coming soon.",
     );
     return;
   }
@@ -409,7 +409,7 @@ function metricLabel(metric: CommentsRepoDensitySortMetric): string {
     case "thread_count":
       return "Threads";
     case "active_thread_count":
-      return "Active threads";
+      return "Unresolved threads";
   }
 }
 
@@ -435,7 +435,7 @@ function renderSortControls(
 
 function renderTable(rows: readonly RepoDensityRow[]): string {
   const rowsHtml = rows.map((row) => renderRow(row)).join("");
-  return `<div class="comments-repository-density-table" role="table" aria-label="Per-repository comment density"><div class="comments-repository-density-thead" role="row"><div role="columnheader">Repository</div><div role="columnheader" class="comments-repository-density-numeric">Threads</div><div role="columnheader" class="comments-repository-density-numeric">Active threads</div><div role="columnheader" class="comments-repository-density-numeric">Comments</div></div>${rowsHtml}</div>`;
+  return `<div class="comments-repository-density-table" role="table" aria-label="Per-repository comments"><div class="comments-repository-density-thead" role="row"><div role="columnheader">Repository</div><div role="columnheader" class="comments-repository-density-numeric">Threads</div><div role="columnheader" class="comments-repository-density-numeric">Comments</div><div role="columnheader" class="comments-repository-density-numeric">Unresolved</div></div>${rowsHtml}</div>`;
 }
 
 function renderRow(row: RepoDensityRow): string {
@@ -444,6 +444,6 @@ function renderRow(row: RepoDensityRow): string {
     ? ' data-coverage-partial="true"'
     : "";
   const partialNote = row.coverage_partial ? " (partial coverage)" : "";
-  const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.active_thread_count.toLocaleString()} active threads, ${row.comment_count.toLocaleString()} comments${partialNote}`;
-  return `<div class="comments-repository-density-row${partialClass}" role="row" data-repository-id="${escapeHtml(row.repositoryId)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-repository-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div></div>`;
+  const ariaLabel = `${row.displayName}: ${row.thread_count.toLocaleString()} threads, ${row.comment_count.toLocaleString()} comments, ${row.active_thread_count.toLocaleString()} unresolved threads${partialNote}`;
+  return `<div class="comments-repository-density-row${partialClass}" role="row" data-repository-id="${escapeHtml(row.repositoryId)}"${partialAttr} aria-label="${escapeHtml(ariaLabel)}"><div class="comments-repository-density-name" role="cell">${escapeHtml(row.displayName)}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.thread_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.comment_count.toLocaleString())}</div><div class="comments-repository-density-numeric" role="cell">${escapeHtml(row.active_thread_count.toLocaleString())}</div></div>`;
 }

@@ -54,25 +54,27 @@ export const COMMENTS_TREND_TOOLTIP =
   "some PRs in the week aren't yet extracted, so totals are partial.";
 
 /** Per-button AbortControllers to prevent listener accumulation on re-attach. */
-const commentsTrendInfoIconControllers = new WeakMap<
-  HTMLElement,
-  AbortController
->();
+const chartInfoIconControllers = new WeakMap<HTMLElement, AbortController>();
 
 /**
- * Mount the chart-level info-icon button as a child of `heading`.
+ * Mount a chart-level info-icon button as a child of `heading`, with the
+ * supplied `tooltipText` shown on hover/click. Generic version used by all
+ * comments panels (trend + 3 density). Idempotent: re-attach replaces.
  *
- * Idempotent: if the heading already carries an `.info-icon-btn`, the previous
- * controller is aborted and the button is replaced. This keeps re-mounts safe
- * across capability flips and dashboard re-renders.
+ * `instanceId` is written to `data-info-tooltip` so per-chart tests can
+ * disambiguate when multiple icons mount in the same DOM tree.
  */
-export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
+export function attachChartInfoIcon(
+  heading: HTMLElement,
+  tooltipText: string,
+  instanceId: string,
+): void {
   const existing = heading.querySelector(
     ".info-icon-btn",
   ) as HTMLElement | null;
   if (existing) {
-    commentsTrendInfoIconControllers.get(existing)?.abort();
-    commentsTrendInfoIconControllers.delete(existing);
+    chartInfoIconControllers.get(existing)?.abort();
+    chartInfoIconControllers.delete(existing);
     existing.remove();
   }
 
@@ -83,13 +85,13 @@ export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
   btn.className = "info-icon-btn";
   btn.setAttribute("type", "button");
   btn.setAttribute("aria-label", "About this chart");
-  btn.setAttribute("data-info-tooltip", "comments-trend");
+  btn.setAttribute("data-info-tooltip", instanceId);
   btn.textContent = "ℹ"; // Unicode info symbol ⓘ
 
   btn.addEventListener(
     "pointerenter",
     () => {
-      showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+      showInfoTooltip(btn, tooltipText);
     },
     { signal },
   );
@@ -109,7 +111,7 @@ export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
         dismissAllTooltips();
         return;
       }
-      showInfoTooltip(btn, COMMENTS_TREND_TOOLTIP);
+      showInfoTooltip(btn, tooltipText);
       requestAnimationFrame(() => {
         const dismissOnce = (): void => {
           dismissAllTooltips();
@@ -121,29 +123,40 @@ export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
     { signal },
   );
 
-  commentsTrendInfoIconControllers.set(btn, controller);
+  chartInfoIconControllers.set(btn, controller);
   heading.appendChild(btn);
 }
 
 /**
- * Remove the chart-level info-icon button from `heading` and abort its
- * listeners. Also dismisses any open info-tooltip — the tooltip is
- * document-rooted (positioned via `position: fixed` on document.body by
- * `tooltip-manager.ts::showInfoTooltip`), so removing the button alone
- * leaves the tooltip stranded with no anchoring element. No-op when the
- * heading carries no button AND no tooltip is open.
+ * Remove a chart-level info-icon button from `heading` and abort its
+ * listeners. Also dismisses any open info-tooltip — document-rooted
+ * tooltips would otherwise outlive the anchor button on capability flips.
+ * No-op when the heading carries no button AND no tooltip is open.
  */
-export function detachCommentsTrendInfoIcon(heading: HTMLElement): void {
+export function detachChartInfoIcon(heading: HTMLElement): void {
   const btn = heading.querySelector(".info-icon-btn") as HTMLElement | null;
   if (!btn) return;
-  commentsTrendInfoIconControllers.get(btn)?.abort();
-  commentsTrendInfoIconControllers.delete(btn);
+  chartInfoIconControllers.get(btn)?.abort();
+  chartInfoIconControllers.delete(btn);
   btn.remove();
-  // The button is gone — drop any open tooltip so it cannot survive the
-  // heading's teardown and render against an orphaned position. Uses the
-  // canonical tooltip-manager helper so the scroll/resize dismiss listener
-  // is also released.
   dismissAllTooltips();
+}
+
+/**
+ * Mount the comments-trend chart-level info-icon. Thin wrapper around
+ * `attachChartInfoIcon` preserving the original (heading)-only signature
+ * for the dashboard's trend ensure helper and existing tests.
+ */
+export function attachCommentsTrendInfoIcon(heading: HTMLElement): void {
+  attachChartInfoIcon(heading, COMMENTS_TREND_TOOLTIP, "comments-trend");
+}
+
+/**
+ * Remove the comments-trend chart-level info-icon. Thin wrapper around
+ * `detachChartInfoIcon` preserving the original (heading)-only signature.
+ */
+export function detachCommentsTrendInfoIcon(heading: HTMLElement): void {
+  detachChartInfoIcon(heading);
 }
 
 /** Maximum visible week labels before thinning kicks in. */
@@ -207,7 +220,7 @@ export function renderCommentsTrendChart(
     renderNoData(
       container,
       "Comments trend is not yet filterable",
-      "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comments breakdowns are tracked under follow-up issue #322.",
+      "Clear repo / team / author / reviewer filters to view weekly comment activity. Per-dimension comment breakdowns are coming soon.",
     );
     return;
   }

@@ -53,6 +53,8 @@ import {
   renderCommentsTrendChart as renderCommentsTrendChartModule,
   attachCommentsTrendInfoIcon,
   detachCommentsTrendInfoIcon,
+  attachChartInfoIcon,
+  detachChartInfoIcon,
   renderCommentsAuthorDensityChart as renderCommentsAuthorDensityChartModule,
   renderCommentsRepositoryDensityChart as renderCommentsRepositoryDensityChartModule,
   renderCommentsReviewerDensityChart as renderCommentsReviewerDensityChartModule,
@@ -165,6 +167,30 @@ let lastEffectiveState: EffectiveState | null = null;
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+
+// Plain-language explanatory copy surfaced by the chart-level info-icon on
+// the three comments-density panels. Defines Threads / Comments / Unresolved
+// in user-facing terms; the per-reviewer copy additionally clarifies that
+// reviewer thread counts can sum higher than the trend chart's thread total
+// because a thread with multiple commenters contributes one to each reviewer.
+const COMMENTS_AUTHOR_DENSITY_TOOLTIP =
+  "Each row shows one author's review-conversation totals across the selected range. " +
+  "Threads = review threads on PRs the author opened; Unresolved threads = the subset still in the Active state. " +
+  "Comments = every comment posted on those threads. " +
+  "Hatched rows mean some weeks in this author's range are partially extracted.";
+
+const COMMENTS_REPOSITORY_DENSITY_TOOLTIP =
+  "Each row shows one repository's review-conversation totals across the selected range. " +
+  "Threads = review threads on PRs in this repository; Unresolved threads = the subset still in the Active state. " +
+  "Comments = every comment posted on those threads. " +
+  "Hatched rows mean some weeks in this repository's range are partially extracted.";
+
+const COMMENTS_REVIEWER_DENSITY_TOOLTIP =
+  "Each row shows one reviewer's commenting activity across the selected range. " +
+  "Threads = review threads this reviewer commented in. " +
+  "A thread with multiple commenters contributes one to each, so the total of this column may exceed total threads on the trend chart above. " +
+  "Unresolved threads = the subset still in the Active state. " +
+  "Comments = every comment posted by this reviewer on those threads.";
 
 // Cached data service — resolved once per session (matches settings.ts pattern)
 let cachedDataService: Awaited<
@@ -1745,7 +1771,12 @@ function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Author";
+  heading.textContent = "Comments by Author";
+  attachChartInfoIcon(
+    heading,
+    COMMENTS_AUTHOR_DENSITY_TOOLTIP,
+    "comments-author-density",
+  );
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -1771,6 +1802,10 @@ function removeCommentsAuthorDensityContainer(): void {
     '[data-comments-author-density-row="true"]',
   );
   if (!row) return;
+  const heading = row.querySelector("h3");
+  if (heading instanceof HTMLElement) {
+    detachChartInfoIcon(heading);
+  }
   row.parentElement?.removeChild(row);
 }
 
@@ -1817,7 +1852,12 @@ function ensureCommentsRepositoryDensityContainer(): HTMLElement | null {
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Repository";
+  heading.textContent = "Comments by Repository";
+  attachChartInfoIcon(
+    heading,
+    COMMENTS_REPOSITORY_DENSITY_TOOLTIP,
+    "comments-repository-density",
+  );
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -1843,6 +1883,10 @@ function removeCommentsRepositoryDensityContainer(): void {
     '[data-comments-repository-density-row="true"]',
   );
   if (!row) return;
+  const heading = row.querySelector("h3");
+  if (heading instanceof HTMLElement) {
+    detachChartInfoIcon(heading);
+  }
   row.parentElement?.removeChild(row);
 }
 
@@ -1895,7 +1939,12 @@ function ensureCommentsReviewerDensityContainer(): HTMLElement | null {
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Reviewer";
+  heading.textContent = "Comments by Reviewer";
+  attachChartInfoIcon(
+    heading,
+    COMMENTS_REVIEWER_DENSITY_TOOLTIP,
+    "comments-reviewer-density",
+  );
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -1921,6 +1970,10 @@ function removeCommentsReviewerDensityContainer(): void {
     '[data-comments-reviewer-density-row="true"]',
   );
   if (!row) return;
+  const heading = row.querySelector("h3");
+  if (heading instanceof HTMLElement) {
+    detachChartInfoIcon(heading);
+  }
   row.parentElement?.removeChild(row);
 }
 

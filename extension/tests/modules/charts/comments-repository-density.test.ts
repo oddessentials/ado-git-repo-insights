@@ -169,9 +169,10 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     );
     expect(wideRows).toHaveLength(3);
     // 4 weeks × 5 comments = 20 per repo on the wide range.
+    // Comments cell is index [1] (column order: Threads / Comments / Unresolved).
     const wideFirstCommentCell = wideRows[0]?.querySelectorAll(
       ".comments-repository-density-numeric",
-    )[2];
+    )[1];
     expect(wideFirstCommentCell?.textContent).toBe("20");
 
     // Narrow to first 2 weeks → 2 × 5 = 10 per repo.
@@ -185,7 +186,7 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     expect(narrowRows).toHaveLength(3);
     const narrowFirstCommentCell = narrowRows[0]?.querySelectorAll(
       ".comments-repository-density-numeric",
-    )[2];
+    )[1];
     expect(narrowFirstCommentCell?.textContent).toBe("10");
   });
 
@@ -335,7 +336,7 @@ describe("renderCommentsRepositoryDensityChart (Feature 335 US1)", () => {
     );
     const ariaLabel = firstRow?.getAttribute("aria-label") ?? "";
     expect(ariaLabel).toContain("threads");
-    expect(ariaLabel).toContain("active threads");
+    expect(ariaLabel).toContain("unresolved threads");
     expect(ariaLabel).toContain("comments");
   });
 

@@ -197,9 +197,10 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     );
     expect(wideRows).toHaveLength(3);
     // 4 weeks × 5 comments = 20 per reviewer on the wide range.
+    // Comments cell is index [1] (column order: Threads / Comments / Unresolved).
     const wideFirstCommentCell = wideRows[0]?.querySelectorAll(
       ".comments-reviewer-density-numeric",
-    )[2];
+    )[1];
     expect(wideFirstCommentCell?.textContent).toBe("20");
 
     // Narrow to first 2 weeks → 2 × 5 = 10 per reviewer.
@@ -213,7 +214,7 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     expect(narrowRows).toHaveLength(3);
     const narrowFirstCommentCell = narrowRows[0]?.querySelectorAll(
       ".comments-reviewer-density-numeric",
-    )[2];
+    )[1];
     expect(narrowFirstCommentCell?.textContent).toBe("10");
   });
 
@@ -431,7 +432,7 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     );
     const ariaLabel = firstRow?.getAttribute("aria-label") ?? "";
     expect(ariaLabel).toContain("threads");
-    expect(ariaLabel).toContain("active threads");
+    expect(ariaLabel).toContain("unresolved threads");
     expect(ariaLabel).toContain("comments");
 
     // NOTE: this slice does NOT assert keyboard activation (Enter /
@@ -634,14 +635,14 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     ).toBe(SENTINEL_LABEL);
 
     // Numeric cells reflect the cross-week sum (column order in
-    // ``renderTable``: Threads, Active threads, Comments).
+    // ``renderTable``: Threads, Comments, Unresolved).
     const numericCells = sentinelRow.querySelectorAll<HTMLElement>(
       ".comments-reviewer-density-numeric",
     );
     expect(numericCells).toHaveLength(3);
     expect(numericCells[0]!.textContent).toBe("3"); // thread_count = 2 + 1
-    expect(numericCells[1]!.textContent).toBe("1"); // active_thread_count = 1 + 0
-    expect(numericCells[2]!.textContent).toBe("9"); // comment_count = 5 + 4
+    expect(numericCells[1]!.textContent).toBe("9"); // comment_count = 5 + 4
+    expect(numericCells[2]!.textContent).toBe("1"); // active_thread_count = 1 + 0
   });
 
   it("(T030-b) sentinel participates in sort across all 3 metrics — distinct positions per metric", () => {

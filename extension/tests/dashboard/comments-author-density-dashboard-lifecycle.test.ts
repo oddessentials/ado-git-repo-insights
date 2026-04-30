@@ -87,7 +87,7 @@ function ensureCommentsAuthorDensityContainerContract(): HTMLElement | null {
   containerCell.className = "chart-container";
 
   const heading = document.createElement("h3");
-  heading.textContent = "Comment Density by Author";
+  heading.textContent = "Comments by Author";
   containerCell.appendChild(heading);
 
   const chart = document.createElement("div");
@@ -286,9 +286,7 @@ describe("comments-author-density dashboard lifecycle — source-parse contract"
     // an <h3> title. The locked text is asserted here so a future
     // refactor that drops or renames it fails this contract.
     expect(helperBody).toContain('document.createElement("h3")');
-    expect(helperBody).toContain(
-      'heading.textContent = "Comment Density by Author"',
-    );
+    expect(helperBody).toContain('heading.textContent = "Comments by Author"');
   });
 
   it("removeCommentsAuthorDensityContainer in dashboard.ts targets the data-attribute selector", () => {
