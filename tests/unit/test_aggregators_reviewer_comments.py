@@ -855,6 +855,133 @@ def test_fail_loud_on_non_uuid_author_id(
     )
 
 
+def test_thread_count_distinct_uses_composite_uid_thread_id_tuple(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """FR-1-05 (case xiv) — Codex stop-time review regression on commit
+    182b41f1: ``pr_comments.thread_id`` is PR-scoped per ``models.py:141``,
+    so ``COUNT(DISTINCT pc.thread_id)`` collapses cross-PR collisions
+    (thread_id="t1" on PR-A and PR-B count as ONE distinct value when
+    they're TWO distinct threads).  The fix uses
+    ``pc.pull_request_uid || '|' || pc.thread_id`` as the distinct key.
+
+    Fixture: two PRs (pr-A, pr-B) authored by USER_ALICE; each has
+    thread_id="t1" (PR-scoped collision); USER_BOB comments on both
+    threads.  Pre-fix bob's thread_count=1 (incorrect); post-fix bob's
+    thread_count=2 (correct — two distinct (uid, thread_id) tuples).
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 2)
+    # PR A with thread "t1"
+    _insert_pr(
+        db,
+        uid="pr-A",
+        pr_id=1,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-A", thread_id="t1", status="active")
+    _insert_comment(
+        db, uid="pr-A", thread_id="t1", comment_id="c-A1", author_id=USER_BOB
+    )
+    # PR B with thread "t1" (PR-scoped collision)
+    _insert_pr(
+        db,
+        uid="pr-B",
+        pr_id=2,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-B", thread_id="t1", status="active")
+    _insert_comment(
+        db, uid="pr-B", thread_id="t1", comment_id="c-B1", author_id=USER_BOB
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_reviewer_comments(rollup)
+    assert USER_BOB in buckets, f"bob bucket missing; got {sorted(buckets.keys())!r}"
+    assert buckets[USER_BOB]["thread_count"] == 2, (
+        f"FR-1-05 cross-PR thread_id collision violation: bob commented on "
+        f"two distinct threads (pr-A|t1 + pr-B|t1) but thread_count="
+        f"{buckets[USER_BOB]['thread_count']} (likely COUNT(DISTINCT) on "
+        "thread_id alone collapsed the PR-scoped collision)"
+    )
+    assert buckets[USER_BOB]["active_thread_count"] == 2, (
+        f"FR-1-05 cross-PR thread_id collision violation in active_thread_count: "
+        f"got {buckets[USER_BOB]['active_thread_count']}"
+    )
+    assert buckets[USER_BOB]["comment_count"] == 2, (
+        f"comment_count expected 2 (one comment on each PR), got "
+        f"{buckets[USER_BOB]['comment_count']}"
+    )
+
+
+def test_deleted_thread_excluded_from_thread_counts_per_c1(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """C1 (case xv) — Codex stop-time review regression on commit 182b41f1:
+    per the C1 inclusion-rule contract at
+    ``specs/310-comments-visualization/spec.md`` line 81 ("Rows where
+    pr_threads.is_deleted = 1 MUST be excluded from every thread count"),
+    deleted threads MUST NOT contribute to ``thread_count`` /
+    ``active_thread_count``.  Pre-fix the LEFT JOIN to pr_threads didn't
+    filter ``t.is_deleted = 0`` in the COUNT(DISTINCT) CASE, so deleted
+    threads with non-deleted comments inflated thread_count.
+
+    Comment_count INCLUDES non-deleted comments on deleted threads (matches
+    FR-2-03's INDEPENDENT count which only filters pc.is_deleted=0,
+    preserving sum-coherence).
+
+    Fixture: one PR with two threads — t-live (active, is_deleted=0) and
+    t-dead (active, is_deleted=1).  USER_BOB commented on both with
+    non-deleted comments.  Expected: thread_count=1 (only t-live counts),
+    active_thread_count=1 (only t-live counts), comment_count=2 (both
+    comments are non-deleted).
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 2)
+    _insert_pr(
+        db,
+        uid="pr-1",
+        pr_id=1,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-1", thread_id="t-live", status="active", is_deleted=0)
+    _insert_thread(db, uid="pr-1", thread_id="t-dead", status="active", is_deleted=1)
+    _insert_comment(
+        db, uid="pr-1", thread_id="t-live", comment_id="c-live", author_id=USER_BOB
+    )
+    _insert_comment(
+        db, uid="pr-1", thread_id="t-dead", comment_id="c-dead", author_id=USER_BOB
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_reviewer_comments(rollup)
+    assert USER_BOB in buckets, f"bob bucket missing; got {sorted(buckets.keys())!r}"
+    # comment_count is raw: includes non-deleted comments on deleted threads
+    # (the comment itself is non-deleted; only the thread is deleted).
+    assert buckets[USER_BOB]["comment_count"] == 2, (
+        f"comment_count should include non-deleted comments on deleted "
+        f"threads (raw row count); got {buckets[USER_BOB]['comment_count']}"
+    )
+    # thread_count and active_thread_count exclude deleted threads per C1.
+    assert buckets[USER_BOB]["thread_count"] == 1, (
+        f"C1 violation: thread_count must exclude pr_threads.is_deleted=1 "
+        f"threads (per specs/310-comments-visualization/spec.md line 81); "
+        f"bob commented on t-live (is_deleted=0) + t-dead (is_deleted=1) "
+        f"but thread_count={buckets[USER_BOB]['thread_count']} "
+        "(expected 1 — only t-live)"
+    )
+    assert buckets[USER_BOB]["active_thread_count"] == 1, (
+        f"C1 violation: active_thread_count must exclude is_deleted=1 "
+        f"threads; got {buckets[USER_BOB]['active_thread_count']}"
+    )
+
+
 def test_determinism_outer_dict_key_order_ascending_by_commenter(
     reviewer_comments_db: tuple[DatabaseManager, Path],
 ) -> None:

@@ -1329,7 +1329,8 @@ _RW_PR_AUTHOR_SQL: Final[str] = (
 # WHERE status='active') semantics).
 _RW_NON_SELF_COMMENTS_SQL: Final[str] = (
     "SELECT pc.author_id AS commenter, pc.thread_id AS thread_id, "
-    "       t.status AS thread_status "
+    "       t.status AS thread_status, "
+    "       t.is_deleted AS thread_is_deleted "
     "FROM pr_comments pc "
     "INNER JOIN pull_requests pr ON pr.pull_request_uid = pc.pull_request_uid "
     "LEFT JOIN pr_threads t "
@@ -1397,11 +1398,26 @@ def _build_expected_reviewer_buckets(
                 "UUID convention)"
             )
             bucket = _reviewer_bucket_for_author_id(conn, commenter_raw)
+            # Comment count is raw row count: includes non-deleted comments
+            # on deleted threads (matches FR-2-03's INDEPENDENT count
+            # right-hand side which filters only pc.is_deleted = 0).
             comment_count_by_bucket[bucket] = comment_count_by_bucket.get(bucket, 0) + 1
-            thread_key = (pr["pull_request_uid"], row["thread_id"])
-            threads_by_bucket.setdefault(bucket, set()).add(thread_key)
-            if row["thread_status"] == "active":
-                active_threads_by_bucket.setdefault(bucket, set()).add(thread_key)
+            # Thread tracking applies the C1 rule
+            # (specs/310-comments-visualization/spec.md line 81:
+            # "pr_threads.is_deleted = 1 MUST be excluded from every
+            # thread count").  Match the production aggregator's
+            # ``t.is_deleted = 0`` CASE filter so the per-bucket
+            # thread_count + active_thread_count expectations align with
+            # the SQL output post-Codex stop-time review fix.  Threads
+            # with no pr_threads row (LEFT JOIN miss → thread_is_deleted
+            # IS NULL) are also excluded — by C1 a thread that doesn't
+            # exist in pr_threads cannot count toward thread_count.
+            thread_is_deleted = row["thread_is_deleted"]
+            if thread_is_deleted == 0:
+                thread_key = (pr["pull_request_uid"], row["thread_id"])
+                threads_by_bucket.setdefault(bucket, set()).add(thread_key)
+                if row["thread_status"] == "active":
+                    active_threads_by_bucket.setdefault(bucket, set()).add(thread_key)
 
     expected: dict[str, _ExpectedBucket] = {}
     for bucket, count in comment_count_by_bucket.items():

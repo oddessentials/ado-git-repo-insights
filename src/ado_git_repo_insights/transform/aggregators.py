@@ -1566,16 +1566,50 @@ class AggregateGenerator:
         # ``pr_comments`` rows (CL-13 / INV-4-13); apply C1
         # (``is_deleted = 0``) + CL-04 self-comment exclusion + extracted-
         # subset filter; group by ``commenter_or_sentinel``; compute
-        # COUNT(DISTINCT thread_id) for thread_count + active_thread_count
-        # (FR-1-05 — divergence from #334 / #335 raw row count).
+        # COUNT(DISTINCT (uid, thread_id)) for thread_count +
+        # active_thread_count (FR-1-05 — divergence from #334 / #335 raw
+        # row count).
+        #
+        # Two correctness gaps fixed post-Codex stop-time review on
+        # commit 182b41f1:
+        #
+        # (1) ``pr_comments.thread_id`` is PR-scoped per ``models.py:141``
+        #     ("ADO thread IDs are PR-scoped (small integers starting from
+        #     1 per PR)").  ``COUNT(DISTINCT pc.thread_id)`` collapses
+        #     cross-PR collisions: thread_id="1" on PR-A and PR-B count
+        #     as ONE distinct value when they're TWO distinct threads.
+        #     Fix: ``COUNT(DISTINCT pc.pull_request_uid || '|' || pc.thread_id)``
+        #     uses the composite (uid, thread_id) tuple per the schema's
+        #     primary key shape (``models.py:151`` /
+        #     ``models.py:169``).  ``|`` as the separator never appears
+        #     in UUID-format pull_request_uid values (UUIDs use only hex
+        #     chars + hyphens) so the concatenation is collision-safe.
+        #
+        # (2) Per the C1 inclusion-rule contract at
+        #     ``specs/310-comments-visualization/spec.md`` line 81: "Rows
+        #     where pr_threads.is_deleted = 1 MUST be excluded from every
+        #     thread count."  The pre-fix COUNT(DISTINCT) without
+        #     ``t.is_deleted = 0`` filter would count threads that have
+        #     non-deleted comments but are themselves marked deleted — a
+        #     C1 violation.  Fix: filter ``t.is_deleted = 0`` inside the
+        #     CASE expression for thread_count + active_thread_count
+        #     while LEAVING the WHERE clause untouched (so comment_count
+        #     still includes non-deleted comments on deleted threads,
+        #     matching FR-2-03's INDEPENDENT count which doesn't filter
+        #     thread state — sum-coherence preserved).
         cursor = self.db.execute(
             "SELECT "
             "  CASE WHEN u.user_id IS NULL THEN ? ELSE pc.author_id END "
             "    AS commenter_or_sentinel, "
             "  COUNT(*) AS comment_count, "
-            "  COUNT(DISTINCT pc.thread_id) AS thread_count, "
-            "  COUNT(DISTINCT CASE WHEN t.status = 'active' "
-            "                      THEN pc.thread_id ELSE NULL END) "
+            "  COUNT(DISTINCT CASE WHEN t.is_deleted = 0 "
+            "                      THEN pc.pull_request_uid || '|' || pc.thread_id "
+            "                      ELSE NULL END) "
+            "    AS thread_count, "
+            "  COUNT(DISTINCT CASE WHEN t.is_deleted = 0 "
+            "                       AND t.status = 'active' "
+            "                      THEN pc.pull_request_uid || '|' || pc.thread_id "
+            "                      ELSE NULL END) "
             "    AS active_thread_count "
             "FROM pr_comments pc "
             "INNER JOIN _aggr_week_by_reviewer_comments_slice s "
