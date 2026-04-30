@@ -1563,6 +1563,31 @@ class AggregateGenerator:
                 "INV-4-12."
             )
 
+        # Sentinel-collision pre-flight on raw pr_comments.author_id
+        # (CL-03 / FR-1-03 / INV-4-12).  With FK enforcement disabled
+        # (test edges, migration windows), a comment row could carry
+        # the reserved sentinel literal as its author_id without any
+        # matching users row — the LEFT JOIN would not match
+        # (u.user_id IS NULL) and the existing CASE would return the
+        # sentinel marker via the absent-user branch, silently
+        # bucketing the corrupted comment under the reserved key.
+        # Pre-flight rejects the raw collision before aggregation.
+        comment_collision_row = self.db.execute(
+            "SELECT 1 FROM pr_comments WHERE author_id = ? LIMIT 1",
+            (FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,),
+        ).fetchone()
+        if comment_collision_row is not None:
+            raise RuntimeError(
+                "_compute_weekly_by_reviewer_comments: pr_comments "
+                "table contains a row whose author_id collides with "
+                "the reserved sentinel literal "
+                f"{FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  This "
+                "indicates extractor or writer corruption (the "
+                "literal is reserved for the absent-user fallback "
+                "branch and cannot be a real commenter identity).  "
+                "See spec CL-03 / FR-1-03 / INV-4-12."
+            )
+
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
             "_aggr_week_by_reviewer_comments_slice "

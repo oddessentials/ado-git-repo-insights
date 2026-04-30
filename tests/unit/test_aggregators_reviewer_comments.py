@@ -1006,6 +1006,62 @@ def test_fail_loud_on_sentinel_collision_in_users_table(
     )
 
 
+def test_fail_loud_on_sentinel_collision_in_pr_comments_author_id(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """CL-03 / FR-1-03 / INV-4-12: RuntimeError when ``pr_comments.author_id``
+    raw value collides with the reserved sentinel literal — without any
+    matching ``users`` row.
+
+    With FK enforcement disabled (test edges, migration windows), a
+    comment row can carry the reserved sentinel literal as its
+    author_id even when no matching ``users`` row exists.  Without the
+    raw-comment pre-flight check, the LEFT JOIN against ``users``
+    would not match (``u.user_id IS NULL``), the existing CASE would
+    return the sentinel marker via the absent-user branch, and the
+    corrupted comment would silently bucket under the reserved key —
+    indistinguishable from a legitimate ghost-commenter row.  The
+    pre-flight raises ``RuntimeError`` so the corruption is visible.
+
+    Fixture: insert a comment whose ``author_id`` equals the sentinel
+    literal but DO NOT insert a matching ``users`` row (the prior
+    sentinel-in-users test covers the matched-row case).
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 2)
+    _insert_pr(
+        db,
+        uid="pr-1",
+        pr_id=1,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-1", thread_id="t1", status="active")
+    _insert_comment(
+        db,
+        uid="pr-1",
+        thread_id="t1",
+        comment_id="c-collide-raw",
+        author_id=FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
+    )
+
+    with pytest.raises(AggregationError) as exc_info:
+        _generate_rollup(tmp_path, db)
+    root_cause = exc_info.value.__cause__
+    assert isinstance(root_cause, RuntimeError), (
+        f"CL-03 / FR-1-03 / INV-4-12: per-reviewer helper must raise "
+        f"RuntimeError on raw sentinel-literal collision in pr_comments "
+        f"(got {type(root_cause).__name__ if root_cause else 'None'} "
+        f"via the AggregationError wrapper)."
+    )
+    error_msg = str(root_cause)
+    assert "pr_comments" in error_msg.lower() or "author_id" in error_msg.lower(), (
+        f"RuntimeError raised but message lacks a clue about the "
+        f"raw pr_comments collision: {error_msg!r}"
+    )
+
+
 def test_thread_count_distinct_uses_composite_uid_thread_id_tuple(
     reviewer_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
