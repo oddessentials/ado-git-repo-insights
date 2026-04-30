@@ -575,6 +575,197 @@ describe("renderCommentsReviewerDensityChart (Feature 336 US1)", () => {
     ]);
   });
 
+  // ===========================================================================
+  // T030: sentinel-rendering test extension (US4).  Existing case (k) covers
+  // the basic sentinel-keyed bucket rendering + defensive precedence + sort
+  // participation against the default metric.  T030 extends with three
+  // cases the task spec calls for:
+  //   (T030-a) sentinel aggregates ACROSS weeks into one row (chart-layer
+  //            reducePerReviewer behavior on the sentinel key — no
+  //            per-week-ghost row leakage).
+  //   (T030-b) sentinel participates in sort across ALL THREE metrics
+  //            (extends (k.4) with explicit cross-metric switching).
+  //   (T030-c) zero-ghost range — no sentinel row appears.
+  // 3 tests; floor delta measured by test:coverage (not assumed +3 per the
+  // kickoff measured-ratchet directive).
+  // ===========================================================================
+
+  it("(T030-a) sentinel aggregates across multiple weeks into ONE row (no per-week ghost leakage)", () => {
+    // Two weeks, both contributing a sentinel-keyed bucket whose values
+    // semantically represent that week's ghost-commenter contributions
+    // already collapsed by the aggregator (per CL-14).  The chart's
+    // reducePerReviewer treats the sentinel key like any other key —
+    // sums numeric fields, OR-reduces coverage_partial — so the
+    // rendered chart MUST contain exactly ONE sentinel row whose
+    // metrics equal the cross-week sum.  A regression that emitted
+    // per-week sentinel rows (or that special-cased the sentinel key
+    // to bypass reduction) would surface as "row count > 1 for the
+    // sentinel data-reviewer-key".
+    const users = buildUsersDimension(2);
+    const week1Buckets: Record<string, ReviewerBucket> = {
+      // Week 1 — 1 ghost commenter contributed (post-aggregator).
+      [SENTINEL_KEY]: makeBucket(2, 5, 1, false),
+      [users[0]!.user_id]: makeBucket(2, 10, 1, false),
+      [users[1]!.user_id]: makeBucket(2, 8, 1, false),
+    };
+    const week2Buckets: Record<string, ReviewerBucket> = {
+      // Week 2 — 2 different ghost commenters contributed (post-
+      // aggregator).  Cross-week sum: thread=2+1=3, comment=5+4=9,
+      // active=1+0=1.
+      [SENTINEL_KEY]: makeBucket(1, 4, 0, false),
+      [users[0]!.user_id]: makeBucket(2, 10, 1, false),
+      [users[1]!.user_id]: makeBucket(2, 8, 1, false),
+    };
+    renderCommentsReviewerDensityChart(
+      container,
+      [makeRollup(0, week1Buckets), makeRollup(1, week2Buckets)],
+      { filters: emptyFilters(), usersDimension: users },
+    );
+
+    // Exactly one sentinel row.
+    const sentinelRows = container.querySelectorAll<HTMLElement>(
+      `.comments-reviewer-density-row[data-reviewer-key="${SENTINEL_KEY}"]`,
+    );
+    expect(sentinelRows).toHaveLength(1);
+    const sentinelRow = sentinelRows[0] as HTMLElement;
+
+    // Label is the fixed-string sentinel label.
+    expect(
+      sentinelRow.querySelector(".comments-reviewer-density-name")?.textContent,
+    ).toBe(SENTINEL_LABEL);
+
+    // Numeric cells reflect the cross-week sum (column order in
+    // ``renderTable``: Threads, Active threads, Comments).
+    const numericCells = sentinelRow.querySelectorAll<HTMLElement>(
+      ".comments-reviewer-density-numeric",
+    );
+    expect(numericCells).toHaveLength(3);
+    expect(numericCells[0]!.textContent).toBe("3"); // thread_count = 2 + 1
+    expect(numericCells[1]!.textContent).toBe("1"); // active_thread_count = 1 + 0
+    expect(numericCells[2]!.textContent).toBe("9"); // comment_count = 5 + 4
+  });
+
+  it("(T030-b) sentinel participates in sort across all 3 metrics — distinct positions per metric", () => {
+    // Anti-vacuous fixture: chosen values place the sentinel at THREE
+    // distinct positions across the three sort metrics, proving the
+    // sentinel is sorted like any other row (not pinned to a specific
+    // position).  All entries satisfy INV-4-07 (active <= thread):
+    //
+    //   Sentinel: thread=50, comment=30, active=2
+    //   user 0:   thread=20, comment=40, active=10
+    //   user 1:   thread=10, comment=20, active=8
+    //   user 2:   thread=30, comment=10, active=25
+    //
+    //   comment_count desc (default):   user0(40) sentinel(30) user1(20) user2(10)
+    //                                                 ^^ index 1 ^^
+    //   thread_count desc:              sentinel(50) user2(30) user0(20) user1(10)
+    //                                       ^^ index 0 ^^
+    //   active_thread_count desc:       user2(25) user0(10) user1(8) sentinel(2)
+    //                                                                    ^^ index 3 ^^
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {
+      [SENTINEL_KEY]: makeBucket(50, 30, 2, false),
+      [users[0]!.user_id]: makeBucket(20, 40, 10, false),
+      [users[1]!.user_id]: makeBucket(10, 20, 8, false),
+      [users[2]!.user_id]: makeBucket(30, 10, 25, false),
+    };
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    // Default ordering — sentinel at index 1 (between user 0 and user 1).
+    const defaultOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(defaultOrder).toEqual([
+      users[0]!.user_id,
+      SENTINEL_KEY,
+      users[1]!.user_id,
+      users[2]!.user_id,
+    ]);
+    expect(defaultOrder.indexOf(SENTINEL_KEY)).toBe(1);
+
+    // After thread_count click — sentinel at index 0 (top).
+    const threadBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-reviewer-density-sort-btn[data-sort-metric="thread_count"]',
+    );
+    threadBtn?.click();
+    const threadOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(threadOrder).toEqual([
+      SENTINEL_KEY,
+      users[2]!.user_id,
+      users[0]!.user_id,
+      users[1]!.user_id,
+    ]);
+    expect(threadOrder.indexOf(SENTINEL_KEY)).toBe(0);
+
+    // After active_thread_count click — sentinel at index 3 (bottom).
+    const activeBtn = container.querySelector<HTMLButtonElement>(
+      '.comments-reviewer-density-sort-btn[data-sort-metric="active_thread_count"]',
+    );
+    activeBtn?.click();
+    const activeOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".comments-reviewer-density-row"),
+    ).map((r) => r.getAttribute("data-reviewer-key"));
+    expect(activeOrder).toEqual([
+      users[2]!.user_id,
+      users[0]!.user_id,
+      users[1]!.user_id,
+      SENTINEL_KEY,
+    ]);
+    expect(activeOrder.indexOf(SENTINEL_KEY)).toBe(3);
+
+    // Final invariant: the three sentinel positions (1, 0, 3) are
+    // pairwise distinct — direct proof the sentinel sorts by the
+    // chosen metric like any other row, not pinned to top / middle /
+    // bottom.
+    const sentinelPositions = [
+      defaultOrder.indexOf(SENTINEL_KEY),
+      threadOrder.indexOf(SENTINEL_KEY),
+      activeOrder.indexOf(SENTINEL_KEY),
+    ];
+    const distinctPositions = new Set(sentinelPositions);
+    expect(distinctPositions.size).toBe(3);
+  });
+
+  it("(T030-c) zero-ghost range emits no sentinel row", () => {
+    // Fixture with no sentinel-keyed bucket in any week.  The chart
+    // MUST NOT manufacture a sentinel row out of nothing — its
+    // existence is gated entirely on the aggregator's emission of a
+    // sentinel-keyed bucket.  A regression that always rendered a
+    // sentinel row (e.g., as a fallback for missing user_ids) would
+    // surface as a sentinel-key row count > 0 here.
+    const users = buildUsersDimension(3);
+    const buckets: Record<string, ReviewerBucket> = {};
+    users.forEach((u, i) => {
+      buckets[u.user_id] = makeBucket(2, 10 - i, 1);
+    });
+    renderCommentsReviewerDensityChart(container, [makeRollup(0, buckets)], {
+      filters: emptyFilters(),
+      usersDimension: users,
+    });
+
+    // No sentinel row.
+    const sentinelRows = container.querySelectorAll(
+      `.comments-reviewer-density-row[data-reviewer-key="${SENTINEL_KEY}"]`,
+    );
+    expect(sentinelRows).toHaveLength(0);
+
+    // The 3 real-reviewer rows render normally (sanity — proves the
+    // zero-ghost case hasn't accidentally suppressed real rows).
+    const allRows = container.querySelectorAll(".comments-reviewer-density-row");
+    expect(allRows).toHaveLength(3);
+
+    // The sentinel label string MUST NOT appear anywhere in the
+    // rendered DOM (defensive — would catch a regression that always
+    // included a "Former / unavailable author" label as a placeholder
+    // even in the zero-ghost case).
+    expect(container.textContent ?? "").not.toContain(SENTINEL_LABEL);
+  });
+
   it("(l) FR-4-08 no-data-in-range empty state with marker constants defined for forward use", () => {
     // Capability-on path (filters CLEAR) but the visible range yields
     // zero contributions: every rollup either lacks
