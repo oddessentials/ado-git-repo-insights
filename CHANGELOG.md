@@ -1,3 +1,10 @@
+## [101.22.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.22.0...v101.22.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **#348:** warmup + median for chart-render and drilldown perf budgets ([#353](https://github.com/oddessentials/ado-git-repo-insights/issues/353)) ([4dcb863](https://github.com/oddessentials/ado-git-repo-insights/commit/4dcb86310192dd037db04581011c6fa02df411ca)), closes [#348](https://github.com/oddessentials/ado-git-repo-insights/issues/348) [#348](https://github.com/oddessentials/ado-git-repo-insights/issues/348)
+
 # [101.22.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.21.0...v101.22.0) (2026-04-30)
 
 
