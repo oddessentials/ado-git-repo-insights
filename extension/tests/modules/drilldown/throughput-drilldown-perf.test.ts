@@ -25,6 +25,12 @@ import {
 } from "../../../ui/modules/shared/detail-panel";
 import type { Rollup } from "../../../ui/dataset-loader";
 import type { PrRecord } from "../../../ui/schemas/rollup.schema";
+import {
+  checkRegression,
+  getMetricBaseline,
+  loadPerfBaselines,
+  measureWithWarmup,
+} from "../../helpers/perf-measure";
 
 const PERF_BUDGET_MS = 250;
 
@@ -80,6 +86,13 @@ describe("throughput-drilldown perf (feature 060 SC-001)", () => {
     document.body.innerHTML = "";
   });
 
+  // The previous single-shot `t1 - t0` measurement against a 250 ms hard
+  // ceiling tripped on routine variance — observed locally at 251.8 ms
+  // (issue #348). Warmup + median absorbs single-digit-ms jitter and a
+  // first-iteration JIT-cold blip without loosening the literal SC-001
+  // ceiling. The no-network invariant (the load-bearing SC-001 contract)
+  // is asserted across ALL warmup AND measured iterations because the
+  // fetch / XHR spies are installed outside `measureWithWarmup`.
   it("opens the panel with 500 rows under the SC-001 wall-clock budget and without any network RPC", () => {
     const rollups = [make500PrRollup()];
     const container = mountChart(rollups);
@@ -97,6 +110,9 @@ describe("throughput-drilldown perf (feature 060 SC-001)", () => {
     });
 
     // Spy for every network surface the render path could in principle use.
+    // Spies are installed outside the timed loop so the no-network
+    // invariant covers warmup runs too — any RPC at any point fails the
+    // test.
     const fetchSpy = jest.fn();
     const originalFetch = globalThis.fetch;
     Object.defineProperty(globalThis, "fetch", {
@@ -107,11 +123,28 @@ describe("throughput-drilldown perf (feature 060 SC-001)", () => {
     const xhrOpenSpy = jest.spyOn(XMLHttpRequest.prototype, "open");
 
     try {
-      const t0 = performance.now();
+      const median = measureWithWarmup(
+        () => {
+          firstBar(container).dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+        },
+        {
+          afterEach: () => {
+            // Reset to closed-panel state so the next iteration measures
+            // the same shape of work (open from scratch).
+            if (isDetailPanelOpen()) {
+              dismissDetailPanel("explicit-close-button");
+            }
+          },
+        },
+      );
+
+      // Re-open once after measurement so we can assert the panel state
+      // on a known iteration. This activation is not timed.
       firstBar(container).dispatchEvent(
         new MouseEvent("click", { bubbles: true, cancelable: true }),
       );
-      const t1 = performance.now();
 
       expect(isDetailPanelOpen()).toBe(true);
       const prSection = document.getElementById("pr-detail");
@@ -119,10 +152,23 @@ describe("throughput-drilldown perf (feature 060 SC-001)", () => {
       const rows = prSection!.querySelectorAll("ol > li");
       expect(rows.length).toBe(500);
 
-      const elapsed = t1 - t0;
-      expect(elapsed).toBeLessThan(PERF_BUDGET_MS);
+      expect(median).toBeLessThan(PERF_BUDGET_MS);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(xhrOpenSpy).not.toHaveBeenCalled();
+
+      const baseline = getMetricBaseline(
+        loadPerfBaselines(),
+        "drilldown_500pr_open_ms",
+      );
+      checkRegression("drilldown-500pr-open", median, baseline);
+      console.log(
+        JSON.stringify({
+          test: "drilldown_500pr_open",
+          duration_ms: median,
+          budget_ms: PERF_BUDGET_MS,
+          baseline_ms: baseline ?? "N/A",
+        }),
+      );
     } finally {
       Object.defineProperty(globalThis, "fetch", {
         configurable: true,
