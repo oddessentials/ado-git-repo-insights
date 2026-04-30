@@ -3502,6 +3502,19 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     opacity: 0.7;
 }
 
+/* Issue #337: zero-vs-many tonal weight on comments-metrics.
+ * Numeric zero cells render at reduced opacity so the visual contrast
+ * between "no work" and "any work" is faster to scan than reading every
+ * digit on every row.  Mutually exclusive with the
+ * ``data-partial="true"`` rule above (a span never carries both attrs)
+ * — partial italic + tertiary color keeps partial visually distinct
+ * from zero per INV-10.  Numeric ``0`` is preserved as the rendered
+ * glyph (no em-dash swap) since the partial sentinel already owns the
+ * em-dash. */
+.detail-panel-pr-list--with-comments .comments-metric[data-zero="true"] {
+    opacity: 0.45;
+}
+
 .detail-panel-pr-list--with-comments .comments-metric--unresolved {
     font-weight: 600;
 }

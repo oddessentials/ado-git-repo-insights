@@ -5147,6 +5147,7 @@ var PRInsightsDashboard = (() => {
                 appendText(span, "\u2014");
               } else {
                 span.setAttribute("data-partial", "false");
+                span.setAttribute("data-zero", value === 0 ? "true" : "false");
                 li.setAttribute(`data-${key}`, String(value));
                 appendText(span, String(value));
               }
