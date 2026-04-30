@@ -394,14 +394,23 @@ describe("comments-reviewer-density dashboard lifecycle — source-parse contrac
     // lifecycle scenarios verify.  If the gate or call sites move,
     // this assertion fails so scenario (d)'s "two consecutive
     // refreshes" simulation can be re-validated.
+    //
+    // Trailing semicolon is load-bearing: the bare ``ensureCommentsReviewer
+    // DensityContainer()`` / ``removeCommentsReviewerDensityContainer()``
+    // strings match BOTH the call statements AND the function definitions
+    // (``function name(): HTMLElement | null {`` / ``function name():
+    // void {``), so a future refactor that deletes either callsite would
+    // leave the assertions matching the definition and the contract would
+    // pass vacuously.  The ``();`` form distinguishes call statements
+    // from the ``():`` definition headers.
     expect(dashboardSrc).toContain(
-      "ensureCommentsReviewerDensityContainer()",
+      "ensureCommentsReviewerDensityContainer();",
     );
     expect(dashboardSrc).toContain(
       "renderCommentsReviewerDensityChartModule(crvContainer",
     );
     expect(dashboardSrc).toContain(
-      "removeCommentsReviewerDensityContainer()",
+      "removeCommentsReviewerDensityContainer();",
     );
   });
 });
