@@ -245,6 +245,29 @@ export interface Rollup {
       coverage_partial: boolean;
     }
   >;
+  // Feature 336 per-reviewer comments-density (FR-1-01..FR-1-12). Optional
+  // outer dict emitted only when capabilities.comments_metrics is enabled
+  // (FR-3-03 + INV-4-09). Each entry carries the same four atomic fields
+  // as the 333 ``comments`` aggregate (per-bucket scope rather than
+  // per-week). Keys are commenter `user_id` UUID strings OR the reserved
+  // sentinel literal `__former_or_unavailable_author__` for commenter
+  // user_ids absent from the `users` table — sentinel APPLIES (CL-03 /
+  // INV-4-12), divergence from #335's FK-protected no-sentinel posture.
+  // Empty `{}` under capability-on is a contract violation (FR-1-11); the
+  // outer key MUST be omitted entirely when no eligible-reviewer-comment
+  // buckets exist. Validator: validateReviewerCommentsDensity in
+  // rollup.schema.ts (STRICT-ERROR atomicity posture, both modes).
+  // Renderer: comments-reviewer-density chart module under
+  // modules/charts/comments-reviewer-density.ts (Feature 336 US1).
+  by_reviewer_comments?: Record<
+    string,
+    {
+      thread_count: number;
+      comment_count: number;
+      active_thread_count: number;
+      coverage_partial: boolean;
+    }
+  >;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 
