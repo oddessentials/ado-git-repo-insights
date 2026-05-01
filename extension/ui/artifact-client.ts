@@ -17,6 +17,8 @@ import {
   type Rollup,
 } from "./dataset-loader";
 import { createPermissionDeniedError } from "./error-types";
+import { SchemaValidationError } from "./schemas";
+import { validateRollup } from "./schemas/rollup.schema";
 import {
   getErrorMessage,
   type ManifestSchema,
@@ -507,7 +509,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
   validateManifest(manifest: ManifestSchema): void {
     const SUPPORTED_MANIFEST_VERSION = 1;
     const SUPPORTED_DATASET_VERSION = 1;
-    const SUPPORTED_AGGREGATES_VERSION = 3;
+    const SUPPORTED_AGGREGATES_VERSION = 4;
 
     if (!manifest.manifest_schema_version) {
       throw new Error("Invalid manifest: missing schema version");
@@ -571,11 +573,34 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       if (!indexEntry) continue;
 
       try {
-        const rollup = (await this.artifactClient.getArtifactFileViaSdk(
+        const rawRollup = await this.artifactClient.getArtifactFileViaSdk(
           this.buildId,
           this.artifactName,
           indexEntry.path,
-        )) as Rollup;
+        );
+        // #356 (aggregates schema v4): validate the rollup against the
+        // shared version-aware ``validateRollup`` so the v4 atomicity
+        // contract is enforced on the AuthenticatedDatasetLoader path
+        // too — otherwise this private-tenant loader would silently
+        // accept malformed v4 artifacts that the public DatasetLoader
+        // path (dataset-loader.ts:_fetchWeekWithRetry) rejects.
+        // Threads the manifest's aggregates_schema_version so legacy v3
+        // artifacts still load (4-field comments shape) while v4
+        // artifacts get strict 5-field atomicity.  Throws on failure
+        // (matches the strict posture of the manifest validator at
+        // ``validateManifest`` higher up in this file).
+        const aggregatesVersion = this.manifest?.aggregates_schema_version;
+        const validation = validateRollup(rawRollup, false, aggregatesVersion);
+        if (!validation.valid) {
+          throw new SchemaValidationError(validation.errors, "rollup");
+        }
+        if (validation.warnings.length > 0) {
+          console.warn(
+            `[AuthenticatedDatasetLoader] rollup validation warnings for ${weekStr}:`,
+            validation.warnings.map((w) => w.message).join("; "),
+          );
+        }
+        const rollup = rawRollup as Rollup;
         this.rollupCache.set(weekStr, rollup);
         results.push(rollup);
       } catch (e) {

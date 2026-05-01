@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pandas as pd
 
+from ..extraction.vote_events import is_vote_event
 from ..types import (
     AuthorRecord,
     CommentsCoverage,
@@ -1030,6 +1031,28 @@ class AggregateGenerator:
 
         return index
 
+    def _register_vote_event_function(self) -> None:
+        """Idempotently register the shared ``is_vote_event`` SQLite UDF.
+
+        Called at the top of each of the four rollup-level comments-aggregate
+        helpers that emit ``vote_event_count`` so the registration tracks
+        whatever connection ``self.db`` exposes at call time (fresh, replaced
+        after a reconnect, etc.).  ``sqlite3.Connection.create_function``
+        accepts repeated registrations of the same name on the same
+        connection without error — the second call simply replaces the
+        binding with the same Python callable.  The ``deterministic=True``
+        flag matches the helper's mathematical purity (same input always
+        yields the same output) and lets SQLite use the call inside
+        indexed expressions if a future schema adds one.
+
+        Authoritative contract: ``extraction/vote_events.py`` owns the
+        regex; ``tests/unit/test_vote_events.py`` proves the Python and
+        SQLite paths classify identical fixture strings identically.
+        """
+        self.db.connection.create_function(
+            "is_vote_event", 1, is_vote_event, deterministic=True
+        )
+
     def _compute_weekly_comments_aggregate(
         self, week_pr_uids: set[str]
     ) -> dict[str, int | bool] | None:
@@ -1070,9 +1093,11 @@ class AggregateGenerator:
                 "thread_count": 0,
                 "comment_count": 0,
                 "active_thread_count": 0,
+                "vote_event_count": 0,
                 "coverage_partial": False,
             }
 
+        self._register_vote_event_function()
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
             "_aggr_week_comments_slice (pull_request_uid TEXT PRIMARY KEY)"
@@ -1094,6 +1119,9 @@ class AggregateGenerator:
             "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
             "                    THEN t.active_thread_count ELSE 0 END), 0) "
             "    AS active_thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.vote_event_count ELSE 0 END), 0) "
+            "    AS vote_event_count, "
             "  MAX(CASE WHEN pr.comments_extracted_at IS NULL THEN 1 ELSE 0 END) "
             "    AS coverage_partial "
             "FROM pull_requests pr "
@@ -1109,7 +1137,12 @@ class AggregateGenerator:
             "  GROUP BY pull_request_uid "
             ") t ON t.pull_request_uid = pr.pull_request_uid "
             "LEFT JOIN ( "
-            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS comment_count, "
+            "         SUM(CASE WHEN comment_type = 'system' "
+            "                       AND is_vote_event(content) = 1 "
+            "                  THEN 1 ELSE 0 END) "
+            "           AS vote_event_count "
             "  FROM pr_comments "
             "  WHERE is_deleted = 0 "
             "  GROUP BY pull_request_uid "
@@ -1124,6 +1157,7 @@ class AggregateGenerator:
                 "thread_count": 0,
                 "comment_count": 0,
                 "active_thread_count": 0,
+                "vote_event_count": 0,
                 "coverage_partial": False,
             }
 
@@ -1133,6 +1167,7 @@ class AggregateGenerator:
             "thread_count": int(row["thread_count"]),
             "comment_count": int(row["comment_count"]),
             "active_thread_count": int(row["active_thread_count"]),
+            "vote_event_count": int(row["vote_event_count"] or 0),
             "coverage_partial": coverage_partial,
         }
 
@@ -1196,6 +1231,7 @@ class AggregateGenerator:
             # key (consistent with FR-3-03 omission contract).
             return None
 
+        self._register_vote_event_function()
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
             "_aggr_week_by_author_comments_slice "
@@ -1221,6 +1257,9 @@ class AggregateGenerator:
             "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
             "                    THEN t.active_thread_count ELSE 0 END), 0) "
             "    AS active_thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.vote_event_count ELSE 0 END), 0) "
+            "    AS vote_event_count, "
             "  MAX(CASE WHEN pr.comments_extracted_at IS NULL "
             "          THEN 1 ELSE 0 END) "
             "    AS coverage_partial "
@@ -1238,7 +1277,12 @@ class AggregateGenerator:
             "  GROUP BY pull_request_uid "
             ") t ON t.pull_request_uid = pr.pull_request_uid "
             "LEFT JOIN ( "
-            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS comment_count, "
+            "         SUM(CASE WHEN comment_type = 'system' "
+            "                       AND is_vote_event(content) = 1 "
+            "                  THEN 1 ELSE 0 END) "
+            "           AS vote_event_count "
             "  FROM pr_comments "
             "  WHERE is_deleted = 0 "
             "  GROUP BY pull_request_uid "
@@ -1264,6 +1308,7 @@ class AggregateGenerator:
                 "thread_count": int(row["thread_count"]),
                 "comment_count": int(row["comment_count"]),
                 "active_thread_count": int(row["active_thread_count"]),
+                "vote_event_count": int(row["vote_event_count"] or 0),
                 "coverage_partial": coverage_partial,
             }
 
@@ -1343,6 +1388,7 @@ class AggregateGenerator:
             # key (FR-1-10 + FR-3-03 omission contract).
             return None
 
+        self._register_vote_event_function()
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
             "_aggr_week_by_repository_comments_slice "
@@ -1399,6 +1445,9 @@ class AggregateGenerator:
             "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
             "                    THEN t.active_thread_count ELSE 0 END), 0) "
             "    AS active_thread_count, "
+            "  COALESCE(SUM(CASE WHEN pr.comments_extracted_at IS NOT NULL "
+            "                    THEN c.vote_event_count ELSE 0 END), 0) "
+            "    AS vote_event_count, "
             "  MAX(CASE WHEN pr.comments_extracted_at IS NULL "
             "          THEN 1 ELSE 0 END) "
             "    AS coverage_partial "
@@ -1415,7 +1464,12 @@ class AggregateGenerator:
             "  GROUP BY pull_request_uid "
             ") t ON t.pull_request_uid = pr.pull_request_uid "
             "LEFT JOIN ( "
-            "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+            "  SELECT pull_request_uid, "
+            "         COUNT(*) AS comment_count, "
+            "         SUM(CASE WHEN comment_type = 'system' "
+            "                       AND is_vote_event(content) = 1 "
+            "                  THEN 1 ELSE 0 END) "
+            "           AS vote_event_count "
             "  FROM pr_comments "
             "  WHERE is_deleted = 0 "
             "  GROUP BY pull_request_uid "
@@ -1439,6 +1493,7 @@ class AggregateGenerator:
                 "thread_count": int(row["thread_count"]),
                 "comment_count": int(row["comment_count"]),
                 "active_thread_count": int(row["active_thread_count"]),
+                "vote_event_count": int(row["vote_event_count"] or 0),
                 "coverage_partial": coverage_partial,
             }
 
@@ -1588,6 +1643,7 @@ class AggregateGenerator:
                 "See spec CL-03 / FR-1-03 / INV-4-12."
             )
 
+        self._register_vote_event_function()
         self.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS "
             "_aggr_week_by_reviewer_comments_slice "
@@ -1679,7 +1735,18 @@ class AggregateGenerator:
             "                       AND t.status = 'active' "
             "                      THEN pc.pull_request_uid || '|' || pc.thread_id "
             "                      ELSE NULL END) "
-            "    AS active_thread_count "
+            "    AS active_thread_count, "
+            # vote_event_count: raw row count restricted to system rows whose
+            # content matches the shared vote-event regex (see
+            # ``extraction/vote_events.py``).  Sum-coherent subset of
+            # ``comment_count`` per bucket: ``vote_event_count <=
+            # comment_count`` because the CASE predicate is a subset of the
+            # outer COUNT(*) population (same self-comment exclusion +
+            # is_deleted=0 filters apply).
+            "  SUM(CASE WHEN pc.comment_type = 'system' "
+            "                AND is_vote_event(pc.content) = 1 "
+            "           THEN 1 ELSE 0 END) "
+            "    AS vote_event_count "
             "FROM pr_comments pc "
             "INNER JOIN _aggr_week_by_reviewer_comments_slice s "
             "  ON s.pull_request_uid = pc.pull_request_uid "
@@ -1749,6 +1816,7 @@ class AggregateGenerator:
                 "thread_count": int(row["thread_count"]),
                 "comment_count": int(row["comment_count"]),
                 "active_thread_count": int(row["active_thread_count"]),
+                "vote_event_count": int(row["vote_event_count"] or 0),
                 "coverage_partial": same_w_coverage_partial,
             }
 

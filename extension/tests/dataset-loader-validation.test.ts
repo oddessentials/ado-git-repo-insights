@@ -616,4 +616,237 @@ describe("DatasetLoader Validation Integration", () => {
       expect(detailed).toContain("dimensions");
     });
   });
+
+  // =========================================================================
+  // #356: regression coverage for the v4 rollup-validation bypass that
+  // Codex caught at stop-time review.  Both shipped loader entry points
+  // (DatasetLoader.getWeeklyRollups → validateRollup at dataset-loader.ts:801,
+  // DatasetLoader.getWeeklyRollupsWithProgress → validateRollup at
+  // dataset-loader.ts:_fetchWeekWithRetry) MUST thread the manifest's
+  // aggregates_schema_version into the validator so:
+  //   * v4 artifacts get strict 5-field atomicity (vote_event_count required).
+  //   * v3 artifacts in the wild keep loading via the back-compat 4-field
+  //     shape ONLY when the manifest version explicitly says v3.
+  // The AuthenticatedDatasetLoader path (artifact-client.ts) is covered by
+  // the parallel block in tests/artifact-client.test.ts.
+  // =========================================================================
+  describe("rollup validation v3/v4 enforcement on shipped loader paths", () => {
+    const v4Manifest = {
+      ...validManifest,
+      aggregates_schema_version: 4,
+    };
+    const v3Manifest = {
+      ...validManifest,
+      aggregates_schema_version: 3,
+    };
+    const baseRollup = {
+      week: "2026-W03",
+      start_date: "2026-01-13",
+      end_date: "2026-01-19",
+      pr_count: 42,
+    };
+
+    describe("getWeeklyRollups (synchronous loader path)", () => {
+      it("rejects v4 rollup missing vote_event_count (strict 5-field atomicity)", async () => {
+        // Load v4 manifest first.
+        global.fetch = createMockFetch(v4Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        // Then fetch a rollup with a 4-field comments shape — malformed
+        // under v4 because vote_event_count is required.
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        }) as unknown as typeof fetch;
+
+        await expect(
+          loader.getWeeklyRollups(
+            new Date("2026-01-13"),
+            new Date("2026-01-19"),
+          ),
+        ).rejects.toThrow(SchemaValidationError);
+      });
+
+      it("accepts v4 rollup with full 5-field comments shape", async () => {
+        global.fetch = createMockFetch(v4Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+        }) as unknown as typeof fetch;
+
+        const result = await loader.getWeeklyRollups(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0]!.week).toBe("2026-W03");
+      });
+
+      it("accepts v3 rollup with 4-field comments shape (back-compat via explicit v3 manifest)", async () => {
+        global.fetch = createMockFetch(v3Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent (legacy v3 shape).
+          },
+        }) as unknown as typeof fetch;
+
+        const result = await loader.getWeeklyRollups(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0]!.week).toBe("2026-W03");
+      });
+    });
+
+    describe("getWeeklyRollupsWithProgress (concurrent batch loader path)", () => {
+      const context = { org: "test", project: "p", repo: "r" };
+
+      it("marks v4 rollup missing vote_event_count as failed (strict 5-field atomicity)", async () => {
+        global.fetch = createMockFetch(v4Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        }) as unknown as typeof fetch;
+
+        const result = await loader.getWeeklyRollupsWithProgress(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+          context,
+        );
+        // The bypass-fix routes validation failures into failedWeeks; the
+        // batch loader's per-week semantics keep the fetch loop progressing
+        // while still surfacing the error.  Pre-fix behavior accepted the
+        // malformed v4 artifact silently — this test fails on that bypass.
+        expect(result.failedWeeks).toContain("2026-W03");
+        expect(result.data).toHaveLength(0);
+      });
+
+      it("accepts v4 rollup with full 5-field comments shape", async () => {
+        global.fetch = createMockFetch(v4Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+        }) as unknown as typeof fetch;
+
+        const result = await loader.getWeeklyRollupsWithProgress(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+          context,
+        );
+        expect(result.failedWeeks).toHaveLength(0);
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0]!.week).toBe("2026-W03");
+      });
+
+      it("accepts v3 rollup with 4-field comments shape (back-compat via explicit v3 manifest)", async () => {
+        global.fetch = createMockFetch(v3Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent (legacy v3 shape).
+          },
+        }) as unknown as typeof fetch;
+
+        const result = await loader.getWeeklyRollupsWithProgress(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+          context,
+        );
+        expect(result.failedWeeks).toHaveLength(0);
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0]!.week).toBe("2026-W03");
+      });
+
+      it("logs validation warnings when v4 rollup carries an unknown root-level field (warnings-branch coverage)", async () => {
+        // Closes the partial-branch gap on dataset-loader.ts
+        // ``if (validation.warnings.length > 0)`` true-branch added by
+        // the #356 commit-2 bypass fix.  An unknown root-level field at
+        // strict=false routes through findUnknownFields -> warnings
+        // without failing validation, so the rollup loads AND the
+        // warnings-logging branch fires.
+        global.fetch = createMockFetch(v4Manifest) as unknown as typeof fetch;
+        await loader.loadManifest();
+
+        global.fetch = createMockFetch({
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+          // Unknown root-level field - validateRollup's KNOWN_ROOT_FIELDS
+          // check emits a warning at strict=false (rollup.schema.ts:1897)
+          // while validation.valid stays true.
+          experimental_unknown_field: 99,
+        }) as unknown as typeof fetch;
+
+        const consoleSpy = jest
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+        const result = await loader.getWeeklyRollupsWithProgress(
+          new Date("2026-01-13"),
+          new Date("2026-01-19"),
+          context,
+        );
+        // Validation passes (unknown fields are warnings, not errors),
+        // so the rollup is included.
+        expect(result.failedWeeks).toHaveLength(0);
+        expect(result.data).toHaveLength(1);
+        // The warnings-logging branch fires.
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "[DatasetLoader] rollup validation warnings for 2026-W03",
+          ),
+          expect.anything(),
+        );
+        consoleSpy.mockRestore();
+      });
+    });
+  });
 });

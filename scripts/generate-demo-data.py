@@ -305,9 +305,22 @@ _COMMENT_STREAM_SEED_OFFSET: Final[int] = 4_000_000
 # the full year regardless of the choice RNG's distribution.
 _GHOST_POOL_SIZE: Final[int] = 3
 
+# #356: synthetic per-PR vote-event count RNG.  The offset is
+# intentionally far from the other stream offsets so the vote-event
+# draws cannot collide with existing PR-record / comments-metrics /
+# comment-stream / review-time sequences.  Drawn AFTER the per-PR
+# comment_count is fixed (in ``generate_pr_records``), so the demo's
+# legacy 8-field PrRecord shape is unchanged byte-wise except where a
+# vote_event_count is later sourced via the parallel
+# ``vote_event_counts`` dict.  Per #356 the field appears ONLY at
+# rollup/bucket scope (4 aggregates × N buckets) — never on
+# ``prs[*]`` and never serialized into any per-PR record.
+_VOTE_EVENT_SEED_OFFSET: Final[int] = 5_000_000
+
 pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
 comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)
 comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)
+vote_event_rng = random.Random(SEED + _VOTE_EVENT_SEED_OFFSET)
 
 # Feature 310 serialization-layer flag.  ``generate-demo-data.py`` sets
 # this in ``main`` from the ``--comments-metrics {true,false}`` CLI arg
@@ -346,12 +359,20 @@ class SyntheticPrComment(TypedDict):
     (``author_id != PR's author_id`` is invariant on every emitted row).
     NOT serialized to any rollup file (privacy posture per CL-14 step 5);
     only the AGGREGATED ``by_reviewer_comments`` key reaches disk.
+
+    #356: ``is_vote_event`` is True iff this row represents a vote
+    event.  The synthesizer marks the first ``vote_event_count`` of
+    the per-PR comments as vote events; the demo's
+    ``_aggregate_by_reviewer_comments_for_week`` consumes the flag to
+    emit the ``vote_event_count`` field on each per-reviewer bucket.
+    Like the rest of this dataclass, never serialized to disk.
     """
 
     pull_request_uid: str
     thread_id: str
     author_id: str  # commenter; never == PR's author_id (CL-04)
     is_deleted: int  # always 0 per C1
+    is_vote_event: bool  # #356: True iff this row is a system vote event
 
 
 class _TruncationExerciseConfig(TypedDict):
@@ -479,7 +500,8 @@ def generate_pr_records(
     pr_record_rng: random.Random,
     comments_metrics_rng: random.Random | None = None,
     cap: int = _PR_DETAIL_CAP,
-) -> list[PrRecord]:
+    vote_event_rng: random.Random | None = None,
+) -> tuple[list[PrRecord], dict[str, int]]:
     """Produce synthetic PR records for a single rollup week.
 
     Each entry in ``repo_entries`` represents one qualified PR in the week
@@ -506,6 +528,19 @@ def generate_pr_records(
     snapshot/restore both RNG streams around the call so downstream
     weeks see the original RNG state advancement.
 
+    #356: returns a parallel ``vote_event_counts: dict[str, int]`` keyed
+    by ``str(pr["id"])`` carrying each PR's synthetic vote-event count.
+    The field is emitted PARALLEL to the PrRecord list (NOT as a
+    PrRecord field) so the per-PR ``prs[*]`` serializer at the
+    rollup-write site cannot accidentally leak it into ``prs[*]`` —
+    keeping the per-PR drilldown shape unchanged at the existing
+    comments-metrics triplet.  Sourced from a dedicated
+    ``vote_event_rng`` stream (``_VOTE_EVENT_SEED_OFFSET``) so the
+    draws cannot perturb the existing PR-record / comments-metrics /
+    comment-stream sequences.  Defaults to the module-level stream
+    when not supplied (CLI entrypoint); tests pass a fresh instance
+    to exercise isolation.
+
     Contract:
         * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
           §4 (key-insertion order) and §5 (isolated RNG).
@@ -516,6 +551,8 @@ def generate_pr_records(
     # own instance to exercise isolation contracts.
     if comments_metrics_rng is None:
         comments_metrics_rng = globals()["comments_metrics_rng"]
+    if vote_event_rng is None:
+        vote_event_rng = globals()["vote_event_rng"]
     title_tokens = _load_title_tokens()
     categories_tuple = _load_cycle_time_categories()
     categories: dict[str, tuple[float, float]] = {
@@ -529,6 +566,7 @@ def generate_pr_records(
     author_pool = [str(entry) for entry in author_entries]
 
     records: list[PrRecord] = []
+    vote_event_counts: dict[str, int] = {}
     for idx, entry in enumerate(capped_entries):
         repo_id = str(entry)
         category = _repo_category(repo_id)
@@ -606,9 +644,25 @@ def generate_pr_records(
                 "active_thread_count": active_thread_count,
             }
         )
+        # #356: synthesize a per-PR vote_event_count.  Drawn from the
+        # dedicated ``vote_event_rng`` so existing demo byte-output for
+        # legacy keys is unperturbed.  Keep the share small (cap at 2)
+        # so vote_event_count never dominates comment_count on a per-PR
+        # basis — mirrors the real-world distribution where most PR
+        # comments are prose and a small subset are vote events.  When
+        # comment_count is None (310 INV-10 partial) or 0, the vote
+        # subset is necessarily 0; the dict still carries the entry so
+        # downstream lookups never miss.
+        pr_uid = str(base_id + idx)
+        if comment_count is None or comment_count == 0:
+            vote_event_counts[pr_uid] = 0
+        else:
+            vote_event_counts[pr_uid] = vote_event_rng.randint(
+                0, min(2, int(comment_count))
+            )
 
     records.sort(key=lambda r: (-float(r["cycle_time"]), int(r["id"])))
-    return records
+    return records, vote_event_counts
 
 
 def _strip_comments_metrics_from_pr(pr: PrRecord) -> PrRecord:
@@ -630,7 +684,10 @@ def _strip_comments_metrics_from_pr(pr: PrRecord) -> PrRecord:
     }
 
 
-def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
+def _aggregate_comments_for_week(
+    prs: list[PrRecord],
+    vote_event_counts: dict[str, int],
+) -> dict[str, int | bool]:
     """Sum per-PR comments-metrics into a rollup-level aggregate (FR-2-06).
 
     Mirrors ``aggregators.py::_compute_weekly_comments_aggregate`` so the
@@ -641,7 +698,12 @@ def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
       ``thread_count`` is not None).
     * PRs with the partial sentinel contribute zero to the sums and flip
       ``coverage_partial`` to True per FR-2-03.
-    * All four fields present together per INV-1-08 atomicity.
+    * #356: ``vote_event_count`` is the additive subset of comment_count,
+      sourced from the parallel ``vote_event_counts`` dict keyed by
+      ``str(pr["id"])``.  PRs with the partial sentinel contribute zero
+      (matching the same-extracted-subset semantics applied to the other
+      three numeric fields).
+    * All five fields present together per INV-1-08 atomicity.
 
     Caller is responsible for capability gating — only invoke when
     ``_EMIT_COMMENTS_METRICS`` is True.  Capability-off rollups MUST
@@ -650,6 +712,7 @@ def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
     thread_total = 0
     comment_total = 0
     active_total = 0
+    vote_event_total = 0
     coverage_partial = False
     for pr in prs:
         thread = pr.get("thread_count")
@@ -659,16 +722,19 @@ def _aggregate_comments_for_week(prs: list[PrRecord]) -> dict[str, int | bool]:
         thread_total += int(thread)
         comment_total += int(pr.get("comment_count") or 0)
         active_total += int(pr.get("active_thread_count") or 0)
+        vote_event_total += int(vote_event_counts.get(str(pr["id"]), 0))
     return {
         "thread_count": thread_total,
         "comment_count": comment_total,
         "active_thread_count": active_total,
+        "vote_event_count": vote_event_total,
         "coverage_partial": coverage_partial,
     }
 
 
 def _aggregate_by_author_comments_for_week(
     prs: list[PrRecord],
+    vote_event_counts: dict[str, int],
 ) -> dict[str, dict[str, int | bool]] | None:
     """Per-(week, author) comments-density emission for the synthetic demo.
 
@@ -706,6 +772,7 @@ def _aggregate_by_author_comments_for_week(
         thread_total = 0
         comment_total = 0
         active_total = 0
+        vote_event_total = 0
         coverage_partial = False
         for pr in grouped[author]:
             thread = pr.get("thread_count")
@@ -715,10 +782,17 @@ def _aggregate_by_author_comments_for_week(
             thread_total += int(thread)
             comment_total += int(pr.get("comment_count") or 0)
             active_total += int(pr.get("active_thread_count") or 0)
+            # #356: bucket-level vote_event_count is the additive subset
+            # of comment_count, sourced from the parallel
+            # ``vote_event_counts`` dict keyed by ``str(pr["id"])``.
+            # PRs with the partial sentinel are skipped above and
+            # contribute zero (same extracted-subset semantics).
+            vote_event_total += int(vote_event_counts.get(str(pr["id"]), 0))
         buckets[author] = {
             "thread_count": thread_total,
             "comment_count": comment_total,
             "active_thread_count": active_total,
+            "vote_event_count": vote_event_total,
             "coverage_partial": coverage_partial,
         }
     return buckets if buckets else None
@@ -727,6 +801,7 @@ def _aggregate_by_author_comments_for_week(
 def _aggregate_by_repository_comments_for_week(
     prs: list[PrRecord],
     repository_name_to_id: dict[str, str],
+    vote_event_counts: dict[str, int],
 ) -> dict[str, dict[str, int | bool]] | None:
     """Per-(week, repo) comments-density emission for the synthetic demo.
 
@@ -803,6 +878,7 @@ def _aggregate_by_repository_comments_for_week(
         thread_total = 0
         comment_total = 0
         active_total = 0
+        vote_event_total = 0
         coverage_partial = False
         for pr in grouped[repo]:
             thread = pr.get("thread_count")
@@ -812,10 +888,13 @@ def _aggregate_by_repository_comments_for_week(
             thread_total += int(thread)
             comment_total += int(pr.get("comment_count") or 0)
             active_total += int(pr.get("active_thread_count") or 0)
+            # #356: bucket-level vote_event_count via parallel dict.
+            vote_event_total += int(vote_event_counts.get(str(pr["id"]), 0))
         buckets[repo] = {
             "thread_count": thread_total,
             "comment_count": comment_total,
             "active_thread_count": active_total,
+            "vote_event_count": vote_event_total,
             "coverage_partial": coverage_partial,
         }
     return buckets if buckets else None
@@ -826,6 +905,7 @@ def synthesize_pr_comment_streams_for_week(
     user_pool: list[str],
     ghost_pool: list[str],
     rng: random.Random,
+    pr_vote_event_counts: dict[str, int],
 ) -> tuple[list[SyntheticPrThread], list[SyntheticPrComment]]:
     """Feature 336 CL-14 / T015: synthesize per-(PR, thread) and
     per-(PR, thread, comment) demo-internal records for one week.
@@ -968,6 +1048,7 @@ def synthesize_pr_comment_streams_for_week(
                     "thread_id": thread_id,
                     "author_id": commenter,
                     "is_deleted": 0,
+                    "is_vote_event": False,
                 }
             )
         # comment_count >= thread_count holds by FK invariant + the
@@ -982,6 +1063,7 @@ def synthesize_pr_comment_streams_for_week(
                     "thread_id": thread_id,
                     "author_id": commenter,
                     "is_deleted": 0,
+                    "is_vote_event": False,
                 }
             )
 
@@ -994,6 +1076,20 @@ def synthesize_pr_comment_streams_for_week(
         if not ghost_used and eligible_ghost_pool and per_pr_comments:
             per_pr_comments[0]["author_id"] = rng.choice(eligible_ghost_pool)
             ghost_used = True
+
+        # #356: mark the first ``vote_event_count`` of this PR's per-PR
+        # comments as vote events.  Capped at len(per_pr_comments) so
+        # any incoherent input (vote_event_count > comment_count, which
+        # the generator never produces but which the helper tolerates)
+        # is silently bounded — preserves the
+        # ``vote_event_count <= comment_count`` ordering invariant.
+        # Per-reviewer aggregation reads ``c["is_vote_event"]`` to count
+        # these without re-deriving from per-PR totals.
+        pr_vote_event_count = max(
+            0, min(len(per_pr_comments), int(pr_vote_event_counts.get(pr_uid, 0)))
+        )
+        for vote_idx in range(pr_vote_event_count):
+            per_pr_comments[vote_idx]["is_vote_event"] = True
 
         comments.extend(per_pr_comments)
 
@@ -1097,6 +1193,7 @@ def _aggregate_by_reviewer_comments_for_week(
     }
 
     comment_count_by_bucket: dict[str, int] = {}
+    vote_event_count_by_bucket: dict[str, int] = {}
     threads_by_bucket: dict[str, set[tuple[str, str]]] = {}
     active_threads_by_bucket: dict[str, set[tuple[str, str]]] = {}
 
@@ -1125,6 +1222,17 @@ def _aggregate_by_reviewer_comments_for_week(
         comment_count_by_bucket[bucket_key] = (
             comment_count_by_bucket.get(bucket_key, 0) + 1
         )
+        # #356: bucket-level vote_event_count is the count of synthetic
+        # comments per bucket whose ``is_vote_event`` flag is True.
+        # Synthesizer marks the first ``pr_vote_event_counts[pr_uid]`` of
+        # each PR's per-PR comments as vote events; the per-reviewer
+        # bucketing distributes those across whichever commenters
+        # happened to be sampled into those slots (with self-comment
+        # exclusion applied at the same edge as ``comment_count``).
+        if c.get("is_vote_event", False):
+            vote_event_count_by_bucket[bucket_key] = (
+                vote_event_count_by_bucket.get(bucket_key, 0) + 1
+            )
         thread_key = (pr_uid, c["thread_id"])
         threads_by_bucket.setdefault(bucket_key, set()).add(thread_key)
         if thread_status.get(thread_key) == "active":
@@ -1139,6 +1247,7 @@ def _aggregate_by_reviewer_comments_for_week(
             "thread_count": len(threads_by_bucket.get(bucket_key, set())),
             "comment_count": comment_count_by_bucket[bucket_key],
             "active_thread_count": len(active_threads_by_bucket.get(bucket_key, set())),
+            "vote_event_count": vote_event_count_by_bucket.get(bucket_key, 0),
             "coverage_partial": same_w_partial,
         }
     return buckets
@@ -2617,7 +2726,7 @@ def main(argv: list[str] | None = None) -> int:
     # isolated stream for the comments-metrics triplet — keeping it
     # separate preserves byte-stability of pre-310 pr_record_rng
     # consumption (INV-05 demo-profile determinism).
-    global RNG, pr_record_rng, comments_metrics_rng
+    global RNG, pr_record_rng, comments_metrics_rng, vote_event_rng
     RNG = init_random(SEED)
     pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)
     comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)
@@ -2626,6 +2735,13 @@ def main(argv: list[str] | None = None) -> int:
     # so synthesis cannot perturb existing serialized output (per
     # _COMMENT_STREAM_SEED_OFFSET rationale at module-load init).
     comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)
+    # #356: vote-event RNG.  Independent of every other stream so
+    # vote_event_count draws cannot perturb the existing 8-field
+    # PrRecord byte-output.  Declared global so module-level state is
+    # reset alongside the others — repeated in-process main() calls
+    # must produce byte-identical artifacts (the in-process
+    # determinism test enforces this).
+    vote_event_rng = random.Random(SEED + _VOTE_EVENT_SEED_OFFSET)
 
     # Generate entities
     print("\n[1/6] Generating entities...")
@@ -2779,17 +2895,26 @@ def main(argv: list[str] | None = None) -> int:
             # downstream weeks see byte-identical input.
             pr_record_rng_state = pr_record_rng.getstate()
             comments_metrics_rng_state = comments_metrics_rng.getstate()
-            synthetic_prs_full = generate_pr_records(
+            # #356: also snapshot/restore the vote_event_rng so the FULL-set
+            # call doesn't double-advance it before the capped-set call.
+            # The capped-set call's vote_event_counts is discarded by
+            # destructured assignment because the demo's per-PR drilldown
+            # ``prs[*]`` shape MUST stay unchanged at the existing 8 fields
+            # (#356 hard guardrail: no leak into prs[*]).
+            vote_event_rng_state = vote_event_rng.getstate()
+            synthetic_prs_full, synthetic_vote_event_counts_full = generate_pr_records(
                 rollup.week,
                 repo_entries,
                 author_entries,
                 pr_record_rng,
                 comments_metrics_rng=comments_metrics_rng,
                 cap=len(repo_entries),
+                vote_event_rng=vote_event_rng,
             )
             pr_record_rng.setstate(pr_record_rng_state)
             comments_metrics_rng.setstate(comments_metrics_rng_state)
-            synthetic_prs = generate_pr_records(
+            vote_event_rng.setstate(vote_event_rng_state)
+            synthetic_prs, _synthetic_vote_event_counts_capped = generate_pr_records(
                 rollup.week, repo_entries, author_entries, pr_record_rng
             )
             prs_truncated = qualified_count > _PR_DETAIL_CAP
@@ -2818,13 +2943,13 @@ def main(argv: list[str] | None = None) -> int:
                 # equals the sum across by_author_comments buckets on every
                 # week, including W26 with 520 PRs).
                 rollup_data["comments"] = _aggregate_comments_for_week(
-                    synthetic_prs_full
+                    synthetic_prs_full, synthetic_vote_event_counts_full
                 )
                 # Feature 334 per-author bucketing.  Mirrors production
                 # ``_compute_weekly_by_author_comments``; omits the key
                 # when no buckets exist per FR-3-03 / INV-2-09.
                 weekly_by_author_comments = _aggregate_by_author_comments_for_week(
-                    synthetic_prs_full
+                    synthetic_prs_full, synthetic_vote_event_counts_full
                 )
                 if weekly_by_author_comments:
                     rollup_data["by_author_comments"] = weekly_by_author_comments
@@ -2843,7 +2968,9 @@ def main(argv: list[str] | None = None) -> int:
                 # the demo's broader name-keyed by_repository emission.
                 weekly_by_repository_comments = (
                     _aggregate_by_repository_comments_for_week(
-                        synthetic_prs_full, repository_name_to_id
+                        synthetic_prs_full,
+                        repository_name_to_id,
+                        synthetic_vote_event_counts_full,
                     )
                 )
                 if weekly_by_repository_comments:
@@ -2870,6 +2997,7 @@ def main(argv: list[str] | None = None) -> int:
                         user_pool_for_reviewer,
                         ghost_pool_for_reviewer,
                         comment_stream_rng,
+                        synthetic_vote_event_counts_full,
                     )
                 )
                 weekly_by_reviewer_comments = _aggregate_by_reviewer_comments_for_week(
@@ -2894,12 +3022,14 @@ def main(argv: list[str] | None = None) -> int:
             rollup_data["prs"] = []
             if _EMIT_COMMENTS_METRICS:
                 # Empty-week capability-on: emit zeros with coverage_partial
-                # False (no PRs to be missing extraction for).  All four
-                # fields present together per INV-1-08 atomicity.
+                # False (no PRs to be missing extraction for).  All five
+                # fields present together per INV-1-08 atomicity (#356
+                # added vote_event_count to the atomic set).
                 rollup_data["comments"] = {
                     "thread_count": 0,
                     "comment_count": 0,
                     "active_thread_count": 0,
+                    "vote_event_count": 0,
                     "coverage_partial": False,
                 }
             rollup_data["_prs_truncated"] = False

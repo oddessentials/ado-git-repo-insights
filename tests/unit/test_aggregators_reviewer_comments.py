@@ -461,17 +461,22 @@ def test_all_unextracted_week_omits_key(
     )
 
 
-def test_atomicity_all_four_fields_per_entry(
+def test_atomicity_all_five_fields_per_entry(
     reviewer_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
-    """FR-1-08 / INV-4-08 (case v): every emitted entry has all four fields together.
+    """FR-1-08 / INV-4-08 (case v): every emitted entry has all five fields together.
 
     Atomicity is the schema invariant the validator enforces in STRICT
     mode (``rollup.schema.ts:validateReviewerCommentsDensity``); the
     producer guarantees it by emitting each bucket as a single dict
     literal.  This test asserts every emitted entry's key set equals
-    ``{thread_count, comment_count, active_thread_count, coverage_partial}``
-    — no missing fields, no extra fields.
+    ``{thread_count, comment_count, active_thread_count, vote_event_count,
+    coverage_partial}`` — no missing fields, no extra fields.
+
+    The 5th field ``vote_event_count`` is the additive subset of
+    ``comment_count`` over rows where ``comment_type='system'`` and
+    ``content`` matches the shared vote-event regex.  See #356 + the
+    parser-equivalence contract at ``tests/unit/test_vote_events.py``.
     """
     db, tmp_path = reviewer_comments_db
     monday = _week_monday(2026, 2)
@@ -495,6 +500,7 @@ def test_atomicity_all_four_fields_per_entry(
         "thread_count",
         "comment_count",
         "active_thread_count",
+        "vote_event_count",
         "coverage_partial",
     }
     for commenter, entry in buckets.items():
@@ -1233,3 +1239,162 @@ def test_determinism_outer_dict_key_order_ascending_by_commenter(
     # Bonus: bob < charlie by user_id ASCII order — expected canonical
     # order regardless of insert order.
     assert keys.index(USER_BOB) < keys.index(USER_CHARLIE)
+
+
+# =========================================================================
+# #356 vote_event_count: per-bucket additive subset of comment_count.
+# Per-reviewer dimension iterates pr_comments rows directly (CL-13 /
+# INV-4-13), so vote_event_count is a row-level SUM of system rows whose
+# content matches the shared vote-event regex.
+# =========================================================================
+
+
+def _insert_typed_comment(
+    db: DatabaseManager,
+    *,
+    uid: str,
+    thread_id: str,
+    comment_id: str,
+    author_id: str,
+    content: str,
+    comment_type: str,
+    is_deleted: int = 0,
+) -> None:
+    """Insert a comment with explicit comment_type + content (#356 helper)."""
+    db.execute(
+        """
+        INSERT INTO pr_comments (
+            comment_id, thread_id, pull_request_uid, author_id,
+            content, comment_type, created_at, last_updated, is_deleted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            comment_id,
+            thread_id,
+            uid,
+            author_id,
+            content,
+            comment_type,
+            "2026-01-02T00:00:00Z",
+            "2026-01-02T00:00:00Z",
+            is_deleted,
+        ),
+    )
+
+
+def test_vote_event_count_via_mixed_comment_types(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: vote_event_count counts only system rows matching the vote-event regex.
+
+    Bob commented twice (one prose mentioning 'voted', one Approve vote);
+    Charlie commented twice (one Reject vote, one non-vote system message).
+    Asserts:
+      * Bob's comment_count == 2, vote_event_count == 1 (only the Approve).
+      * Charlie's comment_count == 2, vote_event_count == 1 (only the
+        Reject; the non-vote system row is included in comment_count but
+        excluded from vote_event_count).
+    """
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 7)
+    _insert_pr(
+        db,
+        uid="pr-mix",
+        pr_id=10,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-mix", thread_id="t-mix", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c1",
+        author_id=USER_BOB,
+        content="I have voted in the past on similar PRs",
+        comment_type="text",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c2",
+        author_id=USER_BOB,
+        content="bob voted 10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c3",
+        author_id=USER_CHARLIE,
+        content="charlie voted -10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c4",
+        author_id=USER_CHARLIE,
+        content="reactivated by charlie",
+        comment_type="system",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_reviewer_comments(rollup)
+    bob = buckets[USER_BOB]
+    charlie = buckets[USER_CHARLIE]
+    assert bob["comment_count"] == 2, (
+        f"Bob's comment_count should include text + system; "
+        f"got {bob['comment_count']!r}"
+    )
+    assert bob["vote_event_count"] == 1, (
+        f"Bob's vote_event_count should include only the Approve vote; "
+        f"got {bob['vote_event_count']!r}"
+    )
+    assert charlie["comment_count"] == 2, (
+        f"Charlie's comment_count should include both system rows "
+        f"(vote and non-vote); got {charlie['comment_count']!r}"
+    )
+    assert charlie["vote_event_count"] == 1, (
+        f"Charlie's vote_event_count should include only the Reject vote; "
+        f"got {charlie['vote_event_count']!r}"
+    )
+
+
+def test_vote_event_count_zero_key_present_when_no_votes(
+    reviewer_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: bucket with zero vote events still emits the field as integer 0."""
+    db, tmp_path = reviewer_comments_db
+    monday = _week_monday(2026, 8)
+    _insert_pr(
+        db,
+        uid="pr-novote",
+        pr_id=20,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-novote", thread_id="t-novote", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-novote",
+        thread_id="t-novote",
+        comment_id="c1",
+        author_id=USER_BOB,
+        content="LGTM",
+        comment_type="text",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_reviewer_comments(rollup)
+    bucket = buckets[USER_BOB]
+    assert "vote_event_count" in bucket, (
+        "INV-4-08: vote_event_count key MUST be present even at zero"
+    )
+    assert bucket["vote_event_count"] == 0
+    assert isinstance(bucket["vote_event_count"], int)

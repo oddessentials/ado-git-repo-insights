@@ -31,12 +31,15 @@ Why hand-curated raw rows:
 * Tombstone rows (``is_deleted=1``) make C1's filter non-trivial — a
   regression that drops the filter would over-count visible threads
   / comments by exactly the tombstone count, surfacing in T007.
-* ``comment_type='text'`` on every comment row keeps
-  ``_backfill_review_timestamps_if_needed`` (cli.py:2089 → review_time.py)
-  a clean no-op (it only acts on ``comment_type='system'`` matching a
-  vote-parse pattern). Without that, the backfill would mutate
-  ``review_time_minutes`` on the fixture PRs and obscure the
-  reconciliation contract.
+* Most comment rows are ``comment_type='text'``; #356 adds one
+  ``comment_type='system'`` vote-pattern row per non-empty PR
+  (e.g., ``"reviewer-N voted 10"``) so reconciliation tests exercise
+  non-zero ``vote_event_count`` on the rollup-level ``comments`` and
+  the four per-bucket aggregates.  ``_backfill_review_timestamps_if_needed``
+  (cli.py:2089 → review_time.py) DOES run on these synthetic vote
+  rows and populate ``review_time_minutes``, but this fixture asserts
+  against per-bucket counts only — the populated review timestamps
+  are inert for the reconciliation contract.
 
 Public API:
 
@@ -400,10 +403,16 @@ def _populate_raw_rows(sqlite_path: Path) -> None:
     FK-safe order: orgs → projects → repos → users → PRs → threads →
     comments.
 
-    All comments are ``comment_type='text'`` so
-    ``_backfill_review_timestamps_if_needed`` (cli.py:2089) is a clean
-    no-op (it only acts on ``comment_type='system'`` matching the
-    vote-parse pattern in extraction/review_time.py).
+    Most comments are ``comment_type='text'``; #356 adds one
+    ``comment_type='system'`` vote-pattern comment per non-empty PR
+    (e.g., ``"reviewer-N voted 10"``) so cross-aggregate parity tests
+    exercise non-zero ``vote_event_count`` on the rollup-level
+    ``comments`` and the four per-bucket aggregates.  This DOES cause
+    ``_backfill_review_timestamps_if_needed`` (cli.py:2089) to run on
+    these synthetic vote rows, but the SC05 fixture is not asserting
+    against ``review_time_minutes`` — only against per-bucket counts —
+    so the populated review timestamps are inert for this fixture's
+    purposes.
     """
     sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     sqlite_path.unlink(missing_ok=True)
@@ -535,6 +544,35 @@ def _populate_raw_rows(sqlite_path: Path) -> None:
                                 1,
                             ),
                         )
+                # #356: per-PR vote-event row attached to the FIRST thread
+                # so the SC05 reconciliation fixture exercises non-zero
+                # vote_event_count on the rollup-level ``comments`` and
+                # the four per-bucket aggregates.  Without at least one
+                # vote-pattern system row, every vote_event_count would
+                # be vacuously zero on this fixture and the
+                # cross-aggregate parity assertion would not exercise the
+                # new field's sum-coherence property.
+                if pr.threads:
+                    first_thread_id = f"t{pr.pr_id}-1"
+                    vote_comment_id = f"c{pr.pr_id}-vote"
+                    conn.execute(
+                        "INSERT INTO pr_comments "
+                        "(comment_id, thread_id, pull_request_uid, "
+                        "author_id, content, comment_type, created_at, "
+                        "last_updated, is_deleted) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            vote_comment_id,
+                            first_thread_id,
+                            pr_uid,
+                            USER_ID,
+                            f"reviewer-{pr.pr_id} voted 10",
+                            "system",
+                            pr.closed_date,
+                            pr.closed_date,
+                            0,
+                        ),
+                    )
         # Restore FK enforcement so the production ``build-aggregates``
         # CLI invoked by ``build_fixture`` runs against the same FK
         # posture it would in production.

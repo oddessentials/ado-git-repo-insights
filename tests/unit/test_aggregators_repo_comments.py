@@ -391,10 +391,16 @@ def test_all_unextracted_repo_emits_zeros_with_coverage_partial_true(
     assert beta["coverage_partial"] is True
 
 
-def test_atomicity_every_entry_has_all_four_fields(
+def test_atomicity_every_entry_has_all_five_fields(
     repo_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
-    """FR-1-07 + INV-3-08 (case v): every emitted bucket entry carries all 4 atomic fields."""
+    """FR-1-07 + INV-3-08 (case v): every emitted bucket entry carries all 5 atomic fields.
+
+    The 5th field ``vote_event_count`` is the additive subset of
+    ``comment_count`` over rows where ``comment_type='system'`` and
+    ``content`` matches the shared vote-event regex.  See #356 + the
+    parser-equivalence contract at ``tests/unit/test_vote_events.py``.
+    """
     db, tmp_path = repo_comments_db
     monday = _week_monday(2026, 2)
     _insert_pr(
@@ -424,6 +430,7 @@ def test_atomicity_every_entry_has_all_four_fields(
         "thread_count",
         "comment_count",
         "active_thread_count",
+        "vote_event_count",
         "coverage_partial",
     }
     for key, entry in buckets.items():
@@ -600,3 +607,163 @@ def test_determinism_outer_dict_key_order_ascending_by_repository_id(
     # Bonus: ``repo-alpha`` < ``repo-beta`` lexicographically — the
     # expected canonical order regardless of insert order.
     assert keys.index(REPOSITORY_ID_ALPHA) < keys.index(REPOSITORY_ID_BETA)
+
+
+# =========================================================================
+# #356 vote_event_count: per-bucket additive subset of comment_count.
+# Mirrors the per-author tests in test_aggregators_author_comments.py.
+# =========================================================================
+
+
+def _insert_typed_comment(
+    db: DatabaseManager,
+    *,
+    uid: str,
+    thread_id: str,
+    comment_id: str,
+    content: str,
+    comment_type: str,
+    is_deleted: int = 0,
+) -> None:
+    """Insert a comment with explicit comment_type + content (#356 helper)."""
+    db.execute(
+        """
+        INSERT INTO pr_comments (
+            comment_id, thread_id, pull_request_uid, author_id,
+            content, comment_type, created_at, last_updated, is_deleted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            comment_id,
+            thread_id,
+            uid,
+            USER_ALICE,
+            content,
+            comment_type,
+            "2026-01-02T00:00:00Z",
+            "2026-01-02T00:00:00Z",
+            is_deleted,
+        ),
+    )
+
+
+def test_vote_event_count_via_mixed_comment_types(
+    repo_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: vote_event_count counts only system rows matching the vote-event regex.
+
+    Same matrix as the per-author test: text + system-vote (Approve and
+    Reject) + non-vote system + codeChange + plain text.  Asserts:
+      * comment_count == 6 (C1 preserved).
+      * vote_event_count == 2 (only true vote-pattern system rows).
+    """
+    db, tmp_path = repo_comments_db
+    monday = _week_monday(2026, 7)
+    _insert_pr(
+        db,
+        uid="pr-mix",
+        pr_id=10,
+        user_id=USER_ALICE,
+        repository_id=REPOSITORY_ID_ALPHA,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-mix", thread_id="t-mix", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c1",
+        content="I have voted in the past on similar PRs",
+        comment_type="text",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c2",
+        content="alice voted 10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c3",
+        content="bob voted -10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c4",
+        content="reactivated by alice",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c5",
+        content="suggested edit",
+        comment_type="codeChange",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mix",
+        thread_id="t-mix",
+        comment_id="c6",
+        content="LGTM",
+        comment_type="text",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_repository_comments(rollup)
+    bucket = buckets[REPOSITORY_ID_ALPHA]
+    assert bucket["comment_count"] == 6, (
+        f"comment_count should include all non-deleted rows (C1 preserved); "
+        f"got {bucket['comment_count']!r}"
+    )
+    assert bucket["vote_event_count"] == 2, (
+        f"vote_event_count should include only vote-pattern system rows; "
+        f"got {bucket['vote_event_count']!r}"
+    )
+
+
+def test_vote_event_count_zero_key_present_when_no_votes(
+    repo_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: bucket with zero vote events still emits the field as integer 0.
+
+    INV-3-08 atomicity: the 5th field is always present even at zero.
+    """
+    db, tmp_path = repo_comments_db
+    monday = _week_monday(2026, 8)
+    _insert_pr(
+        db,
+        uid="pr-novote",
+        pr_id=20,
+        user_id=USER_ALICE,
+        repository_id=REPOSITORY_ID_ALPHA,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-novote", thread_id="t-novote", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-novote",
+        thread_id="t-novote",
+        comment_id="c1",
+        content="LGTM",
+        comment_type="text",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_repository_comments(rollup)
+    bucket = buckets[REPOSITORY_ID_ALPHA]
+    assert "vote_event_count" in bucket, (
+        "INV-3-08: vote_event_count key MUST be present even at zero"
+    )
+    assert bucket["vote_event_count"] == 0
+    assert isinstance(bucket["vote_event_count"], int)

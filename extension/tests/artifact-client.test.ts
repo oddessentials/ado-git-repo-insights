@@ -1400,6 +1400,180 @@ describe("AuthenticatedDatasetLoader", () => {
       );
     });
   });
+
+  // =========================================================================
+  // #356: regression coverage for the v4 rollup-validation bypass on the
+  // private-tenant loader path.  Pre-fix, AuthenticatedDatasetLoader.getWeeklyRollups
+  // returned raw rollup data without ANY validation — Codex caught this
+  // at stop-time review.  Post-fix, the path threads the manifest's
+  // aggregates_schema_version into the same version-aware validateRollup
+  // used by the public DatasetLoader paths, so:
+  //   * v4 artifacts get strict 5-field atomicity (vote_event_count required).
+  //   * v3 artifacts in the wild keep loading via the back-compat 4-field
+  //     shape ONLY when the manifest version explicitly says v3.
+  // =========================================================================
+  describe("getWeeklyRollups v3/v4 enforcement (#356 bypass fix)", () => {
+    const baseRollup = {
+      week: "2026-W03",
+      start_date: "2026-01-13",
+      end_date: "2026-01-19",
+      pr_count: 42,
+    };
+    const baseManifest = {
+      manifest_schema_version: 1,
+      dataset_schema_version: 1,
+      aggregate_index: {
+        weekly_rollups: [
+          {
+            week: "2026-W03",
+            path: "aggregates/weekly_rollups/2026-W03.json",
+          },
+        ],
+        distributions: [],
+      },
+    };
+
+    function buildLoader(
+      manifest: ManifestSchema,
+      rollupData: unknown,
+    ): AuthenticatedDatasetLoader {
+      const mockData: Record<string, unknown> = {
+        "123/aggregates/dataset-manifest.json": manifest,
+        "123/aggregates/aggregates/weekly_rollups/2026-W03.json": rollupData,
+      };
+      const mockClient = new TestMockArtifactClient(mockData);
+      return new AuthenticatedDatasetLoader(
+        mockClient as unknown as ArtifactClient,
+        123,
+        "aggregates",
+      );
+    }
+
+    it("rejects v4 rollup missing vote_event_count (validation no longer bypassed)", async () => {
+      const loader = buildLoader(
+        { ...baseManifest, aggregates_schema_version: 4 } as ManifestSchema,
+        {
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        },
+      );
+      await loader.loadManifest();
+      // Pre-fix this would have returned the malformed rollup silently.
+      // Post-fix the validator runs and the per-week catch logs + drops
+      // the failing rollup, so the result is empty.
+      const consoleSpy = jest
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const result = await loader.getWeeklyRollups(
+        new Date("2026-01-13"),
+        new Date("2026-01-19"),
+      );
+      expect(result).toHaveLength(0);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to load rollup"),
+        expect.anything(),
+        expect.anything(),
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it("accepts v4 rollup with full 5-field comments shape", async () => {
+      const loader = buildLoader(
+        { ...baseManifest, aggregates_schema_version: 4 } as ManifestSchema,
+        {
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+        },
+      );
+      await loader.loadManifest();
+      const result = await loader.getWeeklyRollups(
+        new Date("2026-01-13"),
+        new Date("2026-01-19"),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]!.week).toBe("2026-W03");
+    });
+
+    it("accepts v3 rollup with 4-field comments shape (back-compat via explicit v3 manifest)", async () => {
+      const loader = buildLoader(
+        { ...baseManifest, aggregates_schema_version: 3 } as ManifestSchema,
+        {
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            coverage_partial: false,
+            // vote_event_count intentionally absent (legacy v3 shape).
+          },
+        },
+      );
+      await loader.loadManifest();
+      const result = await loader.getWeeklyRollups(
+        new Date("2026-01-13"),
+        new Date("2026-01-19"),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]!.week).toBe("2026-W03");
+    });
+
+    it("logs validation warnings when v4 rollup carries an unknown root-level field (warnings-branch coverage)", async () => {
+      // Closes the partial-branch gap on artifact-client.ts
+      // ``if (validation.warnings.length > 0)`` true-branch added by
+      // the #356 commit-2 bypass fix.  An unknown root-level field at
+      // strict=false routes through findUnknownFields -> warnings
+      // without failing validation, so the rollup loads AND the
+      // warnings-logging branch fires.
+      const loader = buildLoader(
+        { ...baseManifest, aggregates_schema_version: 4 } as ManifestSchema,
+        {
+          ...baseRollup,
+          comments: {
+            thread_count: 5,
+            comment_count: 12,
+            active_thread_count: 2,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+          // Unknown root-level field - validateRollup's KNOWN_ROOT_FIELDS
+          // check emits a warning at strict=false (rollup.schema.ts:1897)
+          // while validation.valid stays true.
+          experimental_unknown_field: 99,
+        },
+      );
+      await loader.loadManifest();
+      const consoleSpy = jest
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const result = await loader.getWeeklyRollups(
+        new Date("2026-01-13"),
+        new Date("2026-01-19"),
+      );
+      // Validation passes; rollup loads.
+      expect(result).toHaveLength(1);
+      expect(result[0]!.week).toBe("2026-W03");
+      // The warnings-logging branch fires.
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "[AuthenticatedDatasetLoader] rollup validation warnings for 2026-W03",
+        ),
+        expect.anything(),
+      );
+      consoleSpy.mockRestore();
+    });
+  });
 });
 
 describe("MockArtifactClient", () => {

@@ -166,11 +166,16 @@ def _synth_for_test(
     ``AttributeError`` — every test in the module fails consistently in RED.
     """
     rng = random.Random(_SYNTH_SEED)
+    # #356: pr_vote_event_counts is a parallel dict — pass empty so all
+    # synthetic comments get is_vote_event=False (the existing fixture
+    # tests don't exercise vote_event behavior; new dedicated tests
+    # below cover that path).
     return generate_demo_data.synthesize_pr_comment_streams_for_week(
         _build_fixture_prs(),
         _user_pool(),
         _ghost_pool(),
         rng,
+        {},
     )
 
 
@@ -346,6 +351,7 @@ def test_empty_week_does_not_raise_on_ghost_forcing(
             _user_pool(),
             _ghost_pool(),
             rng,
+            {},
         )
     )
     assert threads_empty == [], (
@@ -375,6 +381,7 @@ def test_empty_week_does_not_raise_on_ghost_forcing(
             _user_pool(),
             _ghost_pool(),
             rng,
+            {},
         )
     )
     assert threads_all_empty == [], (
@@ -404,6 +411,7 @@ def test_empty_week_does_not_raise_on_ghost_forcing(
             _user_pool(),
             _ghost_pool(),
             rng,
+            {},
         )
     )
     assert threads_partial == [], (
@@ -446,4 +454,122 @@ def test_ghost_pool_yields_at_least_one_ghost_commenter_in_emission(
         f"the per-reviewer sentinel reconciliation branch would be exercised "
         f"vacuously — T015 must guarantee ghost inclusion when ghost_pool is "
         f"non-empty"
+    )
+
+
+# =========================================================================
+# #356: vote_event_count round-trip.  The synthesizer marks the first N
+# of each PR's per-PR comments as ``is_vote_event=True`` (where N is
+# pr_vote_event_counts[str(pr["id"])]).  The demo's per-reviewer
+# aggregator counts those flagged comments per bucket.
+# =========================================================================
+
+
+def test_vote_event_marking_caps_at_per_pr_comment_count(
+    generate_demo_data: ModuleType,
+) -> None:
+    """#356: synthesizer marks exactly min(comment_count, requested) comments
+    per PR as vote events; sum equals the rollup-level vote_event_count.
+
+    Constructs a per-PR vote-event-count dict where some PRs get a
+    realistic number of votes (≤ comment_count), one PR gets MORE
+    requested than its comment_count (synthesizer must cap), and one PR
+    gets zero.  Asserts:
+      * Total ``is_vote_event=True`` rows across PRs == sum of
+        capped requested counts.
+      * Per-PR cap holds: no PR's vote-flagged count exceeds its
+        per-PR comment_count.
+    """
+    rng = random.Random(_SYNTH_SEED)
+    fixture_prs = _build_fixture_prs()
+    # PR 1: comment_count=5, request 2 vote events.
+    # PR 2: comment_count=4, request 4 (== full subset boundary).
+    # PR 3: comment_count=2, request 5 (synthesizer must cap to 2).
+    # PR 4: comment_count=0, request 1 (no comments emitted; cap to 0).
+    pr_vote_event_counts: dict[str, int] = {
+        "1": 2,
+        "2": 4,
+        "3": 5,
+        "4": 1,
+    }
+    _threads, comments = generate_demo_data.synthesize_pr_comment_streams_for_week(
+        fixture_prs,
+        _user_pool(),
+        _ghost_pool(),
+        rng,
+        pr_vote_event_counts,
+    )
+
+    per_pr_vote_marks: dict[str, int] = {}
+    per_pr_total_comments: dict[str, int] = {}
+    for c in comments:
+        pr_uid = str(c["pull_request_uid"])
+        per_pr_total_comments[pr_uid] = per_pr_total_comments.get(pr_uid, 0) + 1
+        if c.get("is_vote_event", False):
+            per_pr_vote_marks[pr_uid] = per_pr_vote_marks.get(pr_uid, 0) + 1
+
+    # Per-PR cap: vote_event_count <= comment_count per PR.
+    for pr_uid, vote_count in per_pr_vote_marks.items():
+        comment_count = per_pr_total_comments[pr_uid]
+        assert vote_count <= comment_count, (
+            f"PR {pr_uid}: vote_event count ({vote_count}) MUST NOT exceed "
+            f"comment_count ({comment_count}) — synthesizer cap violated"
+        )
+
+    # Expected per-PR caps: min(requested, comment_count).
+    expected_marks: dict[str, int] = {
+        "1": min(2, 5),
+        "2": min(4, 4),
+        "3": min(5, 2),
+        # PR 4 has no comments; no marking possible.
+    }
+    for pr_uid, expected in expected_marks.items():
+        actual = per_pr_vote_marks.get(pr_uid, 0)
+        assert actual == expected, (
+            f"PR {pr_uid}: expected {expected} vote-flagged comments "
+            f"(min(requested, comment_count)); got {actual}"
+        )
+
+
+def test_vote_event_count_aggregates_per_reviewer_bucket(
+    generate_demo_data: ModuleType,
+) -> None:
+    """#356: per-reviewer demo aggregator counts is_vote_event=True per bucket;
+    sum across buckets equals total emitted vote events (after self-comment
+    exclusion).
+    """
+    rng = random.Random(_SYNTH_SEED)
+    fixture_prs = _build_fixture_prs()
+    pr_vote_event_counts: dict[str, int] = {"1": 2, "2": 4, "3": 1}
+    threads, comments = generate_demo_data.synthesize_pr_comment_streams_for_week(
+        fixture_prs,
+        _user_pool(),
+        _ghost_pool(),
+        rng,
+        pr_vote_event_counts,
+    )
+    users_uuid_set: set[str] = {
+        _AUTHOR_A,
+        _AUTHOR_B,
+        _AUTHOR_C,
+        _USER_D,
+        _USER_E,
+        _USER_F,
+    }
+    buckets = generate_demo_data._aggregate_by_reviewer_comments_for_week(
+        fixture_prs, threads, comments, users_uuid_set
+    )
+    assert buckets is not None, "expected non-empty buckets for fixture"
+    total_vote_event_count = sum(
+        int(bucket["vote_event_count"]) for bucket in buckets.values()
+    )
+    # The per-reviewer aggregator excludes self-comments
+    # (commenter == pr_author).  Synthesis already enforces that
+    # invariant on EVERY emitted comment, so the bucket-sum equals the
+    # total emitted vote events.
+    emitted_vote_events = sum(1 for c in comments if c.get("is_vote_event", False))
+    assert total_vote_event_count == emitted_vote_events, (
+        f"per-reviewer SUM of vote_event_count ({total_vote_event_count}) "
+        f"!= total emitted vote-flagged comments ({emitted_vote_events}) — "
+        f"per-reviewer aggregator must count is_vote_event=True per bucket"
     )

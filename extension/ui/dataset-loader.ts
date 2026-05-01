@@ -77,7 +77,7 @@ function validateSchema(
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
-const SUPPORTED_AGGREGATES_VERSION = 3;
+const SUPPORTED_AGGREGATES_VERSION = 4;
 
 export const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
   authorFiltersAvailable: false,
@@ -789,8 +789,25 @@ export class DatasetLoader implements IDatasetLoader {
       if (response.ok) {
         const rawData = await response.json();
 
-        // Validate rollup data (permissive mode - unknown fields produce warnings)
-        validateSchema(rawData, validateRollup, "rollup", false, weekStr);
+        // Validate rollup data (permissive mode - unknown fields produce
+        // warnings).  #356 (aggregates schema v4): thread the manifest's
+        // ``aggregates_schema_version`` into the rollup validator so v3
+        // legacy artifacts (4-field comments shape) load gracefully while
+        // v4 artifacts get strict 5-field atomicity.  ``rollupResult`` is
+        // surfaced via ``SchemaValidationError`` on failure (matching the
+        // ``validateSchema`` helper's behavior on the other artifact
+        // types).
+        const aggregatesVersion = this.manifest?.aggregates_schema_version;
+        const rollupResult = validateRollup(rawData, false, aggregatesVersion);
+        if (!rollupResult.valid) {
+          throw new SchemaValidationError(rollupResult.errors, "rollup");
+        }
+        if (rollupResult.warnings.length > 0) {
+          console.warn(
+            `[DatasetLoader] rollup validation warnings for ${weekStr}:`,
+            rollupResult.warnings.map((w) => w.message).join("; "),
+          );
+        }
 
         // Apply version adapter to normalize rollup data
         const data = normalizeRollup(rawData);
@@ -970,6 +987,34 @@ export class DatasetLoader implements IDatasetLoader {
 
         if (response.ok) {
           const rawData = await response.json();
+          // #356 (aggregates schema v4): validate the rollup before
+          // caching / returning so the v4 atomicity contract reaches
+          // every fetched rollup path, including this concurrent batch
+          // loader.  Threads the manifest's aggregates_schema_version
+          // so legacy v3 artifacts still load (4-field comments shape)
+          // while v4 artifacts get strict 5-field atomicity.  Validation
+          // failures surface as "failed" outcomes — the per-week
+          // failure handling above (`failedWeeks` aggregation) keeps
+          // the rest of the batch progressing.
+          const aggregatesVersion = this.manifest?.aggregates_schema_version;
+          const validation = validateRollup(rawData, false, aggregatesVersion);
+          if (!validation.valid) {
+            console.warn(
+              `[DatasetLoader] rollup validation failed for ${weekStr}:`,
+              validation.errors.map((e) => e.message).join("; "),
+            );
+            return {
+              week: weekStr,
+              status: "failed",
+              error: validation.errors.map((e) => e.message).join("; "),
+            };
+          }
+          if (validation.warnings.length > 0) {
+            console.warn(
+              `[DatasetLoader] rollup validation warnings for ${weekStr}:`,
+              validation.warnings.map((w) => w.message).join("; "),
+            );
+          }
           // Apply version adapter to normalize rollup data
           const data = normalizeRollup(rawData);
           try {

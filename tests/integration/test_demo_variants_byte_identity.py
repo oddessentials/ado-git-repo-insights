@@ -127,7 +127,17 @@ _GATED_PR_FIELDS: Final[frozenset[str]] = frozenset(
 # to identify the "all-four-present" canonical shape; any subset is a
 # violation.
 _COMMENTS_AGGREGATE_FIELDS: Final[frozenset[str]] = frozenset(
-    {"thread_count", "comment_count", "active_thread_count", "coverage_partial"},
+    {
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        # #356: additive subset of comment_count over rows where
+        # comment_type='system' AND content matches the shared vote-event
+        # regex (extraction/vote_events.py).  Part of the 5-field atomicity
+        # contract for the four rollup-level comments-aggregate sites.
+        "vote_event_count",
+        "coverage_partial",
+    },
 )
 # Feature 334: each entry inside ``rollup[W].by_author_comments`` carries
 # the same four atomic fields as the 333 ``comments`` aggregate (per-bucket
