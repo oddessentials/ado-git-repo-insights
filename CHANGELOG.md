@@ -1,3 +1,10 @@
+## [101.23.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.23.0...v101.23.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* comments drill-down + density-panel UX polish ([#359](https://github.com/oddessentials/ado-git-repo-insights/issues/359)) ([f366cb1](https://github.com/oddessentials/ado-git-repo-insights/commit/f366cb168487e89a365bf0ef436cc3f23416ffae)), closes [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#338](https://github.com/oddessentials/ado-git-repo-insights/issues/338) [#338](https://github.com/oddessentials/ado-git-repo-insights/issues/338) [#357](https://github.com/oddessentials/ado-git-repo-insights/issues/357) [#357](https://github.com/oddessentials/ado-git-repo-insights/issues/357)
+
 # [101.23.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.22.1...v101.23.0) (2026-04-30)
 
 
