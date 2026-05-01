@@ -1,3 +1,10 @@
+# [101.24.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.23.1...v101.24.0) (2026-05-01)
+
+
+### Features
+
+* vote_event_count on rollup comments + cap demo sentinel ([#360](https://github.com/oddessentials/ado-git-repo-insights/issues/360)) ([822857f](https://github.com/oddessentials/ado-git-repo-insights/commit/822857f70227089288af20cad92c07f9f83c95e2)), closes [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#337](https://github.com/oddessentials/ado-git-repo-insights/issues/337) [#338](https://github.com/oddessentials/ado-git-repo-insights/issues/338) [#338](https://github.com/oddessentials/ado-git-repo-insights/issues/338) [#357](https://github.com/oddessentials/ado-git-repo-insights/issues/357) [#357](https://github.com/oddessentials/ado-git-repo-insights/issues/357) [#356](https://github.com/oddessentials/ado-git-repo-insights/issues/356) [#356](https://github.com/oddessentials/ado-git-repo-insights/issues/356) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#1](https://github.com/oddessentials/ado-git-repo-insights/issues/1) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#356](https://github.com/oddessentials/ado-git-repo-insights/issues/356) [#355](https://github.com/oddessentials/ado-git-repo-insights/issues/355) [#356](https://github.com/oddessentials/ado-git-repo-insights/issues/356) [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3)
+
 ## [101.23.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.23.0...v101.23.1) (2026-05-01)
 
 
