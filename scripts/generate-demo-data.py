@@ -1025,15 +1025,24 @@ def synthesize_pr_comment_streams_for_week(
         # ghost_pool would be a setup-stage construction bug).
         eligible_user_pool = [u for u in user_pool if u != pr_author]
         eligible_ghost_pool = [g for g in ghost_pool if g != pr_author]
-        if not eligible_user_pool and not eligible_ghost_pool:
+        if not eligible_user_pool:
             raise RuntimeError(
                 "synthesize_pr_comment_streams_for_week: no eligible "
-                f"commenter pool for PR {pr_uid!r} (author "
-                f"{pr_author!r}); user_pool={user_pool!r}, "
-                f"ghost_pool={ghost_pool!r} — every entry equals the PR's "
-                "author, making CL-04 self-comment exclusion unsatisfiable"
+                f"user commenter pool for PR {pr_uid!r} (author "
+                f"{pr_author!r}); user_pool={user_pool!r} — every entry "
+                "equals the PR's author, making CL-04 self-comment "
+                "exclusion unsatisfiable for organic sampling "
+                "(eligible_ghost_pool is reserved for the ghost-forcing "
+                "block only per #355)"
             )
-        eligible_pool = eligible_user_pool + eligible_ghost_pool
+        # #355: organic sampling uses eligible_user_pool only.  Ghost
+        # commenters reach the data exclusively via the ghost-forcing
+        # block below — caps the synthetic sentinel's per-reviewer share
+        # so real reviewers naturally dominate the public demo's
+        # per-reviewer panel.  Production sort posture is unchanged
+        # (sort remains truthful — the demo input is just less
+        # ghost-heavy).
+        eligible_pool = eligible_user_pool
 
         # Each thread gets ≥1 comment first (CL-14 step 2: no orphan
         # threads).  Then distribute the remaining comments uniformly
