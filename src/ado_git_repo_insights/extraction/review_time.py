@@ -1,7 +1,9 @@
 """Extract review timestamps from stored PR thread system comments.
 
 Scans ``pr_comments`` for vote events (``comment_type = 'system'``,
-content matching ``^(.+) voted (-?\\d+)$``) and populates:
+content matching the shared
+``ado_git_repo_insights.extraction.vote_events.VOTE_PATTERN``) and
+populates:
 
 - ``reviewers.reviewed_at`` — earliest positive vote timestamp per reviewer
 - ``pull_requests.review_time_minutes`` — earliest approval − creation_date
@@ -16,10 +18,10 @@ reclassified, the cleared values stay NULL — no stale data survives.
 from __future__ import annotations
 
 import logging
-import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ado_git_repo_insights.extraction.vote_events import VOTE_PATTERN
 from ado_git_repo_insights.utils.datetime_utils import (
     calculate_review_time_minutes,
     parse_iso_datetime,
@@ -29,10 +31,6 @@ if TYPE_CHECKING:
     from ado_git_repo_insights.persistence.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
-
-# Matches ADO system comments for vote events:
-#   "PM P voted 10", "admin@oddessentials.com voted -10"
-_VOTE_PATTERN = re.compile(r"^(.+) voted (-?\d+)$")
 
 # Positive vote values (approve=10, approve-with-suggestions=5)
 _POSITIVE_VOTES = frozenset({5, 10})
@@ -134,7 +132,7 @@ def _recompute_review_timestamps(
 
     for row in rows:
         content = row["content"]
-        match = _VOTE_PATTERN.match(content)
+        match = VOTE_PATTERN.match(content)
         if not match:
             continue
         vote_value = int(match.group(2))

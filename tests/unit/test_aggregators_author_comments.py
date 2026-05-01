@@ -409,10 +409,16 @@ def test_sentinel_bucketing_for_unknown_to_users_authors(
     assert "another-ghost" not in buckets
 
 
-def test_atomicity_every_entry_has_all_four_fields(
+def test_atomicity_every_entry_has_all_five_fields(
     author_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
-    """FR-1-07 + INV-2-08: every emitted bucket entry carries all 4 atomic fields."""
+    """FR-1-07 + INV-2-08: every emitted bucket entry carries all 5 atomic fields.
+
+    The 5th field ``vote_event_count`` is the additive subset of
+    ``comment_count`` over rows where ``comment_type='system'`` and
+    ``content`` matches the shared vote-event regex.  See #356 + the
+    parser-equivalence contract at ``tests/unit/test_vote_events.py``.
+    """
     db, tmp_path = author_comments_db
     monday = _week_monday(2026, 2)
     _insert_pr(
@@ -449,6 +455,7 @@ def test_atomicity_every_entry_has_all_four_fields(
         "thread_count",
         "comment_count",
         "active_thread_count",
+        "vote_event_count",
         "coverage_partial",
     }
     for key, entry in buckets.items():
@@ -705,3 +712,194 @@ def test_determinism_outer_dict_key_order_ascending(
     # sentinel sorts before both.
     assert keys.index(FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL) < keys.index(USER_ALICE)
     assert keys.index(USER_ALICE) < keys.index(USER_BOB)
+
+
+# =========================================================================
+# #356 vote_event_count: per-bucket additive subset of comment_count.
+# Tests cover the SQL-side `is_vote_event` UDF predicate (lifted from
+# `extraction.vote_events`) on mixed-comment_type fixtures and assert
+# that:
+#   1. comment_count remains inclusive (text + system + codeChange all
+#      counted) — C1 contract preserved.
+#   2. vote_event_count counts ONLY rows where comment_type='system' AND
+#      content matches the vote-event regex.  Non-vote system rows AND
+#      incidental "voted" prose in non-system rows are NOT counted.
+#   3. When no vote events exist, vote_event_count is integer zero (key
+#      present, never null) — atomic 5-field shape per INV-2-08.
+# =========================================================================
+
+
+def _insert_typed_comment(
+    db: DatabaseManager,
+    *,
+    uid: str,
+    thread_id: str,
+    comment_id: str,
+    content: str,
+    comment_type: str,
+    is_deleted: int = 0,
+) -> None:
+    """Insert a comment with explicit comment_type + content (#356 helper)."""
+    db.execute(
+        """
+        INSERT INTO pr_comments (
+            comment_id, thread_id, pull_request_uid, author_id,
+            content, comment_type, created_at, last_updated, is_deleted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            comment_id,
+            thread_id,
+            uid,
+            USER_ALICE,
+            content,
+            comment_type,
+            "2026-01-02T00:00:00Z",
+            "2026-01-02T00:00:00Z",
+            is_deleted,
+        ),
+    )
+
+
+def test_vote_event_count_via_mixed_comment_types(
+    author_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: vote_event_count counts only system rows matching the vote-event regex.
+
+    Fixture seeds one PR with the full comment_type matrix:
+      - text comment with prose mentioning 'voted' (incidental — NOT a vote)
+      - system comment with vote-pattern content (Approve)            → vote
+      - system comment with vote-pattern content (Reject)             → vote
+      - system comment with non-vote content                          → NOT a vote
+      - codeChange comment                                            → NOT a vote
+      - text comment (plain prose)
+
+    Asserts:
+      * comment_count == 6 (all non-deleted rows counted, C1 preserved).
+      * vote_event_count == 2 (only Approve + Reject system-vote rows).
+    """
+    db, tmp_path = author_comments_db
+    monday = _week_monday(2026, 7)
+    _insert_pr(
+        db,
+        uid="pr-mixed",
+        pr_id=10,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-mixed", thread_id="t-mixed", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c1",
+        content="I have voted in the past on similar PRs",
+        comment_type="text",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c2",
+        content="alice voted 10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c3",
+        content="bob voted -10",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c4",
+        content="reactivated by alice",
+        comment_type="system",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c5",
+        content="suggested edit",
+        comment_type="codeChange",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-mixed",
+        thread_id="t-mixed",
+        comment_id="c6",
+        content="LGTM",
+        comment_type="text",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_author_comments(rollup)
+    bucket = buckets[USER_ALICE]
+    assert bucket["comment_count"] == 6, (
+        f"comment_count should include text + system (vote and non-vote) "
+        f"+ codeChange (C1 preserved); got {bucket['comment_count']!r}"
+    )
+    assert bucket["vote_event_count"] == 2, (
+        f"vote_event_count should include only the two vote-pattern system "
+        f"rows (Approve + Reject); got {bucket['vote_event_count']!r}"
+    )
+
+
+def test_vote_event_count_zero_key_present_when_no_votes(
+    author_comments_db: tuple[DatabaseManager, Path],
+) -> None:
+    """#356: bucket with zero vote events still emits the field as integer 0.
+
+    When no row matches the vote-event predicate, the bucket dict MUST
+    carry ``"vote_event_count": 0`` — not absent, not null.  This is the
+    INV-2-08 atomicity contract for the 5th field.
+    """
+    db, tmp_path = author_comments_db
+    monday = _week_monday(2026, 8)
+    _insert_pr(
+        db,
+        uid="pr-novote",
+        pr_id=20,
+        user_id=USER_ALICE,
+        closed_date=monday.isoformat(),
+        comments_extracted_at="2026-01-02T00:00:00Z",
+    )
+    _insert_thread(db, uid="pr-novote", thread_id="t-novote", status="active")
+    _insert_typed_comment(
+        db,
+        uid="pr-novote",
+        thread_id="t-novote",
+        comment_id="c1",
+        content="LGTM",
+        comment_type="text",
+    )
+    _insert_typed_comment(
+        db,
+        uid="pr-novote",
+        thread_id="t-novote",
+        comment_id="c2",
+        content="please look at this typo",
+        comment_type="codeChange",
+    )
+
+    rollup = _generate_rollup(tmp_path, db)
+    buckets = _by_author_comments(rollup)
+    bucket = buckets[USER_ALICE]
+    assert "vote_event_count" in bucket, (
+        "INV-2-08: vote_event_count key MUST be present even when no vote "
+        "events exist (atomic 5-field shape)"
+    )
+    assert bucket["vote_event_count"] == 0, (
+        f"vote_event_count MUST be integer zero, not absent or null; "
+        f"got {bucket['vote_event_count']!r}"
+    )
+    assert isinstance(bucket["vote_event_count"], int), (
+        f"vote_event_count MUST be int-typed; got "
+        f"{type(bucket['vote_event_count']).__name__}"
+    )

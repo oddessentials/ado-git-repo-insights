@@ -73,6 +73,7 @@ from typing import Final, TypedDict
 import pandas as pd
 import pytest
 
+from ado_git_repo_insights.extraction.vote_events import is_vote_event
 from ado_git_repo_insights.transform.constants import (
     FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
 )
@@ -195,30 +196,78 @@ _COMMENT_COUNT_SQL: Final[str] = (
     "  AND is_deleted = 0"
 )
 
+# #356: independent per-PR vote_event_count.  Mirrors the production
+# subquery's predicate (``comment_type='system' AND <vote-pattern>``)
+# but uses the SAME shared :func:`is_vote_event` helper that production
+# uses (registered as a per-call SQLite UDF below), so this
+# reconciliation re-computation cannot drift from production's
+# canonical vote-event classification.  Earlier revisions used a
+# hand-rolled GLOB approximation (``"* voted [0-9]*"`` etc.); SQLite's
+# ``*`` is an unrestricted wildcard, so that pattern silently matched
+# strings like ``"I have voted 2 times"`` that the production
+# anchored regex (``^(.+) voted (-?\d+)$``) correctly rejects, weakening
+# the reconciliation's ability to detect drift against production.
+# The independence the reconciliation surface aims for is STRUCTURAL
+# (different SQL shape, different aggregation path — direct re-derive
+# from ``pr_threads`` / ``pr_comments`` instead of going through the
+# aggregator's CTEs); coupling on the canonical ``is_vote_event``
+# definition is the correct shared contract because that helper IS the
+# canonical classifier (see :mod:`ado_git_repo_insights.extraction.
+# vote_events`).
+_VOTE_EVENT_COUNT_SQL: Final[str] = (
+    "SELECT COUNT(*) AS vote_event_count "
+    "FROM pr_comments "
+    "WHERE pull_request_uid = ? "
+    "  AND is_deleted = 0 "
+    "  AND comment_type = 'system' "
+    "  AND is_vote_event(content) = 1"
+)
+
 
 def _per_pr_counts(
     conn: sqlite3.Connection, pull_request_uid: str
-) -> tuple[int, int, int]:
-    """Independent per-PR ``(thread_count, comment_count, active_thread_count)``.
+) -> tuple[int, int, int, int]:
+    """Independent per-PR ``(thread_count, comment_count, active_thread_count, vote_event_count)``.
 
     Applies C1 inclusion rules (per ``specs/310-comments-visualization/spec.md``
     lines 75-87) directly against ``pr_threads`` and ``pr_comments`` — no
     aggregator helpers. ``COALESCE``s NULL results from ``SUM(...) OVER an
     empty set`` to 0 so the integer-typed return shape is unconditional.
+
+    #356: also returns ``vote_event_count`` — the additive subset of
+    ``comment_count`` over rows where ``comment_type='system'`` and
+    content matches the canonical vote-event classifier.  Registers
+    :func:`is_vote_event` as a SQLite UDF on the active ``conn`` so the
+    SQL clause can call it directly; this is the SAME helper production
+    aggregators use, which is the correct shared contract because
+    ``is_vote_event`` IS the canonical classifier (re-implementing it
+    here as a hand-rolled GLOB created false positives that weakened
+    drift detection — see :data:`_VOTE_EVENT_COUNT_SQL` comment).  The
+    reconciliation surface remains structurally independent: different
+    SQL shape, different aggregation path (per-PR re-derivation from
+    ``pr_threads`` / ``pr_comments`` instead of the aggregator's CTEs).
+    ``conn.create_function`` is idempotent on the same name, so calling
+    this on every ``_per_pr_counts`` invocation is safe and cheap.
     """
+    conn.create_function("is_vote_event", 1, is_vote_event, deterministic=True)
     threads_row = conn.execute(_THREAD_COUNTS_SQL, (pull_request_uid,)).fetchone()
     comments_row = conn.execute(_COMMENT_COUNT_SQL, (pull_request_uid,)).fetchone()
+    vote_row = conn.execute(_VOTE_EVENT_COUNT_SQL, (pull_request_uid,)).fetchone()
 
     raw_thread_count = threads_row[0] if threads_row is not None else 0
     raw_active_thread_count = threads_row[1] if threads_row is not None else 0
     raw_comment_count = comments_row[0] if comments_row is not None else 0
+    raw_vote_event_count = vote_row[0] if vote_row is not None else 0
 
     thread_count = int(raw_thread_count if raw_thread_count is not None else 0)
     active_thread_count = int(
         raw_active_thread_count if raw_active_thread_count is not None else 0
     )
     comment_count = int(raw_comment_count if raw_comment_count is not None else 0)
-    return thread_count, comment_count, active_thread_count
+    vote_event_count = int(
+        raw_vote_event_count if raw_vote_event_count is not None else 0
+    )
+    return thread_count, comment_count, active_thread_count, vote_event_count
 
 
 # --------------------------------------------------------------------------- #
@@ -329,6 +378,11 @@ def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
                 "thread_count",
                 "comment_count",
                 "active_thread_count",
+                # #356: vote_event_count joined the atomic 5-field shape
+                # per INV-1-08.  Independent re-computation below proves
+                # the rollup-level field equals the sum across W's
+                # extracted-subset of per-PR vote-event counts.
+                "vote_event_count",
                 "coverage_partial",
             }
             assert set(comments_obj.keys()) == expected_keys, (
@@ -340,12 +394,14 @@ def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
             expected_thread_count = 0
             expected_comment_count = 0
             expected_active_thread_count = 0
+            expected_vote_event_count = 0
             for pr in extracted_prs:
                 pr_uid = pr["pull_request_uid"]
-                tc, cc, atc = _per_pr_counts(conn, pr_uid)
+                tc, cc, atc, vec = _per_pr_counts(conn, pr_uid)
                 expected_thread_count += tc
                 expected_comment_count += cc
                 expected_active_thread_count += atc
+                expected_vote_event_count += vec
             expected_coverage_partial = len(extracted_prs) != len(canonical_prs)
 
             assert comments_obj["thread_count"] == expected_thread_count, (
@@ -368,6 +424,13 @@ def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
                 f"re-computation {expected_active_thread_count} (sum over W's "
                 f"extracted-subset of {len(extracted_prs)} PRs of per-PR C1 "
                 "active_thread_count)"
+            )
+            assert comments_obj["vote_event_count"] == expected_vote_event_count, (
+                f"week {week_key}: rollup[W].comments.vote_event_count="
+                f"{comments_obj['vote_event_count']} != independent "
+                f"re-computation {expected_vote_event_count} (#356 sum over "
+                f"W's extracted-subset of {len(extracted_prs)} PRs of per-PR "
+                "vote-pattern system rows)"
             )
             assert comments_obj["coverage_partial"] is expected_coverage_partial, (
                 f"week {week_key}: rollup[W].comments.coverage_partial="
@@ -402,8 +465,8 @@ def test_sc05_reconciliation_per_week(sc05_fixture: SC05Fixture) -> None:
                 if pr_id in extracted_id_set:
                     # Pairwise numeric equality on the extracted-subset.
                     pr_uid = id_to_uid_extracted[pr_id]
-                    expected_tc, expected_cc, expected_atc = _per_pr_counts(
-                        conn, pr_uid
+                    expected_tc, expected_cc, expected_atc, _expected_vec = (
+                        _per_pr_counts(conn, pr_uid)
                     )
                     assert drill_thread == expected_tc, (
                         f"week {week_key}, PR id={pr_id}: drill-down "
@@ -540,7 +603,7 @@ def _build_expected_buckets(
             if pr["comments_extracted_at"] is None:
                 any_unextracted = True
                 continue
-            tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+            tc, cc, atc, _vec = _per_pr_counts(conn, pr["pull_request_uid"])
             thread_count += tc
             comment_count += cc
             active_thread_count += atc
@@ -743,7 +806,7 @@ def test_sc05_reconciliation_per_week_by_author_sentinel_parity(
                 if pr["comments_extracted_at"] is None:
                     any_unextracted = True
                     continue
-                tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+                tc, cc, atc, _vec = _per_pr_counts(conn, pr["pull_request_uid"])
                 expected_thread += tc
                 expected_comment += cc
                 expected_active += atc
@@ -836,7 +899,9 @@ def test_sc05_reconciliation_per_week_by_author_pairwise_drilldown(
                     "a bucket emission)"
                 )
 
-                expected_tc, expected_cc, expected_atc = _per_pr_counts(conn, pr_uid)
+                expected_tc, expected_cc, expected_atc, _expected_vec = _per_pr_counts(
+                    conn, pr_uid
+                )
                 drill_thread = record.get("thread_count")
                 drill_comment = record.get("comment_count")
                 drill_active = record.get("active_thread_count")
@@ -938,7 +1003,7 @@ def _build_expected_repo_buckets(
             if pr["comments_extracted_at"] is None:
                 any_unextracted = True
                 continue
-            tc, cc, atc = _per_pr_counts(conn, pr["pull_request_uid"])
+            tc, cc, atc, _vec = _per_pr_counts(conn, pr["pull_request_uid"])
             thread_count += tc
             comment_count += cc
             active_thread_count += atc
@@ -1116,7 +1181,9 @@ def test_sc05_reconciliation_per_week_by_repository_pairwise_drilldown(
                     "have a bucket emission)"
                 )
 
-                expected_tc, expected_cc, expected_atc = _per_pr_counts(conn, pr_uid)
+                expected_tc, expected_cc, expected_atc, _expected_vec = _per_pr_counts(
+                    conn, pr_uid
+                )
                 drill_thread = record.get("thread_count")
                 drill_comment = record.get("comment_count")
                 drill_active = record.get("active_thread_count")

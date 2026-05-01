@@ -1659,18 +1659,26 @@ var PRInsightsArtifactClient = (() => {
     }
     return { warnings };
   }
-  function validateCommentsAggregate(data, path) {
+  function validateCommentsAggregate(data, path, aggregatesSchemaVersion) {
     const errors = [];
     if (!isObject(data)) {
       errors.push(createError(path, "object", getTypeName(data)));
       return { errors };
     }
-    const requiredFields = [
+    const v3Compat = aggregatesSchemaVersion === 3;
+    const requiredFields = v3Compat ? [
       "thread_count",
       "comment_count",
       "active_thread_count",
       "coverage_partial"
+    ] : [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "vote_event_count",
+      "coverage_partial"
     ];
+    const requiredFieldsLabel = v3Compat ? "all four of thread_count / comment_count / active_thread_count / coverage_partial" : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
     const missing = requiredFields.filter(
       (field) => !Object.prototype.hasOwnProperty.call(data, field)
     );
@@ -1678,16 +1686,17 @@ var PRInsightsArtifactClient = (() => {
       errors.push(
         createError(
           path,
-          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          requiredFieldsLabel,
           `missing: ${missing.join(", ")}`,
-          `comments-aggregate atomicity violated (INV-1-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+          `comments-aggregate atomicity violated (INV-1-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`
         )
       );
     }
     const numericFieldChecks = [
       { name: "thread_count", value: data.thread_count },
       { name: "comment_count", value: data.comment_count },
-      { name: "active_thread_count", value: data.active_thread_count }
+      { name: "active_thread_count", value: data.active_thread_count },
+      { name: "vote_event_count", value: data.vote_event_count }
     ];
     for (const { name, value } of numericFieldChecks) {
       if (!Object.prototype.hasOwnProperty.call(data, name)) {
@@ -1756,9 +1765,21 @@ var PRInsightsArtifactClient = (() => {
         )
       );
     }
+    const commentCount = data.comment_count;
+    const voteEventCount = data.vote_event_count;
+    if (isNumber(commentCount) && isNumber(voteEventCount) && Number.isInteger(commentCount) && Number.isInteger(voteEventCount) && commentCount >= 0 && voteEventCount >= 0 && voteEventCount > commentCount) {
+      errors.push(
+        createError(
+          buildPath(path, "vote_event_count"),
+          "<= comment_count (#356; vote events are a subset of total comments)",
+          `${voteEventCount} > ${commentCount}`,
+          `comments-aggregate ordering violated (#356): vote_event_count (${voteEventCount}) MUST NOT exceed comment_count (${commentCount})`
+        )
+      );
+    }
     return { errors };
   }
-  function validateAuthorCommentsDensity(data, path) {
+  function validateAuthorCommentsDensity(data, path, aggregatesSchemaVersion) {
     const errors = [];
     if (!isObject(data)) {
       errors.push(createError(path, "object", getTypeName(data)));
@@ -1778,12 +1799,20 @@ var PRInsightsArtifactClient = (() => {
       );
       return { errors };
     }
-    const requiredFields = [
+    const v3Compat = aggregatesSchemaVersion === 3;
+    const requiredFields = v3Compat ? [
       "thread_count",
       "comment_count",
       "active_thread_count",
       "coverage_partial"
+    ] : [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "vote_event_count",
+      "coverage_partial"
     ];
+    const requiredFieldsLabel = v3Compat ? "all four of thread_count / comment_count / active_thread_count / coverage_partial" : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
     for (const [key, entry] of entries) {
       const entryPath = buildPath(path, key);
       if (!isObject(entry)) {
@@ -1797,16 +1826,17 @@ var PRInsightsArtifactClient = (() => {
         errors.push(
           createError(
             entryPath,
-            "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+            requiredFieldsLabel,
             `missing: ${missing.join(", ")}`,
-            `by_author_comments[${key}] atomicity violated (INV-2-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+            `by_author_comments[${key}] atomicity violated (INV-2-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`
           )
         );
       }
       const numericFieldChecks = [
         { name: "thread_count", value: entry.thread_count },
         { name: "comment_count", value: entry.comment_count },
-        { name: "active_thread_count", value: entry.active_thread_count }
+        { name: "active_thread_count", value: entry.active_thread_count },
+        { name: "vote_event_count", value: entry.vote_event_count }
       ];
       for (const { name, value } of numericFieldChecks) {
         if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -1875,10 +1905,22 @@ var PRInsightsArtifactClient = (() => {
           )
         );
       }
+      const entryComment = entry.comment_count;
+      const entryVote = entry.vote_event_count;
+      if (isNumber(entryComment) && isNumber(entryVote) && Number.isInteger(entryComment) && Number.isInteger(entryVote) && entryComment >= 0 && entryVote >= 0 && entryVote > entryComment) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "vote_event_count"),
+            "<= comment_count (#356; vote events are a subset of total comments)",
+            `${entryVote} > ${entryComment}`,
+            `by_author_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`
+          )
+        );
+      }
     }
     return { errors };
   }
-  function validateRepositoryCommentsDensity(data, path) {
+  function validateRepositoryCommentsDensity(data, path, aggregatesSchemaVersion) {
     const errors = [];
     if (!isObject(data)) {
       errors.push(createError(path, "object", getTypeName(data)));
@@ -1898,12 +1940,20 @@ var PRInsightsArtifactClient = (() => {
       );
       return { errors };
     }
-    const requiredFields = [
+    const v3Compat = aggregatesSchemaVersion === 3;
+    const requiredFields = v3Compat ? [
       "thread_count",
       "comment_count",
       "active_thread_count",
       "coverage_partial"
+    ] : [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "vote_event_count",
+      "coverage_partial"
     ];
+    const requiredFieldsLabel = v3Compat ? "all four of thread_count / comment_count / active_thread_count / coverage_partial" : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
     for (const [key, entry] of entries) {
       const entryPath = buildPath(path, key);
       if (!isObject(entry)) {
@@ -1917,16 +1967,17 @@ var PRInsightsArtifactClient = (() => {
         errors.push(
           createError(
             entryPath,
-            "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+            requiredFieldsLabel,
             `missing: ${missing.join(", ")}`,
-            `by_repository_comments[${key}] atomicity violated (INV-3-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+            `by_repository_comments[${key}] atomicity violated (INV-3-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`
           )
         );
       }
       const numericFieldChecks = [
         { name: "thread_count", value: entry.thread_count },
         { name: "comment_count", value: entry.comment_count },
-        { name: "active_thread_count", value: entry.active_thread_count }
+        { name: "active_thread_count", value: entry.active_thread_count },
+        { name: "vote_event_count", value: entry.vote_event_count }
       ];
       for (const { name, value } of numericFieldChecks) {
         if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -1995,10 +2046,22 @@ var PRInsightsArtifactClient = (() => {
           )
         );
       }
+      const entryComment = entry.comment_count;
+      const entryVote = entry.vote_event_count;
+      if (isNumber(entryComment) && isNumber(entryVote) && Number.isInteger(entryComment) && Number.isInteger(entryVote) && entryComment >= 0 && entryVote >= 0 && entryVote > entryComment) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "vote_event_count"),
+            "<= comment_count (#356; vote events are a subset of total comments)",
+            `${entryVote} > ${entryComment}`,
+            `by_repository_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`
+          )
+        );
+      }
     }
     return { errors };
   }
-  function validateReviewerCommentsDensity(data, path) {
+  function validateReviewerCommentsDensity(data, path, aggregatesSchemaVersion) {
     const errors = [];
     if (!isObject(data)) {
       errors.push(createError(path, "object", getTypeName(data)));
@@ -2018,12 +2081,20 @@ var PRInsightsArtifactClient = (() => {
       );
       return { errors };
     }
-    const requiredFields = [
+    const v3Compat = aggregatesSchemaVersion === 3;
+    const requiredFields = v3Compat ? [
       "thread_count",
       "comment_count",
       "active_thread_count",
       "coverage_partial"
+    ] : [
+      "thread_count",
+      "comment_count",
+      "active_thread_count",
+      "vote_event_count",
+      "coverage_partial"
     ];
+    const requiredFieldsLabel = v3Compat ? "all four of thread_count / comment_count / active_thread_count / coverage_partial" : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
     for (const [key, entry] of entries) {
       const entryPath = buildPath(path, key);
       if (!isObject(entry)) {
@@ -2037,16 +2108,17 @@ var PRInsightsArtifactClient = (() => {
         errors.push(
           createError(
             entryPath,
-            "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+            requiredFieldsLabel,
             `missing: ${missing.join(", ")}`,
-            `by_reviewer_comments[${key}] atomicity violated (INV-4-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`
+            `by_reviewer_comments[${key}] atomicity violated (INV-4-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`
           )
         );
       }
       const numericFieldChecks = [
         { name: "thread_count", value: entry.thread_count },
         { name: "comment_count", value: entry.comment_count },
-        { name: "active_thread_count", value: entry.active_thread_count }
+        { name: "active_thread_count", value: entry.active_thread_count },
+        { name: "vote_event_count", value: entry.vote_event_count }
       ];
       for (const { name, value } of numericFieldChecks) {
         if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -2115,10 +2187,22 @@ var PRInsightsArtifactClient = (() => {
           )
         );
       }
+      const entryComment = entry.comment_count;
+      const entryVote = entry.vote_event_count;
+      if (isNumber(entryComment) && isNumber(entryVote) && Number.isInteger(entryComment) && Number.isInteger(entryVote) && entryComment >= 0 && entryVote >= 0 && entryVote > entryComment) {
+        errors.push(
+          createError(
+            buildPath(entryPath, "vote_event_count"),
+            "<= comment_count (#356; vote events are a subset of total comments)",
+            `${entryVote} > ${entryComment}`,
+            `by_reviewer_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`
+          )
+        );
+      }
     }
     return { errors };
   }
-  function validateRollup(data, strict) {
+  function validateRollup(data, strict, aggregatesSchemaVersion) {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
@@ -2266,27 +2350,34 @@ var PRInsightsArtifactClient = (() => {
       }
     }
     if (Object.prototype.hasOwnProperty.call(data, "comments") && data.comments !== void 0) {
-      const commentsResult = validateCommentsAggregate(data.comments, "comments");
+      const commentsResult = validateCommentsAggregate(
+        data.comments,
+        "comments",
+        aggregatesSchemaVersion
+      );
       errors.push(...commentsResult.errors);
     }
     if (Object.prototype.hasOwnProperty.call(data, "by_author_comments") && data.by_author_comments !== void 0) {
       const byAuthorCommentsResult = validateAuthorCommentsDensity(
         data.by_author_comments,
-        "by_author_comments"
+        "by_author_comments",
+        aggregatesSchemaVersion
       );
       errors.push(...byAuthorCommentsResult.errors);
     }
     if (Object.prototype.hasOwnProperty.call(data, "by_repository_comments") && data.by_repository_comments !== void 0) {
       const byRepositoryCommentsResult = validateRepositoryCommentsDensity(
         data.by_repository_comments,
-        "by_repository_comments"
+        "by_repository_comments",
+        aggregatesSchemaVersion
       );
       errors.push(...byRepositoryCommentsResult.errors);
     }
     if (Object.prototype.hasOwnProperty.call(data, "by_reviewer_comments") && data.by_reviewer_comments !== void 0) {
       const byReviewerCommentsResult = validateReviewerCommentsDensity(
         data.by_reviewer_comments,
-        "by_reviewer_comments"
+        "by_reviewer_comments",
+        aggregatesSchemaVersion
       );
       errors.push(...byReviewerCommentsResult.errors);
     }
@@ -2990,7 +3081,7 @@ var PRInsightsArtifactClient = (() => {
   }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
-  var SUPPORTED_AGGREGATES_VERSION = 3;
+  var SUPPORTED_AGGREGATES_VERSION = 4;
   var DEFAULT_CAPABILITY_STATE = {
     authorFiltersAvailable: false,
     authorRepoExactAvailable: false,
@@ -3336,7 +3427,17 @@ var PRInsightsArtifactClient = (() => {
         const response = await fetch(url);
         if (response.ok) {
           const rawData = await response.json();
-          validateSchema(rawData, validateRollup, "rollup", false, weekStr);
+          const aggregatesVersion = this.manifest?.aggregates_schema_version;
+          const rollupResult = validateRollup(rawData, false, aggregatesVersion);
+          if (!rollupResult.valid) {
+            throw new SchemaValidationError(rollupResult.errors, "rollup");
+          }
+          if (rollupResult.warnings.length > 0) {
+            console.warn(
+              `[DatasetLoader] rollup validation warnings for ${weekStr}:`,
+              rollupResult.warnings.map((w) => w.message).join("; ")
+            );
+          }
           const data = normalizeRollup2(rawData);
           this.rollupCache.set(weekStr, data);
           results.push(data);
@@ -3454,6 +3555,25 @@ var PRInsightsArtifactClient = (() => {
           const response = await fetch(url);
           if (response.ok) {
             const rawData = await response.json();
+            const aggregatesVersion = this.manifest?.aggregates_schema_version;
+            const validation = validateRollup(rawData, false, aggregatesVersion);
+            if (!validation.valid) {
+              console.warn(
+                `[DatasetLoader] rollup validation failed for ${weekStr}:`,
+                validation.errors.map((e) => e.message).join("; ")
+              );
+              return {
+                week: weekStr,
+                status: "failed",
+                error: validation.errors.map((e) => e.message).join("; ")
+              };
+            }
+            if (validation.warnings.length > 0) {
+              console.warn(
+                `[DatasetLoader] rollup validation warnings for ${weekStr}:`,
+                validation.warnings.map((w) => w.message).join("; ")
+              );
+            }
             const data = normalizeRollup2(rawData);
             try {
               const cacheKey = cache.makeKey({ week: weekStr, ...context });
@@ -4141,7 +4261,7 @@ var PRInsightsArtifactClient = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION2 = 1;
       const SUPPORTED_DATASET_VERSION2 = 1;
-      const SUPPORTED_AGGREGATES_VERSION2 = 3;
+      const SUPPORTED_AGGREGATES_VERSION2 = 4;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }
@@ -4188,11 +4308,23 @@ var PRInsightsArtifactClient = (() => {
         );
         if (!indexEntry) continue;
         try {
-          const rollup = await this.artifactClient.getArtifactFileViaSdk(
+          const rawRollup = await this.artifactClient.getArtifactFileViaSdk(
             this.buildId,
             this.artifactName,
             indexEntry.path
           );
+          const aggregatesVersion = this.manifest?.aggregates_schema_version;
+          const validation = validateRollup(rawRollup, false, aggregatesVersion);
+          if (!validation.valid) {
+            throw new SchemaValidationError(validation.errors, "rollup");
+          }
+          if (validation.warnings.length > 0) {
+            console.warn(
+              `[AuthenticatedDatasetLoader] rollup validation warnings for ${weekStr}:`,
+              validation.warnings.map((w) => w.message).join("; ")
+            );
+          }
+          const rollup = rawRollup;
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
         } catch (e) {

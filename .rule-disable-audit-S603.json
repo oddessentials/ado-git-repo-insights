@@ -429,7 +429,7 @@
     },
     {
       "file": "tests/fixtures/sc05/fixture_builder.py",
-      "line": 542,
+      "line": 595,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -901,7 +901,7 @@
     },
     {
       "file": "tests/unit/test_synthetic_dataset.py",
-      "line": 887,
+      "line": 889,
       "code": "result1 = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -909,7 +909,7 @@
     },
     {
       "file": "tests/unit/test_synthetic_dataset.py",
-      "line": 900,
+      "line": 902,
       "code": "result2 = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

@@ -47,10 +47,14 @@ export const MAX_COMMENTS_TREND_POINTS = 104;
 /**
  * Plain-text explanation surfaced by the chart-level info-icon (FR-1-04
  * disclosure surface; SC-1-01/02 first-glance comprehension).
+ *
+ * #356: also discloses that the comments line includes vote events
+ * (Approve / Reject / Reset) emitted by Azure DevOps as system messages.
  */
 export const COMMENTS_TREND_TOOLTIP =
   "Bars show resolved (lower) and unresolved (upper) review threads per week. " +
-  "The line shows total comments. Hatched bars indicate partial coverage — " +
+  "The line shows total comments, including vote events (Approve / Reject / Reset) that Azure DevOps emits as system messages. " +
+  "Hatched bars indicate partial coverage — " +
   "some PRs in the week aren't yet extracted, so totals are partial.";
 
 /** Per-button AbortControllers to prevent listener accumulation on re-attach. */

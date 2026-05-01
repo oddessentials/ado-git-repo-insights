@@ -68,7 +68,7 @@ def _default_authors(count: int = 12) -> list[str]:
 def test_prs_conform_to_pr_record_shape(generate_demo_data: ModuleType) -> None:
     pr_record_rng = random.Random(4242)
     comments_metrics_rng = random.Random(5555)
-    records = generate_demo_data.generate_pr_records(
+    records, _vote_events = generate_demo_data.generate_pr_records(
         "2025-W10",
         _default_repos(5),
         _default_authors(),
@@ -124,7 +124,7 @@ def test_prs_conform_to_pr_record_shape(generate_demo_data: ModuleType) -> None:
 
 def test_prs_cap_and_sort_invariant(generate_demo_data: ModuleType) -> None:
     pr_record_rng = random.Random(4242)
-    records = generate_demo_data.generate_pr_records(
+    records, _vote_events = generate_demo_data.generate_pr_records(
         "2025-W11",
         _default_repos(501),
         _default_authors(),
@@ -146,7 +146,7 @@ def test_truncation_boundary_parametrized(
     expect_len: int,
 ) -> None:
     pr_record_rng = random.Random(4242)
-    records = generate_demo_data.generate_pr_records(
+    records, _vote_events = generate_demo_data.generate_pr_records(
         "2025-W12",
         _default_repos(input_count),
         _default_authors(),
@@ -316,16 +316,19 @@ def test_rng_isolation(generate_demo_data: ModuleType) -> None:
     """
     control_pr_rng = random.Random(2000 + 42)
     control_comments_rng = random.Random(3000 + 42)
-    control_records = generate_demo_data.generate_pr_records(
+    control_vote_event_rng = random.Random(4000 + 42)
+    control_records, control_votes = generate_demo_data.generate_pr_records(
         "2025-W13",
         _default_repos(15),
         _default_authors(),
         control_pr_rng,
         control_comments_rng,
+        vote_event_rng=control_vote_event_rng,
     )
 
     perturbed_pr_rng = random.Random(2000 + 42)
     perturbed_comments_rng = random.Random(3000 + 42)
+    perturbed_vote_event_rng = random.Random(4000 + 42)
     # Perturb the shared/module-level RNGs before invoking the helper;
     # if the helper dips into any of them, the result will drift.
     shared_rng = getattr(generate_demo_data, "RNG", random.Random(0))
@@ -339,17 +342,30 @@ def test_rng_isolation(generate_demo_data: ModuleType) -> None:
     )
     for _ in range(48):
         module_comments_rng.random()
+    # #356: also perturb the module-level vote_event_rng so the helper's
+    # isolation against the shared stream is exercised by this test.
+    module_vote_event_rng = getattr(
+        generate_demo_data, "vote_event_rng", random.Random(0)
+    )
+    for _ in range(56):
+        module_vote_event_rng.random()
 
-    perturbed_records = generate_demo_data.generate_pr_records(
+    perturbed_records, perturbed_votes = generate_demo_data.generate_pr_records(
         "2025-W13",
         _default_repos(15),
         _default_authors(),
         perturbed_pr_rng,
         perturbed_comments_rng,
+        vote_event_rng=perturbed_vote_event_rng,
     )
 
     assert perturbed_records == control_records, (
         "generator's output drifted when the shared / module RNGs were "
         "perturbed — helper must consume only the explicitly-passed "
         "pr_record_rng + comments_metrics_rng streams"
+    )
+    assert perturbed_votes == control_votes, (
+        "#356 vote_event_counts drifted when the shared / module RNGs "
+        "were perturbed — helper must consume only the explicitly-passed "
+        "vote_event_rng stream"
     )

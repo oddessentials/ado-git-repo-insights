@@ -12,6 +12,7 @@ import {
   pathExists,
   readJsonFile,
   readTextFile,
+  removeDir,
 } from "../helpers/fs-test-utils";
 import {
   assertPythonSubprocessSupport,
@@ -125,10 +126,44 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
     // SECURITY: Use resolveInside to prevent path traversal
     const outputDir = resolveInside(fixtureDir, `${prCount}pr-seed${seed}`);
+    const cachedManifestPath = resolveInside(
+      outputDir,
+      "dataset-manifest.json",
+    );
 
-    // Skip if already generated
-    if (pathExists(resolveInside(outputDir, "dataset-manifest.json"))) {
-      return outputDir;
+    // Reuse the cached fixture only when its
+    // ``aggregates_schema_version`` matches the version the consuming
+    // tests expect.  Without this check, a fixture generated under an
+    // older schema (e.g., v3) would silently satisfy a v4-pinned
+    // assertion on dev machines while CI's ephemeral runners
+    // regenerated fresh v4 fixtures and surfaced the drift — exactly
+    // the local/CI parity hole exposed by PR #360 (commit 2 bumped
+    // ``AGGREGATES_SCHEMA_VERSION`` 3 -> 4 but local caches retained
+    // v3 manifests, so dev preflight passed while CI failed).  Stale
+    // or corrupt caches are removed and regenerated below; corrupt
+    // JSON is caught by the try/catch (treat as stale).
+    //
+    // ``EXPECTED_AGGREGATES_VERSION`` tracks
+    // ``SUPPORTED_AGGREGATES_VERSION`` in
+    // ``extension/ui/dataset-loader.ts``; bump together when the
+    // schema version moves.
+    const EXPECTED_AGGREGATES_VERSION = 4;
+    if (pathExists(cachedManifestPath)) {
+      try {
+        const cachedManifest =
+          readJsonFile<FixtureManifest>(cachedManifestPath);
+        if (
+          cachedManifest.aggregates_schema_version ===
+          EXPECTED_AGGREGATES_VERSION
+        ) {
+          return outputDir;
+        }
+        // Stale schema version — fall through to regenerate.
+        removeDir(outputDir);
+      } catch {
+        // Corrupt manifest — fall through to regenerate.
+        removeDir(outputDir);
+      }
     }
 
     const scriptPath = path.join(
@@ -205,7 +240,12 @@ describe("Synthetic Fixture Consumer Validation", () => {
       const manifest = await loader.loadManifest();
       expect(manifest).toBeDefined();
       expect(manifest.manifest_schema_version).toBe(1);
-      expect(manifest.aggregates_schema_version).toBe(3);
+      // #356: aggregates schema bumped v3 -> v4 to signal the additive
+      // ``vote_event_count`` field.  Pin tracks production's
+      // ``SUPPORTED_AGGREGATES_VERSION`` constant in
+      // ``extension/ui/dataset-loader.ts``; bump together when the
+      // schema version moves again.
+      expect(manifest.aggregates_schema_version).toBe(4);
       expect(manifest.aggregate_index!.weekly_rollups).toBeInstanceOf(Array);
       expect(manifest.aggregate_index!.weekly_rollups!.length).toBeGreaterThan(
         0,
@@ -222,7 +262,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.dataset_schema_version).toBe(1);
-      expect(manifest.aggregates_schema_version).toBe(3);
+      // #356: aggregates schema bumped v3 -> v4 — see sibling
+      // ``loadManifest validation`` test for the full rationale.
+      expect(manifest.aggregates_schema_version).toBe(4);
     },
   );
 

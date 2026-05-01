@@ -1143,6 +1143,7 @@ describe("Rollup Schema Validator", () => {
           thread_count: 5,
           comment_count: 12,
           active_thread_count: 2,
+          vote_event_count: 3,
           coverage_partial: false,
         },
       };
@@ -1161,6 +1162,7 @@ describe("Rollup Schema Validator", () => {
           thread_count: 5,
           comment_count: 12,
           active_thread_count: 2,
+          vote_event_count: 3,
           coverage_partial: true,
         },
       };
@@ -1423,13 +1425,14 @@ describe("Rollup Schema Validator", () => {
       ).toBe(true);
     });
 
-    it("passes when all three numeric fields are 0 (zero is the valid sum over an empty extracted-subset)", () => {
+    it("passes when all four numeric fields are 0 (zero is the valid sum over an empty extracted-subset)", () => {
       const rollup = {
         ...BASE_333,
         comments: {
           thread_count: 0,
           comment_count: 0,
           active_thread_count: 0,
+          vote_event_count: 0,
           coverage_partial: false,
         },
       };
@@ -1445,6 +1448,7 @@ describe("Rollup Schema Validator", () => {
           thread_count: 4,
           comment_count: 9,
           active_thread_count: 4,
+          vote_event_count: 2,
           coverage_partial: false,
         },
       };
@@ -1481,6 +1485,7 @@ describe("Rollup Schema Validator", () => {
             thread_count: 3,
             comment_count: 7,
             active_thread_count: 1,
+            vote_event_count: 2,
             coverage_partial: false,
           },
         },
@@ -1607,12 +1612,14 @@ describe("Rollup Schema Validator", () => {
             thread_count: 2,
             comment_count: 5,
             active_thread_count: 1,
+            vote_event_count: 1,
             coverage_partial: true,
           },
           "alice-uid": {
             thread_count: 1,
             comment_count: 1,
             active_thread_count: 0,
+            vote_event_count: 0,
             coverage_partial: false,
           },
         },
@@ -1792,6 +1799,7 @@ describe("Rollup Schema Validator", () => {
             thread_count: 3,
             comment_count: 7,
             active_thread_count: 1,
+            vote_event_count: 2,
             coverage_partial: false,
           },
         },
@@ -2081,6 +2089,7 @@ describe("Rollup Schema Validator", () => {
             thread_count: 2,
             comment_count: 5,
             active_thread_count: 1,
+            vote_event_count: 1,
             coverage_partial: false,
           },
         },
@@ -2223,12 +2232,14 @@ describe("Rollup Schema Validator", () => {
             thread_count: 1,
             comment_count: 3,
             active_thread_count: 0,
+            vote_event_count: 1,
             coverage_partial: true,
           },
           "bob-uid": {
             thread_count: 2,
             comment_count: 5,
             active_thread_count: 1,
+            vote_event_count: 2,
             coverage_partial: true,
           },
         },
@@ -2420,6 +2431,470 @@ describe("Rollup Schema Validator", () => {
             e.expected.toLowerCase().includes("boolean"),
         ),
       ).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // #356: vote_event_count is the per-bucket additive subset of
+  // comment_count over rows where comment_type='system' AND content matches
+  // the shared vote-event regex (extraction/vote_events.py).  All four
+  // validators (`comments`, `by_author_comments`, `by_repository_comments`,
+  // `by_reviewer_comments`) require the field as part of their atomicity
+  // contract and enforce the ordering invariant
+  // ``vote_event_count <= comment_count`` per bucket.  These tests prove
+  // both contracts hold for every validator.
+  // =========================================================================
+  describe("#356 vote_event_count atomicity and ordering", () => {
+    const BASE_356 = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+
+    // ---- Atomicity: missing vote_event_count fails for each validator. ----
+
+    it("FAILS when comments.vote_event_count is missing (INV-1-08 atomicity covers vote_event_count)", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+          // vote_event_count intentionally absent — atomicity violation.
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when by_author_comments[*].vote_event_count is missing (INV-2-08 atomicity covers vote_event_count)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when by_repository_comments[*].vote_event_count is missing (INV-3-08 atomicity covers vote_event_count)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_repository_comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when by_reviewer_comments[*].vote_event_count is missing (INV-4-08 atomicity covers vote_event_count)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+            // vote_event_count intentionally absent — atomicity violation.
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    // ---- Type / range checks: vote_event_count must be a non-null
+    //      non-negative integer (mirrors the other three numeric fields).
+
+    it("FAILS when comments.vote_event_count is null", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          vote_event_count: null,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("vote_event_count") &&
+            e.message.toLowerCase().includes("non-null"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.vote_event_count is negative", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          vote_event_count: -1,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("vote_event_count") &&
+            e.message.toLowerCase().includes("non-negative"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS when comments.vote_event_count is non-integer (1.5)", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          vote_event_count: 1.5,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("vote_event_count") &&
+            e.message.toLowerCase().includes("integer"),
+        ),
+      ).toBe(true);
+    });
+
+    // ---- Ordering: vote_event_count <= comment_count per bucket / per
+    //      rollup.  Mirrors the active_thread_count <= thread_count
+    //      invariant.  vote_event_count is a SUBSET of comment_count by
+    //      construction; the producer cannot emit a bucket where the
+    //      subset count exceeds the parent count.
+
+    it("FAILS the comments-aggregate ordering when vote_event_count > comment_count (#356)", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 3,
+          active_thread_count: 2,
+          vote_event_count: 4,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("vote_event_count") && e.message.includes("#356"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS the by_author_comments ordering when an entry's vote_event_count > comment_count (#356)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 2,
+            active_thread_count: 1,
+            vote_event_count: 5,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_author_comments") &&
+            e.field.includes("vote_event_count") &&
+            e.message.includes("#356"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS the by_repository_comments ordering when an entry's vote_event_count > comment_count (#356)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 1,
+            active_thread_count: 1,
+            vote_event_count: 2,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_repository_comments") &&
+            e.field.includes("vote_event_count") &&
+            e.message.includes("#356"),
+        ),
+      ).toBe(true);
+    });
+
+    it("FAILS the by_reviewer_comments ordering when an entry's vote_event_count > comment_count (#356)", () => {
+      const rollup = {
+        ...BASE_356,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 1,
+            active_thread_count: 1,
+            vote_event_count: 3,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_reviewer_comments") &&
+            e.field.includes("vote_event_count") &&
+            e.message.includes("#356"),
+        ),
+      ).toBe(true);
+    });
+
+    // ---- Boundary: vote_event_count == comment_count is valid (subset
+    //      may equal set).  Parallels the INV-1-06 boundary test.
+
+    it("passes at the #356 boundary (vote_event_count == comment_count; subset == set)", () => {
+      const rollup = {
+        ...BASE_356,
+        comments: {
+          thread_count: 5,
+          comment_count: 4,
+          active_thread_count: 2,
+          vote_event_count: 4,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
+  // #356 + AGGREGATES_SCHEMA_VERSION 3 -> 4: validator's version-aware
+  // atomicity.  Producer at v4 always emits vote_event_count; consumer at
+  // v4 must accept missing vote_event_count ONLY when loading legacy v3
+  // artifacts (caller threads aggregatesSchemaVersion=3) and must REJECT
+  // malformed v4 artifacts missing vote_event_count.
+  // =========================================================================
+  describe("#356 v3/v4 schema-version-aware atomicity", () => {
+    const BASE_VER = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 10,
+    };
+
+    it("v4 artifact with 5-field comments shape passes (aggregatesSchemaVersion=4)", () => {
+      const rollup = {
+        ...BASE_VER,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          vote_event_count: 3,
+          coverage_partial: false,
+        },
+      };
+      const result = validateRollup(rollup, false, 4);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("v3 artifact with 4-field comments shape passes (aggregatesSchemaVersion=3 — back-compat)", () => {
+      // Legacy v3 artifact: vote_event_count is absent.  When the
+      // dataset loader reads a v3 manifest and threads version=3 into
+      // validateRollup, the 4-field shape must pass without errors so
+      // existing v3 tenant artifacts keep loading on a v4-aware
+      // extension.
+      const rollup = {
+        ...BASE_VER,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+          // vote_event_count intentionally absent (legacy v3 shape).
+        },
+      };
+      const result = validateRollup(rollup, false, 3);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("v4 artifact missing vote_event_count FAILS (aggregatesSchemaVersion=4 — malformed v4)", () => {
+      // Producer at v4 always emits vote_event_count; an artifact with
+      // a v4 manifest that omits the field is malformed and must be
+      // rejected.  This test proves the validator does NOT silently
+      // accept the 4-field shape when the manifest declares v4.
+      const rollup = {
+        ...BASE_VER,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+          // vote_event_count intentionally absent — atomicity violation.
+        },
+      };
+      const result = validateRollup(rollup, false, 4);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    it("validateRollup defaults to v4-strict when aggregatesSchemaVersion is undefined", () => {
+      // Default behavior (no version threaded) MUST be the strictest
+      // interpretation — equivalent to v4 — so a caller that forgets to
+      // thread the manifest version still enforces the new contract.
+      const rollup = {
+        ...BASE_VER,
+        comments: {
+          thread_count: 5,
+          comment_count: 12,
+          active_thread_count: 2,
+          coverage_partial: false,
+          // vote_event_count intentionally absent.
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("comments") &&
+            e.message.toLowerCase().includes("vote_event_count"),
+        ),
+      ).toBe(true);
+    });
+
+    // Per-bucket dimensions (by_author / by_repo / by_reviewer) follow
+    // the same v3/v4 atomicity rule — one back-compat test per dimension
+    // to prove the version threads through the sub-validators uniformly.
+
+    it("v3 artifact with 4-field by_author_comments entries passes (aggregatesSchemaVersion=3)", () => {
+      const rollup = {
+        ...BASE_VER,
+        by_author_comments: {
+          "alice-uid": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false, 3);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("v3 artifact with 4-field by_repository_comments entries passes (aggregatesSchemaVersion=3)", () => {
+      const rollup = {
+        ...BASE_VER,
+        by_repository_comments: {
+          "repo-alpha": {
+            thread_count: 3,
+            comment_count: 7,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false, 3);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("v3 artifact with 4-field by_reviewer_comments entries passes (aggregatesSchemaVersion=3)", () => {
+      const rollup = {
+        ...BASE_VER,
+        by_reviewer_comments: {
+          "bob-uid": {
+            thread_count: 2,
+            comment_count: 5,
+            active_thread_count: 1,
+            coverage_partial: false,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false, 3);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
   });
 });

@@ -182,6 +182,64 @@ class TestTeamAffinity:
         assert not errors, "Team affinity violations:\n" + "\n".join(errors)
 
 
+class TestSentinelReviewerCap:
+    """#355: synthetic sentinel must not dominate the per-reviewer panel.
+
+    Pre-fix the demo's organic comment sampling drew from
+    ``user_pool + ghost_pool``, causing the synthetic
+    ``__former_or_unavailable_author__`` bucket to rank #1 by
+    comment_count by 2-3.5x on W25-W28 — a misleading first impression
+    on the public demo before evaluators engage with real data.
+
+    Post-fix organic sampling uses only ``eligible_user_pool``; ghost
+    commenters reach the data exclusively via the ghost-forcing block
+    in ``synthesize_pr_comment_streams_for_week`` (one comment per
+    week).  Production sort posture is unchanged — this is a demo-data
+    composition fix, not a render-time cap.
+    """
+
+    SENTINEL_KEY = "__former_or_unavailable_author__"
+    PROVEN_DOMINANT_WEEKS = ("2025-W25", "2025-W26", "2025-W27", "2025-W28")
+
+    def test_sentinel_does_not_dominate_per_reviewer_panel(self, all_rollups):
+        rollups_by_week = {data["week"]: data for data in all_rollups}
+        errors = []
+        for week in self.PROVEN_DOMINANT_WEEKS:
+            data = rollups_by_week.get(week)
+            if data is None:
+                pytest.fail(
+                    f"Expected demo week {week} not present in regenerated docs/data"
+                )
+            brc = data.get("by_reviewer_comments") or {}
+            sentinel_count = int(
+                (brc.get(self.SENTINEL_KEY) or {}).get("comment_count", 0)
+            )
+            real_items = [
+                (k, int(v.get("comment_count", 0)))
+                for k, v in brc.items()
+                if k != self.SENTINEL_KEY
+            ]
+            if not real_items:
+                errors.append(
+                    f"{week}: sentinel_comment_count={sentinel_count} "
+                    f"but by_reviewer_comments has no real reviewers "
+                    f"(top_real_comment_count=N/A, top_real_key=N/A)"
+                )
+                continue
+            top_real_key, top_real_count = max(real_items, key=lambda kv: kv[1])
+            if not (sentinel_count < top_real_count):
+                errors.append(
+                    f"{week}: sentinel_comment_count={sentinel_count} "
+                    f">= top_real_comment_count={top_real_count} "
+                    f"(top_real_key={top_real_key!r})"
+                )
+
+        assert not errors, (
+            "#355 regression — sentinel dominates per-reviewer panel:\n"
+            + "\n".join(errors)
+        )
+
+
 class TestCycleTimeRatio:
     """FR-008 / INV-006: Utility repo cycle times should be faster than data/ML repos.
 

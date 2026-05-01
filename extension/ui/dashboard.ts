@@ -173,16 +173,19 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 // in user-facing terms; the per-reviewer copy additionally clarifies that
 // reviewer thread counts can sum higher than the trend chart's thread total
 // because a thread with multiple commenters contributes one to each reviewer.
+// Each tooltip also discloses (#356) that comment totals include vote events
+// (Approve / Reject / Reset) emitted by Azure DevOps as system messages —
+// the rollup-level vote_event_count field carries the additive subset.
 const COMMENTS_AUTHOR_DENSITY_TOOLTIP =
   "Each row shows one author's review-conversation totals across the selected range. " +
   "Threads = review threads on PRs the author opened; Unresolved threads = the subset still in the Active state. " +
-  "Comments = every comment posted on those threads. " +
+  "Comments = every comment posted on those threads, including vote events (Approve / Reject / Reset) that Azure DevOps emits as system messages. " +
   "Hatched rows mean some weeks in this author's range are partially extracted.";
 
 const COMMENTS_REPOSITORY_DENSITY_TOOLTIP =
   "Each row shows one repository's review-conversation totals across the selected range. " +
   "Threads = review threads on PRs in this repository; Unresolved threads = the subset still in the Active state. " +
-  "Comments = every comment posted on those threads. " +
+  "Comments = every comment posted on those threads, including vote events (Approve / Reject / Reset) that Azure DevOps emits as system messages. " +
   "Hatched rows mean some weeks in this repository's range are partially extracted.";
 
 const COMMENTS_REVIEWER_DENSITY_TOOLTIP =
@@ -190,7 +193,7 @@ const COMMENTS_REVIEWER_DENSITY_TOOLTIP =
   "Threads = review threads this reviewer commented in. " +
   "A thread with multiple commenters contributes one to each, so the total of this column may exceed total threads on the trend chart above. " +
   "Unresolved threads = the subset still in the Active state. " +
-  "Comments = every comment posted by this reviewer on those threads.";
+  "Comments = every comment posted by this reviewer on those threads, including vote events (Approve / Reject / Reset) that Azure DevOps emits as system messages.";
 
 // Cached data service — resolved once per session (matches settings.ts pattern)
 let cachedDataService: Awaited<

@@ -131,7 +131,9 @@ def test_manifest_schema_validation():
     # Validate schema versions
     assert manifest_data["manifest_schema_version"] == 1
     assert manifest_data["dataset_schema_version"] == 1
-    assert manifest_data["aggregates_schema_version"] == 3
+    # #356: bumped 3 -> 4 when vote_event_count joined the four
+    # rollup-level comments-aggregate sites' atomic field set.
+    assert manifest_data["aggregates_schema_version"] == 4
 
     # Validate required fields
     assert "generated_at" in manifest_data

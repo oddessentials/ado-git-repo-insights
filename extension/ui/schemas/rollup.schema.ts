@@ -116,6 +116,15 @@ export interface AuthorCommentsDensityEntry {
   thread_count: number;
   comment_count: number;
   active_thread_count: number;
+  // #356 (aggregates schema v4 introduction): additive subset of
+  // comment_count over rows where comment_type='system' AND content
+  // matches the shared vote-event regex (extraction/vote_events.py).
+  // Required at v4 (validator threads the manifest's
+  // aggregates_schema_version through and rejects v4 artifacts missing
+  // the field).  When loading legacy v3 artifacts the validator accepts
+  // its absence — back-compat path.  When present:
+  // ``vote_event_count <= comment_count`` is enforced.
+  vote_event_count: number;
   coverage_partial: boolean;
 }
 
@@ -138,6 +147,9 @@ export interface RepositoryCommentsDensityEntry {
   thread_count: number;
   comment_count: number;
   active_thread_count: number;
+  // #356 (aggregates schema v4 introduction).  See
+  // AuthorCommentsDensityEntry above for the version-gated rationale.
+  vote_event_count: number;
   coverage_partial: boolean;
 }
 
@@ -163,6 +175,9 @@ export interface ReviewerCommentsDensityEntry {
   thread_count: number;
   comment_count: number;
   active_thread_count: number;
+  // #356 (aggregates schema v4 introduction).  See
+  // AuthorCommentsDensityEntry above for the version-gated rationale.
+  vote_event_count: number;
   coverage_partial: boolean;
 }
 
@@ -202,6 +217,12 @@ export interface WeeklyRollup {
     thread_count: number;
     comment_count: number;
     active_thread_count: number;
+    // #356: additive subset of comment_count over rows where
+    // comment_type='system' AND content matches the shared vote-event
+    // regex (extraction/vote_events.py).  vote_event_count <=
+    // comment_count by construction; INV-1-08 atomicity covers all five
+    // fields together.
+    vote_event_count: number;
     coverage_partial: boolean;
   };
   // Feature 334 per-author comments-density (rollup root).  Outer dict
@@ -751,6 +772,7 @@ function validatePrRecordArray(
 function validateCommentsAggregate(
   data: unknown,
   path: string,
+  aggregatesSchemaVersion?: number,
 ): { errors: ValidationError[] } {
   const errors: ValidationError[] = [];
 
@@ -759,19 +781,33 @@ function validateCommentsAggregate(
     return { errors };
   }
 
-  const requiredFields: readonly (
-    | "thread_count"
-    | "comment_count"
-    | "active_thread_count"
-    | "coverage_partial"
-  )[] = [
-    "thread_count",
-    "comment_count",
-    "active_thread_count",
-    "coverage_partial",
-  ];
+  // #356: vote_event_count joined the atomic field set at aggregates
+  // schema v4.  When loading legacy v3 artifacts (caller threads
+  // ``aggregatesSchemaVersion === 3``), accept the 4-field shape; when
+  // loading v4 or unknown (default — strictest interpretation), require
+  // all 5 fields.  Producer always emits 5 fields at v4 (Python
+  // aggregator + ``tests/unit/test_aggregators_*comments*.py`` enforce);
+  // a v4 artifact missing vote_event_count is malformed and rejected.
+  const v3Compat = aggregatesSchemaVersion === 3;
+  const requiredFields: readonly string[] = v3Compat
+    ? [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "coverage_partial",
+      ]
+    : [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "vote_event_count",
+        "coverage_partial",
+      ];
+  const requiredFieldsLabel = v3Compat
+    ? "all four of thread_count / comment_count / active_thread_count / coverage_partial"
+    : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
 
-  // INV-1-08 atomicity: all four required fields must be present.
+  // INV-1-08 atomicity check (4 fields at v3, 5 at v4).
   const missing = requiredFields.filter(
     (field) => !Object.prototype.hasOwnProperty.call(data, field),
   );
@@ -779,23 +815,29 @@ function validateCommentsAggregate(
     errors.push(
       createError(
         path,
-        "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+        requiredFieldsLabel,
         `missing: ${missing.join(", ")}`,
-        `comments-aggregate atomicity violated (INV-1-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+        `comments-aggregate atomicity violated (INV-1-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`,
       ),
     );
   }
 
-  // Per-field type checks for whichever required fields ARE present.
-  // Static literal-key access (data is already narrowed to Record<string,unknown>
-  // by isObject above) — mirrors the feature-060 pattern in validatePrRecordArray.
+  // Per-field type checks.  vote_event_count's per-field validation runs
+  // whenever the field is present, regardless of version — even on v3
+  // artifacts that happen to carry it, the type/range invariants apply
+  // for consistency.
   const numericFieldChecks: readonly {
-    name: "thread_count" | "comment_count" | "active_thread_count";
+    name:
+      | "thread_count"
+      | "comment_count"
+      | "active_thread_count"
+      | "vote_event_count";
     value: unknown;
   }[] = [
     { name: "thread_count", value: data.thread_count },
     { name: "comment_count", value: data.comment_count },
     { name: "active_thread_count", value: data.active_thread_count },
+    { name: "vote_event_count", value: data.vote_event_count },
   ];
   for (const { name, value } of numericFieldChecks) {
     if (!Object.prototype.hasOwnProperty.call(data, name)) {
@@ -881,6 +923,34 @@ function validateCommentsAggregate(
     );
   }
 
+  // #356 ordering: vote_event_count <= comment_count.  Mirrors the
+  // active_thread_count check above.  vote_event_count is the additive
+  // subset of comment_count restricted to system rows whose content
+  // matches the shared vote-event regex; the producer cannot emit
+  // vote_event_count > comment_count without violating that subset
+  // contract.  Only check when both values are valid non-negative
+  // integers (per-field errors already named bad shapes).
+  const commentCount = data.comment_count;
+  const voteEventCount = data.vote_event_count;
+  if (
+    isNumber(commentCount) &&
+    isNumber(voteEventCount) &&
+    Number.isInteger(commentCount) &&
+    Number.isInteger(voteEventCount) &&
+    commentCount >= 0 &&
+    voteEventCount >= 0 &&
+    voteEventCount > commentCount
+  ) {
+    errors.push(
+      createError(
+        buildPath(path, "vote_event_count"),
+        "<= comment_count (#356; vote events are a subset of total comments)",
+        `${voteEventCount} > ${commentCount}`,
+        `comments-aggregate ordering violated (#356): vote_event_count (${voteEventCount}) MUST NOT exceed comment_count (${commentCount})`,
+      ),
+    );
+  }
+
   return { errors };
 }
 
@@ -912,6 +982,7 @@ function validateCommentsAggregate(
 function validateAuthorCommentsDensity(
   data: unknown,
   path: string,
+  aggregatesSchemaVersion?: number,
 ): { errors: ValidationError[] } {
   const errors: ValidationError[] = [];
 
@@ -939,17 +1010,26 @@ function validateAuthorCommentsDensity(
     return { errors };
   }
 
-  const requiredFields: readonly (
-    | "thread_count"
-    | "comment_count"
-    | "active_thread_count"
-    | "coverage_partial"
-  )[] = [
-    "thread_count",
-    "comment_count",
-    "active_thread_count",
-    "coverage_partial",
-  ];
+  // #356: see ``validateCommentsAggregate`` for the v3/v4 atomicity
+  // contract.  Per-bucket atomicity follows the same version gate.
+  const v3Compat = aggregatesSchemaVersion === 3;
+  const requiredFields: readonly string[] = v3Compat
+    ? [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "coverage_partial",
+      ]
+    : [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "vote_event_count",
+        "coverage_partial",
+      ];
+  const requiredFieldsLabel = v3Compat
+    ? "all four of thread_count / comment_count / active_thread_count / coverage_partial"
+    : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
 
   for (const [key, entry] of entries) {
     const entryPath = buildPath(path, key);
@@ -959,7 +1039,7 @@ function validateAuthorCommentsDensity(
       continue;
     }
 
-    // INV-2-08 atomicity: all four required fields must be present.
+    // INV-2-08 atomicity (4 fields at v3, 5 at v4).
     const missing = requiredFields.filter(
       (field) => !Object.prototype.hasOwnProperty.call(entry, field),
     );
@@ -967,20 +1047,25 @@ function validateAuthorCommentsDensity(
       errors.push(
         createError(
           entryPath,
-          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          requiredFieldsLabel,
           `missing: ${missing.join(", ")}`,
-          `by_author_comments[${key}] atomicity violated (INV-2-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+          `by_author_comments[${key}] atomicity violated (INV-2-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`,
         ),
       );
     }
 
     const numericFieldChecks: readonly {
-      name: "thread_count" | "comment_count" | "active_thread_count";
+      name:
+        | "thread_count"
+        | "comment_count"
+        | "active_thread_count"
+        | "vote_event_count";
       value: unknown;
     }[] = [
       { name: "thread_count", value: entry.thread_count },
       { name: "comment_count", value: entry.comment_count },
       { name: "active_thread_count", value: entry.active_thread_count },
+      { name: "vote_event_count", value: entry.vote_event_count },
     ];
     for (const { name, value } of numericFieldChecks) {
       if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -1060,6 +1145,31 @@ function validateAuthorCommentsDensity(
         ),
       );
     }
+
+    // #356 ordering: vote_event_count <= comment_count per entry.  Mirrors
+    // the active_thread_count check above; vote_event_count is the
+    // additive subset of comment_count restricted to system rows whose
+    // content matches the shared vote-event regex.
+    const entryComment = entry.comment_count;
+    const entryVote = entry.vote_event_count;
+    if (
+      isNumber(entryComment) &&
+      isNumber(entryVote) &&
+      Number.isInteger(entryComment) &&
+      Number.isInteger(entryVote) &&
+      entryComment >= 0 &&
+      entryVote >= 0 &&
+      entryVote > entryComment
+    ) {
+      errors.push(
+        createError(
+          buildPath(entryPath, "vote_event_count"),
+          "<= comment_count (#356; vote events are a subset of total comments)",
+          `${entryVote} > ${entryComment}`,
+          `by_author_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`,
+        ),
+      );
+    }
   }
 
   return { errors };
@@ -1096,6 +1206,7 @@ function validateAuthorCommentsDensity(
 function validateRepositoryCommentsDensity(
   data: unknown,
   path: string,
+  aggregatesSchemaVersion?: number,
 ): { errors: ValidationError[] } {
   const errors: ValidationError[] = [];
 
@@ -1119,17 +1230,26 @@ function validateRepositoryCommentsDensity(
     return { errors };
   }
 
-  const requiredFields: readonly (
-    | "thread_count"
-    | "comment_count"
-    | "active_thread_count"
-    | "coverage_partial"
-  )[] = [
-    "thread_count",
-    "comment_count",
-    "active_thread_count",
-    "coverage_partial",
-  ];
+  // #356: see ``validateCommentsAggregate`` for the v3/v4 atomicity
+  // contract.  Per-bucket atomicity follows the same version gate.
+  const v3Compat = aggregatesSchemaVersion === 3;
+  const requiredFields: readonly string[] = v3Compat
+    ? [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "coverage_partial",
+      ]
+    : [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "vote_event_count",
+        "coverage_partial",
+      ];
+  const requiredFieldsLabel = v3Compat
+    ? "all four of thread_count / comment_count / active_thread_count / coverage_partial"
+    : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
 
   for (const [key, entry] of entries) {
     const entryPath = buildPath(path, key);
@@ -1139,7 +1259,7 @@ function validateRepositoryCommentsDensity(
       continue;
     }
 
-    // INV-3-08 atomicity: all four required fields must be present.
+    // INV-3-08 atomicity (4 fields at v3, 5 at v4).
     const missing = requiredFields.filter(
       (field) => !Object.prototype.hasOwnProperty.call(entry, field),
     );
@@ -1147,20 +1267,25 @@ function validateRepositoryCommentsDensity(
       errors.push(
         createError(
           entryPath,
-          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          requiredFieldsLabel,
           `missing: ${missing.join(", ")}`,
-          `by_repository_comments[${key}] atomicity violated (INV-3-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+          `by_repository_comments[${key}] atomicity violated (INV-3-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`,
         ),
       );
     }
 
     const numericFieldChecks: readonly {
-      name: "thread_count" | "comment_count" | "active_thread_count";
+      name:
+        | "thread_count"
+        | "comment_count"
+        | "active_thread_count"
+        | "vote_event_count";
       value: unknown;
     }[] = [
       { name: "thread_count", value: entry.thread_count },
       { name: "comment_count", value: entry.comment_count },
       { name: "active_thread_count", value: entry.active_thread_count },
+      { name: "vote_event_count", value: entry.vote_event_count },
     ];
     for (const { name, value } of numericFieldChecks) {
       if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -1240,6 +1365,31 @@ function validateRepositoryCommentsDensity(
         ),
       );
     }
+
+    // #356 ordering: vote_event_count <= comment_count per entry.  Mirrors
+    // the active_thread_count check above; vote_event_count is the
+    // additive subset of comment_count restricted to system rows whose
+    // content matches the shared vote-event regex.
+    const entryComment = entry.comment_count;
+    const entryVote = entry.vote_event_count;
+    if (
+      isNumber(entryComment) &&
+      isNumber(entryVote) &&
+      Number.isInteger(entryComment) &&
+      Number.isInteger(entryVote) &&
+      entryComment >= 0 &&
+      entryVote >= 0 &&
+      entryVote > entryComment
+    ) {
+      errors.push(
+        createError(
+          buildPath(entryPath, "vote_event_count"),
+          "<= comment_count (#356; vote events are a subset of total comments)",
+          `${entryVote} > ${entryComment}`,
+          `by_repository_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`,
+        ),
+      );
+    }
   }
 
   return { errors };
@@ -1269,6 +1419,7 @@ function validateRepositoryCommentsDensity(
 function validateReviewerCommentsDensity(
   data: unknown,
   path: string,
+  aggregatesSchemaVersion?: number,
 ): { errors: ValidationError[] } {
   const errors: ValidationError[] = [];
 
@@ -1292,17 +1443,26 @@ function validateReviewerCommentsDensity(
     return { errors };
   }
 
-  const requiredFields: readonly (
-    | "thread_count"
-    | "comment_count"
-    | "active_thread_count"
-    | "coverage_partial"
-  )[] = [
-    "thread_count",
-    "comment_count",
-    "active_thread_count",
-    "coverage_partial",
-  ];
+  // #356: see ``validateCommentsAggregate`` for the v3/v4 atomicity
+  // contract.  Per-bucket atomicity follows the same version gate.
+  const v3Compat = aggregatesSchemaVersion === 3;
+  const requiredFields: readonly string[] = v3Compat
+    ? [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "coverage_partial",
+      ]
+    : [
+        "thread_count",
+        "comment_count",
+        "active_thread_count",
+        "vote_event_count",
+        "coverage_partial",
+      ];
+  const requiredFieldsLabel = v3Compat
+    ? "all four of thread_count / comment_count / active_thread_count / coverage_partial"
+    : "all five of thread_count / comment_count / active_thread_count / vote_event_count / coverage_partial";
 
   for (const [key, entry] of entries) {
     const entryPath = buildPath(path, key);
@@ -1312,7 +1472,7 @@ function validateReviewerCommentsDensity(
       continue;
     }
 
-    // INV-4-08 atomicity: all four required fields must be present.
+    // INV-4-08 atomicity (4 fields at v3, 5 at v4).
     const missing = requiredFields.filter(
       (field) => !Object.prototype.hasOwnProperty.call(entry, field),
     );
@@ -1320,20 +1480,25 @@ function validateReviewerCommentsDensity(
       errors.push(
         createError(
           entryPath,
-          "all four of thread_count / comment_count / active_thread_count / coverage_partial",
+          requiredFieldsLabel,
           `missing: ${missing.join(", ")}`,
-          `by_reviewer_comments[${key}] atomicity violated (INV-4-08): expected all four of thread_count / comment_count / active_thread_count / coverage_partial; missing: ${missing.join(", ")}`,
+          `by_reviewer_comments[${key}] atomicity violated (INV-4-08): expected ${requiredFieldsLabel}; missing: ${missing.join(", ")}`,
         ),
       );
     }
 
     const numericFieldChecks: readonly {
-      name: "thread_count" | "comment_count" | "active_thread_count";
+      name:
+        | "thread_count"
+        | "comment_count"
+        | "active_thread_count"
+        | "vote_event_count";
       value: unknown;
     }[] = [
       { name: "thread_count", value: entry.thread_count },
       { name: "comment_count", value: entry.comment_count },
       { name: "active_thread_count", value: entry.active_thread_count },
+      { name: "vote_event_count", value: entry.vote_event_count },
     ];
     for (const { name, value } of numericFieldChecks) {
       if (!Object.prototype.hasOwnProperty.call(entry, name)) {
@@ -1413,6 +1578,31 @@ function validateReviewerCommentsDensity(
         ),
       );
     }
+
+    // #356 ordering: vote_event_count <= comment_count per entry.  Mirrors
+    // the active_thread_count check above; vote_event_count is the
+    // additive subset of comment_count restricted to system rows whose
+    // content matches the shared vote-event regex.
+    const entryComment = entry.comment_count;
+    const entryVote = entry.vote_event_count;
+    if (
+      isNumber(entryComment) &&
+      isNumber(entryVote) &&
+      Number.isInteger(entryComment) &&
+      Number.isInteger(entryVote) &&
+      entryComment >= 0 &&
+      entryVote >= 0 &&
+      entryVote > entryComment
+    ) {
+      errors.push(
+        createError(
+          buildPath(entryPath, "vote_event_count"),
+          "<= comment_count (#356; vote events are a subset of total comments)",
+          `${entryVote} > ${entryComment}`,
+          `by_reviewer_comments[${key}] ordering violated (#356): vote_event_count (${entryVote}) MUST NOT exceed comment_count (${entryComment})`,
+        ),
+      );
+    }
   }
 
   return { errors };
@@ -1432,6 +1622,7 @@ function validateReviewerCommentsDensity(
 export function validateRollup(
   data: unknown,
   strict: boolean,
+  aggregatesSchemaVersion?: number,
 ): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -1635,7 +1826,11 @@ export function validateRollup(
     Object.prototype.hasOwnProperty.call(data, "comments") &&
     data.comments !== undefined
   ) {
-    const commentsResult = validateCommentsAggregate(data.comments, "comments");
+    const commentsResult = validateCommentsAggregate(
+      data.comments,
+      "comments",
+      aggregatesSchemaVersion,
+    );
     errors.push(...commentsResult.errors);
   }
 
@@ -1652,6 +1847,7 @@ export function validateRollup(
     const byAuthorCommentsResult = validateAuthorCommentsDensity(
       data.by_author_comments,
       "by_author_comments",
+      aggregatesSchemaVersion,
     );
     errors.push(...byAuthorCommentsResult.errors);
   }
@@ -1670,6 +1866,7 @@ export function validateRollup(
     const byRepositoryCommentsResult = validateRepositoryCommentsDensity(
       data.by_repository_comments,
       "by_repository_comments",
+      aggregatesSchemaVersion,
     );
     errors.push(...byRepositoryCommentsResult.errors);
   }
@@ -1691,6 +1888,7 @@ export function validateRollup(
     const byReviewerCommentsResult = validateReviewerCommentsDensity(
       data.by_reviewer_comments,
       "by_reviewer_comments",
+      aggregatesSchemaVersion,
     );
     errors.push(...byReviewerCommentsResult.errors);
   }

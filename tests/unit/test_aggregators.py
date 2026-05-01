@@ -170,7 +170,9 @@ class TestAggregateGenerator:
         # Verify manifest structure
         assert manifest.manifest_schema_version == 1
         assert manifest.dataset_schema_version == 1
-        assert manifest.aggregates_schema_version == 3
+        # #356: bumped 3 -> 4 when vote_event_count joined the four
+        # rollup-level comments-aggregate sites' atomic field set.
+        assert manifest.aggregates_schema_version == 4
         assert manifest.run_id == "test-run-123"
 
         # Verify manifest file exists
@@ -2402,9 +2404,13 @@ class TestTeamRepoSlicing:
         assert cross_dim["Team Beta"]["Frontend-Repo"]["cycle_time_p50"] is not None
         assert cross_dim["Team Beta"]["Frontend-Repo"]["cycle_time_p90"] is not None
 
-    def test_schema_version_is_3(self) -> None:
-        """AGGREGATES_SCHEMA_VERSION must equal 3 (review_time fields added)."""
-        assert AGGREGATES_SCHEMA_VERSION == 3
+    def test_schema_version_is_4(self) -> None:
+        """AGGREGATES_SCHEMA_VERSION must equal 4 (#356 vote_event_count added).
+
+        v3 (review_time fields) -> v4 (vote_event_count joined the atomic
+        5-field shape on the four rollup-level comments-aggregate sites).
+        """
+        assert AGGREGATES_SCHEMA_VERSION == 4
 
     def test_features_cross_dimensional_true(
         self,
@@ -2835,12 +2841,12 @@ class TestPerformanceGate:
             "to validate SC-007 (features.cross_dimensional should be True)"
         )
 
-    def test_schema_version_is_3(
+    def test_schema_version_is_4(
         self, stress_db: tuple[DatabaseManager, Path], tmp_path: Path
     ) -> None:
-        """Verify AGGREGATES_SCHEMA_VERSION == 3 (review_time fields added)."""
-        assert AGGREGATES_SCHEMA_VERSION == 3, (
-            f"AGGREGATES_SCHEMA_VERSION must be 3 for review_time feature, "
+        """Verify AGGREGATES_SCHEMA_VERSION == 4 (#356 vote_event_count added)."""
+        assert AGGREGATES_SCHEMA_VERSION == 4, (
+            f"AGGREGATES_SCHEMA_VERSION must be 4 for #356 vote_event_count, "
             f"got {AGGREGATES_SCHEMA_VERSION}"
         )
 
@@ -4685,6 +4691,8 @@ class TestWeeklyRollupCommentsAggregate:
         uid: str,
         thread_id: str,
         comment_id: str,
+        content: str = "body",
+        comment_type: str = "text",
     ) -> None:
         db.execute(
             """
@@ -4698,8 +4706,8 @@ class TestWeeklyRollupCommentsAggregate:
                 thread_id,
                 uid,
                 "user1",
-                "body",
-                "text",
+                content,
+                comment_type,
                 "2026-01-02T00:00:00Z",
                 "2026-01-02T00:00:00Z",
                 0,
@@ -4970,4 +4978,145 @@ class TestWeeklyRollupCommentsAggregate:
             "(c) `comments: {3 of 4 fields}`, (d) any other partial shape. "
             "Got: comments key present in rollup."
         )
+        db.close()
+
+    def test_vote_event_count_via_mixed_comment_types(self, tmp_path: Path) -> None:
+        """#356: rollup-level vote_event_count counts only system rows matching
+        the vote-event regex.
+
+        Seeds one PR with the full comment_type matrix:
+          - text comment with prose mentioning 'voted' (NOT a vote)
+          - system comment with vote-pattern content (Approve)        → vote
+          - system comment with vote-pattern content (Reject)         → vote
+          - system comment with non-vote content                       → NOT a vote
+          - codeChange comment                                        → NOT a vote
+          - text comment (plain prose)
+
+        Asserts:
+          * comment_count == 6 (C1 inclusion preserved — text + all
+            system + codeChange counted).
+          * vote_event_count == 2 (only Approve + Reject system-vote
+            rows).
+        """
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_thread(db, uid="repo1-1", thread_id="t1", status="active")
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c1",
+            content="I have voted in the past on similar PRs",
+            comment_type="text",
+        )
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c2",
+            content="alice voted 10",
+            comment_type="system",
+        )
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c3",
+            content="bob voted -10",
+            comment_type="system",
+        )
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c4",
+            content="reactivated by alice",
+            comment_type="system",
+        )
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c5",
+            content="suggested edit",
+            comment_type="codeChange",
+        )
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c6",
+            content="LGTM",
+            comment_type="text",
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+        comments = rollup["comments"]
+        assert isinstance(comments, dict)
+        assert comments["comment_count"] == 6, (
+            f"comment_count should include text + system + codeChange "
+            f"(C1 preserved); got {comments['comment_count']!r}"
+        )
+        assert comments["vote_event_count"] == 2, (
+            f"vote_event_count should include only the two true vote-pattern "
+            f"system rows (Approve + Reject); got "
+            f"{comments['vote_event_count']!r}"
+        )
+        db.close()
+
+    def test_vote_event_count_zero_key_present_when_no_votes(
+        self, tmp_path: Path
+    ) -> None:
+        """#356: rollup-level comments aggregate emits vote_event_count as
+        integer zero when no vote events exist.
+
+        INV-1-08 atomicity: the 5th field is always present even at zero —
+        not absent, not null.
+        """
+        db = DatabaseManager(tmp_path / "test.sqlite")
+        db.connect()
+        self._seed_dimensions(db)
+        self._insert_pr(
+            db,
+            uid="repo1-1",
+            pr_id=1,
+            closed_date="2026-01-06T14:00:00Z",
+            comments_extracted_at="2026-01-08T00:00:00Z",
+        )
+        self._insert_thread(db, uid="repo1-1", thread_id="t1", status="active")
+        self._insert_comment(
+            db,
+            uid="repo1-1",
+            thread_id="t1",
+            comment_id="c1",
+            content="LGTM",
+            comment_type="text",
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        AggregateGenerator(db, output_dir).generate_all()
+        rollup = self._read_rollup(output_dir, "2026-W02")
+        comments = rollup["comments"]
+        assert isinstance(comments, dict)
+        assert "vote_event_count" in comments, (
+            "INV-1-08: vote_event_count key MUST be present even when no "
+            "vote events exist (atomic 5-field shape)"
+        )
+        assert comments["vote_event_count"] == 0, (
+            f"vote_event_count MUST be integer zero, not absent or null; "
+            f"got {comments['vote_event_count']!r}"
+        )
+        assert isinstance(comments["vote_event_count"], int)
         db.close()
