@@ -734,6 +734,36 @@ input[type="search"]::placeholder {
     gap: 20px;
 }
 
+/* Issue #357 — comments-density panels share a single 2-up sub-grid so
+ * the per-author / per-repo / per-reviewer panels read as a coherent
+ * group rather than a four-row vertical wall.  The trend chart remains
+ * full-width on its own ``.charts-row`` above this wrapper (timeseries
+ * vs cross-section reading order), so the wrapper itself is a sibling
+ * of the trend row, NOT its parent.
+ *
+ * The wrapper carries the base ``.charts-row`` class so it inherits the
+ * 20px gap + grid baseline.  This rule overrides ONLY
+ * ``grid-template-columns`` to lock 2-up (instead of the parent's
+ * ``auto-fit, minmax(400px, 1fr)`` which would expand to 3-up at wide
+ * viewports — explicitly out of scope per the issue's "2-up reads
+ * better than 3-up cramped" verdict).  The narrow-viewport fallback
+ * below collapses to 1-up around the same breakpoint the rest of the
+ * dashboard uses for column collapse.
+ *
+ * With three children in 2 columns, the third (reviewer) lands in the
+ * bottom-left cell; the bottom-right is empty.  This is intentional —
+ * spanning reviewer would compress per-row scan-density at the only
+ * width where 2-up is actively useful. */
+.charts-row.comments-density-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 700px) {
+    .charts-row.comments-density-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .summary-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -3318,6 +3348,26 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     text-align: right;
 }
 
+/* Issue #338: visually subordinate the Unresolved header cell.
+ * Unresolved is a subset of Threads (INV-09: active_thread_count <=
+ * thread_count), so the column should weigh visually less than its
+ * parent rather than equal to it.  Two non-geometric tweaks recover
+ * the subset relation without removing the dedicated sortable column
+ * (the verdict on #338 explicitly preserved sort affordance):
+ *   - lighter header weight (500 vs the parent header's 600)
+ *   - slight content indent via padding-right so the right-aligned
+ *     label pulls inward from the column's right edge
+ * Track widths are unchanged — the geometric Playwright guard
+ * (button rect within cell rect ±0.5px) still holds because padding
+ * affects content placement inside the cell box, not the cell box
+ * itself.  Width narrowing was deliberately deferred (would require
+ * relaxing the Ubuntu fallback metric buffer locked at :3267-3307). */
+.detail-panel-pr-list-header-cell--unresolved {
+    font-weight: 500;
+    padding-right: 8px;
+    color: var(--text-tertiary, var(--text-secondary));
+}
+
 .detail-panel-pr-list-header-sort {
     appearance: none;
     background: transparent;
@@ -3502,8 +3552,28 @@ g[role="button"][data-drilldown-week]:focus-visible .line-chart-dot {
     opacity: 0.7;
 }
 
+/* Issue #337: zero-vs-many tonal weight on comments-metrics.
+ * Numeric zero cells render at reduced opacity so the visual contrast
+ * between "no work" and "any work" is faster to scan than reading every
+ * digit on every row.  Mutually exclusive with the
+ * ``data-partial="true"`` rule above (a span never carries both attrs)
+ * — partial italic + tertiary color keeps partial visually distinct
+ * from zero per INV-10.  Numeric ``0`` is preserved as the rendered
+ * glyph (no em-dash swap) since the partial sentinel already owns the
+ * em-dash. */
+.detail-panel-pr-list--with-comments .comments-metric[data-zero="true"] {
+    opacity: 0.45;
+}
+
+/* Issue #338: visually subordinate the Unresolved data column.
+ * The previous ``font-weight: 600`` rule made Unresolved BOLDER than
+ * Threads, the opposite of the subset relation (INV-09).  Replaced
+ * with a muted color + slight right-edge indent so the per-row
+ * Unresolved value reads as "child of Threads" rather than peer.
+ * Sort affordance and column position unchanged. */
 .detail-panel-pr-list--with-comments .comments-metric--unresolved {
-    font-weight: 600;
+    color: var(--text-secondary);
+    padding-right: 8px;
 }
 
 /* Issue #331 / C2 + C3 — in-panel coverage notice.

@@ -1310,6 +1310,16 @@ function renderPrListSection(section: PrListSection): HTMLElement {
               appendText(span, "—");
             } else {
               span.setAttribute("data-partial", "false");
+              // Issue #337: muted tonal treatment for true-zero metric
+              // cells.  The ``data-zero`` marker is set only on numeric
+              // rows (partial rows carry ``data-partial="true"`` and
+              // own the em-dash glyph + tertiary-italic styling
+              // separately).  The two attribute selectors are mutually
+              // exclusive so partial != zero stays visually distinct
+              // per INV-10.  Numeric ``0`` is preserved as the rendered
+              // glyph — no em-dash swap — because the partial sentinel
+              // already owns ``—``.
+              span.setAttribute("data-zero", value === 0 ? "true" : "false");
               li.setAttribute(`data-${key}`, String(value));
               appendText(span, String(value));
             }

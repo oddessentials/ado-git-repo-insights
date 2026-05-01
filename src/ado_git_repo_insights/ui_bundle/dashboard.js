@@ -5147,6 +5147,7 @@ var PRInsightsDashboard = (() => {
                 appendText(span, "\u2014");
               } else {
                 span.setAttribute("data-partial", "false");
+                span.setAttribute("data-zero", value === 0 ? "true" : "false");
                 li.setAttribute(`data-${key}`, String(value));
                 appendText(span, String(value));
               }
@@ -11710,23 +11711,39 @@ var PRInsightsDashboard = (() => {
     }
     row.parentElement?.removeChild(row);
   }
-  function ensureCommentsAuthorDensityContainer() {
-    const existing = document.getElementById("comments-author-density");
-    if (existing) return existing;
-    const commentsTrendRow = document.querySelector(
-      '[data-comments-trend-row="true"]'
+  function ensureCommentsDensityGrid() {
+    const existing = document.querySelector(
+      '[data-comments-density-grid="true"]'
     );
-    let anchorRow = commentsTrendRow;
+    if (existing) return existing;
+    const trendRow = document.querySelector('[data-comments-trend-row="true"]');
+    let anchorRow = trendRow;
     if (!anchorRow) {
       const cycleDist = document.getElementById("cycle-distribution");
       anchorRow = cycleDist?.closest(".charts-row") ?? null;
     }
     if (!anchorRow || !anchorRow.parentElement) return null;
-    const row = document.createElement("div");
-    row.className = "charts-row";
-    row.setAttribute("data-comments-author-density-row", "true");
+    const grid = document.createElement("div");
+    grid.className = "charts-row comments-density-grid";
+    grid.setAttribute("data-comments-density-grid", "true");
+    anchorRow.parentElement.insertBefore(grid, anchorRow.nextSibling);
+    return grid;
+  }
+  function removeCommentsDensityGridIfEmpty() {
+    const grid = document.querySelector('[data-comments-density-grid="true"]');
+    if (!grid) return;
+    if (grid.children.length === 0) {
+      grid.parentElement?.removeChild(grid);
+    }
+  }
+  function ensureCommentsAuthorDensityContainer() {
+    const existing = document.getElementById("comments-author-density");
+    if (existing) return existing;
+    const grid = ensureCommentsDensityGrid();
+    if (!grid) return null;
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
+    containerCell.setAttribute("data-comments-author-density-row", "true");
     const heading = document.createElement("h3");
     heading.textContent = "Comments by Author";
     attachChartInfoIcon(
@@ -11739,8 +11756,7 @@ var PRInsightsDashboard = (() => {
     chart.id = "comments-author-density";
     chart.className = "chart";
     containerCell.appendChild(chart);
-    row.appendChild(containerCell);
-    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    grid.appendChild(containerCell);
     return chart;
   }
   function removeCommentsAuthorDensityContainer() {
@@ -11753,27 +11769,16 @@ var PRInsightsDashboard = (() => {
       detachChartInfoIcon(heading);
     }
     row.parentElement?.removeChild(row);
+    removeCommentsDensityGridIfEmpty();
   }
   function ensureCommentsRepositoryDensityContainer() {
     const existing = document.getElementById("comments-repository-density");
     if (existing) return existing;
-    const perAuthorRow = document.querySelector(
-      '[data-comments-author-density-row="true"]'
-    );
-    let anchorRow = perAuthorRow;
-    if (!anchorRow) {
-      anchorRow = document.querySelector('[data-comments-trend-row="true"]');
-    }
-    if (!anchorRow) {
-      const cycleDist = document.getElementById("cycle-distribution");
-      anchorRow = cycleDist?.closest(".charts-row") ?? null;
-    }
-    if (!anchorRow || !anchorRow.parentElement) return null;
-    const row = document.createElement("div");
-    row.className = "charts-row";
-    row.setAttribute("data-comments-repository-density-row", "true");
+    const grid = ensureCommentsDensityGrid();
+    if (!grid) return null;
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
+    containerCell.setAttribute("data-comments-repository-density-row", "true");
     const heading = document.createElement("h3");
     heading.textContent = "Comments by Repository";
     attachChartInfoIcon(
@@ -11786,8 +11791,7 @@ var PRInsightsDashboard = (() => {
     chart.id = "comments-repository-density";
     chart.className = "chart";
     containerCell.appendChild(chart);
-    row.appendChild(containerCell);
-    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    grid.appendChild(containerCell);
     return chart;
   }
   function removeCommentsRepositoryDensityContainer() {
@@ -11800,32 +11804,16 @@ var PRInsightsDashboard = (() => {
       detachChartInfoIcon(heading);
     }
     row.parentElement?.removeChild(row);
+    removeCommentsDensityGridIfEmpty();
   }
   function ensureCommentsReviewerDensityContainer() {
     const existing = document.getElementById("comments-reviewer-density");
     if (existing) return existing;
-    const perRepoRow = document.querySelector(
-      '[data-comments-repository-density-row="true"]'
-    );
-    let anchorRow = perRepoRow;
-    if (!anchorRow) {
-      anchorRow = document.querySelector(
-        '[data-comments-author-density-row="true"]'
-      );
-    }
-    if (!anchorRow) {
-      anchorRow = document.querySelector('[data-comments-trend-row="true"]');
-    }
-    if (!anchorRow) {
-      const cycleDist = document.getElementById("cycle-distribution");
-      anchorRow = cycleDist?.closest(".charts-row") ?? null;
-    }
-    if (!anchorRow || !anchorRow.parentElement) return null;
-    const row = document.createElement("div");
-    row.className = "charts-row";
-    row.setAttribute("data-comments-reviewer-density-row", "true");
+    const grid = ensureCommentsDensityGrid();
+    if (!grid) return null;
     const containerCell = document.createElement("div");
     containerCell.className = "chart-container";
+    containerCell.setAttribute("data-comments-reviewer-density-row", "true");
     const heading = document.createElement("h3");
     heading.textContent = "Comments by Reviewer";
     attachChartInfoIcon(
@@ -11838,8 +11826,7 @@ var PRInsightsDashboard = (() => {
     chart.id = "comments-reviewer-density";
     chart.className = "chart";
     containerCell.appendChild(chart);
-    row.appendChild(containerCell);
-    anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+    grid.appendChild(containerCell);
     return chart;
   }
   function removeCommentsReviewerDensityContainer() {
@@ -11852,6 +11839,7 @@ var PRInsightsDashboard = (() => {
       detachChartInfoIcon(heading);
     }
     row.parentElement?.removeChild(row);
+    removeCommentsDensityGridIfEmpty();
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
     if (!loaderResult) {

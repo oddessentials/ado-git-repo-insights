@@ -1738,37 +1738,88 @@ function removeCommentsTrendContainer(): void {
 }
 
 /**
- * Idempotently ensure the per-author comments-density chart row exists
- * (Feature 334 US1).  Mirrors ``ensureCommentsTrendContainer`` (333 round-12
- * idempotency contract) but anchors BELOW the 333 row per FR-4-01.
+ * Idempotently ensure the comments-density sub-grid wrapper exists
+ * (Issue #357).  All three density panels (per-author 334, per-repo
+ * 335, per-reviewer 336) mount as ``.chart-container`` children of
+ * this single wrapper instead of as four sequential ``.charts-row``
+ * siblings — recovering vertical scan-density without removing any
+ * panel, capability gate, or data-attribute selector that downstream
+ * tests + parity gates depend on.
  *
- * Anchor preference: the existing comments-trend row (333) when mounted —
- * this guarantees the per-author breakdown lands immediately under the
- * weekly trend chart in the typical capability-on render order.  Fallback
- * to ``cycle-distribution`` for atypical orderings (e.g., a future render
- * path that mounts 334 before 333).  Returns ``null`` if neither anchor
- * is locatable.
+ * Anchor preference: the comments-trend row (333) when mounted, falling
+ * back to the static ``cycle-distribution`` chart row.  The wrapper
+ * sits IMMEDIATELY AFTER the chosen anchor so the trend chart stays
+ * full-width above the density grid (issue #357 acceptance: "trend
+ * full-width on its own row, density panels in a 2-up sub-grid below").
+ *
+ * Returns ``null`` when no anchor is locatable (defensive — same
+ * fallback semantics as the prior per-helper anchor chains).
  */
-function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
-  const existing = document.getElementById("comments-author-density");
+function ensureCommentsDensityGrid(): HTMLElement | null {
+  const existing = document.querySelector<HTMLElement>(
+    '[data-comments-density-grid="true"]',
+  );
   if (existing) return existing;
 
-  const commentsTrendRow = document.querySelector(
-    '[data-comments-trend-row="true"]',
-  );
-  let anchorRow: Element | null = commentsTrendRow;
+  const trendRow = document.querySelector('[data-comments-trend-row="true"]');
+  let anchorRow: Element | null = trendRow;
   if (!anchorRow) {
     const cycleDist = document.getElementById("cycle-distribution");
     anchorRow = cycleDist?.closest(".charts-row") ?? null;
   }
   if (!anchorRow || !anchorRow.parentElement) return null;
 
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-author-density-row", "true");
+  const grid = document.createElement("div");
+  // Carries ``charts-row`` so it inherits the existing gap + grid
+  // baseline from styles.css; ``comments-density-grid`` overrides
+  // ``grid-template-columns`` to a fixed 2-up (with single-column
+  // fallback at narrow viewports).
+  grid.className = "charts-row comments-density-grid";
+  grid.setAttribute("data-comments-density-grid", "true");
+
+  anchorRow.parentElement.insertBefore(grid, anchorRow.nextSibling);
+
+  return grid;
+}
+
+/**
+ * Remove the comments-density sub-grid wrapper if it has no remaining
+ * density-panel children.  Called by each density panel's remove
+ * helper after the panel itself is detached so the wrapper does not
+ * linger as an empty ``.charts-row`` (which would inflate row counts
+ * and leave a visible gap above subsequent sections).  No-op when the
+ * wrapper is absent or still hosts at least one child.
+ */
+function removeCommentsDensityGridIfEmpty(): void {
+  const grid = document.querySelector('[data-comments-density-grid="true"]');
+  if (!grid) return;
+  if (grid.children.length === 0) {
+    grid.parentElement?.removeChild(grid);
+  }
+}
+
+/**
+ * Idempotently ensure the per-author comments-density chart container
+ * exists (Feature 334 US1; reshaped for issue #357).  The container
+ * is appended as a ``.chart-container`` child of the shared
+ * ``[data-comments-density-grid="true"]`` wrapper rather than as a
+ * standalone ``.charts-row`` sibling.  The
+ * ``data-comments-author-density-row="true"`` selector still
+ * resolves to the same logical element (now a ``.chart-container``)
+ * so downstream lifecycle tests and dashboard parity gates continue
+ * to find the panel by attribute.  Returns ``null`` when the wrapper
+ * cannot be created (no anchor locatable).
+ */
+function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
+  const existing = document.getElementById("comments-author-density");
+  if (existing) return existing;
+
+  const grid = ensureCommentsDensityGrid();
+  if (!grid) return null;
 
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-author-density-row", "true");
 
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Author";
@@ -1784,18 +1835,19 @@ function ensureCommentsAuthorDensityContainer(): HTMLElement | null {
   chart.className = "chart";
 
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-
-  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+  grid.appendChild(containerCell);
 
   return chart;
 }
 
 /**
- * Remove the per-author comments-density chart row from the DOM if
- * present.  No-op when absent (initial capability-off; repeated
+ * Remove the per-author comments-density chart container from the DOM
+ * if present.  No-op when absent (initial capability-off; repeated
  * capability-off renders).  Active cleanup happens on the on→off
- * mid-session transition (FR-3-02).
+ * mid-session transition (FR-3-02).  When the removal leaves the
+ * shared density-grid wrapper empty, the wrapper is also removed
+ * (issue #357: keeps capability-off byte-identity at the wrapper
+ * scope).
  */
 function removeCommentsAuthorDensityContainer(): void {
   const row = document.querySelector(
@@ -1807,49 +1859,29 @@ function removeCommentsAuthorDensityContainer(): void {
     detachChartInfoIcon(heading);
   }
   row.parentElement?.removeChild(row);
+  removeCommentsDensityGridIfEmpty();
 }
 
 /**
- * Idempotently ensure the per-repo comments-density chart row exists
- * (Feature 335 US1).  Mirrors ``ensureCommentsAuthorDensityContainer``
- * (334 idempotency contract) but anchors BELOW the 334 row per CL-10.
- *
- * Anchor preference (CL-10 + defensive fallbacks):
- *   1. Per-author row (334) — the primary anchor; both charts share the
- *      same capability gate so 334's row will normally be mounted by
- *      the time the 335 render block fires (334's block runs first
- *      in renderMetricsTab).
- *   2. Comments-trend row (333) — fallback when 334's anchor is
- *      missing (rare; would mean 334's ensure helper returned null).
- *   3. ``cycle-distribution`` chart row — universal baseline anchor
- *      shared with 333 / 334 for the unusual case where neither
- *      sibling row is mounted.
- *
- * Returns ``null`` if no anchor is locatable.
+ * Idempotently ensure the per-repo comments-density chart container
+ * exists (Feature 335 US1; reshaped for issue #357).  Like the
+ * per-author helper, this is now a ``.chart-container`` child of the
+ * shared ``[data-comments-density-grid="true"]`` wrapper.  The
+ * ``data-comments-repository-density-row="true"`` selector still
+ * resolves to the same logical element so lifecycle tests and parity
+ * gates continue to find the panel by attribute.  Returns ``null``
+ * when the wrapper cannot be created.
  */
 function ensureCommentsRepositoryDensityContainer(): HTMLElement | null {
   const existing = document.getElementById("comments-repository-density");
   if (existing) return existing;
 
-  const perAuthorRow = document.querySelector(
-    '[data-comments-author-density-row="true"]',
-  );
-  let anchorRow: Element | null = perAuthorRow;
-  if (!anchorRow) {
-    anchorRow = document.querySelector('[data-comments-trend-row="true"]');
-  }
-  if (!anchorRow) {
-    const cycleDist = document.getElementById("cycle-distribution");
-    anchorRow = cycleDist?.closest(".charts-row") ?? null;
-  }
-  if (!anchorRow || !anchorRow.parentElement) return null;
-
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-repository-density-row", "true");
+  const grid = ensureCommentsDensityGrid();
+  if (!grid) return null;
 
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-repository-density-row", "true");
 
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Repository";
@@ -1865,18 +1897,16 @@ function ensureCommentsRepositoryDensityContainer(): HTMLElement | null {
   chart.className = "chart";
 
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-
-  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+  grid.appendChild(containerCell);
 
   return chart;
 }
 
 /**
- * Remove the per-repo comments-density chart row from the DOM if
- * present.  No-op when absent (initial capability-off; repeated
- * capability-off renders).  Active cleanup happens on the on→off
- * mid-session transition (FR-3-02).
+ * Remove the per-repo comments-density chart container from the DOM
+ * if present.  No-op when absent.  When the removal leaves the shared
+ * density-grid wrapper empty, the wrapper is also removed (issue
+ * #357).
  */
 function removeCommentsRepositoryDensityContainer(): void {
   const row = document.querySelector(
@@ -1888,55 +1918,29 @@ function removeCommentsRepositoryDensityContainer(): void {
     detachChartInfoIcon(heading);
   }
   row.parentElement?.removeChild(row);
+  removeCommentsDensityGridIfEmpty();
 }
 
 /**
- * Idempotently ensure the per-reviewer comments-density chart row
- * exists (Feature 336 US1).  Mirrors
- * ``ensureCommentsRepositoryDensityContainer`` (335 idempotency
- * contract) but anchors BELOW the 335 row per CL-11.
- *
- * Anchor preference (CL-11 + defensive fallbacks):
- *   1. Per-repo row (335) — primary; both charts share the capability
- *      gate so 335's row will normally be mounted by the time the 336
- *      render block fires (335's block runs first in renderMetricsTab).
- *   2. Per-author row (334) — fallback when 335's row is absent.
- *   3. Comments-trend row (333) — fallback when neither 334 nor 335 is
- *      mounted.
- *   4. ``cycle-distribution`` chart row — universal baseline anchor
- *      shared with 333 / 334 / 335 for the unusual case where no
- *      sibling row is mounted.
- *
- * Returns ``null`` if no anchor is locatable.
+ * Idempotently ensure the per-reviewer comments-density chart
+ * container exists (Feature 336 US1; reshaped for issue #357).  Like
+ * the per-author and per-repo helpers, this is now a
+ * ``.chart-container`` child of the shared
+ * ``[data-comments-density-grid="true"]`` wrapper.  The
+ * ``data-comments-reviewer-density-row="true"`` selector still
+ * resolves to the same logical element.  Returns ``null`` when the
+ * wrapper cannot be created.
  */
 function ensureCommentsReviewerDensityContainer(): HTMLElement | null {
   const existing = document.getElementById("comments-reviewer-density");
   if (existing) return existing;
 
-  const perRepoRow = document.querySelector(
-    '[data-comments-repository-density-row="true"]',
-  );
-  let anchorRow: Element | null = perRepoRow;
-  if (!anchorRow) {
-    anchorRow = document.querySelector(
-      '[data-comments-author-density-row="true"]',
-    );
-  }
-  if (!anchorRow) {
-    anchorRow = document.querySelector('[data-comments-trend-row="true"]');
-  }
-  if (!anchorRow) {
-    const cycleDist = document.getElementById("cycle-distribution");
-    anchorRow = cycleDist?.closest(".charts-row") ?? null;
-  }
-  if (!anchorRow || !anchorRow.parentElement) return null;
-
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-reviewer-density-row", "true");
+  const grid = ensureCommentsDensityGrid();
+  if (!grid) return null;
 
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-reviewer-density-row", "true");
 
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Reviewer";
@@ -1952,18 +1956,16 @@ function ensureCommentsReviewerDensityContainer(): HTMLElement | null {
   chart.className = "chart";
 
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-
-  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+  grid.appendChild(containerCell);
 
   return chart;
 }
 
 /**
- * Remove the per-reviewer comments-density chart row from the DOM if
- * present.  No-op when absent (initial capability-off; repeated
- * capability-off renders).  Active cleanup happens on the on→off
- * mid-session transition (FR-3-02).
+ * Remove the per-reviewer comments-density chart container from the
+ * DOM if present.  No-op when absent.  When the removal leaves the
+ * shared density-grid wrapper empty, the wrapper is also removed
+ * (issue #357).
  */
 function removeCommentsReviewerDensityContainer(): void {
   const row = document.querySelector(
@@ -1975,6 +1977,7 @@ function removeCommentsReviewerDensityContainer(): void {
     detachChartInfoIcon(heading);
   }
   row.parentElement?.removeChild(row);
+  removeCommentsDensityGridIfEmpty();
 }
 
 // addChartTooltips is now imported from "./modules/charts"

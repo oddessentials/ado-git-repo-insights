@@ -65,26 +65,47 @@ const dashboardSrc = _fs.readFileSync(dashboardSrcPath, "utf-8");
 // cannot silently drift.
 // ---------------------------------------------------------------------------
 
-function ensureCommentsAuthorDensityContainerContract(): HTMLElement | null {
-  const existing = document.getElementById("comments-author-density");
+function ensureCommentsDensityGridContract(): HTMLElement | null {
+  const existing = document.querySelector<HTMLElement>(
+    '[data-comments-density-grid="true"]',
+  );
   if (existing) return existing;
 
-  const commentsTrendRow = document.querySelector(
-    '[data-comments-trend-row="true"]',
-  );
-  let anchorRow: Element | null = commentsTrendRow;
+  const trendRow = document.querySelector('[data-comments-trend-row="true"]');
+  let anchorRow: Element | null = trendRow;
   if (!anchorRow) {
     const cycleDist = document.getElementById("cycle-distribution");
     anchorRow = cycleDist?.closest(".charts-row") ?? null;
   }
   if (!anchorRow || !anchorRow.parentElement) return null;
 
-  const row = document.createElement("div");
-  row.className = "charts-row";
-  row.setAttribute("data-comments-author-density-row", "true");
+  const grid = document.createElement("div");
+  grid.className = "charts-row comments-density-grid";
+  grid.setAttribute("data-comments-density-grid", "true");
+
+  anchorRow.parentElement.insertBefore(grid, anchorRow.nextSibling);
+
+  return grid;
+}
+
+function removeCommentsDensityGridIfEmptyContract(): void {
+  const grid = document.querySelector('[data-comments-density-grid="true"]');
+  if (!grid) return;
+  if (grid.children.length === 0) {
+    grid.parentElement?.removeChild(grid);
+  }
+}
+
+function ensureCommentsAuthorDensityContainerContract(): HTMLElement | null {
+  const existing = document.getElementById("comments-author-density");
+  if (existing) return existing;
+
+  const grid = ensureCommentsDensityGridContract();
+  if (!grid) return null;
 
   const containerCell = document.createElement("div");
   containerCell.className = "chart-container";
+  containerCell.setAttribute("data-comments-author-density-row", "true");
 
   const heading = document.createElement("h3");
   heading.textContent = "Comments by Author";
@@ -95,9 +116,7 @@ function ensureCommentsAuthorDensityContainerContract(): HTMLElement | null {
   chart.className = "chart";
 
   containerCell.appendChild(chart);
-  row.appendChild(containerCell);
-
-  anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling);
+  grid.appendChild(containerCell);
 
   return chart;
 }
@@ -108,6 +127,7 @@ function removeCommentsAuthorDensityContainerContract(): void {
   );
   if (!row) return;
   row.parentElement?.removeChild(row);
+  removeCommentsDensityGridIfEmptyContract();
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +254,7 @@ const NO_FILTERS: FilterState = {
 // ===========================================================================
 
 describe("comments-author-density dashboard lifecycle — source-parse contract", () => {
-  it("ensureCommentsAuthorDensityContainer in dashboard.ts implements check-first idempotency + 333 anchor preference", () => {
+  it("ensureCommentsAuthorDensityContainer in dashboard.ts implements check-first idempotency + density-grid mount (issue #357)", () => {
     const helperStart = dashboardSrc.indexOf(
       "function ensureCommentsAuthorDensityContainer(",
     );
@@ -244,34 +264,38 @@ describe("comments-author-density dashboard lifecycle — source-parse contract"
 
     // Check-first idempotency: the helper queries the existing leaf BEFORE
     // building any new DOM. Without this, scenario (d) would fail (a
-    // second render would insert a duplicate row).
+    // second render would insert a duplicate panel.
     expect(helperBody).toContain(
       'document.getElementById("comments-author-density")',
     );
     expect(helperBody).toMatch(/if \(existing\) return existing;/);
 
-    // 333 anchor preference + cycle-distribution fallback. The
-    // production anchor logic is what places the 334 row BELOW the 333
-    // chart per FR-4-01 in the typical capability-on render order.
-    expect(helperBody).toContain('[data-comments-trend-row="true"]');
-    expect(helperBody).toContain(
-      'document.getElementById("cycle-distribution")',
-    );
-    expect(helperBody).toContain('.closest(".charts-row")');
+    // Issue #357: the helper now mounts the panel as a child of the
+    // shared comments-density-grid wrapper instead of inserting a
+    // new ``.charts-row`` sibling.  The wrapper-creation logic +
+    // anchor preference are locked by ensureCommentsDensityGrid's
+    // own source-parse contract in
+    // comments-density-subgrid-layout.test.ts; here we only assert
+    // the helper delegates to it.
+    expect(helperBody).toContain("ensureCommentsDensityGrid()");
+    expect(helperBody).toMatch(/if \(!grid\) return null;/);
 
-    // Row markers used by the cleanup helper and by scenarios (a)-(d).
-    expect(helperBody).toContain('row.className = "charts-row"');
+    // Container markers used by the cleanup helper, lifecycle scenarios
+    // (a)-(d), and dashboard parity gates.  The data-attribute moved
+    // from the old outer ``.charts-row`` element to the
+    // ``.chart-container`` cell — selector-by-attribute callers
+    // continue to find the panel because the attribute is still
+    // present on the same logical element.
+    expect(helperBody).toContain('containerCell.className = "chart-container"');
     expect(helperBody).toContain(
-      'row.setAttribute("data-comments-author-density-row", "true")',
+      'containerCell.setAttribute("data-comments-author-density-row", "true")',
     );
     expect(helperBody).toContain('chart.id = "comments-author-density"');
 
-    // Insertion ordering: the new row sits immediately after the anchor
-    // row's next sibling so it lands BELOW the 333 chart (or below
-    // cycle-distribution when 333 is not mounted).
-    expect(helperBody).toContain(
-      "anchorRow.parentElement.insertBefore(row, anchorRow.nextSibling)",
-    );
+    // Insertion is now an appendChild on the wrapper rather than an
+    // insertBefore on a sibling — children fill the 2-up grid in
+    // call order (author, repo, reviewer).
+    expect(helperBody).toContain("grid.appendChild(containerCell)");
   });
 
   it("ensureCommentsAuthorDensityContainer mounts the heading", () => {
@@ -289,7 +313,7 @@ describe("comments-author-density dashboard lifecycle — source-parse contract"
     expect(helperBody).toContain('heading.textContent = "Comments by Author"');
   });
 
-  it("removeCommentsAuthorDensityContainer in dashboard.ts targets the data-attribute selector", () => {
+  it("removeCommentsAuthorDensityContainer targets the data-attribute selector and trims the empty wrapper (issue #357)", () => {
     const helperStart = dashboardSrc.indexOf(
       "function removeCommentsAuthorDensityContainer(",
     );
@@ -299,6 +323,10 @@ describe("comments-author-density dashboard lifecycle — source-parse contract"
     expect(helperBody).toContain('[data-comments-author-density-row="true"]');
     expect(helperBody).toMatch(/if \(!row\) return;/);
     expect(helperBody).toContain("row.parentElement?.removeChild(row)");
+    // Issue #357: cleanup must ALSO trim the wrapper when the panel
+    // was the last density child — otherwise the empty wrapper
+    // lingers as a visible gap and inflates ``.charts-row`` counts.
+    expect(helperBody).toContain("removeCommentsDensityGridIfEmpty()");
   });
 
   it("dashboard refresh path calls both helpers behind the capability gate", () => {
@@ -448,16 +476,25 @@ describe("comments-author-density dashboard lifecycle — four scenarios (T027)"
       document.querySelectorAll('[data-comments-author-density-row="true"] h3'),
     ).toHaveLength(1);
 
-    // Total `.charts-row` count is now 4 (row-1 + row-2 + 333 row + 334 row).
+    // Total `.charts-row` count is now 4 (row-1 + row-2 + 333 row +
+    // density-grid wrapper).  Issue #357: the per-author panel + the
+    // future per-repo / per-reviewer panels share a single
+    // ``.charts-row.comments-density-grid`` wrapper, so the count is
+    // independent of how many density panels are mounted (as long as
+    // at least one is).
     expect(document.querySelectorAll(".charts-row").length).toBe(4);
 
-    // The 334 row sits IMMEDIATELY AFTER the 333 row (FR-4-01: per-author
-    // breakdown sits below the weekly trend chart).
+    // Issue #357: the density-grid wrapper sits IMMEDIATELY AFTER
+    // the 333 trend row (FR-4-01 + #357 acceptance — trend stays
+    // full-width above the density grid).  The author panel itself
+    // is the FIRST CHILD of the wrapper.
     const trendRow = document.querySelector('[data-comments-trend-row="true"]');
     expect(trendRow).not.toBeNull();
-    expect(trendRow!.nextElementSibling).not.toBeNull();
+    const wrapper = trendRow!.nextElementSibling;
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.getAttribute("data-comments-density-grid")).toBe("true");
     expect(
-      trendRow!.nextElementSibling?.getAttribute(
+      wrapper?.firstElementChild?.getAttribute(
         "data-comments-author-density-row",
       ),
     ).toBe("true");

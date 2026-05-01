@@ -842,6 +842,120 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
   });
 });
 
+describe("issue #337 zero-tonal-weight contract", () => {
+  // Locks the data-zero discriminator the styles.css rule consumes
+  // (.comments-metric[data-zero="true"] → reduced opacity).  The
+  // attribute is set only on numeric rows; partial-sentinel spans are
+  // styled separately by the data-partial="true" rule.  Mutual
+  // exclusivity is what keeps partial != zero visually distinct, so
+  // both directions are asserted below.
+  it("marks data-zero='true' on every span when all three counts are zero", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 200,
+          threadCount: 0,
+          commentCount: 0,
+          activeThreadCount: 0,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      const span = metricSpan(row, axis);
+      expect(span.getAttribute("data-zero")).toBe("true");
+      // Mutually exclusive with data-partial — a numeric zero must
+      // not also be flagged partial; otherwise the two muted CSS
+      // treatments would compose and partial != zero would degrade.
+      expect(span.getAttribute("data-partial")).toBe("false");
+    }
+  });
+
+  it("flags only the zero axes on a row mixing zero and non-zero counts", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 201,
+          threadCount: 5,
+          commentCount: 0,
+          activeThreadCount: 3,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    expect(metricSpan(row, "threads").getAttribute("data-zero")).toBe("false");
+    expect(metricSpan(row, "comments").getAttribute("data-zero")).toBe("true");
+    expect(metricSpan(row, "unresolved").getAttribute("data-zero")).toBe(
+      "false",
+    );
+  });
+
+  it("marks data-zero='false' on every span of a fully non-zero row", () => {
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 202,
+          threadCount: 7,
+          commentCount: 12,
+          activeThreadCount: 4,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      expect(metricSpan(row, axis).getAttribute("data-zero")).toBe("false");
+    }
+  });
+
+  it("does NOT set data-zero on partial-sentinel spans", () => {
+    // Partial spans render as ``—`` with ``data-partial="true"`` and
+    // are styled by the [data-partial="true"] CSS rule.  A
+    // ``data-zero`` attribute on a partial span would compose two
+    // muted treatments and lie about whether the row carries a
+    // numeric zero, distinct from the missing-data sentinel.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      rows: [
+        buildRow({
+          id: 203,
+          threadCount: null,
+          commentCount: null,
+          activeThreadCount: null,
+        }),
+      ],
+      renderedCount: 1,
+      actualFilteredCount: 1,
+      capValue: 500,
+      commentsMetricsAvailable: true,
+    });
+    const root = openWithPrListSection(section);
+    const row = listRows(root)[0]!;
+    for (const axis of ["threads", "comments", "unresolved"] as const) {
+      const span = metricSpan(row, axis);
+      expect(span.getAttribute("data-partial")).toBe("true");
+      expect(span.getAttribute("data-zero")).toBeNull();
+    }
+  });
+});
+
 describe("sort mechanics (FR-3-02 / FR-4-02)", () => {
   function sortSection(): PrListSection {
     return makePrListSection({
