@@ -42,10 +42,9 @@ pnpm clean                                # Apply ephemeral sweep (delegates to 
 Python 3.12+ (backend), TypeScript 6.x (frontend): Follow standard conventions
 
 ## Recent Changes
+- 361-cycle-time-pr-drilldown: Added TypeScript 6.0.3 (extension UI). Matches existing baseline. Python 3.12+ baseline applies repo-wide but is not exercised by this feature (no producer-side change). + existing only — Jest 30.x + jsdom 28.x test environment, esbuild bundler, VSS SDK runtime. **No new third-party runtime or dev dependencies.**
 - feat/335-comments-repo-density: Added per-repo comments-density breakdown spec + plan + research + data-model + contract + quickstart. New rollup-root `by_repository_comments` outer dict (4 fields, gated, atomic per INV-3-08); NEW FR-2-03 cross-aggregate sum-coherence contract on truncated W26 closes deferred 333/334 cross-aggregate parity. NO sentinel concept (CL-03 — `repository_id` FK-protected); display label = `repository_name` from dimension with raw-ID fallback (CL-04). Pattern duplicated from #334 per A-08; abstraction extraction deferred to #336.
 - feat/334-comments-author-density: Added Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing baseline per `CLAUDE.md`. + existing only — Backend: `argparse`, `sqlite3` via `DatabaseManager`, `pandas` (aggregator group-by), `pytest` + `unittest.mock.MagicMock`. Extension: Jest 30.x + jsdom 28.x test environment, esbuild bundler, VSS SDK runtime. **No new third-party runtime or dev dependencies.**
-- 333-comments-trend-chart: Added Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing only — `argparse`, `sqlite3` via `DatabaseManager`, `pandas` (aggregator group-by), `pytest` + `unittest.mock.MagicMock` (Python tests), Jest 30.x + jsdom 28.x (extension tests), esbuild (IIFE bundler). No new third-party runtime or dev dependencies. New rollup-root `comments` sub-object (4 fields, gated, atomic per INV-1-08); SC-05 reconciliation test (FR-2-04) closes 310's deferred cross-feature parity obligation.
-- 310-comments-visualization: Added Python 3.12+ (backend, aggregator, scripts, tests) and TypeScript 6.0.3 (extension UI). Matches existing invariants. + existing only — `argparse`, `pathlib`, `json`, `sqlite3` via `DatabaseManager`, `pandas` (aggregator group-by), `pytest` + `unittest.mock.MagicMock` (Python tests), Jest 30.x + jsdom 28.x (extension tests). No new third-party runtime or dev dependencies.
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
@@ -53,5 +52,5 @@ Python 3.12+ (backend), TypeScript 6.x (frontend): Follow standard conventions
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/335-comments-repo-density/plan.md
+specs/361-cycle-time-pr-drilldown/plan.md
 <!-- SPECKIT END -->
