@@ -73,6 +73,7 @@ from typing import Final, TypedDict
 import pandas as pd
 import pytest
 
+from ado_git_repo_insights.extraction.vote_events import is_vote_event
 from ado_git_repo_insights.transform.constants import (
     FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL,
 )
@@ -197,28 +198,29 @@ _COMMENT_COUNT_SQL: Final[str] = (
 
 # #356: independent per-PR vote_event_count.  Mirrors the production
 # subquery's predicate (``comment_type='system' AND <vote-pattern>``)
-# but uses a SQLite GLOB pattern instead of the registered Python UDF
-# so this reconciliation re-computation does NOT depend on the
-# aggregator's UDF registration — it independently classifies vote
-# rows from raw SQL.  GLOB pattern ``"* voted -[0-9]*"`` matches the
-# negative-integer suffix; the OR branch covers non-negative.  False
-# positives are bounded by the literal ``" voted "`` substring AND the
-# digit-only suffix character class, mirroring the
-# ``^.+ voted -?\d+$`` semantics of the production regex on real
-# fixtures (the ``test_vote_events.py`` parser-equivalence table is
-# the authoritative classification contract; this SQL is only used to
-# re-derive a totals-level count for reconciliation, where any one-off
-# false-positive divergence would surface as a fail-loud assertion).
+# but uses the SAME shared :func:`is_vote_event` helper that production
+# uses (registered as a per-call SQLite UDF below), so this
+# reconciliation re-computation cannot drift from production's
+# canonical vote-event classification.  Earlier revisions used a
+# hand-rolled GLOB approximation (``"* voted [0-9]*"`` etc.); SQLite's
+# ``*`` is an unrestricted wildcard, so that pattern silently matched
+# strings like ``"I have voted 2 times"`` that the production
+# anchored regex (``^(.+) voted (-?\d+)$``) correctly rejects, weakening
+# the reconciliation's ability to detect drift against production.
+# The independence the reconciliation surface aims for is STRUCTURAL
+# (different SQL shape, different aggregation path — direct re-derive
+# from ``pr_threads`` / ``pr_comments`` instead of going through the
+# aggregator's CTEs); coupling on the canonical ``is_vote_event``
+# definition is the correct shared contract because that helper IS the
+# canonical classifier (see :mod:`ado_git_repo_insights.extraction.
+# vote_events`).
 _VOTE_EVENT_COUNT_SQL: Final[str] = (
     "SELECT COUNT(*) AS vote_event_count "
     "FROM pr_comments "
     "WHERE pull_request_uid = ? "
     "  AND is_deleted = 0 "
     "  AND comment_type = 'system' "
-    "  AND ("
-    "    content GLOB '* voted [0-9]*' "
-    "    OR content GLOB '* voted -[0-9]*'"
-    "  )"
+    "  AND is_vote_event(content) = 1"
 )
 
 
@@ -234,11 +236,20 @@ def _per_pr_counts(
 
     #356: also returns ``vote_event_count`` — the additive subset of
     ``comment_count`` over rows where ``comment_type='system'`` and
-    content matches the vote-event regex.  Re-derived independently
-    from raw SQL via :data:`_VOTE_EVENT_COUNT_SQL` (NOT through the
-    aggregator's registered UDF) so the reconciliation surface stays
-    independent of the production code path.
+    content matches the canonical vote-event classifier.  Registers
+    :func:`is_vote_event` as a SQLite UDF on the active ``conn`` so the
+    SQL clause can call it directly; this is the SAME helper production
+    aggregators use, which is the correct shared contract because
+    ``is_vote_event`` IS the canonical classifier (re-implementing it
+    here as a hand-rolled GLOB created false positives that weakened
+    drift detection — see :data:`_VOTE_EVENT_COUNT_SQL` comment).  The
+    reconciliation surface remains structurally independent: different
+    SQL shape, different aggregation path (per-PR re-derivation from
+    ``pr_threads`` / ``pr_comments`` instead of the aggregator's CTEs).
+    ``conn.create_function`` is idempotent on the same name, so calling
+    this on every ``_per_pr_counts`` invocation is safe and cheap.
     """
+    conn.create_function("is_vote_event", 1, is_vote_event, deterministic=True)
     threads_row = conn.execute(_THREAD_COUNTS_SQL, (pull_request_uid,)).fetchone()
     comments_row = conn.execute(_COMMENT_COUNT_SQL, (pull_request_uid,)).fetchone()
     vote_row = conn.execute(_VOTE_EVENT_COUNT_SQL, (pull_request_uid,)).fetchone()

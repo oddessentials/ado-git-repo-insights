@@ -54,6 +54,16 @@ VOTE_FIXTURES: Final = [
     # Negative cases — must NOT match.
     pytest.param("PM P voted 10 today", False, None, id="trailing-text-after-int"),
     pytest.param("I have voted in the past", False, None, id="incidental-voted-prose"),
+    # PR #360 review (Codex P2): explicit guards that the canonical
+    # classifier rejects the two looser-GLOB false-positive shapes the
+    # reconciliation test used to admit before #356 align-reconciliation
+    # switched it to call this same helper as a SQLite UDF.
+    pytest.param(
+        "I have voted 2 times", False, None, id="trailing-text-i-have-voted-N-times"
+    ),
+    pytest.param(
+        "alice voted 10 today", False, None, id="trailing-text-alice-voted-N-today"
+    ),
     pytest.param("voted 10", False, None, id="no-name-prefix"),
     pytest.param("PM P voted abc", False, None, id="non-integer-suffix"),
     pytest.param("PM P voted", False, None, id="no-integer"),
