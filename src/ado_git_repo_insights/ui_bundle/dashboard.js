@@ -10783,6 +10783,19 @@ var PRInsightsDashboard = (() => {
     if (!map) return void 0;
     return new Map(Object.entries(map)).get(reviewerId);
   }
+  function buildRepoIdAllowlist(selectedNames, dim) {
+    if (selectedNames.length === 0) return null;
+    if (!dim || dim.length === 0) return /* @__PURE__ */ new Set();
+    const nameToId = new Map(
+      dim.map((r2) => [r2.repository_name, r2.repository_id])
+    );
+    const ids = /* @__PURE__ */ new Set();
+    for (const name of selectedNames) {
+      const id = nameToId.get(name);
+      if (id !== void 0) ids.add(id);
+    }
+    return ids;
+  }
   function buildStatRow(rollups, reviewerId) {
     let totalReviews = 0;
     let totalPrs = 0;
@@ -10876,7 +10889,10 @@ var PRInsightsDashboard = (() => {
       return makePrListSection({ contentState: "supported-empty" });
     }
     const authorAllow = filters.authors.length > 0 ? new Set(filters.authors) : null;
-    const repoAllow = filters.repos.length > 0 ? new Set(filters.repos) : null;
+    const repoAllow = buildRepoIdAllowlist(
+      filters.repos,
+      options.repositoriesDimension
+    );
     const filtered = authorAllow === null && repoAllow === null ? collected : collected.filter(
       (pr) => (authorAllow === null || authorAllow.has(pr.author_id)) && (repoAllow === null || repoAllow.has(pr.repository_id))
     );

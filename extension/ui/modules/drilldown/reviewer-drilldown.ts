@@ -88,6 +88,44 @@ function reviewerEntry(
   return new Map(Object.entries(map)).get(reviewerId);
 }
 
+/**
+ * Build the repository-id allowlist for the per-(reviewer, week) PR overlay.
+ *
+ * `filters.repos` carries `repository_name` values (the chip's display
+ * value; written by the dashboard filter UI and round-tripped through
+ * URL params in `filters.ts`).  `PrRecord.repository_id`, by contrast,
+ * is the repository GUID emitted by the producer.  Comparing across
+ * those namespaces drops every row on production data; this helper
+ * translates names → ids via `repositoriesDimension` so the overlay
+ * stays in a single namespace.
+ *
+ *   - empty filter ⇒ `null` (no repo constraint; passthrough behaviour)
+ *   - filter active + dimension absent / empty ⇒ empty `Set`
+ *     (consumer cannot resolve names to ids without the dimension; the
+ *     overlay then drops every row and the section falls through to the
+ *     existing `supported-empty` branch below)
+ *   - filter active + dimension present ⇒ `Set<repository_id>` covering
+ *     every selected name that resolves in the dimension; names not
+ *     present in the dimension are simply absent from the allowlist
+ *     (most-restrictive — no defensive widening to the GUID namespace)
+ */
+function buildRepoIdAllowlist(
+  selectedNames: readonly string[],
+  dim: readonly PrUrlRepositoryEntry[] | null | undefined,
+): Set<string> | null {
+  if (selectedNames.length === 0) return null;
+  if (!dim || dim.length === 0) return new Set();
+  const nameToId = new Map<string, string>(
+    dim.map((r) => [r.repository_name, r.repository_id]),
+  );
+  const ids = new Set<string>();
+  for (const name of selectedNames) {
+    const id = nameToId.get(name);
+    if (id !== undefined) ids.add(id);
+  }
+  return ids;
+}
+
 function buildStatRow(rollups: readonly Rollup[], reviewerId: string) {
   let totalReviews = 0;
   let totalPrs = 0;
@@ -273,9 +311,18 @@ function buildPrListSection(
   // Apply the author / repo overlay client-side per contract § 4 (3).
   // Reviewer-stripping was applied to the classifier input upstream, so
   // the reviewer filter does NOT participate in the overlay here.
+  //
+  // `filters.repos` carries `repository_name` strings sourced from the
+  // dashboard chip / URL deserialization (see `filters.ts`), but the
+  // producer emits `PrRecord.repository_id` as the repository GUID.
+  // Translate the selected names to ids via `repositoriesDimension` so
+  // the overlay compares within a single namespace.
   const authorAllow =
     filters.authors.length > 0 ? new Set(filters.authors) : null;
-  const repoAllow = filters.repos.length > 0 ? new Set(filters.repos) : null;
+  const repoAllow = buildRepoIdAllowlist(
+    filters.repos,
+    options.repositoriesDimension,
+  );
   const filtered =
     authorAllow === null && repoAllow === null
       ? collected

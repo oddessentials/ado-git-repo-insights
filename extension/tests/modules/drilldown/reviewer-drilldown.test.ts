@@ -1159,6 +1159,8 @@ describe("reviewer-drilldown", () => {
   });
 
   // T024 — reviewer + repo overlay → intersection.
+  // `filters.repos` carries `repository_name` values (chip text), not the
+  // GUID; `FIXTURE_REPOS` maps name "web-app" to id "repo-1".
   it("reviewer + repo overlay renders the PR list with repo intersection", () => {
     const prs = [
       makePr(701, 800, { repository_id: "repo-1" }),
@@ -1176,7 +1178,7 @@ describe("reviewer-drilldown", () => {
       rollups,
       fullOptions({
         filters: {
-          repos: ["repo-1"],
+          repos: ["web-app"],
           teams: [],
           reviewers: [REVIEWER_ID],
           authors: [],
@@ -1190,6 +1192,7 @@ describe("reviewer-drilldown", () => {
   });
 
   // T025 — three-way intersection: reviewer + author + repo.
+  // `filters.repos` carries `repository_name`; "web-app" → "repo-1".
   it("reviewer + author + repo overlay renders the PR list with three-way intersection", () => {
     const prs = [
       makePr(801, 900, { author_id: "author-a", repository_id: "repo-1" }),
@@ -1208,7 +1211,7 @@ describe("reviewer-drilldown", () => {
       rollups,
       fullOptions({
         filters: {
-          repos: ["repo-1"],
+          repos: ["web-app"],
           teams: [],
           reviewers: [REVIEWER_ID],
           authors: ["author-a"],
@@ -1220,6 +1223,93 @@ describe("reviewer-drilldown", () => {
     expect(prListContentState()).toBe("pr-list");
     // Only 801 and 804 match all three constraints.  Sort: 801 (900) > 804 (600).
     expect(prListRowIds()).toEqual([801, 804]);
+  });
+
+  // T025a — repo overlay translates repository_name → repository_id.
+  //
+  // Production-shaped scenario: the dashboard filter chip carries the
+  // repository_name string while the producer emits PrRecord.repository_id
+  // as the GUID.  Without the namespace mapping, every repo-filtered
+  // reviewer drilldown on production data falls through to supported-empty
+  // because the comparison crosses namespaces.
+  it("repo overlay maps repository_name to repository_id via repositoriesDimension", () => {
+    const prs = [
+      makePr(901, 900, { repository_id: "guid-web" }),
+      makePr(902, 800, { repository_id: "guid-api" }),
+      makePr(903, 700, { repository_id: "guid-web" }),
+    ];
+    const rollups = [
+      rollupWithPrs(defaultPrListWeek("2025-W10"), prs, {
+        reviewerId: REVIEWER_ID,
+      }),
+    ];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(
+      container,
+      rollups,
+      fullOptions({
+        filters: {
+          repos: ["Web App"],
+          teams: [],
+          reviewers: [REVIEWER_ID],
+          authors: [],
+        },
+        repositoriesDimension: [
+          {
+            repository_id: "guid-web",
+            repository_name: "Web App",
+            project_name: "Frontend",
+            organization_name: "acme",
+          },
+          {
+            repository_id: "guid-api",
+            repository_name: "API",
+            project_name: "Backend",
+            organization_name: "acme",
+          },
+        ],
+      }),
+    );
+    click(rowFor(container, "2025-W10"));
+
+    expect(prListContentState()).toBe("pr-list");
+    expect(prListRowIds()).toEqual([901, 903]);
+  });
+
+  // T025b — dimension absent + repo filter active fails closed.
+  //
+  // Without `repositoriesDimension` the consumer cannot resolve the
+  // selected names to ids.  Rather than degrade to a cross-namespace
+  // comparison (the bug we are fixing), the overlay drops every row
+  // and the section renders supported-empty.
+  it("repo overlay with missing repositoriesDimension renders supported-empty when filter is active", () => {
+    const prs = [
+      makePr(951, 900, { repository_id: "guid-web" }),
+      makePr(952, 700, { repository_id: "guid-api" }),
+    ];
+    const rollups = [
+      rollupWithPrs(defaultPrListWeek("2025-W10"), prs, {
+        reviewerId: REVIEWER_ID,
+      }),
+    ];
+    const container = mountChart(rollups);
+    const options: ReviewerDrilldownOptions = {
+      reviewersDimension: REVIEWERS_DIM,
+      filters: {
+        repos: ["Web App"],
+        teams: [],
+        reviewers: [REVIEWER_ID],
+        authors: [],
+      },
+      // repositoriesDimension intentionally omitted (undefined)
+      webContext: FIXTURE_WEB_CTX,
+      authorsDimension: [],
+      commentsMetricsAvailable: false,
+    };
+    installReviewerDrilldown(container, rollups, options);
+    click(rowFor(container, "2025-W10"));
+
+    expect(prListContentState()).toBe("supported-empty");
   });
 
   // T026 — comparison mode short-circuits the panel; PR list NOT rendered.
