@@ -277,13 +277,24 @@ class SliceMetrics(TypedDict):
 
 
 class ReviewerSliceMetrics(TypedDict):
-    """Reviewer-specific activity metrics (different shape from SliceMetrics)."""
+    """Reviewer-specific activity metrics (different shape from SliceMetrics).
+
+    Feature 362 (FR-016): the optional ``prs`` / ``_prs_truncated`` /
+    ``_prs_cap`` triplet carries per-(reviewer, week) PR-level detail on
+    private-tenant artifacts only.  Atomicity invariant: present together
+    or absent together.  Stripped from public/demo artifacts by
+    ``scripts/strip_pr_arrays.py`` (FR-028).  Authoritative declaration:
+    ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` §§ 1, 5.
+    """
 
     reviewed_prs: int
     reviews_count: int
     approval_rate: float
     authors_count: int
     repositories_count: int
+    prs: NotRequired[list[PrRecord]]
+    _prs_truncated: NotRequired[bool]
+    _prs_cap: NotRequired[int]
 
 
 class PrRecord(TypedDict):

@@ -83,6 +83,15 @@ STUB_GENERATOR_ID = "phase3.5-stub-v1"
 # by the spec; expanding requires a fresh scoping round.
 _PR_DETAIL_CAP = 500
 
+# Feature 362 (FR-016 / CL-02): per-(reviewer, week) PR-detail cap.  Aliased
+# to ``_PR_DETAIL_CAP`` so the per-week and per-(reviewer, week) caps share
+# a single source of truth (CL-02 guardrail #1: "the cap is the same number
+# regardless of which slice you're looking at").  Future divergence is a
+# one-line edit at this declaration; downstream call sites read the alias by
+# name and need no change.  Contract:
+# ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` § 4.
+_PR_DETAIL_CAP_PER_REVIEWER_WEEK = _PR_DETAIL_CAP
+
 # Feature 336 (T016 / FR-1-12 / CL-15): pr_comments.author_id structural
 # invariants enforced by ``_compute_weekly_by_reviewer_comments``.  The
 # persisted schema's ``users.user_id`` / ``pr_comments.author_id`` columns
@@ -2150,13 +2159,31 @@ class AggregateGenerator:
         Phase 1 reviewer metrics intentionally exclude cycle-time and
         review-latency fields. Those require a richer persisted review event
         model than the current reviewers table provides.
+
+        Feature 362 (FR-016) extends each reviewer entry with the per-
+        (reviewer, week) ``prs`` / ``_prs_truncated`` / ``_prs_cap`` trio
+        carrying every PR the reviewer cast a non-zero vote on in the week,
+        sorted ``cycle_time desc, id asc`` BEFORE truncation, capped at
+        ``_PR_DETAIL_CAP_PER_REVIEWER_WEEK`` (= 500).  The trio is atomic
+        (present together or absent together).  Authoritative declaration:
+        ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md``.
         """
         if week_reviewers.empty:
             return {}
 
         reviewer_prs = week_reviewers.merge(
             week_group[
-                ["pull_request_uid", "user_id", "repository_name"]
+                [
+                    "pull_request_uid",
+                    "user_id",
+                    "repository_name",
+                    # Feature 362: per-PR identity / display / sort fields
+                    # needed by the per-(reviewer, week) prs[] emission below.
+                    "pull_request_id",
+                    "title",
+                    "repository_id",
+                    "cycle_time_minutes",
+                ]
             ].drop_duplicates(subset=["pull_request_uid"]),
             on="pull_request_uid",
             how="inner",
@@ -2164,6 +2191,79 @@ class AggregateGenerator:
 
         if reviewer_prs.empty:
             return {}
+
+        # Feature 362 (FR-016) — capability-310 by_uid for the per-(reviewer,
+        # week) prs[] emission.  Built once per week, keyed by
+        # pull_request_uid, covering the union of all reviewers' qualifying
+        # PRs (each PR appears once regardless of how many reviewers reviewed
+        # it).  Mirrors the per-week emission's by_uid pattern at :888-956
+        # but uses a separate temp table since this slice's scope is the
+        # reviewer-vote union, not the per-week top-500 by cycle_time.  The
+        # temp-table approach keeps the INNER JOIN bounded without an
+        # f-string ``IN (?, ?, ...)`` (zero-suppressions: ruff's S608
+        # heuristic doesn't see the bound).  When ``self._has_comments()``
+        # is False the by_uid stays empty and the PrRecord emission keeps
+        # its 5-field 060 shape (INV-01 / FR-3-06 / SC-03 mirrored).
+        emit_comments_metrics = self._has_comments()
+        by_uid: dict[str, tuple[int | None, int | None, int | None]] = {}
+        if emit_comments_metrics:
+            qualifying = reviewer_prs[
+                reviewer_prs["vote"].notna() & (reviewer_prs["vote"] != 0)
+            ]
+            slice_uids = sorted(
+                {
+                    uid_value
+                    for uid_value in qualifying["pull_request_uid"].tolist()
+                    if isinstance(uid_value, str) and uid_value
+                }
+            )
+            if slice_uids:
+                self.db.execute(
+                    "CREATE TEMP TABLE IF NOT EXISTS "
+                    "_aggr_reviewer_pr_slice (pull_request_uid TEXT PRIMARY KEY)"
+                )
+                self.db.execute("DELETE FROM _aggr_reviewer_pr_slice")
+                self.db.executemany(
+                    "INSERT INTO _aggr_reviewer_pr_slice (pull_request_uid) VALUES (?)",
+                    [(uid_value,) for uid_value in slice_uids],
+                )
+                cursor = self.db.execute(
+                    "SELECT "
+                    "  pr.pull_request_uid AS pull_request_uid, "
+                    "  pr.comments_extracted_at AS comments_extracted_at, "
+                    "  COALESCE(t.thread_count, 0) AS thread_count, "
+                    "  COALESCE(t.active_thread_count, 0) "
+                    "    AS active_thread_count, "
+                    "  COALESCE(c.comment_count, 0) AS comment_count "
+                    "FROM pull_requests pr "
+                    "INNER JOIN _aggr_reviewer_pr_slice s "
+                    "  ON s.pull_request_uid = pr.pull_request_uid "
+                    "LEFT JOIN ( "
+                    "  SELECT pull_request_uid, "
+                    "         COUNT(*) AS thread_count, "
+                    "         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) "
+                    "           AS active_thread_count "
+                    "  FROM pr_threads "
+                    "  WHERE is_deleted = 0 "
+                    "  GROUP BY pull_request_uid "
+                    ") t ON t.pull_request_uid = pr.pull_request_uid "
+                    "LEFT JOIN ( "
+                    "  SELECT pull_request_uid, COUNT(*) AS comment_count "
+                    "  FROM pr_comments "
+                    "  WHERE is_deleted = 0 "
+                    "  GROUP BY pull_request_uid "
+                    ") c ON c.pull_request_uid = pr.pull_request_uid"
+                )
+                for db_row in cursor.fetchall():
+                    row_uid = str(db_row["pull_request_uid"])
+                    if db_row["comments_extracted_at"] is None:
+                        by_uid[row_uid] = (None, None, None)
+                    else:
+                        by_uid[row_uid] = (
+                            int(db_row["thread_count"]),
+                            int(db_row["comment_count"]),
+                            int(db_row["active_thread_count"]),
+                        )
 
         by_reviewer: dict[str, ReviewerSliceMetrics] = {}
 
@@ -2188,6 +2288,69 @@ class AggregateGenerator:
                 ].nunique()
             )
 
+            # Feature 362 (FR-016) — per-(reviewer, week) prs[].  Dedupe on
+            # ``pull_request_uid`` so one PR with multiple vote events from
+            # this reviewer becomes one PrRecord (matches the ``nunique``
+            # semantic of ``reviewed_prs``).  Filter to finite cycle_time
+            # defensively (mirrors per-week emission at :861-862).  Sort by
+            # ``(-cycle_time_minutes, pull_request_id)`` BEFORE truncation
+            # so the retained 500 records under truncation are the slowest
+            # cycle-times per CL-02 guardrail #4 / contract § 3.
+            deduped = outcome_group.drop_duplicates(subset=["pull_request_uid"])
+            cycle_numeric = pd.to_numeric(
+                deduped["cycle_time_minutes"], errors="coerce"
+            )
+            qualified = deduped[cycle_numeric.notna() & np.isfinite(cycle_numeric)]
+            qualified = qualified.sort_values(
+                by=["cycle_time_minutes", "pull_request_id"],
+                ascending=[False, True],
+                kind="stable",
+            )
+            total_qualified = len(qualified)
+            prs_truncated = total_qualified > _PR_DETAIL_CAP_PER_REVIEWER_WEEK
+            if prs_truncated:
+                qualified = qualified.head(_PR_DETAIL_CAP_PER_REVIEWER_WEEK)
+
+            prs: list[PrRecord] = []
+            for row in qualified.itertuples(index=False):
+                pr_id = getattr(row, "pull_request_id", None)
+                title = getattr(row, "title", None)
+                user_id = getattr(row, "user_id", None)
+                repository_id = getattr(row, "repository_id", None)
+                cycle_time = getattr(row, "cycle_time_minutes", None)
+                # Defensive: require well-typed fields.  Partial rows are
+                # excluded from the prs[] emission; the aggregate
+                # ``reviewed_prs`` count is unaffected.  Mirrors the per-
+                # week emission's pattern at :969-982.
+                if (
+                    not isinstance(title, str)
+                    or not isinstance(user_id, str)
+                    or not isinstance(repository_id, str)
+                    or not isinstance(pr_id, (int, float))
+                    or not isinstance(cycle_time, (int, float))
+                ):
+                    continue
+                pr_record: PrRecord = {
+                    "id": int(pr_id),
+                    "title": title,
+                    "author_id": user_id,
+                    "repository_id": repository_id,
+                    "cycle_time": float(cycle_time),
+                }
+                if emit_comments_metrics:
+                    # Feature 310 INV-08: triplet atomicity (all three present
+                    # together or none).  Sourced from the single by_uid
+                    # lookup so per-PR coverage-partial is atomic per INV-10.
+                    attach_uid = getattr(row, "pull_request_uid", None)
+                    if isinstance(attach_uid, str) and attach_uid:
+                        counts = by_uid.get(attach_uid, (None, None, None))
+                    else:
+                        counts = (None, None, None)
+                    pr_record["thread_count"] = counts[0]
+                    pr_record["comment_count"] = counts[1]
+                    pr_record["active_thread_count"] = counts[2]
+                prs.append(pr_record)
+
             by_reviewer[str(reviewer_id)] = {
                 "reviewed_prs": reviewed_prs,
                 "reviews_count": int(len(outcome_group)),
@@ -2196,6 +2359,12 @@ class AggregateGenerator:
                 "repositories_count": int(
                     outcome_group["repository_name"].dropna().nunique()
                 ),
+                # Feature 362 (FR-016) — atomic emission of the per-(reviewer,
+                # week) trio.  Always all three together; the consumer's
+                # permissive validator treats partial entries as if absent.
+                "prs": prs,
+                "_prs_truncated": prs_truncated,
+                "_prs_cap": _PR_DETAIL_CAP_PER_REVIEWER_WEEK,
             }
 
         return by_reviewer

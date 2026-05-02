@@ -1351,7 +1351,14 @@ var PRInsightsDashboard = (() => {
     "reviews_count",
     "approval_rate",
     "authors_count",
-    "repositories_count"
+    "repositories_count",
+    // Feature 362 (FR-016): per-(reviewer, week) PR-detail trio.  Atomic
+    // when present per atomicity invariant; validator warns on partial
+    // presence (see validateReviewerBreakdownEntry below).  Stripped from
+    // public/demo artifacts by scripts/strip_pr_arrays.py (FR-028).
+    "prs",
+    "_prs_truncated",
+    "_prs_cap"
   ]);
   function validateBreakdownEntry(data, path, strict) {
     const errors = [];
@@ -1454,6 +1461,51 @@ var PRInsightsDashboard = (() => {
           if (err) errors.push(err);
         }
       }
+    }
+    const hasPrs = Object.prototype.hasOwnProperty.call(data, "prs");
+    const hasPrsTruncated = Object.prototype.hasOwnProperty.call(
+      data,
+      "_prs_truncated"
+    );
+    const hasPrsCap = Object.prototype.hasOwnProperty.call(data, "_prs_cap");
+    if (hasPrs) {
+      const prsValue = Object.getOwnPropertyDescriptor(data, "prs")?.value;
+      const prsResult = validatePrRecordArray(prsValue, buildPath(path, "prs"));
+      warnings.push(...prsResult.warnings);
+    }
+    if (hasPrsTruncated) {
+      const truncatedValue = Object.getOwnPropertyDescriptor(
+        data,
+        "_prs_truncated"
+      )?.value;
+      if (!isBoolean(truncatedValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(path, "_prs_truncated"),
+            `expected boolean, got ${getTypeName(truncatedValue)}; entry will be treated as absent`
+          )
+        );
+      }
+    }
+    if (hasPrsCap) {
+      const capValue = Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value;
+      if (!isNumber(capValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(path, "_prs_cap"),
+            `expected number, got ${getTypeName(capValue)}; entry will be treated as absent`
+          )
+        );
+      }
+    }
+    const presentCount = (hasPrs ? 1 : 0) + (hasPrsTruncated ? 1 : 0) + (hasPrsCap ? 1 : 0);
+    if (presentCount !== 0 && presentCount !== 3) {
+      warnings.push(
+        createWarning(
+          path,
+          `per-(reviewer, week) PR-detail atomicity violated (FR-016): expected all three of prs / _prs_truncated / _prs_cap to be present together, or all absent; got ${presentCount} of 3 present`
+        )
+      );
     }
     const unknown = findUnknownFields(
       data,
@@ -10789,13 +10841,87 @@ var PRInsightsDashboard = (() => {
       rows
     );
   }
-  function buildPanelContent3(rollups, reviewerId, reviewerNameByKey) {
+  function buildPrListSection3(rollups, reviewerId, options) {
+    const filters = options.filters ?? createEmptyFilterState();
+    const filtersForClassifier = {
+      ...filters,
+      reviewers: []
+    };
+    const { classification } = classifyFilterState(filtersForClassifier, false);
+    if (classification === "team") {
+      return makePrListSection({ contentState: "team-inline" });
+    }
+    const webContext = options.webContext;
+    let capValue;
+    let actualFilteredCount = 0;
+    const collected = [];
+    for (const rollup of rollups) {
+      const entry = reviewerEntry(rollup, reviewerId);
+      if (!entry) continue;
+      const prsArray = entry.prs;
+      const truncated = entry._prs_truncated;
+      const cap = entry._prs_cap;
+      if (!Array.isArray(prsArray) || typeof truncated !== "boolean" || typeof cap !== "number") {
+        return makePrListSection({ contentState: "supported-empty" });
+      }
+      capValue = capValue === void 0 ? cap : Math.max(capValue, cap);
+      actualFilteredCount += entry.reviewed_prs;
+      for (const pr of prsArray) {
+        collected.push(pr);
+      }
+    }
+    if (collected.length === 0 || !webContext || capValue === void 0) {
+      return makePrListSection({ contentState: "supported-empty" });
+    }
+    const authorAllow = filters.authors.length > 0 ? new Set(filters.authors) : null;
+    const repoAllow = filters.repos.length > 0 ? new Set(filters.repos) : null;
+    const filtered = authorAllow === null && repoAllow === null ? collected : collected.filter(
+      (pr) => (authorAllow === null || authorAllow.has(pr.author_id)) && (repoAllow === null || repoAllow.has(pr.repository_id))
+    );
+    const sorted = filtered.slice().sort((a2, b2) => {
+      if (b2.cycle_time !== a2.cycle_time) return b2.cycle_time - a2.cycle_time;
+      return a2.id - b2.id;
+    });
+    if (sorted.length === 0) {
+      return makePrListSection({ contentState: "supported-empty" });
+    }
+    const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+    const rows = sorted.map((pr) => {
+      if (!commentsMetricsAvailable) {
+        return {
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
+        };
+      }
+      return {
+        id: pr.id,
+        title: pr.title,
+        cycleTimeMinutes: pr.cycle_time,
+        url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+        threadCount: pr.thread_count,
+        commentCount: pr.comment_count,
+        activeThreadCount: pr.active_thread_count
+      };
+    });
+    return makePrListSection({
+      contentState: "pr-list",
+      rows,
+      renderedCount: rows.length,
+      actualFilteredCount,
+      capValue,
+      commentsMetricsAvailable
+    });
+  }
+  function buildPanelContent3(rollups, reviewerId, reviewerNameByKey, options) {
     const stats = buildStatRow(rollups, reviewerId);
     const subtitle = `${stats.totalPrs} ${stats.totalPrs === 1 ? "PR" : "PRs"} reviewed`;
     const displayName = resolveDisplayName4(reviewerId, reviewerNameByKey);
     return makePanelContent(displayName, subtitle, [
       stats.section,
-      buildWeeklyTable(rollups, reviewerId)
+      buildWeeklyTable(rollups, reviewerId),
+      buildPrListSection3(rollups, reviewerId, options)
     ]);
   }
   function buildReviewerNameMap(dim) {
@@ -10845,7 +10971,12 @@ var PRInsightsDashboard = (() => {
         sourceChart: "reviewer",
         focusedData: { kind: "reviewer", reviewerId },
         triggerElement: trigger,
-        content: buildPanelContent3(rollups, reviewerId, reviewerNameByKey)
+        content: buildPanelContent3(
+          rollups,
+          reviewerId,
+          reviewerNameByKey,
+          options
+        )
       };
       openDetailPanel(context);
       clearActive();
@@ -11696,7 +11827,22 @@ var PRInsightsDashboard = (() => {
       if (reviewerContainer) {
         activeDrilldownHandles.push(
           installReviewerDrilldown(reviewerContainer, rollups, {
-            reviewersDimension: currentDimensions?.reviewers
+            reviewersDimension: currentDimensions?.reviewers,
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
           })
         );
       }

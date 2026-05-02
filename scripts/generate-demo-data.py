@@ -3027,6 +3027,56 @@ def main(argv: list[str] | None = None) -> int:
                 # at tests/integration/test_demo_variants_byte_identity.py.
             rollup_data["_prs_truncated"] = prs_truncated
             rollup_data["_prs_cap"] = _PR_DETAIL_CAP
+
+            # Feature 362 (FR-023): mirror the production aggregator's per-
+            # (reviewer, week) prs[] emission on the demo's by_reviewer
+            # entries.  Each reviewer's prs[] is the top ``reviewed_prs``
+            # records of the week's emitted PR set sorted ``cycle_time
+            # desc, id asc`` (the producer-side contract from
+            # contracts/per-reviewer-week-prs.md § 3).  Demo seeds are
+            # bounded well below 500 per CL-01, so ``_prs_truncated``
+            # never fires; the cap stays at 500 to keep the demo coherent
+            # with the production cap value.  The emitted_prs_root list
+            # is shape-matched to capability (5-field on capability-off,
+            # 8-field on capability-on) so per-reviewer slices share the
+            # same shape as the rollup-root prs.
+            emitted_prs_root = rollup_data["prs"]
+            by_reviewer_data = rollup_data.get("by_reviewer")
+            if (
+                isinstance(emitted_prs_root, list)
+                and emitted_prs_root
+                and isinstance(by_reviewer_data, dict)
+            ):
+                # Sort defensively so per-reviewer slices share the
+                # production sort key (cycle_time desc, id asc).  The
+                # rollup-root prs may already be in this order from
+                # generate_pr_records, but a defensive sort keeps the
+                # demo aligned with the contract regardless of any
+                # future change to the producer-side ordering.
+                sorted_emitted = sorted(
+                    emitted_prs_root,
+                    key=lambda p: (
+                        -float(p.get("cycle_time", 0.0))
+                        if isinstance(p.get("cycle_time"), (int, float))
+                        else 0.0,
+                        int(p.get("id", 0))
+                        if isinstance(p.get("id"), (int, float))
+                        else 0,
+                    ),
+                )
+                for reviewer_entry in by_reviewer_data.values():
+                    if not isinstance(reviewer_entry, dict):
+                        continue
+                    reviewed_count_raw = reviewer_entry.get("reviewed_prs", 0)
+                    if (
+                        not isinstance(reviewed_count_raw, int)
+                        or reviewed_count_raw <= 0
+                    ):
+                        continue
+                    slice_size = min(reviewed_count_raw, len(sorted_emitted))
+                    reviewer_entry["prs"] = list(sorted_emitted[:slice_size])
+                    reviewer_entry["_prs_truncated"] = False
+                    reviewer_entry["_prs_cap"] = _PR_DETAIL_CAP
         else:
             rollup_data["prs"] = []
             if _EMIT_COMMENTS_METRICS:

@@ -1369,7 +1369,14 @@ var PRInsightsArtifactClient = (() => {
     "reviews_count",
     "approval_rate",
     "authors_count",
-    "repositories_count"
+    "repositories_count",
+    // Feature 362 (FR-016): per-(reviewer, week) PR-detail trio.  Atomic
+    // when present per atomicity invariant; validator warns on partial
+    // presence (see validateReviewerBreakdownEntry below).  Stripped from
+    // public/demo artifacts by scripts/strip_pr_arrays.py (FR-028).
+    "prs",
+    "_prs_truncated",
+    "_prs_cap"
   ]);
   function validateBreakdownEntry(data, path, strict) {
     const errors = [];
@@ -1472,6 +1479,51 @@ var PRInsightsArtifactClient = (() => {
           if (err) errors.push(err);
         }
       }
+    }
+    const hasPrs = Object.prototype.hasOwnProperty.call(data, "prs");
+    const hasPrsTruncated = Object.prototype.hasOwnProperty.call(
+      data,
+      "_prs_truncated"
+    );
+    const hasPrsCap = Object.prototype.hasOwnProperty.call(data, "_prs_cap");
+    if (hasPrs) {
+      const prsValue = Object.getOwnPropertyDescriptor(data, "prs")?.value;
+      const prsResult = validatePrRecordArray(prsValue, buildPath(path, "prs"));
+      warnings.push(...prsResult.warnings);
+    }
+    if (hasPrsTruncated) {
+      const truncatedValue = Object.getOwnPropertyDescriptor(
+        data,
+        "_prs_truncated"
+      )?.value;
+      if (!isBoolean(truncatedValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(path, "_prs_truncated"),
+            `expected boolean, got ${getTypeName(truncatedValue)}; entry will be treated as absent`
+          )
+        );
+      }
+    }
+    if (hasPrsCap) {
+      const capValue = Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value;
+      if (!isNumber(capValue)) {
+        warnings.push(
+          createWarning(
+            buildPath(path, "_prs_cap"),
+            `expected number, got ${getTypeName(capValue)}; entry will be treated as absent`
+          )
+        );
+      }
+    }
+    const presentCount = (hasPrs ? 1 : 0) + (hasPrsTruncated ? 1 : 0) + (hasPrsCap ? 1 : 0);
+    if (presentCount !== 0 && presentCount !== 3) {
+      warnings.push(
+        createWarning(
+          path,
+          `per-(reviewer, week) PR-detail atomicity violated (FR-016): expected all three of prs / _prs_truncated / _prs_cap to be present together, or all absent; got ${presentCount} of 3 present`
+        )
+      );
     }
     const unknown = findUnknownFields(
       data,

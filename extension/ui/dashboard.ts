@@ -1307,9 +1307,32 @@ async function refreshMetrics(): Promise<void> {
     }
     const reviewerContainer = document.getElementById("reviewer-activity");
     if (reviewerContainer) {
+      // Feature 362: mirror the throughput / cycle-time options bag verbatim
+      // so the reviewer drill-down's PR list classifies filters, derives PR
+      // URLs, and gates the comments-metrics columns from the same single-
+      // source-of-truth signals as throughput + cycle-time.  Existing
+      // `reviewersDimension` from #308 is preserved unchanged.
       activeDrilldownHandles.push(
         installReviewerDrilldown(reviewerContainer, rollups, {
           reviewersDimension: currentDimensions?.reviewers,
+          filters: {
+            repos: [...currentFilters.repos],
+            teams: [...currentFilters.teams],
+            reviewers: [...currentFilters.reviewers],
+            authors: [...currentFilters.authors],
+          },
+          repositoriesDimension: currentDimensions?.repositories?.map((r) => ({
+            repository_id: r.repository_id,
+            repository_name: r.repository_name,
+            project_name: r.project_name ?? "",
+            organization_name: r.organization_name,
+          })),
+          webContext: currentCollectionUri
+            ? { collectionUri: currentCollectionUri }
+            : undefined,
+          authorsDimension: currentDimensions?.authors,
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
         }),
       );
     }

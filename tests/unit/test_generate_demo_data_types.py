@@ -71,25 +71,70 @@ class TestSliceMetricsConstruction:
 
 
 class TestReviewerSliceMetricsConstruction:
-    """Verify dicts matching ReviewerSliceMetrics have exactly the right keys."""
+    """Verify dicts matching ReviewerSliceMetrics have the right keys.
 
-    def test_keys_are_complete(self) -> None:
-        expected = {
+    Feature 362 added the optional ``prs`` / ``_prs_truncated`` / ``_prs_cap``
+    trio (``NotRequired``).  An inline construction without the trio remains
+    valid; constructions WITH the trio carry all eight keys.
+    """
+
+    REQUIRED_KEYS = frozenset(
+        {
             "reviewed_prs",
             "reviews_count",
             "approval_rate",
             "authors_count",
             "repositories_count",
         }
+    )
+    OPTIONAL_KEYS = frozenset({"prs", "_prs_truncated", "_prs_cap"})
+
+    def test_keys_are_complete(self) -> None:
+        expected = self.REQUIRED_KEYS | self.OPTIONAL_KEYS
         assert REVIEWER_SLICE_METRICS_KEYS == expected
 
-    def test_inline_construction(self) -> None:
+    def test_inline_construction_required_only(self) -> None:
+        """Inline construction without the Feature-362 trio is valid."""
         entry: ReviewerSliceMetrics = {
             "reviewed_prs": 15,
             "reviews_count": 20,
             "approval_rate": 0.85,
             "authors_count": 5,
             "repositories_count": 3,
+        }
+        # Catches typos: every key is part of the TypedDict's key set.
+        assert set(entry).issubset(REVIEWER_SLICE_METRICS_KEYS)
+        # Every required key is present.
+        assert self.REQUIRED_KEYS.issubset(set(entry))
+        # No optional key is present (this construction is the bare-required path).
+        assert not (set(entry) & self.OPTIONAL_KEYS)
+
+    def test_inline_construction_with_pr_detail_trio(self) -> None:
+        """Inline construction WITH the Feature-362 trio carries all eight keys."""
+        entry: ReviewerSliceMetrics = {
+            "reviewed_prs": 2,
+            "reviews_count": 2,
+            "approval_rate": 1.0,
+            "authors_count": 1,
+            "repositories_count": 1,
+            "prs": [
+                {
+                    "id": 101,
+                    "title": "feat: oauth",
+                    "author_id": "alice",
+                    "repository_id": "r1",
+                    "cycle_time": 800.0,
+                },
+                {
+                    "id": 102,
+                    "title": "fix: nil",
+                    "author_id": "bob",
+                    "repository_id": "r1",
+                    "cycle_time": 200.0,
+                },
+            ],
+            "_prs_truncated": False,
+            "_prs_cap": 500,
         }
         assert set(entry) == REVIEWER_SLICE_METRICS_KEYS
 

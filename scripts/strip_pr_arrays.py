@@ -83,23 +83,71 @@ def _write_rollup(path: Path, payload: dict[str, object]) -> None:
 
 
 def _strip_one(path: Path, fields_removed: dict[str, int]) -> bool:
-    """Remove PR-level fields from a single rollup. Returns True if modified."""
+    """Remove PR-level fields from a single rollup. Returns True if modified.
+
+    Walks two depths to cover the full PR-level surface introduced across
+    Features 060 and 362:
+
+    1. Rollup root (depth 0) — the original Feature 060 surface.  Removes
+       the trio (``prs`` / ``_prs_truncated`` / ``_prs_cap``) when present.
+    2. Per-(reviewer, week) entries under ``by_reviewer[*]`` (depth 2) —
+       the Feature 362 surface (FR-028).  The contract is name-based, not
+       depth-based; ``PR_LEVEL_FIELDS`` is reused unchanged because the
+       same three field names cover both emission sites.
+
+    The two-site visitor is preferred over a generic recursive walker
+    because the producer emits ``prs`` at exactly two well-known depths,
+    and a targeted visitor is more auditable (PR review-friendly).
+    """
     payload = _load_rollup(path)
     modified = False
+    # Depth 0 — Feature 060 rollup-root strip (preserved unchanged).
     for key in PR_LEVEL_FIELDS:
         if key in payload:
             payload.pop(key, None)
             fields_removed[key] += 1
             modified = True
+    # Depth 2 — Feature 362 per-(reviewer, week) strip (FR-028).
+    by_reviewer = payload.get("by_reviewer")
+    if isinstance(by_reviewer, dict):
+        for reviewer_entry in by_reviewer.values():
+            if not isinstance(reviewer_entry, dict):
+                continue
+            for key in PR_LEVEL_FIELDS:
+                if key in reviewer_entry:
+                    reviewer_entry.pop(key, None)
+                    fields_removed[key] += 1
+                    modified = True
     if modified:
         _write_rollup(path, payload)
     return modified
 
 
 def _verify_clean(path: Path) -> list[str]:
-    """Return the PR-level field names that are still present in ``path``."""
+    """Return the PR-level field names that are still present in ``path``.
+
+    Mirror of :func:`_strip_one`'s coverage: walks the rollup root AND
+    every ``by_reviewer[*]`` entry, returning a list of human-readable
+    residue paths so a Feature-362 leak (e.g., ``by_reviewer[user-id].prs``)
+    surfaces with a path identifying the offending bucket, not just the
+    field name.
+    """
     payload = _load_rollup(path)
-    return [key for key in PR_LEVEL_FIELDS if key in payload]
+    remaining: list[str] = []
+    # Depth 0 — Feature 060.
+    for key in PR_LEVEL_FIELDS:
+        if key in payload:
+            remaining.append(key)
+    # Depth 2 — Feature 362.
+    by_reviewer = payload.get("by_reviewer")
+    if isinstance(by_reviewer, dict):
+        for reviewer_id, reviewer_entry in by_reviewer.items():
+            if not isinstance(reviewer_entry, dict):
+                continue
+            for key in PR_LEVEL_FIELDS:
+                if key in reviewer_entry:
+                    remaining.append(f"by_reviewer[{reviewer_id}].{key}")
+    return remaining
 
 
 def strip_pr_arrays_from_rollups(rollup_dir: Path) -> StripReport:

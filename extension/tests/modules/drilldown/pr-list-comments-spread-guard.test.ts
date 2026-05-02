@@ -44,6 +44,15 @@ const ALLOWED_MODULES: ReadonlySet<string> = new Set([
   // scope expansion. The guard remains active for every other
   // drill-down module.
   "cycle-time-drilldown.ts",
+  // Feature 362 (FR-005 + contract `reviewer-pr-list.md` § 14):
+  // reviewer drill-down's PR list MUST display the same per-row
+  // thread / comment / unresolved counts when the host data carries
+  // the comments-metrics capability.  The reviewer consumer reuses
+  // the shared `PrListSection` discriminated union and the shared
+  // renderer; this allowlist entry is the 310-spread-guard's
+  // acknowledgement of 362's authorized scope expansion.  The guard
+  // remains active for every other drill-down module.
+  "reviewer-drilldown.ts",
 ]);
 
 // Feature 310 identifiers that MUST stay inside
