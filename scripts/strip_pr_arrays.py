@@ -194,3 +194,104 @@ def strip_pr_arrays_from_rollups(rollup_dir: Path) -> StripReport:
         files_modified=files_modified,
         fields_removed=dict(fields_removed),
     )
+
+
+def _strip_nested_one(path: Path, fields_removed: dict[str, int]) -> bool:
+    """Remove depth-2 ``by_reviewer[*]`` PR-level fields. Returns True if modified.
+
+    Counterpart to :func:`_strip_one` that walks ONLY depth 2; the
+    rollup root (depth 0) is preserved because the sentinel-present
+    promotion path keeps its synthetic-shaped PR detail under the #309
+    binary gate.
+    """
+    payload = _load_rollup(path)
+    modified = False
+    by_reviewer = payload.get("by_reviewer")
+    if isinstance(by_reviewer, dict):
+        for reviewer_entry in by_reviewer.values():
+            if not isinstance(reviewer_entry, dict):
+                continue
+            for key in PR_LEVEL_FIELDS:
+                if key in reviewer_entry:
+                    reviewer_entry.pop(key, None)
+                    fields_removed[key] += 1
+                    modified = True
+    if modified:
+        _write_rollup(path, payload)
+    return modified
+
+
+def _verify_nested_clean(path: Path) -> list[str]:
+    """Return the depth-2 PR-level field names that are still present in ``path``.
+
+    Mirror of :func:`_strip_nested_one`: depth 0 (rollup root) is NOT
+    inspected because sentinel-present synthetic shape keeps it.
+    """
+    payload = _load_rollup(path)
+    remaining: list[str] = []
+    by_reviewer = payload.get("by_reviewer")
+    if isinstance(by_reviewer, dict):
+        for reviewer_id, reviewer_entry in by_reviewer.items():
+            if not isinstance(reviewer_entry, dict):
+                continue
+            for key in PR_LEVEL_FIELDS:
+                if key in reviewer_entry:
+                    remaining.append(f"by_reviewer[{reviewer_id}].{key}")
+    return remaining
+
+
+def strip_nested_reviewer_prs_from_rollups(rollup_dir: Path) -> StripReport:
+    """Strip depth-2 ``by_reviewer[*].{prs,_prs_truncated,_prs_cap}`` only.
+
+    Sentinel-present promotion path counterpart to
+    :func:`strip_pr_arrays_from_rollups`.  Under #309's provenance-based
+    binary gate the public synthetic demo at ``docs/data/`` keeps its
+    rollup-root PR detail so the throughput / cycle-time PR drill-downs
+    work on the demo surface.  Feature 362's nested per-(reviewer, week)
+    PR detail (FR-028 / ``per-reviewer-week-prs.md`` § 5), however, is
+    too granular for public consumption and MUST be stripped before
+    publish — even when the sentinel is present.
+
+    Same strip-and-re-verify envelope as
+    :func:`strip_pr_arrays_from_rollups`; same exception type; same
+    informational :class:`StripReport`.  A missing ``rollup_dir`` raises
+    :class:`FileNotFoundError`.
+    """
+    if not rollup_dir.exists():
+        raise FileNotFoundError(
+            f"Rollup directory does not exist: {rollup_dir}. Strip gate was "
+            "invoked before the producer wrote any rollups."
+        )
+    if not rollup_dir.is_dir():
+        raise FileNotFoundError(f"Rollup path is not a directory: {rollup_dir}.")
+
+    fields_removed: dict[str, int] = dict.fromkeys(PR_LEVEL_FIELDS, 0)
+    files = sorted(rollup_dir.glob(ROLLUPS_GLOB))
+    files_modified = 0
+    for path in files:
+        if _strip_nested_one(path, fields_removed):
+            files_modified += 1
+
+    residue_report: list[str] = []
+    for path in files:
+        remaining = _verify_nested_clean(path)
+        if remaining:
+            residue_report.append(f"{path}: {', '.join(remaining)}")
+    if residue_report:
+        raise PrArrayResidueError(
+            "FR-028 violation: nested by_reviewer[*] PR-level fields still "
+            "present after depth-2 strip pass. Offending files:\n  "
+            + "\n  ".join(residue_report)
+        )
+
+    logger.info(
+        "strip_nested_reviewer_prs_from_rollups: scanned=%d modified=%d fields=%r",
+        len(files),
+        files_modified,
+        fields_removed,
+    )
+    return StripReport(
+        files_scanned=len(files),
+        files_modified=files_modified,
+        fields_removed=dict(fields_removed),
+    )

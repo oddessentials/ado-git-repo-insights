@@ -34,6 +34,7 @@ from demo_generation_common import (
 from demo_shell import render_demo_html_from_path
 from strip_pr_arrays import (
     SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME,
+    strip_nested_reviewer_prs_from_rollups,
     strip_pr_arrays_from_rollups,
 )
 
@@ -1317,11 +1318,14 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 
         * Sentinel PRESENT: ``assert_synthetic_shape`` fails closed on any
           shape violation; otherwise ``sentinel.unlink()`` runs FIRST (before
-          any destination mutation), PR-level fields are preserved through
-          the copytree, and the destination ends up without the sentinel.
+          any destination mutation), the rollup-root PR trio survives the
+          copytree (the #309 / #315 binary gate), and the Feature-362
+          nested ``by_reviewer[*]`` PR trio is stripped via
+          ``strip_nested_reviewer_prs_from_rollups`` so the public synthetic
+          surface stays free of per-(reviewer, week) detail (FR-028).
         * Sentinel ABSENT: the legacy feature-060 strip helper
-          (``strip_pr_arrays_from_rollups``) runs; PR-level fields are
-          stripped from the source tree before copytree.
+          (``strip_pr_arrays_from_rollups``) runs; PR-level fields at BOTH
+          depths are stripped from the source tree before copytree.
 
     Every other destination (private tenant artifacts, non-promotion scratch
     paths) preserves the existing non-gated behavior.
@@ -1337,6 +1341,17 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
         if sentinel.exists():
             assert_synthetic_shape(aggregates)
             sentinel.unlink()
+            # Sentinel-present preserves the rollup-root PR trio for the
+            # #309 demo PR drill-down on the public synthetic surface, but
+            # the Feature 362 per-(reviewer, week) nested PR detail is too
+            # granular for public consumption (FR-028 /
+            # ``per-reviewer-week-prs.md`` § 5) and must still be stripped
+            # before copytree into ``docs/data``.  This call mutates the
+            # source aggregates tree before the copytree, mirroring the
+            # in-place mutation pattern used by the sentinel-absent branch
+            # below; ``assert_synthetic_shape`` (depth-0-only) has already
+            # validated the rollup-root contract.
+            strip_nested_reviewer_prs_from_rollups(aggregates)
         else:
             assert not sentinel.exists(), (
                 "Sentinel path toggled between exists() check and else-branch "
