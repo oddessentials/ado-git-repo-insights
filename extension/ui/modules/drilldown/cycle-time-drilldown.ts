@@ -27,24 +27,35 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import type { AuthorEntry } from "../../schemas/dimensions.schema";
 import type { BreakdownEntry } from "../../schemas/rollup.schema";
+import { createEmptyFilterState, type FilterState } from "../filters";
 import { dismissAllTooltips } from "../tooltip-manager";
 import { formatDuration } from "../shared/format";
 import {
   makeBreakdownTable,
   makeEmptyState,
   makePanelContent,
+  makePrListSection,
   makeStatRow,
   openDetailPanel,
   type DrillDownContext,
   type PanelContent,
   type PanelRow,
   type PanelSection,
+  type PrListRow,
+  type PrListSection,
 } from "../shared/detail-panel";
+import {
+  resolvePrUrl,
+  type PrUrlRepositoryEntry,
+  type PrUrlWebContext,
+} from "../shared/pr-url";
 import {
   isDrilldownDisabledByComparison,
   showComparisonAdvisoryToast,
 } from "./comparison-advisory";
+import { classifyFilterState } from "./filter-support";
 import { formatWeekTitle } from "./week-range";
 
 const ACTIVE_CLASS = "is-drilldown-active";
@@ -81,7 +92,74 @@ function buildRepositoryBreakdown(
   );
 }
 
-function buildPanelContent(rollup: Rollup, metric: Metric): PanelContent {
+/**
+ * Feature 361: build the PR-detail section for a cycle-time drill-down.
+ *
+ * Structurally mirrors throughput's `buildPrListSection` — same classifier,
+ * same four content states, same row construction. The cycle-time consumer
+ * trusts the producer's existing `cycle_time desc, id asc` ordering and
+ * does NOT re-sort; FR-019 makes the rendered DOM order the contract.
+ *
+ * Called after the comparison short-circuit in `activate()`, so the
+ * `comparison` classification is unreachable here — only team / reviewer /
+ * supported are possible (narrowed-return overload of `classifyFilterState`).
+ */
+function buildPrListSection(
+  rollup: Rollup,
+  options: CycleTimeDrilldownOptions,
+): PrListSection {
+  const filters = options.filters ?? createEmptyFilterState();
+  const { classification } = classifyFilterState(filters, false);
+  switch (classification) {
+    case "team":
+      return makePrListSection({ contentState: "team-inline" });
+    case "reviewer":
+      return makePrListSection({ contentState: "reviewer-inline" });
+    case "supported": {
+      const rawPrs = rollup.prs ?? [];
+      const webContext = options.webContext;
+      const capValue = rollup._prs_cap;
+      if (rawPrs.length === 0 || !webContext || capValue === undefined) {
+        return makePrListSection({ contentState: "supported-empty" });
+      }
+      const commentsMetricsAvailable =
+        options.commentsMetricsAvailable ?? false;
+      const rows: PrListRow[] = rawPrs.map((pr): PrListRow => {
+        if (!commentsMetricsAvailable) {
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          };
+        }
+        return {
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+          threadCount: pr.thread_count,
+          commentCount: pr.comment_count,
+          activeThreadCount: pr.active_thread_count,
+        };
+      });
+      return makePrListSection({
+        contentState: "pr-list",
+        rows,
+        renderedCount: rows.length,
+        actualFilteredCount: rollup.pr_count,
+        capValue,
+        commentsMetricsAvailable,
+      });
+    }
+  }
+}
+
+function buildPanelContent(
+  rollup: Rollup,
+  metric: Metric,
+  options: CycleTimeDrilldownOptions,
+): PanelContent {
   const count = rollup.pr_count;
   const weekTitle = formatWeekTitle(rollup);
   const title = `${weekTitle} — ${metric.toUpperCase()}`;
@@ -90,15 +168,44 @@ function buildPanelContent(rollup: Rollup, metric: Metric): PanelContent {
     { label: "P50", value: formatDurationOrDash(rollup.cycle_time_p50) },
     { label: "P90", value: formatDurationOrDash(rollup.cycle_time_p90) },
   ]);
+  // Section order (FR-002, contract § 2): stats → by-repository → PR list.
+  // PR list always renders (one of four content states) so panel section
+  // count is stable across filter / data / capability shapes.
   return makePanelContent(title, subtitle, [
     stats,
     buildRepositoryBreakdown(rollup.by_repository),
+    buildPrListSection(rollup, options),
   ]);
+}
+
+/**
+ * Options passed at `installCycleTimeDrilldown` time. Feature 361 mirrors
+ * `ThroughputDrilldownOptions` field-for-field so the dashboard can build
+ * one options bag and pass it to both installs. See
+ * `specs/361-cycle-time-pr-drilldown/data-model.md` § 3 for field
+ * semantics. All fields are optional; when absent the cycle-time PR list
+ * falls through to the `supported-empty` content state (no PR list rows).
+ *
+ * `authorsDimension` is accepted for call-site uniformity with the
+ * throughput install but is NOT consumed by the cycle-time render path
+ * (cycle-time has no `By author` breakdown). Threading it through keeps
+ * `dashboard.ts` constructing one bag for both surfaces.
+ */
+export interface CycleTimeDrilldownOptions {
+  readonly filters?: FilterState;
+  readonly repositoriesDimension?:
+    | readonly PrUrlRepositoryEntry[]
+    | null
+    | undefined;
+  readonly webContext?: PrUrlWebContext;
+  readonly authorsDimension?: readonly AuthorEntry[] | null | undefined;
+  readonly commentsMetricsAvailable?: boolean;
 }
 
 export function installCycleTimeDrilldown(
   container: HTMLElement,
   rollups: readonly Rollup[],
+  options: CycleTimeDrilldownOptions = {},
 ): { dispose(): void } {
   const controller = new AbortController();
   const { signal } = controller;
@@ -157,7 +264,7 @@ export function installCycleTimeDrilldown(
       sourceChart: "cycle-time",
       focusedData: { kind: "cycle-time", weekIso, metric },
       triggerElement: trigger,
-      content: buildPanelContent(rollup, metric),
+      content: buildPanelContent(rollup, metric, options),
     };
 
     openDetailPanel(context);

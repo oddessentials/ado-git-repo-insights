@@ -35,6 +35,15 @@ const ALLOWED_MODULES: ReadonlySet<string> = new Set([
   // emission — the entire Capability-3/4 surface is the throughput
   // panel").
   "throughput-drilldown.ts",
+  // Feature 361 (FR-015 + contract § 4): cycle-time drill-down's PR
+  // list MUST display the same per-row thread / comment / unresolved
+  // counts when the host data carries the comments-metrics capability.
+  // The cycle-time consumer reuses the shared `PrListSection`
+  // discriminated union and the shared renderer; this allowlist entry
+  // is the 310-spread-guard's acknowledgement of 361's authorized
+  // scope expansion. The guard remains active for every other
+  // drill-down module.
+  "cycle-time-drilldown.ts",
 ]);
 
 // Feature 310 identifiers that MUST stay inside

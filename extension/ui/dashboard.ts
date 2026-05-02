@@ -1278,8 +1278,31 @@ async function refreshMetrics(): Promise<void> {
     }
     const cycleTimeContainer = document.getElementById("cycle-time-trend");
     if (cycleTimeContainer) {
+      // Feature 361: mirror the throughput options bag verbatim so the
+      // cycle-time drill-down's PR list classifies filters, derives PR
+      // URLs, and gates the comments-metrics columns from the same
+      // single-source-of-truth signals as throughput.
       activeDrilldownHandles.push(
-        installCycleTimeDrilldown(cycleTimeContainer, rollups),
+        installCycleTimeDrilldown(cycleTimeContainer, rollups, {
+          filters: {
+            repos: [...currentFilters.repos],
+            teams: [...currentFilters.teams],
+            reviewers: [...currentFilters.reviewers],
+            authors: [...currentFilters.authors],
+          },
+          repositoriesDimension: currentDimensions?.repositories?.map((r) => ({
+            repository_id: r.repository_id,
+            repository_name: r.repository_name,
+            project_name: r.project_name ?? "",
+            organization_name: r.organization_name,
+          })),
+          webContext: currentCollectionUri
+            ? { collectionUri: currentCollectionUri }
+            : undefined,
+          authorsDimension: currentDimensions?.authors,
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
+        }),
       );
     }
     const reviewerContainer = document.getElementById("reviewer-activity");

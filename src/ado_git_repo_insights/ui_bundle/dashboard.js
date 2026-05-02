@@ -10575,7 +10575,53 @@ var PRInsightsDashboard = (() => {
       rows
     );
   }
-  function buildPanelContent2(rollup, metric) {
+  function buildPrListSection2(rollup, options) {
+    const filters = options.filters ?? createEmptyFilterState();
+    const { classification } = classifyFilterState(filters, false);
+    switch (classification) {
+      case "team":
+        return makePrListSection({ contentState: "team-inline" });
+      case "reviewer":
+        return makePrListSection({ contentState: "reviewer-inline" });
+      case "supported": {
+        const rawPrs = rollup.prs ?? [];
+        const webContext = options.webContext;
+        const capValue = rollup._prs_cap;
+        if (rawPrs.length === 0 || !webContext || capValue === void 0) {
+          return makePrListSection({ contentState: "supported-empty" });
+        }
+        const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+        const rows = rawPrs.map((pr) => {
+          if (!commentsMetricsAvailable) {
+            return {
+              id: pr.id,
+              title: pr.title,
+              cycleTimeMinutes: pr.cycle_time,
+              url: resolvePrUrl(pr, options.repositoriesDimension, webContext)
+            };
+          }
+          return {
+            id: pr.id,
+            title: pr.title,
+            cycleTimeMinutes: pr.cycle_time,
+            url: resolvePrUrl(pr, options.repositoriesDimension, webContext),
+            threadCount: pr.thread_count,
+            commentCount: pr.comment_count,
+            activeThreadCount: pr.active_thread_count
+          };
+        });
+        return makePrListSection({
+          contentState: "pr-list",
+          rows,
+          renderedCount: rows.length,
+          actualFilteredCount: rollup.pr_count,
+          capValue,
+          commentsMetricsAvailable
+        });
+      }
+    }
+  }
+  function buildPanelContent2(rollup, metric, options) {
     const count = rollup.pr_count;
     const weekTitle = formatWeekTitle(rollup);
     const title = `${weekTitle} \u2014 ${metric.toUpperCase()}`;
@@ -10586,10 +10632,11 @@ var PRInsightsDashboard = (() => {
     ]);
     return makePanelContent(title, subtitle, [
       stats,
-      buildRepositoryBreakdown(rollup.by_repository)
+      buildRepositoryBreakdown(rollup.by_repository),
+      buildPrListSection2(rollup, options)
     ]);
   }
-  function installCycleTimeDrilldown(container, rollups) {
+  function installCycleTimeDrilldown(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const observers = /* @__PURE__ */ new Set();
@@ -10636,7 +10683,7 @@ var PRInsightsDashboard = (() => {
         sourceChart: "cycle-time",
         focusedData: { kind: "cycle-time", weekIso, metric },
         triggerElement: trigger,
-        content: buildPanelContent2(rollup, metric)
+        content: buildPanelContent2(rollup, metric, options)
       };
       openDetailPanel(context);
       clearActive();
@@ -11626,7 +11673,23 @@ var PRInsightsDashboard = (() => {
       const cycleTimeContainer = document.getElementById("cycle-time-trend");
       if (cycleTimeContainer) {
         activeDrilldownHandles.push(
-          installCycleTimeDrilldown(cycleTimeContainer, rollups)
+          installCycleTimeDrilldown(cycleTimeContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
+          })
         );
       }
       const reviewerContainer = document.getElementById("reviewer-activity");
