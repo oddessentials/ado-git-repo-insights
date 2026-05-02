@@ -73,6 +73,9 @@ _guard_spec.loader.exec_module(_guard_mod)
 _check_subprocess_safety = _guard_mod.check_subprocess_safety
 _check_random_safety = _guard_mod.check_random_safety
 _check_syspath_safety = _guard_mod.check_syspath_safety
+_auto_fix_subprocess_allowlist_line_shifts = (
+    _guard_mod.auto_fix_subprocess_allowlist_line_shifts
+)
 
 if TYPE_CHECKING:
     from invariant_contracts import InvariantArtifactContract
@@ -1101,6 +1104,22 @@ def run_rule_disable_invariants_guard() -> None:
         violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
 
     if violations:
+        # Best-effort line-shift auto-fix BEFORE failing.  Updates only the
+        # ``line`` field of existing allowlist entries when every bucket is
+        # an unambiguous uniform shift; preserves ``code`` / ``reason`` /
+        # entry count.  See
+        # ``scripts/check_rule_disable_invariants.auto_fix_subprocess_allowlist_line_shifts``
+        # for the safety contract.
+        applied = _auto_fix_subprocess_allowlist_line_shifts(REPO_ROOT)
+        if applied:
+            safe_print("[pre-commit] subprocess allowlist line-shifts auto-applied:")
+            for file_path, old_line, new_line in applied:
+                safe_print(f"  {file_path}:{old_line} -> {new_line}")
+            safe_print(
+                "[pre-commit] re-stage `.subprocess-allowlist.json` "
+                "and re-run the commit."
+            )
+            raise SystemExit(1)
         safe_print("[pre-commit] unsafe patterns detected (S603/S311 guardrail):")
         for line in violations:
             safe_print(line)

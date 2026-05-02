@@ -40,6 +40,11 @@ GUARDRAIL_EXCLUSIONS = frozenset(
     {
         "scripts/check_rule_disable_invariants.py",
         "tests/unit/test_rule_disable_invariants.py",
+        # The auto-fix test file builds synthetic source content (literal
+        # ``subprocess.run(`` substrings inside string fixtures) that the
+        # scanner cannot distinguish from real call sites — same exclusion
+        # pattern as test_rule_disable_invariants.py.
+        "tests/unit/test_subprocess_allowlist_autofix.py",
     }
 )
 
@@ -772,6 +777,163 @@ def verify_artifacts(repo_root: Path) -> int:
     return exit_code
 
 
+def auto_fix_subprocess_allowlist_line_shifts(
+    repo_root: Path,
+) -> list[tuple[str, int, int]]:
+    """Best-effort auto-fix for legitimate line-shifts in the subprocess allowlist.
+
+    Returns a list of ``(file, old_line, new_line)`` tuples for applied updates.
+    Returns ``[]`` (empty list) when no safe updates could be applied — either
+    nothing needed to change, or the source state cannot be unambiguously
+    resolved to a pure line-shift.
+
+    Safety contract (per the dev-ex audit constraints — see commit history):
+      - Updates ONLY the ``line`` field of existing entries; ``file`` /
+        ``code`` / ``reason`` are never touched.
+      - Never adds entries — a NEW unallowlisted subprocess call must fail
+        closed at the existing gate, not be auto-approved here.
+      - Never removes entries — a refactored-away call site (no matching
+        source violation) is left intact for explicit manual review via
+        ``--regenerate-allowlist``.
+      - Within a ``(file, normalized_code)`` bucket: only applies updates when
+        ``len(entries) == len(violations)`` AND, after sorting both by line,
+        every pairwise delta is identical.  Non-uniform deltas mean the
+        relative ordering of call sites changed (or unrelated edits
+        happened) — the resolution is ambiguous and the bucket is left
+        unchanged.
+      - After all bucket-level updates have been computed, the function
+        re-validates that EVERY current source violation matches an updated
+        entry by ``(file, line, normalized_code)``.  If any violation is
+        unmatched (e.g. a new unallowlisted call elsewhere in the codebase),
+        all in-memory changes are reverted and the function returns ``[]``
+        — the caller's failure path stays intact.
+
+    The ``reason`` field is NOT used in matching; it stays attached to its
+    original entry by index.  The combination of "preserve entry order
+    within bucket via sorted-by-line pairing" and "uniform-delta-only"
+    means each entry keeps its original ``reason`` paired with the
+    new line that corresponds to the same call site after the shift.
+    """
+    if not SUBPROCESS_ALLOWLIST_PATH.exists():
+        return []
+
+    with open(SUBPROCESS_ALLOWLIST_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+
+    entries = data.get("entries", [])
+    if not entries:
+        return []
+
+    # Snapshot original lines so we can revert on validation failure.
+    original_lines: list[int] = [int(entry["line"]) for entry in entries]
+
+    # Build current-source violations index by file -> list of violations.
+    # Mirrors cmd_regenerate_allowlist's scan to keep matching logic
+    # consistent (same check_subprocess_safety, same _normalize_allowlist_code).
+    tracked = _get_tracked_py_files(repo_root)
+    violations_by_file: dict[str, list[dict[str, str | int]]] = {}
+    for file_path in tracked:
+        if file_path in GUARDRAIL_EXCLUSIONS:
+            continue
+        full_path = repo_root / file_path
+        if not full_path.exists():
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        file_viols = check_subprocess_safety(file_path, content)
+        if file_viols:
+            violations_by_file[file_path] = file_viols
+
+    # Group entries by (file, normalized_code), preserving entry indices so
+    # we can mutate ``entries[i]`` directly.
+    bucket_entries: dict[tuple[str, str], list[int]] = {}
+    for i, entry in enumerate(entries):
+        key = (str(entry["file"]), _normalize_allowlist_code(entry["code"]))
+        bucket_entries.setdefault(key, []).append(i)
+
+    # Group violations by (file, normalized_code).
+    bucket_violations: dict[tuple[str, str], list[dict[str, str | int]]] = {}
+    for file_path, file_viols in violations_by_file.items():
+        for viol in file_viols:
+            key = (file_path, _normalize_allowlist_code(viol["code"]))
+            bucket_violations.setdefault(key, []).append(viol)
+
+    # Process each bucket.
+    updates: list[tuple[str, int, int]] = []
+    for key, entry_indices in bucket_entries.items():
+        viols = bucket_violations.get(key, [])
+        if len(viols) != len(entry_indices):
+            # Count mismatch: new call, removed call, or refactored shape
+            # change.  Don't auto-fix — fall through to manual review path.
+            continue
+        if not viols:
+            continue  # vacuously OK (both sides empty)
+        # Pair entries to violations by sorted line order — preserves
+        # within-bucket relative identity under uniform shifts.
+        sorted_indices = sorted(entry_indices, key=lambda i: int(entries[i]["line"]))
+        sorted_viols = sorted(viols, key=lambda v: int(v["line"]))
+        deltas = [
+            int(v["line"]) - int(entries[i]["line"])
+            for i, v in zip(sorted_indices, sorted_viols, strict=True)
+        ]
+        if not all(d == deltas[0] for d in deltas):
+            # Non-uniform delta — relative ordering or content changed.
+            # Cannot safely auto-resolve; leave bucket unchanged.
+            continue
+        if deltas[0] == 0:
+            # Already aligned — nothing to update.
+            continue
+        # Apply updates.
+        for i, v in zip(sorted_indices, sorted_viols, strict=True):
+            old_line = int(entries[i]["line"])
+            new_line = int(v["line"])
+            entries[i]["line"] = new_line
+            updates.append((str(entries[i]["file"]), old_line, new_line))
+
+    if not updates:
+        return []
+
+    # Validate: every current source violation must now match an updated
+    # entry.  If a violation is unmatched (unallowlisted new call elsewhere),
+    # the auto-fix would mask the real failure — revert and bail.
+    updated_allowlist = {
+        (
+            str(entry["file"]),
+            int(entry["line"]),
+            _normalize_allowlist_code(entry["code"]),
+        )
+        for entry in entries
+    }
+    all_violations: list[dict[str, str | int]] = []
+    for file_viols in violations_by_file.values():
+        all_violations.extend(file_viols)
+    unmatched = [
+        v
+        for v in all_violations
+        if (
+            str(v["file"]),
+            int(v["line"]),
+            _normalize_allowlist_code(v["code"]),
+        )
+        not in updated_allowlist
+    ]
+    if unmatched:
+        for i, original_line in enumerate(original_lines):
+            entries[i]["line"] = original_line
+        return []
+
+    # Write the updated allowlist.  newline="\n" (matches the existing
+    # cmd_regenerate_allowlist writer) so this auto-fix is byte-stable on
+    # Windows / Linux / macOS.
+    with open(SUBPROCESS_ALLOWLIST_PATH, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+    return updates
+
+
 def cmd_regenerate_allowlist(repo_root: Path) -> int:
     """Update allowlist line numbers after formatter-induced shifts.
 
@@ -933,6 +1095,16 @@ def main() -> int:
         action="store_true",
         help="Update allowlist line numbers after formatter-induced shifts",
     )
+    parser.add_argument(
+        "--auto-fix-line-shifts",
+        action="store_true",
+        help=(
+            "Best-effort: only update line numbers for unambiguous uniform "
+            "shifts within each (file, code) bucket; never add, remove, or "
+            "touch reason/code.  Falls through (no-op) on count mismatch, "
+            "non-uniform shift, or unmatched residual violations."
+        ),
+    )
 
     args = parser.parse_args()
     repo_root = REPO_ROOT
@@ -940,6 +1112,16 @@ def main() -> int:
 
     if args.regenerate_allowlist:
         return cmd_regenerate_allowlist(repo_root)
+
+    if args.auto_fix_line_shifts:
+        updates = auto_fix_subprocess_allowlist_line_shifts(repo_root)
+        if updates:
+            for file_path, old_line, new_line in updates:
+                print(f"[AUTO-FIX] {file_path}:{old_line} -> {new_line}")
+            print(f"[PASS] {len(updates)} line-shift(s) applied.")
+        else:
+            print("[PASS] No line-shift updates applied (none safe / none needed).")
+        return 0
 
     if args.generate_artifacts:
         for rule, generator in [
