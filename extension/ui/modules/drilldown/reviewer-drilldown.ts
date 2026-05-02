@@ -223,13 +223,14 @@ function buildPrListSection(
   const webContext = options.webContext;
   // Walk every rollup, accumulate the reviewer's per-week prs[] slices
   // into a single working set, and compute the cap + truncation envelope
-  // and the actualFilteredCount denominator at the same time.  Skip
-  // rollups missing the per-(reviewer, week) trio: a partial entry (one
-  // of the three present without the others) signals an upstream
-  // malformation; the consumer treats any participating week with a
-  // missing _prs_cap as the supported-empty trigger per contract § 3.
+  // at the same time.  Skip rollups missing the per-(reviewer, week)
+  // trio: a partial entry (one of the three present without the others)
+  // signals an upstream malformation; the consumer treats any
+  // participating week with a missing _prs_cap as the supported-empty
+  // trigger per contract § 3.
   let capValue: number | undefined;
-  let actualFilteredCount = 0;
+  let totalReviewedPrs = 0;
+  let anyTruncated = false;
   const collected: PrRecord[] = [];
   for (const rollup of rollups) {
     // Reviewer lookups use the shared `reviewerEntry` helper (Map view)
@@ -251,7 +252,8 @@ function buildPrListSection(
       return makePrListSection({ contentState: "supported-empty" });
     }
     capValue = capValue === undefined ? cap : Math.max(capValue, cap);
-    actualFilteredCount += entry.reviewed_prs;
+    totalReviewedPrs += entry.reviewed_prs;
+    if (truncated) anyTruncated = true;
     for (const pr of prsArray) {
       collected.push(pr);
     }
@@ -303,6 +305,18 @@ function buildPrListSection(
       activeThreadCount: pr.active_thread_count,
     };
   });
+  // Truncation cue gating (contract § 6): the shared renderer fires the
+  // cue when ``renderedCount < actualFilteredCount``.  Use this signal
+  // ONLY when truncation actually occurred — anyTruncated is the
+  // authoritative producer-driven signal.  If we passed the pre-overlay
+  // ``totalReviewedPrs`` regardless, an author/repo overlay reducing
+  // visible rows would falsely fire the cue ("Showing X of Y matching
+  // PRs (top 500 by cycle time)") even though the gap is from the user's
+  // overlay, not the per-(reviewer, week) cap.  Suppressing the cue for
+  // overlay-only reductions matches the renderer's "top Z by cycle time"
+  // text, which only makes sense when the cap actually clipped the
+  // slice.
+  const actualFilteredCount = anyTruncated ? totalReviewedPrs : rows.length;
   return makePrListSection({
     contentState: "pr-list",
     rows,

@@ -182,6 +182,90 @@ describe("reviewer PR list rendered-count parity (FR-008 / FR-010)", () => {
     ).toBeNull();
   });
 
+  it("author overlay reducing rows does NOT fire the truncation cue when no week is truncated", () => {
+    // Regression: previously, ``actualFilteredCount`` was
+    // sum(reviewed_prs) regardless of overlay state, so the renderer's
+    // ``renderedCount < actualFilteredCount`` cue gate would fire
+    // whenever an author/repo overlay reduced visible rows -- even
+    // though the gap was the user's filter, not the per-(reviewer,
+    // week) 500-cap.  The cue text "Showing X of Y matching PRs
+    // (top 500 by cycle time)" was misleading in that case because
+    // the cap was not the gating factor.  This test locks the fixed
+    // behavior: when the overlay reduces rows but no week is truncated,
+    // ``actualFilteredCount === renderedCount`` and the cue does NOT
+    // fire.
+    // Build a per-(reviewer, week) entry inline (without spreading from
+    // the helper-built rollup) so the test does not need a bracket-
+    // indexed lookup on `by_reviewer` -- the same construction shape
+    // `makeRollup` uses, just with mixed author_ids on the PR records.
+    const reviewerEntry: ReviewerBreakdownEntry = {
+      reviewed_prs: 3,
+      reviews_count: 3,
+      approval_rate: 1.0,
+      repositories_count: 1,
+      prs: [
+        {
+          id: 101,
+          title: "PR 101",
+          author_id: "author-a",
+          repository_id: "repo-1",
+          cycle_time: 800,
+        },
+        {
+          id: 102,
+          title: "PR 102",
+          author_id: "author-b",
+          repository_id: "repo-1",
+          cycle_time: 600,
+        },
+        {
+          id: 103,
+          title: "PR 103",
+          author_id: "author-a",
+          repository_id: "repo-1",
+          cycle_time: 400,
+        },
+      ],
+      _prs_truncated: false,
+      _prs_cap: 500,
+    };
+    const w10Modified: Rollup = {
+      week: "2025-W10",
+      pr_count: 3,
+      cycle_time_p50: null,
+      cycle_time_p90: null,
+      authors_count: 2,
+      reviewers_count: 1,
+      by_repository: null,
+      by_team: null,
+      by_reviewer: { [REVIEWER_ID]: reviewerEntry },
+    };
+    const rollups = [w10Modified];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, {
+      reviewersDimension: REVIEWERS_DIM,
+      filters: {
+        repos: [],
+        teams: [],
+        reviewers: [REVIEWER_ID],
+        authors: ["author-a"],
+      },
+      repositoriesDimension: FIXTURE_REPOS,
+      webContext: FIXTURE_WEB_CTX,
+      authorsDimension: [],
+      commentsMetricsAvailable: false,
+    });
+
+    click(rowFor(container, "2025-W10"));
+
+    // Only the 2 author-a PRs render; author-b is filtered out by the
+    // overlay.  Cue MUST stay silent because no week was truncated.
+    expect(renderedRowCount()).toBe(2);
+    expect(
+      document.querySelector("#pr-detail .truncation-indicator"),
+    ).toBeNull();
+  });
+
   it("truncated: rendered count equals sum(min(K_i, _prs_cap)) and truncation cue surfaces", () => {
     // W11 is truncated: 500 visible records, but reviewed_prs=700 (the
     // producer dropped 200).  W10 / W12 untruncated.  Rendered row count

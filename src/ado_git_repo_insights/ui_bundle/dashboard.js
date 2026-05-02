@@ -10853,7 +10853,8 @@ var PRInsightsDashboard = (() => {
     }
     const webContext = options.webContext;
     let capValue;
-    let actualFilteredCount = 0;
+    let totalReviewedPrs = 0;
+    let anyTruncated = false;
     const collected = [];
     for (const rollup of rollups) {
       const entry = reviewerEntry(rollup, reviewerId);
@@ -10865,7 +10866,8 @@ var PRInsightsDashboard = (() => {
         return makePrListSection({ contentState: "supported-empty" });
       }
       capValue = capValue === void 0 ? cap : Math.max(capValue, cap);
-      actualFilteredCount += entry.reviewed_prs;
+      totalReviewedPrs += entry.reviewed_prs;
+      if (truncated) anyTruncated = true;
       for (const pr of prsArray) {
         collected.push(pr);
       }
@@ -10905,6 +10907,7 @@ var PRInsightsDashboard = (() => {
         activeThreadCount: pr.active_thread_count
       };
     });
+    const actualFilteredCount = anyTruncated ? totalReviewedPrs : rows.length;
     return makePrListSection({
       contentState: "pr-list",
       rows,
