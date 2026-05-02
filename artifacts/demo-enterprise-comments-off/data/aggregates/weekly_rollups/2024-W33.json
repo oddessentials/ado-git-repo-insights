@@ -1636,393 +1636,1499 @@
   },
   "by_reviewer": {
     "192a25de-2d1b-5e10-a0eb-dcc2b5e7ac1e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "1e6a1278-fa30-5862-ae60-0bd2208dbb3d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "1eeff2f2-5d8c-566b-ae72-61ccfba07ea7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "1f512ed5-c075-547f-b192-d85f6eab15e4": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "348c4b05-b659-5f84-9203-a2092a5071ef": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        },
+        {
+          "author_id": "527ae27c-497f-5a3f-8373-6c58b732fa08",
+          "cycle_time": 59917.06,
+          "id": 202433099,
+          "repository_id": "android-app",
+          "title": "fix-deployment-refactor-update-gaps-standards"
+        },
+        {
+          "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+          "cycle_time": 35022.918,
+          "id": 202433069,
+          "repository_id": "auth-service",
+          "title": "tests-devex-shared-during"
+        },
+        {
+          "author_id": "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c",
+          "cycle_time": 18230.041,
+          "id": 202433035,
+          "repository_id": "ios-app",
+          "title": "reviews-prod-feat-ai-fix-better"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "382a1fe7-038d-5b3b-9c87-8a65d0376b8b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "3a27b729-1c55-5383-a129-770ee1d44029": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "4507291f-28b5-5f92-b624-4262b17e2c4e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "5a237dc9-ee8c-5764-aab4-4a8c520366fe": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "5b99e00c-ab32-5315-9404-232bade14bdf": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "5c990c39-5a5a-5c67-b190-ce41431b0e0e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "5e64877f-9bf3-5333-98a9-b4e2476d5273": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "5e8051b8-312f-5897-b10a-7137ec37d442": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        },
+        {
+          "author_id": "527ae27c-497f-5a3f-8373-6c58b732fa08",
+          "cycle_time": 59917.06,
+          "id": 202433099,
+          "repository_id": "android-app",
+          "title": "fix-deployment-refactor-update-gaps-standards"
+        },
+        {
+          "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+          "cycle_time": 35022.918,
+          "id": 202433069,
+          "repository_id": "auth-service",
+          "title": "tests-devex-shared-during"
+        },
+        {
+          "author_id": "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c",
+          "cycle_time": 18230.041,
+          "id": 202433035,
+          "repository_id": "ios-app",
+          "title": "reviews-prod-feat-ai-fix-better"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6
     },
     "6169694a-d7cf-57cb-a94a-15b2f02e99cc": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "639dc735-977c-5375-9ad9-61de9de9b186": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "6d720789-90aa-5ce3-b7fb-02533fcbcf70": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "702b8ab3-7cb6-5f42-a622-872ccb101552": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "736796b8-e955-5a92-9658-2dcf16b75f26": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "76b80c19-5714-524e-b656-41176d684adb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "79bf5913-b79e-536d-b3fa-c7bc950a244b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "7bfae255-fb96-5f69-8d1b-f086c2b3f494": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "7c31d024-0e3b-571e-815a-917ba333ba62": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "864bbd27-2179-5171-a2fb-b9cb7d3f88db": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "8673d9b1-1769-5602-97ed-135c806c2b4e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "91ae6e14-cfd3-5c68-81ce-cd71961a30d4": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "9434ad44-21e0-5d3c-a09c-3c33640cb086": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "9ac1c4ec-36b0-58da-99f4-5832c021d3bb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "9c653f8c-83a0-58b2-9832-4bacbfb73690": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "a6e51ae7-2e66-5dfd-bb20-87c8071f9729": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "aa526dc1-3820-5712-8e50-ddac8478705f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "b1238244-1dff-5232-aae6-73ad452a75a0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        },
+        {
+          "author_id": "527ae27c-497f-5a3f-8373-6c58b732fa08",
+          "cycle_time": 59917.06,
+          "id": 202433099,
+          "repository_id": "android-app",
+          "title": "fix-deployment-refactor-update-gaps-standards"
+        },
+        {
+          "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+          "cycle_time": 35022.918,
+          "id": 202433069,
+          "repository_id": "auth-service",
+          "title": "tests-devex-shared-during"
+        },
+        {
+          "author_id": "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c",
+          "cycle_time": 18230.041,
+          "id": 202433035,
+          "repository_id": "ios-app",
+          "title": "reviews-prod-feat-ai-fix-better"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8
     },
     "b7b6ebbc-1829-5d25-8ccb-08fa6839cd2a": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "bd9e17b1-0b06-5284-9bf5-2300a7ec5778": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "c05ea2fd-75f3-58c3-a3f5-97af92f23e8b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "c44b04ad-873c-5f16-87c5-6c3c350dc296": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "c85a8665-b462-5165-98fe-10ee9e61f539": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "c93de2d5-2252-58e3-9fca-48b7108631e0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "cbd5bf5c-4c72-513e-8f8b-7e4629d47b2a": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "cbef9c82-665d-56bf-a0ff-b94a0f0eb1b3": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "ce04fbd4-c08b-55f3-9585-5a76c04dc485": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "d62a08f1-da5c-55b2-a473-9fd58a52ca91": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "d848df3b-5df7-5f9d-89dc-a735fefa3447": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "db58c77c-2999-5071-a857-37ed2deae874": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "dddf98ff-15e4-589c-a533-e853864dd614": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
     },
     "dde0af13-4241-559b-9791-6efd249a207e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "e1ed9361-dd1e-54e5-8795-0b68baf8512f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "e249be08-ddb3-5d5c-8c82-1482b06f8038": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "e5041028-ca35-5c7e-ace9-71fce373f9ba": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "e72fb699-499f-5db2-845b-bc719b31717e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        },
+        {
+          "author_id": "527ae27c-497f-5a3f-8373-6c58b732fa08",
+          "cycle_time": 59917.06,
+          "id": 202433099,
+          "repository_id": "android-app",
+          "title": "fix-deployment-refactor-update-gaps-standards"
+        },
+        {
+          "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+          "cycle_time": 35022.918,
+          "id": 202433069,
+          "repository_id": "auth-service",
+          "title": "tests-devex-shared-during"
+        },
+        {
+          "author_id": "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c",
+          "cycle_time": 18230.041,
+          "id": 202433035,
+          "repository_id": "ios-app",
+          "title": "reviews-prod-feat-ai-fix-better"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "ed15254c-8741-5f52-a86a-763e430d271e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "f11cbecb-16bd-5696-a7a6-0078d1559742": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "f53c8daa-8a1c-5b4a-83ed-57fc8d270479": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "fa599eb4-03b8-5d2d-aeee-5cfc436e496d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        },
+        {
+          "author_id": "527ae27c-497f-5a3f-8373-6c58b732fa08",
+          "cycle_time": 59917.06,
+          "id": 202433099,
+          "repository_id": "android-app",
+          "title": "fix-deployment-refactor-update-gaps-standards"
+        },
+        {
+          "author_id": "53e3621f-9b19-5bbc-a9e7-eb316343f98e",
+          "cycle_time": 35022.918,
+          "id": 202433069,
+          "repository_id": "auth-service",
+          "title": "tests-devex-shared-during"
+        },
+        {
+          "author_id": "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c",
+          "cycle_time": 18230.041,
+          "id": 202433035,
+          "repository_id": "ios-app",
+          "title": "reviews-prod-feat-ai-fix-better"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "fae290f1-a24a-56db-8d42-01b4acdd6cb9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 364274.238,
+          "id": 202433091,
+          "repository_id": "auth-service",
+          "title": "metal-update-alignment-refactor-refactor-feat"
+        },
+        {
+          "author_id": "0139879c-ac5b-5d79-8a7b-499784002eb8",
+          "cycle_time": 179621.639,
+          "id": 202433040,
+          "repository_id": "etl-jobs",
+          "title": "dependencies-ci-self-hosted-setup-release-feat"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3

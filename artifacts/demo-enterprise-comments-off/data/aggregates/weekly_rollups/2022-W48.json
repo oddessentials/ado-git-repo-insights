@@ -1077,232 +1077,882 @@
   },
   "by_reviewer": {
     "03400ec3-30a2-5538-930e-749eb3e819bf": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        },
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 8128.065,
+          "id": 202248029,
+          "repository_id": "inference-service",
+          "title": "metal-dependencies-upgrade-screen"
+        },
+        {
+          "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+          "cycle_time": 7724.089,
+          "id": 202248052,
+          "repository_id": "inference-service",
+          "title": "semantic-release-add"
+        },
+        {
+          "author_id": "702b8ab3-7cb6-5f42-a622-872ccb101552",
+          "cycle_time": 6362.293,
+          "id": 202248010,
+          "repository_id": "gateway-core",
+          "title": "repo-upgrade-nextstepsmd"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "04c36b2c-5096-58df-b775-0672dd0ac715": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "08cf57e7-c6eb-568f-a9ef-8baa194946b6": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "1c626ab4-1226-53f4-9eba-2f2f2cd78466": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "1d6fcb02-a878-50f0-9221-ca058b41701f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "2a7ff968-31b8-5d98-8f0b-9cb3b386e3bb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "2f87858d-1877-58bd-a052-afe1cfcb5b8d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "30f9f653-d7f5-52a2-a7c4-578f1e1d241f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        },
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 8128.065,
+          "id": 202248029,
+          "repository_id": "inference-service",
+          "title": "metal-dependencies-upgrade-screen"
+        },
+        {
+          "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+          "cycle_time": 7724.089,
+          "id": 202248052,
+          "repository_id": "inference-service",
+          "title": "semantic-release-add"
+        },
+        {
+          "author_id": "702b8ab3-7cb6-5f42-a622-872ccb101552",
+          "cycle_time": 6362.293,
+          "id": 202248010,
+          "repository_id": "gateway-core",
+          "title": "repo-upgrade-nextstepsmd"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8
     },
     "36f40327-12d8-5b26-a15f-313debe03843": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "3d8f75f7-ac9c-5402-929a-a63bce3a8897": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "4eadb007-7f46-56b1-8740-4a0af48b25d9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "513b4803-0e3a-5217-b377-5bd8ed10011f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "53e3621f-9b19-5bbc-a9e7-eb316343f98e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "54c6fbbc-70c1-5d67-bb5f-8a4685113aa0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "5b589f79-7cc3-5639-9824-ddc9500772f7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
     },
     "6034a2d9-3c8b-5547-b146-9f9638260536": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "63230cdd-2ed3-5537-91ed-174558c1224b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "665dea45-ae71-589f-8f3c-bcb0c2e41a11": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "677bb7bd-0214-5e76-ae56-bbda25b1e871": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "7eae5e76-3be3-5341-8e00-3e3c8b208202": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "93f4b724-5be5-56fb-93b7-f5aae249ab52": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "a778cba4-5127-5c45-85de-1da27ad6b478": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        },
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 8128.065,
+          "id": 202248029,
+          "repository_id": "inference-service",
+          "title": "metal-dependencies-upgrade-screen"
+        },
+        {
+          "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+          "cycle_time": 7724.089,
+          "id": 202248052,
+          "repository_id": "inference-service",
+          "title": "semantic-release-add"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 4,
       "reviews_count": 4
     },
     "a791accb-541c-5010-9202-d3d286437286": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "b49c78dd-667a-5b08-b69e-3f70d3ad2f93": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        },
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 8128.065,
+          "id": 202248029,
+          "repository_id": "inference-service",
+          "title": "metal-dependencies-upgrade-screen"
+        },
+        {
+          "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+          "cycle_time": 7724.089,
+          "id": 202248052,
+          "repository_id": "inference-service",
+          "title": "semantic-release-add"
+        },
+        {
+          "author_id": "702b8ab3-7cb6-5f42-a622-872ccb101552",
+          "cycle_time": 6362.293,
+          "id": 202248010,
+          "repository_id": "gateway-core",
+          "title": "repo-upgrade-nextstepsmd"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "d3225da6-88d8-50bf-80c3-f547b9c530b7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "edd8ead8-cc32-5e8a-9f64-d88206710636": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 1
     },
     "f8de20c9-af06-518c-8697-881b5334bd67": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "fa3bbf9d-fc6d-5b10-b54d-37fc21741913": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "c2f4aa88-a439-52b4-acab-aec101374d25",
+          "cycle_time": 76442.255,
+          "id": 202248032,
+          "repository_id": "model-training",
+          "title": "review-step"
+        },
+        {
+          "author_id": "2a03e81e-b520-533a-bc0a-3a20ba263993",
+          "cycle_time": 20970.9,
+          "id": 202248017,
+          "repository_id": "feature-store",
+          "title": "ci-hardening-review-review-nextstepsmd"
+        },
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 8128.065,
+          "id": 202248029,
+          "repository_id": "inference-service",
+          "title": "metal-dependencies-upgrade-screen"
+        },
+        {
+          "author_id": "c9877d6d-c3c4-5aef-bb4d-2a8511e2fb77",
+          "cycle_time": 7724.089,
+          "id": 202248052,
+          "repository_id": "inference-service",
+          "title": "semantic-release-add"
+        },
+        {
+          "author_id": "702b8ab3-7cb6-5f42-a622-872ccb101552",
+          "cycle_time": 6362.293,
+          "id": 202248010,
+          "repository_id": "gateway-core",
+          "title": "repo-upgrade-nextstepsmd"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6
