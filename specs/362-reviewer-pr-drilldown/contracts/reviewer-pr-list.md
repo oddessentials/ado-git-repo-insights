@@ -138,7 +138,9 @@ No alternative factory function may be introduced for reviewer.
 When the consumer constructs a `pr-list` section, the `capValue` (= 500, the per-(reviewer, week) cap) and `actualFilteredCount` fields drive the truncation cue rendering inside the shared `PrListSection` renderer in `detail-panel.ts`. The cue appears whenever:
 
 - ANY participating week's `by_reviewer[reviewerId]._prs_truncated` is `true`, OR
-- the rendered count is strictly less than the sum of `reviewed_prs` across participating weeks (defensive — would only fire if the producer drops to truncation after emission, which is a contract violation).
+- the **pre-overlay collected count** (the sum of per-(reviewer, week) `prs.length` across participating weeks, BEFORE the consumer applies the author/repo overlay) is strictly less than the sum of `reviewed_prs` across participating weeks (defensive — would only fire if the producer drops to truncation after emission, which is a contract violation).
+
+**Rationale for "pre-overlay collected count" rather than the post-overlay rendered count**: an author/repo overlay applied at the consumer (per § 4 (3)) reduces `rows.length` (the post-overlay rendered count) below the pre-overlay collected count. If the defensive clause compared the post-overlay rendered count against the sum of `reviewed_prs`, any legitimate overlay reduction would falsely fire the truncation cue with text "Showing X of Y matching PRs (top 500 by cycle time)" — implying the per-(reviewer, week) cap clipped the slice, when in fact the gap is from the user's overlay. Using the pre-overlay collected count keeps the defensive clause overlay-blind: it fires ONLY under legitimate producer contract violations (the parenthetical's intent — "producer drops to truncation after emission"), regardless of whether the user has applied an author/repo overlay on top.
 
 The reviewer consumer MUST NOT emit its own truncation cue. The shared renderer is the single owner. (FR-010 parity.)
 
