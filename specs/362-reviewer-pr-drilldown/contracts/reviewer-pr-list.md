@@ -117,7 +117,7 @@ return makePrListSection({
   contentState: "pr-list",
   rows,
   renderedCount: rows.length,
-  actualFilteredCount: <sum-of-per-(reviewer,week)-reviewed_prs-after-overlay>,
+  actualFilteredCount: <totalReviewedPrs when the truncation cue should fire (anyTruncated || preOverlayCollectedCount < totalReviewedPrs); rows.length otherwise, so overlay-only reductions stay silent — see § 6 for details>,
   capValue: <max-of-participating-weeks-_prs_cap>,
   commentsMetricsAvailable,
 });
