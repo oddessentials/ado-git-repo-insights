@@ -183,10 +183,19 @@ function buildWeeklyTable(
  * ordering is consumer-owned).
  *
  * Truncation cue (contract § 6): the shared renderer fires the cue when
- * `renderedCount < actualFilteredCount`.  `actualFilteredCount` is set to
- * `sum(reviewed_prs)` across participating weeks — when any week is
- * truncated to the cap, `reviewed_prs > prs.length` for that week so the
- * cue fires automatically.
+ * `renderedCount < actualFilteredCount`.  Per contract § 6, the cue MUST
+ * surface under EITHER:
+ *   (a) any participating week's `_prs_truncated` is `true` (the
+ *       producer-driven authoritative truncation signal), OR
+ *   (b) the pre-overlay collected count is strictly less than the sum of
+ *       `reviewed_prs` -- the defensive safety net that catches a
+ *       producer contract violation (clipped slice without setting
+ *       `_prs_truncated:true`).
+ * The author/repo overlay applied at the consumer reduces `rows.length`
+ * but does NOT reduce the `collected` accumulator, so an overlay alone
+ * (no truncation, no producer violation) NEVER fires the cue.  When
+ * neither clause is satisfied, `actualFilteredCount` is set equal to
+ * `rows.length` so the renderer's cue gate stays silent.
  *
  * Called after the comparison short-circuit in `activate()`, so the
  * `"comparison"` classification is unreachable here (narrowed-return
