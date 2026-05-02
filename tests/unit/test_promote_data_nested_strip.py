@@ -164,3 +164,41 @@ def test_sentinel_present_promotion_strips_nested_reviewer_pr_detail(
     assert not (destination / "aggregates" / SENTINEL_NAME).exists(), (
         "sentinel survived promotion; #309 binary gate broken"
     )
+
+    # Source artifact must be byte-preserved across promote_data —
+    # canonical private tenant tree retains both depth-0 AND depth-2
+    # PR detail.  Codex P1 fix: the depth-2 strip runs on the DESTINATION
+    # only, never the source.
+    source_rollup_path = source / "aggregates" / "weekly_rollups" / "2025-W10.json"
+    source_payload = json.loads(source_rollup_path.read_text(encoding="utf-8"))
+
+    # Depth-0 trio still present in source (unaffected — only sentinel
+    # was removed pre-copytree).
+    assert "prs" in source_payload, (
+        "source depth-0 prs disappeared; promote_data is mutating the "
+        "canonical artifact tree (it must not)"
+    )
+    assert "_prs_truncated" in source_payload
+    assert "_prs_cap" in source_payload
+
+    # Depth-2 trio still present in source (the regression Codex caught:
+    # earlier revision in-place-stripped the source aggregates tree
+    # before copytree, degrading the tenant artifact).
+    source_by_reviewer = source_payload["by_reviewer"]
+    assert "reviewer-1" in source_by_reviewer
+    source_reviewer_entry = source_by_reviewer["reviewer-1"]
+    assert "prs" in source_reviewer_entry, (
+        "source by_reviewer[reviewer-1].prs was stripped during promotion; "
+        "the canonical tenant artifact must retain Feature-362 nested "
+        "PR detail"
+    )
+    assert "_prs_truncated" in source_reviewer_entry
+    assert "_prs_cap" in source_reviewer_entry
+
+    # Sentinel was removed from source pre-copytree (this part of the
+    # #309 binary gate is unchanged) — confirm so the test surface
+    # documents the full lifecycle.
+    assert not (source / "aggregates" / SENTINEL_NAME).exists(), (
+        "sentinel still present on source after promotion; #309 binary "
+        "gate's sentinel-unlink-first contract broken"
+    )
