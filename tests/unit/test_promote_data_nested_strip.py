@@ -202,3 +202,66 @@ def test_sentinel_present_promotion_strips_nested_reviewer_pr_detail(
         "sentinel still present on source after promotion; #309 binary "
         "gate's sentinel-unlink-first contract broken"
     )
+
+
+def test_sentinel_present_promotion_skips_stale_destination_rollups(
+    build_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strip must run AFTER stale-file cleanup, never on stale rollups.
+
+    Codex stop-time review caught: ``copytree(dirs_exist_ok=True)`` does
+    not remove destination files that aren't in source.  If the depth-2
+    strip walks the destination's ``weekly_rollups/`` glob before the
+    existing stale-files cleanup, it can hit a rollup left over from a
+    prior build whose schema or shape differs from what
+    ``strip_nested_reviewer_prs_from_rollups`` accepts — the strip's
+    ``_load_rollup`` would then raise and the entire ``promote_data``
+    call would fail on benign drift the cleanup would have removed
+    anyway.
+
+    Setup: destination already contains a stale rollup file
+    (``1999-W99.json``) that is a JSON array — ``_load_rollup`` rejects
+    non-object payloads with ``PrArrayResidueError``.  Source has the
+    standard sentinel-present synthetic shape with one valid rollup
+    (``2025-W10.json``).
+
+    With the strip running after the stale-file cleanup pass, the stale
+    rollup is removed before the strip walker sees it; ``promote_data``
+    succeeds, the destination ends with only the source's rollup
+    (depth-2 stripped, depth-0 preserved), and the stale rollup is
+    gone.
+    """
+    source = _build_sentinel_present_source(tmp_path / "source")
+    destination = tmp_path / "docs-data"
+    stale_rollups_dir = destination / "aggregates" / "weekly_rollups"
+    stale_rollups_dir.mkdir(parents=True)
+    stale_path = stale_rollups_dir / "1999-W99.json"
+    # JSON array, not object — strip's _load_rollup would raise on this.
+    stale_path.write_text("[1, 2, 3]\n", encoding="utf-8")
+
+    monkeypatch.setattr(build_module, "DOCS_DATA_DIR", destination)
+
+    build_module.promote_data(source, destination)
+
+    # Stale destination rollup removed by the cleanup pass.
+    assert not stale_path.exists(), (
+        "stale destination rollup not cleaned up; ordering or scope "
+        "of stale-file cleanup regressed"
+    )
+
+    # Source rollup promoted with the standard sentinel-present shape:
+    # depth-0 preserved, depth-2 stripped.
+    promoted = destination / "aggregates" / "weekly_rollups" / "2025-W10.json"
+    assert promoted.exists()
+    payload = json.loads(promoted.read_text(encoding="utf-8"))
+    assert "prs" in payload, "depth-0 prs lost on sentinel-present promotion"
+    assert "_prs_truncated" in payload
+    assert "_prs_cap" in payload
+    by_reviewer = payload["by_reviewer"]
+    assert "reviewer-1" in by_reviewer
+    reviewer_entry = by_reviewer["reviewer-1"]
+    assert "prs" not in reviewer_entry, (
+        "depth-2 prs survived sentinel-present promotion; FR-028 broken"
+    )
+    assert "_prs_truncated" not in reviewer_entry
+    assert "_prs_cap" not in reviewer_entry

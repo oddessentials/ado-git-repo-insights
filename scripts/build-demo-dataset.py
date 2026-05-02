@@ -1337,10 +1337,20 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
     On ANY pre-copytree failure (shape violation, unlink OSError, sentinel-
     absent strip residue, mkdir error, copytree error) the destination
     directory is byte-identical to its pre-call state.  Post-copytree
-    mutations (the sentinel-present nested strip and the existing stale-file
-    cleanup) operate on the destination only; a mid-mutation OSError there
-    leaves the destination partially mutated, mirroring the existing post-
-    copytree atomicity envelope.  See
+    mutations on the destination run in the following ORDER (the order is
+    a tested contract — see
+    ``test_sentinel_present_promotion_skips_stale_destination_rollups``):
+
+      1. stale-file cleanup (``destination_files - source_files``);
+      2. stale-directory cleanup;
+      3. sentinel-present depth-2 strip on
+         ``destination_dir / 'aggregates'``.
+
+    The strip is LAST so the walker never sees rollups left from a previous
+    build whose schema or shape would fail closed inside ``_load_rollup``.
+    A mid-mutation OSError in any of these post-copytree steps leaves the
+    destination partially mutated, mirroring the existing post-copytree
+    atomicity envelope.  See
     ``tests/unit/test_promote_data_unlink_ordering.py`` and
     ``tests/demo/test_demo_parity_pipeline.py::TestPromoteDataStripGateAtomicity``.
     """
@@ -1369,13 +1379,6 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
     destination_dir.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
 
-    if sentinel_was_present_for_promotion:
-        # Strip nested reviewer PR detail on the DESTINATION aggregates only
-        # (FR-028 + Codex P1 against an earlier in-place-on-source revision
-        # of this branch).  Runs after ``copytree`` so ``source_dir`` is
-        # never mutated.
-        strip_nested_reviewer_prs_from_rollups(destination_dir / "aggregates")
-
     source_files = set(list_relative_files(source_dir))
     destination_files = set(list_relative_files(destination_dir))
 
@@ -1394,6 +1397,17 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
         target = destination_dir / rel_path
         if target.exists():
             _remove_promoted_dir(target)
+
+    if sentinel_was_present_for_promotion:
+        # Strip nested reviewer PR detail on the DESTINATION aggregates only
+        # (FR-028 + Codex P1 against an earlier in-place-on-source revision
+        # of this branch).  Runs AFTER the stale-file cleanup above so the
+        # strip walker never sees rollups from a previous build that aren't
+        # in the current source — those would be malformed against the
+        # current schema and the strip's ``_load_rollup`` would fail closed.
+        # Source is never touched (the canonical private tenant artifact is
+        # byte-preserved across this call).
+        strip_nested_reviewer_prs_from_rollups(destination_dir / "aggregates")
 
     source_files_sorted = sorted(source_files)
     destination_files_sorted = list_relative_files(destination_dir)
