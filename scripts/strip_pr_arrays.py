@@ -76,10 +76,21 @@ def _write_rollup(path: Path, payload: dict[str, object]) -> None:
     Matches the aggregator's byte-shape convention (``json.dump(..., indent=2,
     ensure_ascii=False)``) so demo artifacts remain byte-stable across strip
     and non-strip paths.
+
+    Uses ``Path.write_bytes`` (not text-mode ``open(..., "w")``) so the post-
+    strip file is byte-identical across operating systems.  Text-mode writes
+    on Windows apply ``\\n`` → ``\\r\\n`` translation, which silently re-
+    dirties every rollup ``promote_data`` touches and breaks the "no-op
+    canonical build is quiet" contract.  The canonical generator writer in
+    ``scripts/demo_generation_common.py::write_json_file`` uses the same
+    bytes-mode pattern; this helper mirrors it so a freshly-built source
+    that flows through ``copytree`` into ``docs/data/`` lands LF-only on
+    every OS.
     """
-    with path.open("w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2, ensure_ascii=False, sort_keys=False)
-        fh.write("\n")
+    encoded = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False).encode(
+        "utf-8"
+    )
+    path.write_bytes(encoded + b"\n")
 
 
 def _strip_one(path: Path, fields_removed: dict[str, int]) -> bool:
