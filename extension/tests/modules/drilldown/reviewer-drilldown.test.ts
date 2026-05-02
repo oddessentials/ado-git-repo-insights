@@ -1371,6 +1371,61 @@ describe("reviewer-drilldown", () => {
     expect(prListRowIds()).toEqual([961, 962]);
   });
 
+  // T025d — repo filter contains a name not present in repositoriesDimension.
+  //
+  // Stale-filter case: a deep-link / URL-restored / chip carrying a repo
+  // name that no longer resolves in the dimension (e.g. the repo was
+  // renamed or removed since the filter was set).  The helper drops the
+  // unresolved name from the allowlist (no widening to the GUID
+  // namespace, no defensive fallback), every PR row fails the overlay,
+  // and the PR list section renders supported-empty.
+  //
+  // Locks the ``if (matches)`` false-branch in `buildRepoIdAllowlist`
+  // (line 137 of reviewer-drilldown.ts) — without this test the
+  // unresolved-name path is uncovered and the partial-branch ratchet
+  // grows by 1 against the committed baseline.
+  it("repo overlay with selected name not in repositoriesDimension renders supported-empty", () => {
+    const prs = [
+      makePr(990, 900, { repository_id: "guid-web" }),
+      makePr(991, 800, { repository_id: "guid-api" }),
+    ];
+    const rollups = [
+      rollupWithPrs(defaultPrListWeek("2025-W10"), prs, {
+        reviewerId: REVIEWER_ID,
+      }),
+    ];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(
+      container,
+      rollups,
+      fullOptions({
+        filters: {
+          repos: ["NonexistentRepo"],
+          teams: [],
+          reviewers: [REVIEWER_ID],
+          authors: [],
+        },
+        repositoriesDimension: [
+          {
+            repository_id: "guid-web",
+            repository_name: "Web App",
+            project_name: "Frontend",
+            organization_name: "acme",
+          },
+          {
+            repository_id: "guid-api",
+            repository_name: "API",
+            project_name: "Backend",
+            organization_name: "acme",
+          },
+        ],
+      }),
+    );
+    click(rowFor(container, "2025-W10"));
+
+    expect(prListContentState()).toBe("supported-empty");
+  });
+
   // T026 — comparison mode short-circuits the panel; PR list NOT rendered.
   // Regression-locks that the new PR list section does not bypass the
   // existing comparison short-circuit.
