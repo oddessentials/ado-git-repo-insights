@@ -266,6 +266,81 @@ describe("reviewer PR list rendered-count parity (FR-008 / FR-010)", () => {
     ).toBeNull();
   });
 
+  it("defensive: truncation cue surfaces when producer emits a clipped slice without setting _prs_truncated (contract § 6 safety net)", () => {
+    // Contract § 6 second clause: "the rendered count is strictly less
+    // than the sum of ``reviewed_prs`` across participating weeks
+    // (defensive -- would only fire if the producer drops to truncation
+    // after emission, which is a contract violation)".  This locks the
+    // safety net: even if the producer emits ``_prs_truncated: false``
+    // while ``prs.length < reviewed_prs`` (e.g., a future producer
+    // change drops PRs with non-finite cycle_time without flagging the
+    // slice), the consumer MUST surface the cue -- otherwise the user
+    // would see ``rows.length`` rendered rows believing they are the
+    // complete set, when in fact the producer silently dropped some.
+    const reviewerEntry: ReviewerBreakdownEntry = {
+      reviewed_prs: 5, // producer reports 5 reviewed PRs
+      reviews_count: 5,
+      approval_rate: 1.0,
+      repositories_count: 1,
+      // ...but only emits 3.  No author/repo overlay; no _prs_truncated
+      // flag.  This is a contract violation that the defensive clause
+      // catches.
+      prs: [
+        {
+          id: 301,
+          title: "PR 301",
+          author_id: "author-default",
+          repository_id: "repo-1",
+          cycle_time: 800,
+        },
+        {
+          id: 302,
+          title: "PR 302",
+          author_id: "author-default",
+          repository_id: "repo-1",
+          cycle_time: 600,
+        },
+        {
+          id: 303,
+          title: "PR 303",
+          author_id: "author-default",
+          repository_id: "repo-1",
+          cycle_time: 400,
+        },
+      ],
+      _prs_truncated: false,
+      _prs_cap: 500,
+    };
+    const w10Violation: Rollup = {
+      week: "2025-W10",
+      pr_count: 5,
+      cycle_time_p50: null,
+      cycle_time_p90: null,
+      authors_count: 1,
+      reviewers_count: 1,
+      by_repository: null,
+      by_team: null,
+      by_reviewer: { [REVIEWER_ID]: reviewerEntry },
+    };
+    const rollups = [w10Violation];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, fullOptions());
+
+    click(rowFor(container, "2025-W10"));
+
+    // 3 visible PRs rendered; cue fires because collected.length (3)
+    // < totalReviewedPrs (5).  Cue text mentions the clipped count
+    // (3) and the reviewer-reported total (5).
+    expect(renderedRowCount()).toBe(3);
+    const indicator = document.querySelector(
+      "#pr-detail .truncation-indicator",
+    );
+    expect(indicator).not.toBeNull();
+    const indicatorText = indicator!.textContent ?? "";
+    expect(indicatorText).toContain("3");
+    expect(indicatorText).toContain("5");
+  });
+
   it("truncated: rendered count equals sum(min(K_i, _prs_cap)) and truncation cue surfaces", () => {
     // W11 is truncated: 500 visible records, but reviewed_prs=700 (the
     // producer dropped 200).  W10 / W12 untruncated.  Rendered row count

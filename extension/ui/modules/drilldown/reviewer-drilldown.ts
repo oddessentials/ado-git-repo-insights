@@ -306,17 +306,29 @@ function buildPrListSection(
     };
   });
   // Truncation cue gating (contract § 6): the shared renderer fires the
-  // cue when ``renderedCount < actualFilteredCount``.  Use this signal
-  // ONLY when truncation actually occurred — anyTruncated is the
-  // authoritative producer-driven signal.  If we passed the pre-overlay
-  // ``totalReviewedPrs`` regardless, an author/repo overlay reducing
-  // visible rows would falsely fire the cue ("Showing X of Y matching
-  // PRs (top 500 by cycle time)") even though the gap is from the user's
-  // overlay, not the per-(reviewer, week) cap.  Suppressing the cue for
-  // overlay-only reductions matches the renderer's "top Z by cycle time"
-  // text, which only makes sense when the cap actually clipped the
-  // slice.
-  const actualFilteredCount = anyTruncated ? totalReviewedPrs : rows.length;
+  // cue when ``renderedCount < actualFilteredCount``.  Per contract § 6,
+  // the cue MUST appear whenever EITHER:
+  //   (a) any participating week's ``_prs_truncated`` is true (the
+  //       producer-driven authoritative truncation signal), OR
+  //   (b) (defensive clause) the pre-overlay collected count is strictly
+  //       less than the sum of ``reviewed_prs`` -- "would only fire if
+  //       the producer drops to truncation after emission, which is a
+  //       contract violation".  This is the safety net that catches a
+  //       producer bug where PRs are dropped from the slice without
+  //       setting ``_prs_truncated`` (e.g., if a future change drops
+  //       PRs with non-finite cycle_time without flagging the slice).
+  // The author/repo overlay applied at the consumer (contract § 4 (3))
+  // reduces ``rows.length`` BELOW ``collected.length``, but does NOT
+  // reduce ``collected.length`` itself -- so the defensive clause is
+  // overlay-blind by construction (compares pre-overlay collected count
+  // against pre-overlay reviewed_prs sum).  This preserves the
+  // intended behavior: an overlay alone does NOT fire the cue, but a
+  // producer contract violation (with or without overlay) does.
+  const truncationDetected =
+    anyTruncated || collected.length < totalReviewedPrs;
+  const actualFilteredCount = truncationDetected
+    ? totalReviewedPrs
+    : rows.length;
   return makePrListSection({
     contentState: "pr-list",
     rows,

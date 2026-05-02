@@ -10907,7 +10907,8 @@ var PRInsightsDashboard = (() => {
         activeThreadCount: pr.active_thread_count
       };
     });
-    const actualFilteredCount = anyTruncated ? totalReviewedPrs : rows.length;
+    const truncationDetected = anyTruncated || collected.length < totalReviewedPrs;
+    const actualFilteredCount = truncationDetected ? totalReviewedPrs : rows.length;
     return makePrListSection({
       contentState: "pr-list",
       rows,
