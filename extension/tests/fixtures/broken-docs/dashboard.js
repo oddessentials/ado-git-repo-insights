@@ -10786,13 +10786,21 @@ var PRInsightsDashboard = (() => {
   function buildRepoIdAllowlist(selectedNames, dim) {
     if (selectedNames.length === 0) return null;
     if (!dim || dim.length === 0) return /* @__PURE__ */ new Set();
-    const nameToId = new Map(
-      dim.map((r2) => [r2.repository_name, r2.repository_id])
-    );
+    const namesToIds = /* @__PURE__ */ new Map();
+    for (const r2 of dim) {
+      const list = namesToIds.get(r2.repository_name);
+      if (list) {
+        list.push(r2.repository_id);
+      } else {
+        namesToIds.set(r2.repository_name, [r2.repository_id]);
+      }
+    }
     const ids = /* @__PURE__ */ new Set();
     for (const name of selectedNames) {
-      const id = nameToId.get(name);
-      if (id !== void 0) ids.add(id);
+      const matches = namesToIds.get(name);
+      if (matches) {
+        for (const id of matches) ids.add(id);
+      }
     }
     return ids;
   }

@@ -108,6 +108,13 @@ function reviewerEntry(
  *     every selected name that resolves in the dimension; names not
  *     present in the dimension are simply absent from the allowlist
  *     (most-restrictive — no defensive widening to the GUID namespace)
+ *
+ * Repository names are NOT unique within `repositoriesDimension` —
+ * Azure DevOps allows two projects in the same organization to host
+ * repos with identical names, so a single chip value can map to
+ * multiple ids.  The reverse index is therefore one-to-many; every
+ * matching id is added to the allowlist so a chip-level "API" filter
+ * surfaces PRs from every "API" repo across projects.
  */
 function buildRepoIdAllowlist(
   selectedNames: readonly string[],
@@ -115,13 +122,21 @@ function buildRepoIdAllowlist(
 ): Set<string> | null {
   if (selectedNames.length === 0) return null;
   if (!dim || dim.length === 0) return new Set();
-  const nameToId = new Map<string, string>(
-    dim.map((r) => [r.repository_name, r.repository_id]),
-  );
+  const namesToIds = new Map<string, string[]>();
+  for (const r of dim) {
+    const list = namesToIds.get(r.repository_name);
+    if (list) {
+      list.push(r.repository_id);
+    } else {
+      namesToIds.set(r.repository_name, [r.repository_id]);
+    }
+  }
   const ids = new Set<string>();
   for (const name of selectedNames) {
-    const id = nameToId.get(name);
-    if (id !== undefined) ids.add(id);
+    const matches = namesToIds.get(name);
+    if (matches) {
+      for (const id of matches) ids.add(id);
+    }
   }
   return ids;
 }

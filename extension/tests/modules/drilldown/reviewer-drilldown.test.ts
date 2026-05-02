@@ -1312,6 +1312,65 @@ describe("reviewer-drilldown", () => {
     expect(prListContentState()).toBe("supported-empty");
   });
 
+  // T025c — duplicate repository names map to every matching id.
+  //
+  // Azure DevOps allows two projects within the same organisation to host
+  // repos with identical names.  A name → id reverse index keyed by name
+  // alone (Map<string, string>) silently drops every-but-one matching id,
+  // so a chip-level "API" filter would surface PRs from one project but
+  // not the other.  The allowlist must accumulate every matching id so
+  // the chip filter is interpreted consistently regardless of project.
+  it("repo overlay collects every id for a name that occurs in multiple projects", () => {
+    const prs = [
+      makePr(961, 900, { repository_id: "guid-api-frontend" }),
+      makePr(962, 800, { repository_id: "guid-api-backend" }),
+      makePr(963, 700, { repository_id: "guid-other" }),
+    ];
+    const rollups = [
+      rollupWithPrs(defaultPrListWeek("2025-W10"), prs, {
+        reviewerId: REVIEWER_ID,
+      }),
+    ];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(
+      container,
+      rollups,
+      fullOptions({
+        filters: {
+          repos: ["API"],
+          teams: [],
+          reviewers: [REVIEWER_ID],
+          authors: [],
+        },
+        repositoriesDimension: [
+          {
+            repository_id: "guid-api-frontend",
+            repository_name: "API",
+            project_name: "Frontend",
+            organization_name: "acme",
+          },
+          {
+            repository_id: "guid-api-backend",
+            repository_name: "API",
+            project_name: "Backend",
+            organization_name: "acme",
+          },
+          {
+            repository_id: "guid-other",
+            repository_name: "Other",
+            project_name: "Frontend",
+            organization_name: "acme",
+          },
+        ],
+      }),
+    );
+    click(rowFor(container, "2025-W10"));
+
+    expect(prListContentState()).toBe("pr-list");
+    // Both "API" repos surface; "Other" is filtered out.
+    expect(prListRowIds()).toEqual([961, 962]);
+  });
+
   // T026 — comparison mode short-circuits the panel; PR list NOT rendered.
   // Regression-locks that the new PR list section does not bypass the
   // existing comparison short-circuit.
