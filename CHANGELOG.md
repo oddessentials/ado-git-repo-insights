@@ -1,3 +1,10 @@
+# [101.25.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.24.0...v101.25.0) (2026-05-02)
+
+
+### Features
+
+* cycle-time chart PR-level drill-down ([#365](https://github.com/oddessentials/ado-git-repo-insights/issues/365)) ([3f1c2fd](https://github.com/oddessentials/ado-git-repo-insights/commit/3f1c2fda415dcb7183b1b07ac9a3068c88930bc8)), closes [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315)
+
 # [101.24.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.23.1...v101.24.0) (2026-05-01)
 
 
