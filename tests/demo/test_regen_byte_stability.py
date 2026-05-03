@@ -97,6 +97,28 @@ def _strip_pr_keys(payload: dict[str, object]) -> dict[str, object]:
     stripped: dict[str, object] = dict(payload)
     for key in ("prs", "_prs_truncated", "_prs_cap"):
         stripped.pop(key, None)
+    # Feature 362 (FR-028) — mirror the public strip helper's depth-2
+    # walk at ``scripts/strip_pr_arrays.py::_strip_one``.  ``by_reviewer[*]``
+    # carries the same per-(reviewer, week) PR-level trio as the rollup
+    # root since #362; the public strip removes it on promote_data, so the
+    # "non-PR content" byte comparison MUST exclude it on both sides for
+    # the symmetric strip-and-compare to be apples-to-apples.  Without
+    # this depth-2 walk, the regenerated private-tenant artifact's
+    # ``by_reviewer[*]`` PR detail (always present after T041) appears as
+    # drift against the committed public-surface rollups (where the
+    # public strip already removed it).
+    by_reviewer = stripped.get("by_reviewer")
+    if isinstance(by_reviewer, dict):
+        rebuilt: dict[str, object] = {}
+        for reviewer_id, entry in by_reviewer.items():
+            if isinstance(entry, dict):
+                cloned = dict(entry)
+                for key in ("prs", "_prs_truncated", "_prs_cap"):
+                    cloned.pop(key, None)
+                rebuilt[reviewer_id] = cloned
+            else:
+                rebuilt[reviewer_id] = entry
+        stripped["by_reviewer"] = rebuilt
     return stripped
 
 

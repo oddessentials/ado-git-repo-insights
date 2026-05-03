@@ -1030,190 +1030,718 @@
   },
   "by_reviewer": {
     "11126187-6289-5bd8-a60b-c358e2ce21e4": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "12da521a-b144-5479-b2cc-f32c01d31acd": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "1aadf0a6-8404-5f19-88f6-f9a4b5bb87c1": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "30598a16-77c5-5b20-b803-819d14be3441": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "321f42a1-e6c8-5a9f-a514-989fefce50a2": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        },
+        {
+          "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+          "cycle_time": 16732.344,
+          "id": 202147032,
+          "repository_id": "auth-service",
+          "title": "verified-fixci"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 7221.368,
+          "id": 202147013,
+          "repository_id": "user-service",
+          "title": "update-setup-map"
+        },
+        {
+          "author_id": "1eeff2f2-5d8c-566b-ae72-61ccfba07ea7",
+          "cycle_time": 6275.42,
+          "id": 202147053,
+          "repository_id": "model-training",
+          "title": "add-hardening-standards-compatibility-semantic-release-metal"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8
     },
     "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "3f9c13e9-a095-528f-8162-06d3ecbb33d9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "40d81568-152f-54d0-98c8-ef321164926e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "4783efe7-14c3-55f0-be33-cb55d332c9c2": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "5690cecf-177b-5c80-b64b-3fbce2c5f7a5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "64546a0f-3835-5db3-9a4a-64dbf4e824d9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "655c7e03-2cc4-5976-84fb-c22130b784b3": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "84434e77-3995-5517-aa30-e9724a4307ed": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        },
+        {
+          "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+          "cycle_time": 16732.344,
+          "id": 202147032,
+          "repository_id": "auth-service",
+          "title": "verified-fixci"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 7221.368,
+          "id": 202147013,
+          "repository_id": "user-service",
+          "title": "update-setup-map"
+        },
+        {
+          "author_id": "1eeff2f2-5d8c-566b-ae72-61ccfba07ea7",
+          "cycle_time": 6275.42,
+          "id": 202147053,
+          "repository_id": "model-training",
+          "title": "add-hardening-standards-compatibility-semantic-release-metal"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "85bdd61e-de82-500a-b3bd-2a71d1c06a8a": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "a2bcc6dc-41a3-50d2-86cf-8dcb98701597": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "c0623aee-9084-5059-b49b-95a39425acb9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "c513be1c-8837-5c31-b5c5-fb2853442175": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "c52a8434-8e4b-51ae-89db-010dc937ade2": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        },
+        {
+          "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+          "cycle_time": 16732.344,
+          "id": 202147032,
+          "repository_id": "auth-service",
+          "title": "verified-fixci"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 7221.368,
+          "id": 202147013,
+          "repository_id": "user-service",
+          "title": "update-setup-map"
+        },
+        {
+          "author_id": "1eeff2f2-5d8c-566b-ae72-61ccfba07ea7",
+          "cycle_time": 6275.42,
+          "id": 202147053,
+          "repository_id": "model-training",
+          "title": "add-hardening-standards-compatibility-semantic-release-metal"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "cb1f2a5d-f3f5-5bcf-bcd3-fe013b150194": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 1
     },
     "cc294c6d-7d4c-510f-a891-95b1820f4239": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "d093c274-679c-53ff-b1ca-73932f1f4434": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
     },
     "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "e66599fd-1084-5ced-8b69-3aae3897238a": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        },
+        {
+          "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+          "cycle_time": 16732.344,
+          "id": 202147032,
+          "repository_id": "auth-service",
+          "title": "verified-fixci"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 7221.368,
+          "id": 202147013,
+          "repository_id": "user-service",
+          "title": "update-setup-map"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 4,
       "reviews_count": 4
     },
     "f1897bc8-d2c0-56fc-90dd-0a0ae8e6d59c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        },
+        {
+          "author_id": "aff0d50d-7ee8-5387-ad34-bedc8312970d",
+          "cycle_time": 16732.344,
+          "id": 202147032,
+          "repository_id": "auth-service",
+          "title": "verified-fixci"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 7221.368,
+          "id": 202147013,
+          "repository_id": "user-service",
+          "title": "update-setup-map"
+        },
+        {
+          "author_id": "1eeff2f2-5d8c-566b-ae72-61ccfba07ea7",
+          "cycle_time": 6275.42,
+          "id": 202147053,
+          "repository_id": "model-training",
+          "title": "add-hardening-standards-compatibility-semantic-release-metal"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6
     },
     "f5205e29-ac6d-5873-be14-1bee920f94b0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        },
+        {
+          "author_id": "06575f71-2e05-5966-8d9f-db7328edcd43",
+          "cycle_time": 57400.971,
+          "id": 202147018,
+          "repository_id": "user-service",
+          "title": "remaining-ci-stability-ci-husky"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "f6a6d51a-6648-578d-9582-e5420d036157": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "b5084d1b-1d46-5f04-9abc-6f33ca3583b2",
+          "cycle_time": 296663.137,
+          "id": 202147038,
+          "repository_id": "ios-app",
+          "title": "review-husky-reviews-map-reviews"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 1

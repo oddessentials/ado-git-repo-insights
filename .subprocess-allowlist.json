@@ -3,19 +3,19 @@
   "entries": [
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 166,
+      "line": 167,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned git diff for assert_inputs_clean; argv list is literal strings + constant-rooted Paths"
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 221,
+      "line": 222,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned generator invocation; argv is sys.executable + constant-rooted Path + typed Sequence[str] extra_args passed only by this file's own variant-off builder"
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 266,
+      "line": 267,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned script path constructed from constants"
     },

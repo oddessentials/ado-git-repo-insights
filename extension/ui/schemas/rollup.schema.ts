@@ -54,6 +54,15 @@ export interface BreakdownEntry {
 
 /**
  * Reviewer-specific breakdown entry.
+ *
+ * Feature 362 (FR-016): the optional `prs` / `_prs_truncated` / `_prs_cap`
+ * trio carries per-(reviewer, week) PR-level detail on private-tenant
+ * artifacts only.  Atomicity invariant — present together or absent
+ * together; the validator warns on partial presence and the consumer
+ * treats partial entries as if absent (renders `supported-empty`).  Public
+ * and demo artifacts have all three fields stripped at depth-2 by
+ * `scripts/strip_pr_arrays.py` (FR-028).  Authoritative declaration:
+ * specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md §§ 1, 5.
  */
 export interface ReviewerBreakdownEntry {
   reviewed_prs: number;
@@ -61,6 +70,9 @@ export interface ReviewerBreakdownEntry {
   approval_rate?: number | null;
   authors_count?: number;
   repositories_count?: number;
+  prs?: readonly PrRecord[];
+  _prs_truncated?: boolean;
+  _prs_cap?: number;
 }
 
 /**
@@ -326,6 +338,13 @@ const KNOWN_REVIEWER_BREAKDOWN_FIELDS = new Set([
   "approval_rate",
   "authors_count",
   "repositories_count",
+  // Feature 362 (FR-016): per-(reviewer, week) PR-detail trio.  Atomic
+  // when present per atomicity invariant; validator warns on partial
+  // presence (see validateReviewerBreakdownEntry below).  Stripped from
+  // public/demo artifacts by scripts/strip_pr_arrays.py (FR-028).
+  "prs",
+  "_prs_truncated",
+  "_prs_cap",
 ]);
 
 // ============================================================================
@@ -476,6 +495,63 @@ function validateReviewerBreakdownEntry(
         if (err) errors.push(err);
       }
     }
+  }
+
+  // Feature 362 (FR-016): per-(reviewer, week) PR-detail trio.  Atomic
+  // when present (all three or none); permissive validation — every
+  // shape violation surfaces as a warning, never an error.  The
+  // consumer treats partial / malformed entries as if absent
+  // (renders `supported-empty` per FR-011).  Authoritative declaration:
+  // specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md §§ 1, 5.
+  const hasPrs = Object.prototype.hasOwnProperty.call(data, "prs");
+  const hasPrsTruncated = Object.prototype.hasOwnProperty.call(
+    data,
+    "_prs_truncated",
+  );
+  const hasPrsCap = Object.prototype.hasOwnProperty.call(data, "_prs_cap");
+  if (hasPrs) {
+    const prsValue = Object.getOwnPropertyDescriptor(data, "prs")?.value;
+    // Reuse the per-element checks from validatePrRecordArray — same
+    // shape as the rollup-root `prs` array (PrRecord interface is
+    // unchanged per FR-017 / CL-01 guardrail #2).
+    const prsResult = validatePrRecordArray(prsValue, buildPath(path, "prs"));
+    warnings.push(...prsResult.warnings);
+  }
+  if (hasPrsTruncated) {
+    const truncatedValue = Object.getOwnPropertyDescriptor(
+      data,
+      "_prs_truncated",
+    )?.value;
+    if (!isBoolean(truncatedValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(path, "_prs_truncated"),
+          `expected boolean, got ${getTypeName(truncatedValue)}; entry will be treated as absent`,
+        ),
+      );
+    }
+  }
+  if (hasPrsCap) {
+    const capValue = Object.getOwnPropertyDescriptor(data, "_prs_cap")?.value;
+    if (!isNumber(capValue)) {
+      warnings.push(
+        createWarning(
+          buildPath(path, "_prs_cap"),
+          `expected number, got ${getTypeName(capValue)}; entry will be treated as absent`,
+        ),
+      );
+    }
+  }
+  // Atomicity invariant: present together or absent together.
+  const presentCount =
+    (hasPrs ? 1 : 0) + (hasPrsTruncated ? 1 : 0) + (hasPrsCap ? 1 : 0);
+  if (presentCount !== 0 && presentCount !== 3) {
+    warnings.push(
+      createWarning(
+        path,
+        `per-(reviewer, week) PR-detail atomicity violated (FR-016): expected all three of prs / _prs_truncated / _prs_cap to be present together, or all absent; got ${presentCount} of 3 present`,
+      ),
+    );
   }
 
   const unknown = findUnknownFields(

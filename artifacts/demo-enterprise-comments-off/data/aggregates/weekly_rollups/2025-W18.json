@@ -1782,414 +1782,1574 @@
   },
   "by_reviewer": {
     "03400ec3-30a2-5538-930e-749eb3e819bf": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        },
+        {
+          "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+          "cycle_time": 24345.156,
+          "id": 202518127,
+          "repository_id": "model-training",
+          "title": "reviews-code"
+        },
+        {
+          "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+          "cycle_time": 21417.719,
+          "id": 202518083,
+          "repository_id": "ios-app",
+          "title": "upgrade-screen-update"
+        },
+        {
+          "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+          "cycle_time": 19908.796,
+          "id": 202518063,
+          "repository_id": "gateway-core",
+          "title": "nodejs-ai-gaps-release"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "03943000-b3aa-55b3-8033-bd4e5bab83fb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
     },
     "04080230-eb2a-5a89-80a9-921bd67a5f12": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "04c36b2c-5096-58df-b775-0672dd0ac715": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "06575f71-2e05-5966-8d9f-db7328edcd43": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "08cf57e7-c6eb-568f-a9ef-8baa194946b6": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "1c626ab4-1226-53f4-9eba-2f2f2cd78466": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "1d6fcb02-a878-50f0-9221-ca058b41701f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "20c3cd5f-fd32-591a-91fe-8fb395a703cc": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "28dafc05-3b3a-5355-a7b0-f93b3539979b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "2a7ff968-31b8-5d98-8f0b-9cb3b386e3bb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "2daa926c-4827-599c-800c-78ceba1e2558": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "2f87858d-1877-58bd-a052-afe1cfcb5b8d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "30f9f653-d7f5-52a2-a7c4-578f1e1d241f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        },
+        {
+          "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+          "cycle_time": 24345.156,
+          "id": 202518127,
+          "repository_id": "model-training",
+          "title": "reviews-code"
+        },
+        {
+          "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+          "cycle_time": 21417.719,
+          "id": 202518083,
+          "repository_id": "ios-app",
+          "title": "upgrade-screen-update"
+        },
+        {
+          "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+          "cycle_time": 19908.796,
+          "id": 202518063,
+          "repository_id": "gateway-core",
+          "title": "nodejs-ai-gaps-release"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8
     },
     "36f40327-12d8-5b26-a15f-313debe03843": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "3d8f75f7-ac9c-5402-929a-a63bce3a8897": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "43f64846-3ad1-579b-98e9-f3a08e718f75": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "45454a1f-599b-5b19-81c8-c01c423442c3": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "46341819-09c7-5f56-af79-05d9be8b22af": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "4eadb007-7f46-56b1-8740-4a0af48b25d9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "513b4803-0e3a-5217-b377-5bd8ed10011f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "53e3621f-9b19-5bbc-a9e7-eb316343f98e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "53faba57-1084-584c-8873-637b1c8e9fa5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "54c6fbbc-70c1-5d67-bb5f-8a4685113aa0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "5b589f79-7cc3-5639-9824-ddc9500772f7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "6034a2d9-3c8b-5547-b146-9f9638260536": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "63230cdd-2ed3-5537-91ed-174558c1224b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "644c22e5-97b7-588e-9bb9-302635067952": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "665dea45-ae71-589f-8f3c-bcb0c2e41a11": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "677bb7bd-0214-5e76-ae56-bbda25b1e871": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "6b0e129f-e628-5593-8a58-899c481f4d5c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "7eae5e76-3be3-5341-8e00-3e3c8b208202": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "81fd281e-1585-58ab-ba51-80b5890145af": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "90194b13-4cbd-5a6d-b6f4-b380c8480276": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "938fe6da-bd5f-56d2-9c06-9b4fb1139ed3": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "93f4b724-5be5-56fb-93b7-f5aae249ab52": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "9b064573-dab2-5837-b361-f50b8235b324": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "a778cba4-5127-5c45-85de-1da27ad6b478": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        },
+        {
+          "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+          "cycle_time": 24345.156,
+          "id": 202518127,
+          "repository_id": "model-training",
+          "title": "reviews-code"
+        },
+        {
+          "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+          "cycle_time": 21417.719,
+          "id": 202518083,
+          "repository_id": "ios-app",
+          "title": "upgrade-screen-update"
+        },
+        {
+          "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+          "cycle_time": 19908.796,
+          "id": 202518063,
+          "repository_id": "gateway-core",
+          "title": "nodejs-ai-gaps-release"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "a791accb-541c-5010-9202-d3d286437286": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "a87e4ad3-5fe4-5e75-951d-1abd77ebf161": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "b49c78dd-667a-5b08-b69e-3f70d3ad2f93": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "bc38140d-a62f-5b00-829c-7e251ddd9ef9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        },
+        {
+          "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+          "cycle_time": 24345.156,
+          "id": 202518127,
+          "repository_id": "model-training",
+          "title": "reviews-code"
+        },
+        {
+          "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+          "cycle_time": 21417.719,
+          "id": 202518083,
+          "repository_id": "ios-app",
+          "title": "upgrade-screen-update"
+        },
+        {
+          "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+          "cycle_time": 19908.796,
+          "id": 202518063,
+          "repository_id": "gateway-core",
+          "title": "nodejs-ai-gaps-release"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "c6564adf-871f-57e3-aaf3-b5d1cff626d6": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "ca1fbba8-960c-5feb-994a-5ff0d85b6064": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "ce701784-66e1-5265-bb39-3bafacb0d515": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "cfe9685a-dc3e-5407-b9f6-08be45ca6529": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "d1db96a0-2eb3-5731-bd79-701dfce367ed": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "d3225da6-88d8-50bf-80c3-f547b9c530b7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "d448bc60-8fe8-5fde-9da8-eeb195c80b72": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "d8529cbf-a17e-56be-89e6-72effbf69841": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "e7df4671-04e7-5ad1-8d32-4e1923c91065": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "edd8ead8-cc32-5e8a-9f64-d88206710636": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "f8de20c9-af06-518c-8697-881b5334bd67": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "fa3bbf9d-fc6d-5b10-b54d-37fc21741913": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5",
+          "cycle_time": 38952.149,
+          "id": 202518012,
+          "repository_id": "auth-service",
+          "title": "remaining-add-config-setup"
+        },
+        {
+          "author_id": "46ac88e2-4abc-5661-ab77-f98efc3fd1d7",
+          "cycle_time": 31483.732,
+          "id": 202518112,
+          "repository_id": "inference-service",
+          "title": "deployment-dependencies"
+        },
+        {
+          "author_id": "6d720789-90aa-5ce3-b7fb-02533fcbcf70",
+          "cycle_time": 24345.156,
+          "id": 202518127,
+          "repository_id": "model-training",
+          "title": "reviews-code"
+        },
+        {
+          "author_id": "665dea45-ae71-589f-8f3c-bcb0c2e41a11",
+          "cycle_time": 21417.719,
+          "id": 202518083,
+          "repository_id": "ios-app",
+          "title": "upgrade-screen-update"
+        },
+        {
+          "author_id": "12da521a-b144-5479-b2cc-f32c01d31acd",
+          "cycle_time": 19908.796,
+          "id": 202518063,
+          "repository_id": "gateway-core",
+          "title": "nodejs-ai-gaps-release"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6

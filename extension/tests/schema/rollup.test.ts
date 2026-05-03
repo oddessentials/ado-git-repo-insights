@@ -368,6 +368,148 @@ describe("Rollup Schema Validator", () => {
         result.errors.some((e) => e.field.includes("repositories_count")),
       ).toBe(true);
     });
+
+    // Feature 362 — per-(reviewer, week) PR-detail trio permissive
+    // validation.  Every shape violation surfaces as a warning, never an
+    // error; the consumer treats malformed entries as if absent and
+    // renders supported-empty.
+
+    it("by_reviewer entry with valid prs trio is accepted with no warnings", () => {
+      const valid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 2,
+            reviews_count: 2,
+            approval_rate: 1.0,
+            authors_count: 1,
+            repositories_count: 1,
+            prs: [
+              {
+                id: 101,
+                title: "feat: oauth",
+                author_id: "alice",
+                repository_id: "r1",
+                cycle_time: 800.0,
+              },
+              {
+                id: 102,
+                title: "fix: nil",
+                author_id: "bob",
+                repository_id: "r1",
+                cycle_time: 200.0,
+              },
+            ],
+            _prs_truncated: false,
+            _prs_cap: 500,
+          },
+        },
+      };
+      const result = validateRollup(valid, false);
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) => w.field.includes("by_reviewer.reviewer1")),
+      ).toBe(false);
+    });
+
+    it("by_reviewer entry with non-array prs warns (FR-016 permissive)", () => {
+      const malformed = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 2,
+            reviews_count: 2,
+            prs: "not-an-array",
+            _prs_truncated: false,
+            _prs_cap: 500,
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      // Permissive: never fails the result.
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.field.includes("by_reviewer.reviewer1.prs"),
+        ),
+      ).toBe(true);
+    });
+
+    it("by_reviewer entry with non-boolean _prs_truncated warns (FR-016 permissive)", () => {
+      const malformed = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 1,
+            reviews_count: 1,
+            prs: [],
+            _prs_truncated: "no" as unknown as boolean,
+            _prs_cap: 500,
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.field.includes("by_reviewer.reviewer1._prs_truncated"),
+        ),
+      ).toBe(true);
+    });
+
+    it("by_reviewer entry with non-number _prs_cap warns (FR-016 permissive)", () => {
+      const malformed = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 1,
+            reviews_count: 1,
+            prs: [],
+            _prs_truncated: false,
+            _prs_cap: "five-hundred" as unknown as number,
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.field.includes("by_reviewer.reviewer1._prs_cap"),
+        ),
+      ).toBe(true);
+    });
+
+    it("by_reviewer entry with partial trio (atomicity violation) warns", () => {
+      // Only `prs` present; `_prs_truncated` and `_prs_cap` absent.
+      // Atomicity invariant: all three together or none.
+      const malformed = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 1,
+            reviews_count: 1,
+            prs: [
+              {
+                id: 1,
+                title: "title",
+                author_id: "alice",
+                repository_id: "r1",
+                cycle_time: 100.0,
+              },
+            ],
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some(
+          (w) =>
+            w.field.includes("by_reviewer.reviewer1") &&
+            w.message.includes("atomicity"),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("empty JSON handling", () => {

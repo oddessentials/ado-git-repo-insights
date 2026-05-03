@@ -1457,288 +1457,1103 @@
   },
   "by_reviewer": {
     "03400ec3-30a2-5538-930e-749eb3e819bf": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        },
+        {
+          "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+          "cycle_time": 16933.59,
+          "id": 202125017,
+          "repository_id": "feature-store",
+          "title": "test-setup-feat"
+        },
+        {
+          "author_id": "a079455f-a8ff-5c3e-ab28-d33a1da4b532",
+          "cycle_time": 15331.339,
+          "id": 202125080,
+          "repository_id": "auth-service",
+          "title": "test-ci-disable-add-code"
+        },
+        {
+          "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+          "cycle_time": 13695.871,
+          "id": 202125012,
+          "repository_id": "ios-app",
+          "title": "update-blank"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "04c36b2c-5096-58df-b775-0672dd0ac715": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "08cf57e7-c6eb-568f-a9ef-8baa194946b6": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "1c626ab4-1226-53f4-9eba-2f2f2cd78466": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "1d6fcb02-a878-50f0-9221-ca058b41701f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "20c3cd5f-fd32-591a-91fe-8fb395a703cc": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "2a7ff968-31b8-5d98-8f0b-9cb3b386e3bb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "2f87858d-1877-58bd-a052-afe1cfcb5b8d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "30f9f653-d7f5-52a2-a7c4-578f1e1d241f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "36f40327-12d8-5b26-a15f-313debe03843": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "3d8f75f7-ac9c-5402-929a-a63bce3a8897": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "3e5c2481-0c41-538c-b31f-bb5f8e10fc7c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        },
+        {
+          "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+          "cycle_time": 16933.59,
+          "id": 202125017,
+          "repository_id": "feature-store",
+          "title": "test-setup-feat"
+        },
+        {
+          "author_id": "a079455f-a8ff-5c3e-ab28-d33a1da4b532",
+          "cycle_time": 15331.339,
+          "id": 202125080,
+          "repository_id": "auth-service",
+          "title": "test-ci-disable-add-code"
+        },
+        {
+          "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+          "cycle_time": 13695.871,
+          "id": 202125012,
+          "repository_id": "ios-app",
+          "title": "update-blank"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6
     },
     "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "4eadb007-7f46-56b1-8740-4a0af48b25d9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "513b4803-0e3a-5217-b377-5bd8ed10011f": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "53e3621f-9b19-5bbc-a9e7-eb316343f98e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "54c6fbbc-70c1-5d67-bb5f-8a4685113aa0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "5b589f79-7cc3-5639-9824-ddc9500772f7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "6034a2d9-3c8b-5547-b146-9f9638260536": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "63230cdd-2ed3-5537-91ed-174558c1224b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "665dea45-ae71-589f-8f3c-bcb0c2e41a11": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "677bb7bd-0214-5e76-ae56-bbda25b1e871": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "6b0e129f-e628-5593-8a58-899c481f4d5c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
     },
     "7eae5e76-3be3-5341-8e00-3e3c8b208202": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "8e2a8c54-f6c3-5b6f-a945-92d2f3298e28": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "93f4b724-5be5-56fb-93b7-f5aae249ab52": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "a778cba4-5127-5c45-85de-1da27ad6b478": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        },
+        {
+          "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+          "cycle_time": 16933.59,
+          "id": 202125017,
+          "repository_id": "feature-store",
+          "title": "test-setup-feat"
+        },
+        {
+          "author_id": "a079455f-a8ff-5c3e-ab28-d33a1da4b532",
+          "cycle_time": 15331.339,
+          "id": 202125080,
+          "repository_id": "auth-service",
+          "title": "test-ci-disable-add-code"
+        },
+        {
+          "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+          "cycle_time": 13695.871,
+          "id": 202125012,
+          "repository_id": "ios-app",
+          "title": "update-blank"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "a791accb-541c-5010-9202-d3d286437286": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "b49c78dd-667a-5b08-b69e-3f70d3ad2f93": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "ca1fbba8-960c-5feb-994a-5ff0d85b6064": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "ce701784-66e1-5265-bb39-3bafacb0d515": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "d3225da6-88d8-50bf-80c3-f547b9c530b7": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "d448bc60-8fe8-5fde-9da8-eeb195c80b72": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "d4bf62a8-2330-5afd-a841-ce8cca5ecf71": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        },
+        {
+          "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+          "cycle_time": 16933.59,
+          "id": 202125017,
+          "repository_id": "feature-store",
+          "title": "test-setup-feat"
+        },
+        {
+          "author_id": "a079455f-a8ff-5c3e-ab28-d33a1da4b532",
+          "cycle_time": 15331.339,
+          "id": 202125080,
+          "repository_id": "auth-service",
+          "title": "test-ci-disable-add-code"
+        },
+        {
+          "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+          "cycle_time": 13695.871,
+          "id": 202125012,
+          "repository_id": "ios-app",
+          "title": "update-blank"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "e7df4671-04e7-5ad1-8d32-4e1923c91065": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 1
     },
     "edd8ead8-cc32-5e8a-9f64-d88206710636": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "f8de20c9-af06-518c-8697-881b5334bd67": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "fa3bbf9d-fc6d-5b10-b54d-37fc21741913": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "f11cbecb-16bd-5696-a7a6-0078d1559742",
+          "cycle_time": 1597344.574,
+          "id": 202125004,
+          "repository_id": "react-shell",
+          "title": "metal-fixci-upgrade"
+        },
+        {
+          "author_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6",
+          "cycle_time": 52213.753,
+          "id": 202125006,
+          "repository_id": "model-training",
+          "title": "blank-job-ci-transitions-build"
+        },
+        {
+          "author_id": "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3",
+          "cycle_time": 16933.59,
+          "id": 202125017,
+          "repository_id": "feature-store",
+          "title": "test-setup-feat"
+        },
+        {
+          "author_id": "a079455f-a8ff-5c3e-ab28-d33a1da4b532",
+          "cycle_time": 15331.339,
+          "id": 202125080,
+          "repository_id": "auth-service",
+          "title": "test-ci-disable-add-code"
+        },
+        {
+          "author_id": "ce04fbd4-c08b-55f3-9585-5a76c04dc485",
+          "cycle_time": 13695.871,
+          "id": 202125012,
+          "repository_id": "ios-app",
+          "title": "update-blank"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8

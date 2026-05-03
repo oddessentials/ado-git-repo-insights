@@ -34,6 +34,7 @@ from demo_generation_common import (
 from demo_shell import render_demo_html_from_path
 from strip_pr_arrays import (
     SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME,
+    strip_nested_reviewer_prs_from_rollups,
     strip_pr_arrays_from_rollups,
 )
 
@@ -1317,26 +1318,57 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 
         * Sentinel PRESENT: ``assert_synthetic_shape`` fails closed on any
           shape violation; otherwise ``sentinel.unlink()`` runs FIRST (before
-          any destination mutation), PR-level fields are preserved through
-          the copytree, and the destination ends up without the sentinel.
+          any destination mutation), the rollup-root PR trio survives the
+          copytree (the #309 / #315 binary gate), and the Feature-362
+          nested ``by_reviewer[*]`` PR trio is stripped on the
+          DESTINATION aggregates tree AFTER ``copytree`` via
+          ``strip_nested_reviewer_prs_from_rollups`` so the public synthetic
+          surface stays free of per-(reviewer, week) detail (FR-028).  The
+          source aggregates tree is byte-preserved across the call — it
+          remains the canonical private tenant artifact carrying both
+          rollup-root PR detail and ``by_reviewer[*]`` nested detail.
         * Sentinel ABSENT: the legacy feature-060 strip helper
-          (``strip_pr_arrays_from_rollups``) runs; PR-level fields are
-          stripped from the source tree before copytree.
+          (``strip_pr_arrays_from_rollups``) runs; PR-level fields at BOTH
+          depths are stripped from the source tree before copytree.
 
     Every other destination (private tenant artifacts, non-promotion scratch
     paths) preserves the existing non-gated behavior.
 
-    On ANY failure (shape violation, unlink OSError, strip residue, mkdir
-    error, copytree error) the destination directory is byte-identical to
-    its pre-call state. See ``tests/unit/test_promote_data_unlink_ordering.py``
-    and ``tests/demo/test_demo_parity_pipeline.py::TestPromoteDataStripGateAtomicity``.
+    On ANY pre-copytree failure (shape violation, unlink OSError, sentinel-
+    absent strip residue, mkdir error, copytree error) the destination
+    directory is byte-identical to its pre-call state.  Post-copytree
+    mutations on the destination run in the following ORDER (the order is
+    a tested contract — see
+    ``test_sentinel_present_promotion_skips_stale_destination_rollups``):
+
+      1. stale-file cleanup (``destination_files - source_files``);
+      2. stale-directory cleanup;
+      3. sentinel-present depth-2 strip on
+         ``destination_dir / 'aggregates'``.
+
+    The strip is LAST so the walker never sees rollups left from a previous
+    build whose schema or shape would fail closed inside ``_load_rollup``.
+    A mid-mutation OSError in any of these post-copytree steps leaves the
+    destination partially mutated, mirroring the existing post-copytree
+    atomicity envelope.  See
+    ``tests/unit/test_promote_data_unlink_ordering.py`` and
+    ``tests/demo/test_demo_parity_pipeline.py::TestPromoteDataStripGateAtomicity``.
     """
+    sentinel_was_present_for_promotion = False
     if destination_dir.resolve() == DOCS_DATA_DIR.resolve():
         aggregates = source_dir / "aggregates"
         sentinel = aggregates / SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME
         if sentinel.exists():
             assert_synthetic_shape(aggregates)
             sentinel.unlink()
+            # The sentinel-present depth-2 strip is HOISTED to AFTER
+            # copytree so the source aggregates tree is byte-preserved
+            # across this call.  The canonical private tenant artifact
+            # at ``source_dir`` retains its full producer-emitted shape
+            # (rollup-root PR trio AND nested ``by_reviewer[*]`` trio);
+            # only the destination (``docs/data``) is stripped of the
+            # nested per-(reviewer, week) detail.
+            sentinel_was_present_for_promotion = True
         else:
             assert not sentinel.exists(), (
                 "Sentinel path toggled between exists() check and else-branch "
@@ -1365,6 +1397,17 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
         target = destination_dir / rel_path
         if target.exists():
             _remove_promoted_dir(target)
+
+    if sentinel_was_present_for_promotion:
+        # Strip nested reviewer PR detail on the DESTINATION aggregates only
+        # (FR-028 + Codex P1 against an earlier in-place-on-source revision
+        # of this branch).  Runs AFTER the stale-file cleanup above so the
+        # strip walker never sees rollups from a previous build that aren't
+        # in the current source — those would be malformed against the
+        # current schema and the strip's ``_load_rollup`` would fail closed.
+        # Source is never touched (the canonical private tenant artifact is
+        # byte-preserved across this call).
+        strip_nested_reviewer_prs_from_rollups(destination_dir / "aggregates")
 
     source_files_sorted = sorted(source_files)
     destination_files_sorted = list_relative_files(destination_dir)

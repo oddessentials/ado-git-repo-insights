@@ -1148,232 +1148,889 @@
   },
   "by_reviewer": {
     "192a25de-2d1b-5e10-a0eb-dcc2b5e7ac1e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "1e6a1278-fa30-5862-ae60-0bd2208dbb3d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "348c4b05-b659-5f84-9203-a2092a5071ef": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "382a1fe7-038d-5b3b-9c87-8a65d0376b8b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "3a27b729-1c55-5383-a129-770ee1d44029": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "429e1343-3733-55c1-af54-d9a82f37935c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        },
+        {
+          "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+          "cycle_time": 40420.585,
+          "id": 202112014,
+          "repository_id": "android-app",
+          "title": "transitions-dependencies-semantic-release-review"
+        },
+        {
+          "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+          "cycle_time": 16960.158,
+          "id": 202112044,
+          "repository_id": "user-service",
+          "title": "deployment-gaps-hardening-gaps"
+        },
+        {
+          "author_id": "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e",
+          "cycle_time": 14642.064,
+          "id": 202112023,
+          "repository_id": "model-training",
+          "title": "feat-prod-baseline-repo"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 6
     },
     "4507291f-28b5-5f92-b624-4262b17e2c4e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "5e8051b8-312f-5897-b10a-7137ec37d442": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        },
+        {
+          "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+          "cycle_time": 40420.585,
+          "id": 202112014,
+          "repository_id": "android-app",
+          "title": "transitions-dependencies-semantic-release-review"
+        },
+        {
+          "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+          "cycle_time": 16960.158,
+          "id": 202112044,
+          "repository_id": "user-service",
+          "title": "deployment-gaps-hardening-gaps"
+        },
+        {
+          "author_id": "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e",
+          "cycle_time": 14642.064,
+          "id": 202112023,
+          "repository_id": "model-training",
+          "title": "feat-prod-baseline-repo"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 8
     },
     "6169694a-d7cf-57cb-a94a-15b2f02e99cc": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "639dc735-977c-5375-9ad9-61de9de9b186": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "65d44a2c-47b6-58bb-95e3-9452d553c007": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        },
+        {
+          "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+          "cycle_time": 40420.585,
+          "id": 202112014,
+          "repository_id": "android-app",
+          "title": "transitions-dependencies-semantic-release-review"
+        },
+        {
+          "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+          "cycle_time": 16960.158,
+          "id": 202112044,
+          "repository_id": "user-service",
+          "title": "deployment-gaps-hardening-gaps"
+        },
+        {
+          "author_id": "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e",
+          "cycle_time": 14642.064,
+          "id": 202112023,
+          "repository_id": "model-training",
+          "title": "feat-prod-baseline-repo"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "79bf5913-b79e-536d-b3fa-c7bc950a244b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "7c31d024-0e3b-571e-815a-917ba333ba62": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "864bbd27-2179-5171-a2fb-b9cb7d3f88db": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "9434ad44-21e0-5d3c-a09c-3c33640cb086": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "9ac1c4ec-36b0-58da-99f4-5832c021d3bb": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "b1238244-1dff-5232-aae6-73ad452a75a0": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 2
     },
     "b7b6ebbc-1829-5d25-8ccb-08fa6839cd2a": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
     },
     "c05ea2fd-75f3-58c3-a3f5-97af92f23e8b": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "c44b04ad-873c-5f16-87c5-6c3c350dc296": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 1
     },
     "c85a8665-b462-5165-98fe-10ee9e61f539": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "cbef9c82-665d-56bf-a0ff-b94a0f0eb1b3": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "d62a08f1-da5c-55b2-a473-9fd58a52ca91": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "d848df3b-5df7-5f9d-89dc-a735fefa3447": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.62,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 2
     },
     "db58c77c-2999-5071-a857-37ed2deae874": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.82,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
     },
     "e249be08-ddb3-5d5c-8c82-1482b06f8038": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.86,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "e5041028-ca35-5c7e-ace9-71fce373f9ba": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 5
     },
     "e72fb699-499f-5db2-845b-bc719b31717e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.78,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        },
+        {
+          "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+          "cycle_time": 40420.585,
+          "id": 202112014,
+          "repository_id": "android-app",
+          "title": "transitions-dependencies-semantic-release-review"
+        },
+        {
+          "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+          "cycle_time": 16960.158,
+          "id": 202112044,
+          "repository_id": "user-service",
+          "title": "deployment-gaps-hardening-gaps"
+        },
+        {
+          "author_id": "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e",
+          "cycle_time": 14642.064,
+          "id": 202112023,
+          "repository_id": "model-training",
+          "title": "feat-prod-baseline-repo"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 5
     },
     "ed15254c-8741-5f52-a86a-763e430d271e": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.74,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 3
     },
     "fa599eb4-03b8-5d2d-aeee-5cfc436e496d": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.7,
       "authors_count": 3,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        },
+        {
+          "author_id": "79bf5913-b79e-536d-b3fa-c7bc950a244b",
+          "cycle_time": 150777.161,
+          "id": 202112021,
+          "repository_id": "ios-app",
+          "title": "remaining-test-semantic-release-standards"
+        },
+        {
+          "author_id": "28dafc05-3b3a-5355-a7b0-f93b3539979b",
+          "cycle_time": 40420.585,
+          "id": 202112014,
+          "repository_id": "android-app",
+          "title": "transitions-dependencies-semantic-release-review"
+        },
+        {
+          "author_id": "c93de2d5-2252-58e3-9fca-48b7108631e0",
+          "cycle_time": 16960.158,
+          "id": 202112044,
+          "repository_id": "user-service",
+          "title": "deployment-gaps-hardening-gaps"
+        },
+        {
+          "author_id": "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e",
+          "cycle_time": 14642.064,
+          "id": 202112023,
+          "repository_id": "model-training",
+          "title": "feat-prod-baseline-repo"
+        }
+      ],
       "repositories_count": 2,
       "reviewed_prs": 5,
       "reviews_count": 7
     },
     "fae290f1-a24a-56db-8d42-01b4acdd6cb9": {
+      "_prs_cap": 500,
+      "_prs_truncated": false,
       "approval_rate": 0.66,
       "authors_count": 2,
+      "prs": [
+        {
+          "author_id": "ca1fbba8-960c-5feb-994a-5ff0d85b6064",
+          "cycle_time": 433344.093,
+          "id": 202112050,
+          "repository_id": "design-system",
+          "title": "fix-setup-ai-ci-shared-complete"
+        }
+      ],
       "repositories_count": 1,
       "reviewed_prs": 1,
       "reviews_count": 4
