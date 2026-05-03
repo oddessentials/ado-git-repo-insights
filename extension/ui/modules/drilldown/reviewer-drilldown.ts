@@ -407,6 +407,14 @@ function buildPrListSection(
     actualFilteredCount,
     capValue,
     commentsMetricsAvailable,
+    // Issue #367 — per-rollup-union: ``capValue`` is
+    // ``Math.max(per-week _prs_cap)`` (computed at line 316 above)
+    // and the rendered set is the cross-week union of per-week top-
+    // {cap} slices.  No global cycle-time-rank guarantee — the
+    // shared renderer surfaces "per week" in the truncation cue so
+    // the copy doesn't lie about a slice-level rank that doesn't
+    // exist for unions.
+    capScope: "per-rollup-union",
   });
 }
 
