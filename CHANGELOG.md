@@ -1,3 +1,10 @@
+# [101.26.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.25.0...v101.26.0) (2026-05-03)
+
+
+### Features
+
+* reviewer-activity chart PR-level drill-down ([#362](https://github.com/oddessentials/ado-git-repo-insights/issues/362)) ([#366](https://github.com/oddessentials/ado-git-repo-insights/issues/366)) ([638640b](https://github.com/oddessentials/ado-git-repo-insights/commit/638640ba46ce6286b7f0447ee5a6ce0fc7369c35)), closes [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#315](https://github.com/oddessentials/ado-git-repo-insights/issues/315) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361) [#361](https://github.com/oddessentials/ado-git-repo-insights/issues/361)
+
 # [101.25.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.24.0...v101.25.0) (2026-05-02)
 
 
