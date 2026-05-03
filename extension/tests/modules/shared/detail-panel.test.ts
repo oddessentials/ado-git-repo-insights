@@ -844,6 +844,7 @@ describe("detail-panel — top offset (#303)", () => {
     it("renders the always-same <section id='pr-detail'> shell across every content state", () => {
       const prListState = makePrListSection({
         contentState: "pr-list",
+        capScope: "single-rollup",
         rows: [
           {
             id: 1,

@@ -4840,7 +4840,8 @@ var PRInsightsDashboard = (() => {
         renderedCount: input.renderedCount,
         actualFilteredCount: input.actualFilteredCount,
         capValue: input.capValue,
-        commentsMetricsAvailable: input.commentsMetricsAvailable
+        commentsMetricsAvailable: input.commentsMetricsAvailable,
+        capScope: input.capScope
       };
     }
     return { type: "pr-list", contentState: input.contentState };
@@ -5279,7 +5280,8 @@ var PRInsightsDashboard = (() => {
           renderedCount,
           actualFilteredCount,
           capValue,
-          commentsMetricsAvailable
+          commentsMetricsAvailable,
+          capScope
         } = section;
         const partialRowCount = commentsMetricsAvailable ? rows.filter(isPartialPrRow).length : 0;
         const allRowsPartial = partialRowCount > 0 && partialRowCount === rows.length;
@@ -5287,7 +5289,7 @@ var PRInsightsDashboard = (() => {
           const indicator = createElement("div", {
             class: "truncation-indicator truncation-badge"
           });
-          const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
+          const base = capScope === "per-rollup-union" ? `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} per week by cycle time)` : `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
           appendText(
             indicator,
             commentsMetricsAvailable && !allRowsPartial ? `${base}. Sort and filter operate within this slice.` : base
@@ -10458,7 +10460,12 @@ var PRInsightsDashboard = (() => {
           renderedCount: rows.length,
           actualFilteredCount: rollup.pr_count,
           capValue,
-          commentsMetricsAvailable
+          commentsMetricsAvailable,
+          // Issue #367 — single-rollup: ``capValue`` is the per-week
+          // ``rollup._prs_cap`` and the rendered rows ARE the top-N-by-
+          // cycle-time slice of this rollup.  Pre-#367 truncation copy
+          // is preserved byte-for-byte.
+          capScope: "single-rollup"
         });
       }
     }
@@ -10668,7 +10675,12 @@ var PRInsightsDashboard = (() => {
           renderedCount: rows.length,
           actualFilteredCount: rollup.pr_count,
           capValue,
-          commentsMetricsAvailable
+          commentsMetricsAvailable,
+          // Issue #367 — single-rollup: ``capValue`` is the per-week
+          // ``rollup._prs_cap`` and the rendered rows ARE the top-N-by-
+          // cycle-time slice of this rollup.  Pre-#367 truncation copy
+          // is preserved byte-for-byte.
+          capScope: "single-rollup"
         });
       }
     }
@@ -10939,7 +10951,15 @@ var PRInsightsDashboard = (() => {
       renderedCount: rows.length,
       actualFilteredCount,
       capValue,
-      commentsMetricsAvailable
+      commentsMetricsAvailable,
+      // Issue #367 — per-rollup-union: ``capValue`` is
+      // ``Math.max(per-week _prs_cap)`` (computed at line 316 above)
+      // and the rendered set is the cross-week union of per-week top-
+      // {cap} slices.  No global cycle-time-rank guarantee — the
+      // shared renderer surfaces "per week" in the truncation cue so
+      // the copy doesn't lie about a slice-level rank that doesn't
+      // exist for unions.
+      capScope: "per-rollup-union"
     });
   }
   function buildPanelContent3(rollups, reviewerId, reviewerNameByKey, options) {

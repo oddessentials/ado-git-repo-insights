@@ -150,6 +150,11 @@ function buildPrListSection(
         actualFilteredCount: rollup.pr_count,
         capValue,
         commentsMetricsAvailable,
+        // Issue #367 — single-rollup: ``capValue`` is the per-week
+        // ``rollup._prs_cap`` and the rendered rows ARE the top-N-by-
+        // cycle-time slice of this rollup.  Pre-#367 truncation copy
+        // is preserved byte-for-byte.
+        capScope: "single-rollup",
       });
     }
   }

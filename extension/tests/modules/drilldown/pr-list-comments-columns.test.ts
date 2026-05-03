@@ -116,6 +116,7 @@ describe("capability-off path — no comments-metrics surface (post-#342 SC-03)"
   it("emits the shared PR | Cycle header with no comments-metrics surface (no sort buttons / filter / modifier classes / metric spans)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
       renderedCount: 2,
       actualFilteredCount: 2,
@@ -172,6 +173,7 @@ describe("capability-on path — three columns per row (INV-08)", () => {
   it("emits thread / comment / unresolved spans on every row", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 10,
@@ -212,6 +214,7 @@ describe("capability-on path — three columns per row (INV-08)", () => {
     // by its own test below.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -272,6 +275,7 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
   it("suppresses sort BUTTONS + filter when the capability-on list has a single row (5-cell header still emits, no buttons)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -336,6 +340,7 @@ describe("issue #330 / C5 — controls-visibility guard on trivial lists", () =>
   it("emits header + filter when the capability-on list has two or more rows", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -367,6 +372,7 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
     // absent so it doesn't add chrome on fully-covered slices.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -397,6 +403,7 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
   it("mixed-partial slice → 'N of M' notice; header + filter still render (C3)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -449,6 +456,7 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
   it("all-partial slice → 'pending — none' notice; header + filter SUPPRESSED (C2)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -522,6 +530,7 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
     // pr-list-capability-off-baseline.test.ts byte-identical check.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -551,6 +560,7 @@ describe("issue #331 / C2 + C3 — in-panel coverage notice + control suppressio
     // text stays so the slice ratio remains discoverable.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -591,6 +601,7 @@ describe("issue #330 / C1 — truncation badge slice-scope disclosure", () => {
   it("capability-on truncated week appends the slice-scope disclosure sentence", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -629,6 +640,7 @@ describe("issue #330 / C1 — truncation badge slice-scope disclosure", () => {
   it("capability-off truncated week preserves the pre-#330 badge literal (SC-03 byte-identity)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
       renderedCount: 2,
       actualFilteredCount: 743,
@@ -650,10 +662,41 @@ describe("issue #330 / C1 — truncation badge slice-scope disclosure", () => {
   });
 });
 
+describe("issue #367 — per-rollup-union truncation cue copy", () => {
+  it("per-rollup-union capability-off truncated slice renders the 'per week' literal byte-for-byte", () => {
+    // Sibling of the single-rollup byte-pin (#330 / C1 capability-off
+    // test above).  The shared renderer's parenthetical switches on
+    // ``capScope`` so reviewer-drilldown (cross-week union) and the
+    // future #363 sparkline period drill-down do not lie about a
+    // slice-level cycle-time rank that does not exist for unions.
+    // ``commentsMetricsAvailable: false`` mirrors the single-rollup
+    // byte-pin so the only delta in the asserted literal is the
+    // three-word ``per week`` insertion.
+    const section = makePrListSection({
+      contentState: "pr-list",
+      capScope: "per-rollup-union",
+      rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
+      renderedCount: 2,
+      actualFilteredCount: 743,
+      capValue: 500,
+      commentsMetricsAvailable: false,
+    });
+    const root = openWithPrListSection(section);
+    const badge = root.querySelector<HTMLElement>(
+      ".truncation-indicator.truncation-badge",
+    );
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe(
+      "Showing 2 of 743 matching PRs (top 500 per week by cycle time)",
+    );
+  });
+});
+
 describe("issue #330 / C4 — 3-digit metric rendering", () => {
   it("renders 3-digit counts in all three comments-metric columns without partial state", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 900,
@@ -695,6 +738,7 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
   it("renders '—' with data-partial='true' on all three spans when triplet is null", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 100,
@@ -736,6 +780,7 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     // hidden span is the single SR signal for the partial state.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 100,
@@ -787,6 +832,7 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
     // ``0`` and stays fully reachable to assistive tech.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 200,
@@ -813,6 +859,7 @@ describe("partial sentinel rendering (FR-3-05 / INV-10)", () => {
   it("renders explicit '0' (not '—') when the count is a true zero (Acceptance 2.2)", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 200,
@@ -852,6 +899,7 @@ describe("issue #337 zero-tonal-weight contract", () => {
   it("marks data-zero='true' on every span when all three counts are zero", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 200,
@@ -880,6 +928,7 @@ describe("issue #337 zero-tonal-weight contract", () => {
   it("flags only the zero axes on a row mixing zero and non-zero counts", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 201,
@@ -905,6 +954,7 @@ describe("issue #337 zero-tonal-weight contract", () => {
   it("marks data-zero='false' on every span of a fully non-zero row", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 202,
@@ -933,6 +983,7 @@ describe("issue #337 zero-tonal-weight contract", () => {
     // numeric zero, distinct from the missing-data sentinel.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 203,
@@ -960,6 +1011,7 @@ describe("sort mechanics (FR-3-02 / FR-4-02)", () => {
   function sortSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1028,6 +1080,7 @@ describe("sort mechanics (FR-3-02 / FR-4-02)", () => {
   it("places partial-sentinel rows at the end on sort", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 10,
@@ -1065,6 +1118,7 @@ describe("sort mechanics (FR-3-02 / FR-4-02)", () => {
     // arm because at least one side of every comparison is numeric.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 20,
@@ -1125,6 +1179,7 @@ describe("filter mechanics (FR-3-03 / FR-4-02)", () => {
   function filterSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1233,6 +1288,7 @@ describe("INV-09 ordering assertion across rendered rows", () => {
   it("every visible row with numeric counts has active <= total", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1279,6 +1335,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     // to render; see the dedicated single-row suppression test below.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1342,6 +1399,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     // capability-off DOM stays free of any comments-metrics surface.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [buildRow({ id: 1 })],
       renderedCount: 1,
       actualFilteredCount: 1,
@@ -1389,6 +1447,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     // visible text already serves as accessible name.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         // Single-row triggers the C5 sort-button suppression (sort-
         // cells path) while keeping capability-on so the metric
@@ -1442,6 +1501,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
     // guard permits the sort buttons to render.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1476,6 +1536,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
   it("applies the 'detail-panel-pr-list--with-comments' modifier on the ol when capability-on", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1502,6 +1563,7 @@ describe("column header row and ol modifier (F1 + F8 + lock #1 / #9)", () => {
   it("does NOT apply the modifier class on the ol when capability-off", () => {
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
       renderedCount: 2,
       actualFilteredCount: 2,
@@ -1523,6 +1585,7 @@ describe("header-driven sort cycle (F3 + F4)", () => {
   function cycleSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1628,6 +1691,7 @@ describe("header-driven sort cycle (F3 + F4)", () => {
     // of direction.
     const section = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 10,
@@ -1679,6 +1743,7 @@ describe("issue #332 / B1 — sort SR-live announcer", () => {
   function announcerSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1748,6 +1813,7 @@ describe("issue #332 / B1 — sort SR-live announcer", () => {
         name: "capability-off",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
           renderedCount: 2,
           actualFilteredCount: 2,
@@ -1759,6 +1825,7 @@ describe("issue #332 / B1 — sort SR-live announcer", () => {
         name: "capability-on single-row (#330 / C5)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
@@ -1777,6 +1844,7 @@ describe("issue #332 / B1 — sort SR-live announcer", () => {
         name: "capability-on all-partial (#331 / C2)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
@@ -1868,6 +1936,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
   function iconSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -1939,6 +2008,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
         name: "capability-off",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
           renderedCount: 2,
           actualFilteredCount: 2,
@@ -1950,6 +2020,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
         name: "capability-on single-row (#330 / C5)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
@@ -1968,6 +2039,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
         name: "capability-on all-partial (#331 / C2)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
@@ -2152,6 +2224,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
     const sectionA = iconSection();
     const sectionB = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 99,
@@ -2209,6 +2282,7 @@ describe("issue #332 / B2 — single C1 info icon adjacent to 'Min:' controls la
     const sectionA = iconSection();
     const sectionB = makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 99,
@@ -2287,6 +2361,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
   function noPartialSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -2323,6 +2398,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
   function multiPartialSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -2365,6 +2441,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
   function singlePartialSection(): PrListSection {
     return makePrListSection({
       contentState: "pr-list",
+      capScope: "single-rollup",
       rows: [
         buildRow({
           id: 1,
@@ -2421,6 +2498,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
         name: "capability-off",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [buildRow({ id: 1 }), buildRow({ id: 2 })],
           renderedCount: 2,
           actualFilteredCount: 2,
@@ -2432,6 +2510,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
         name: "capability-on single-row (#330 / C5)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
@@ -2450,6 +2529,7 @@ describe("issue #332 / B3 — filter feedback summary", () => {
         name: "capability-on all-partial (#331 / C2)",
         section: makePrListSection({
           contentState: "pr-list",
+          capScope: "single-rollup",
           rows: [
             buildRow({
               id: 1,
