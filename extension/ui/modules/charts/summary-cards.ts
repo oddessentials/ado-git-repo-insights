@@ -155,9 +155,14 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   // chart exists on the page in a <button class="sparkline-trigger">.
   // Sparklines without a corresponding full chart (review time,
   // author count) render as plain SVGs so a click does nothing.
+  //
+  // Issue #363 / LD-2 — `cycleP50` and `cycleP90` carry the
+  // `data-drilldown-cycle-metric` attribute so the panel title can
+  // disambiguate which cycle-time card was the source. Throughput +
+  // reviewer triggers do NOT carry that attribute (asserted in tests).
   wrapSparklineTrigger(containers.totalPrsSparkline, "throughput");
-  wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time");
-  wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time");
+  wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time", "p50");
+  wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time", "p90");
   wrapSparklineTrigger(containers.reviewersSparkline, "reviewer");
 
   // Render sparkline time period labels (FR-010, FR-011)
@@ -448,8 +453,18 @@ function renderMetricValues(
 /**
  * Wrap a sparkline container's SVG in a `<button class="sparkline-
  * trigger" data-drilldown-target-chart=...>` so `sparkline-navigator.ts`
- * (US4) can delegate-listen for activation. No-op when the container
- * is null or produced no SVG (insufficient data / cleared container).
+ * can delegate-listen for activation. No-op when the container is
+ * null or produced no SVG (insufficient data / cleared container).
+ *
+ * Issue #363 / LD-2 — three of the four cards (`totalPrs`, `cycleP50`,
+ * `cycleP90`) open the period-scoped DetailPanel; the reviewer card
+ * preserves scroll-and-highlight to `#reviewer-activity` because its
+ * metric ("average unique reviewers per week") does not map to a
+ * single PR set without first picking a reviewer. The cycle-time
+ * triggers carry an extra `data-drilldown-cycle-metric` attribute so
+ * the navigator can append a `— P50` / `— P90` marker to the panel
+ * title (otherwise the two cycle-time cards would render an
+ * indistinguishable panel).
  *
  * Re-renders are safe: `renderSparkline` above calls `clearElement`
  * before writing a new SVG, so every call reaches a fresh container
@@ -458,6 +473,7 @@ function renderMetricValues(
 function wrapSparklineTrigger(
   container: HTMLElement | null,
   targetChart: "throughput" | "cycle-time" | "reviewer",
+  cycleMetric?: "p50" | "p90",
 ): void {
   const svg = container?.querySelector("svg");
   if (!svg) return;
@@ -466,6 +482,9 @@ function wrapSparklineTrigger(
   button.type = "button";
   button.className = "sparkline-trigger";
   button.setAttribute("data-drilldown-target-chart", targetChart);
+  if (cycleMetric !== undefined) {
+    button.setAttribute("data-drilldown-cycle-metric", cycleMetric);
+  }
   button.setAttribute("aria-label", `Open full ${label} chart`);
   svg.before(button);
   button.appendChild(svg);

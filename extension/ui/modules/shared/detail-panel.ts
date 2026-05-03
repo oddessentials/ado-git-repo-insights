@@ -193,7 +193,18 @@ export type DismissReason =
   | "explicit-close-button";
 
 export interface DrillDownContext {
-  readonly sourceChart: "throughput" | "cycle-time" | "reviewer";
+  // Issue #363 / data-model.md § 5: ``"summary-card"`` is the discriminator
+  // for the sparkline-driven panel; it disambiguates sparkline retargets
+  // from chart-bar retargets even though both share ``"throughput"`` /
+  // ``"cycle-time"`` chart types. The panel API uses this to keep the
+  // active-class lifecycle and retarget-in-place ordering coherent
+  // when the user clicks a sparkline while a chart-bar panel is open
+  // (or vice versa).
+  readonly sourceChart:
+    | "throughput"
+    | "cycle-time"
+    | "reviewer"
+    | "summary-card";
   readonly focusedData:
     | { readonly kind: "throughput"; readonly weekIso: string }
     | {
@@ -201,7 +212,11 @@ export interface DrillDownContext {
         readonly weekIso: string;
         readonly metric: "p50" | "p90";
       }
-    | { readonly kind: "reviewer"; readonly reviewerId: string };
+    | { readonly kind: "reviewer"; readonly reviewerId: string }
+    | {
+        readonly kind: "summary-card";
+        readonly targetCard: "totalPrs" | "cycleP50" | "cycleP90";
+      };
   readonly triggerElement: HTMLElement;
   readonly content: PanelContent;
 }

@@ -156,9 +156,12 @@ return makePrListSection({
   renderedCount: rows.length,
   actualFilteredCount,
   capValue,
+  capScope: "per-rollup-union",
   commentsMetricsAvailable,
 });
 ```
+
+`capScope: "per-rollup-union"` is required because #363 is a period-scoped union consumer (rendered rows are the union of per-rollup top-`capValue` slices, not a global top-`capValue`); it must therefore use the #367 union copy path (`Showing X of Y matching PRs (top {capValue} per week by cycle time)`) rather than the single-rollup literal.
 
 The message variants MUST be constructed via the same factory:
 

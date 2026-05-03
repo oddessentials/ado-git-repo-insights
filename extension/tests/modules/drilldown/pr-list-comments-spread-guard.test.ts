@@ -53,6 +53,17 @@ const ALLOWED_MODULES: ReadonlySet<string> = new Set([
   // acknowledgement of 362's authorized scope expansion.  The guard
   // remains active for every other drill-down module.
   "reviewer-drilldown.ts",
+  // Feature 363 (FR-012 / FR-014 + contract `sparkline-pr-list.md`
+  // § 12): summary-card sparkline drill-down's period-scoped PR list
+  // MUST display the same per-row thread / comment / unresolved
+  // counts when the host data carries the comments-metrics
+  // capability.  The local helper `buildCommentsStatRowLocal` reads
+  // `PrListRow.threadCount` / `commentCount` / `activeThreadCount`
+  // directly to build the period-level stat row; this allowlist
+  // entry is the 310-spread-guard's acknowledgement of 363's
+  // authorized scope expansion.  The guard remains active for every
+  // other drill-down module.
+  "sparkline-navigator.ts",
 ]);
 
 // Feature 310 identifiers that MUST stay inside
