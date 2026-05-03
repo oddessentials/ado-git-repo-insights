@@ -5,7 +5,7 @@
 
 ## Summary
 
-Wire `PrListSection` into the existing summary-card sparkline navigator so activating one of the three eligible cards (`totalPrs`, `cycleP50`, `cycleP90`) opens the shared `DetailPanel` directly, with a single period-scoped PR list (the union of the active rollup window's `prs[]` arrays, sorted `cycle_time desc, id asc`, capped at `max(per-week _prs_cap)`). The fourth card (`reviewers`) preserves its existing scroll-and-highlight behavior. This is the final slice of #318; #365 (cycle-time PR drilldown) and #362/#366 (reviewer PR drilldown) shipped first and supply the contracts this slice reuses.
+Wire `PrListSection` into the existing summary-card sparkline navigator so activating one of the three eligible cards (`totalPrs`, `cycleP50`, `cycleP90`) opens the shared `DetailPanel` directly, with a single period-scoped PR list (the union of the active rollup window's `prs[]` arrays, sorted `cycle_time desc, id asc`; period row bound is `sum(per-rollup _prs_cap)` across contributing rollups; the renderer's `capValue` field is `max(per-rollup _prs_cap)` per the inherited reviewer-drilldown contract — field semantics, NOT the rendered-count bound). The fourth card (`reviewers`) preserves its existing scroll-and-highlight behavior. This is the final slice of #318; #365 (cycle-time PR drilldown) and #362/#366 (reviewer PR drilldown) shipped first and supply the contracts this slice reuses.
 
 This is a **consumer-only** slice: no producer-side changes, no schema changes, no new `PrRecord` fields. Implementation reuses the regression-locked primitives (`PrListSection` discriminated union, `classifyFilterState`, `resolvePrUrl`, `comparison-advisory` toast, `is-drilldown-active` MutationObserver lifecycle, capability-off DOM byte-shape) and **duplicates locally** the cross-week union/cap/truncation accumulator pattern (Branch B per Q-R4 lock; reviewer-drilldown's existing walk at `reviewer-drilldown.ts:282-322` stays untouched).
 
@@ -166,7 +166,7 @@ extension/tests/modules/drilldown/
 │                                           # capability gate; comparison toast; reduced-motion; keyboard activation;
 │                                           # missing-target advisory; retarget-in-place; activeTrigger lifecycle
 ├── sparkline-pr-list-order.test.ts          # NEW: FR-010 rendered-DOM order = cycle_time desc, id asc
-├── sparkline-pr-list-count-parity.test.ts   # NEW: FR-007 / FR-009 cap envelope; truncation cue gating
+├── sparkline-pr-list-count-parity.test.ts   # NEW: FR-007 capValue field + period row bound; FR-008 truncation cue gating; FR-009 actualFilteredCount
 ├── sparkline-pr-list-capability-off-baseline.test.ts  # NEW: FR-013 capability-off DOM byte-identity
 └── pr-list-comments-spread-guard.test.ts    # EXTEND: ALLOWED_MODULES includes sparkline-navigator.ts
 
@@ -235,7 +235,7 @@ Approximately **+25 to +35** new Jest tests (preliminary projection, NOT a contr
 
 - `sparkline-navigator.test.ts` extension: +15 to +20 (DetailPanel open for 3 cards, classifier team/reviewer/supported branches × 3 cards, capability on/off shape × 3 cards, comparison toast × 4 cards, reduced-motion × 4 cards, keyboard activation × 3 cards, missing-target advisory × 4 cards, retarget-in-place between cards, activeTrigger lifecycle, dispose cleans up timers)
 - `sparkline-pr-list-order.test.ts`: +1 to +3 (FR-010 rendered-DOM order, multi-week union sort)
-- `sparkline-pr-list-count-parity.test.ts`: +2 to +4 (FR-007 cap envelope, FR-008 truncation cue, FR-009 actualFilteredCount)
+- `sparkline-pr-list-count-parity.test.ts`: +2 to +4 (FR-007 capValue field + period row bound, FR-008 truncation cue, FR-009 actualFilteredCount)
 - `sparkline-pr-list-capability-off-baseline.test.ts`: +1 to +2 (FR-013 byte-identical DOM golden)
 - `pr-list-comments-spread-guard.test.ts` extension (likely +1 to verify sparkline-navigator's import is registered) — may be 0 if the spread-guard updates without new test additions, just an `ALLOWED_MODULES` entry update.
 - +1 to +3 for `formatPeriodTitle` helper unit tests under a NEW `extension/tests/modules/drilldown/week-range.test.ts` file. Placement locked to this new file per tasks.md T008 (Pass 2 lock); the file does not exist at HEAD and is created by T008. No inline-in-sparkline-navigator alternative.

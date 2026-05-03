@@ -386,7 +386,7 @@ This invariant is locked by a new capability-off baseline DOM golden fixture at 
 |---|---|---|
 | `extension/tests/modules/drilldown/sparkline-navigator.test.ts` | EXTEND | DetailPanel-open scenarios for throughput / cycleP50 / cycleP90 cards (FR-001 / FR-005 / FR-006); reviewer-card preservation (FR-002 / SC-005); classifier branches per card (FR-011); capability gate (FR-012 / FR-014); comparison toast on all four (FR-004 / FR-019); reduced-motion (FR-017 / FR-018); keyboard activation (Enter / Space); missing-target advisory (FR-003 / SC-008); retarget-in-place between eligible cards (FR-016 / SC-002); active-trigger lifecycle (FR-015) |
 | `extension/tests/modules/drilldown/sparkline-pr-list-order.test.ts` | NEW | FR-010 rendered-DOM order = `cycle_time desc, id asc` after cross-week union; multi-week unioned PR rows in correct order |
-| `extension/tests/modules/drilldown/sparkline-pr-list-count-parity.test.ts` | NEW | FR-007 cap envelope (`max(per-week _prs_cap)`); FR-008 truncation cue gating (`anyTruncated || collected.length < totalPeriodPrCount`); FR-009 `actualFilteredCount` correctness |
+| `extension/tests/modules/drilldown/sparkline-pr-list-count-parity.test.ts` | NEW | FR-007 `capValue` field (= `max(per-rollup _prs_cap)`) + period row bound (= `sum(per-rollup _prs_cap)`); FR-008 truncation cue gating (`anyTruncated || collected.length < totalPeriodPrCount`); FR-009 `actualFilteredCount` correctness |
 | `extension/tests/modules/drilldown/sparkline-pr-list-capability-off-baseline.test.ts` | NEW | FR-013 byte-identical DOM golden against the new baseline fixture |
 | `extension/tests/modules/drilldown/pr-list-comments-spread-guard.test.ts` | EXTEND | ALLOWED_MODULES extension (see § 12) |
 

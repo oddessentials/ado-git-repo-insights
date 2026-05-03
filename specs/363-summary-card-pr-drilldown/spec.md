@@ -110,7 +110,7 @@ A user is looking at the dashboard summary cards for a multi-week period. The "T
 
 **Why this priority**: The card metric is itself a PR count — the most direct mapping in the strip. A single click should land the user on the underlying PR list. This is the largest user-value win in the slice and the cleanest reuse of the existing throughput PR-list shape.
 
-**Independent Test**: With the dashboard rendered for a multi-week period, click the throughput sparkline. The DetailPanel opens with a single PR list ordered by `cycle_time desc, id asc`, capped at the same per-week cap honored elsewhere, with truncation cue and capability-on/off shape matching the throughput chart's per-week panel.
+**Independent Test**: With the dashboard rendered for a multi-week period, click the throughput sparkline. The DetailPanel opens with a single PR list ordered by `cycle_time desc, id asc`. The period row bound is `sum(per-rollup _prs_cap)` across contributing rollups (the `capValue` field reported to the renderer is `max(per-rollup _prs_cap)` — field-level semantics inherited from the throughput / cycle-time / reviewer drilldowns, NOT the rendered-count bound). Truncation cue and capability-on/off shape match the throughput chart's per-week panel.
 
 **Acceptance Scenarios**:
 
@@ -176,7 +176,7 @@ When the dataset's comments-metrics capability is **on** (per the loader's `getC
 ### Edge Cases
 
 - **Empty period**: every rollup has `pr_count: 0` and `prs: []`. `collected.length === 0` ⇒ `supported-empty` content state — same fall-through as throughput-drilldown's empty-week case.
-- **Missing `_prs_cap` on a contributing rollup**: the consumer cannot honor the cap envelope without it. Per contract § 3 mirrored from reviewer-drilldown: any participating rollup missing `_prs_cap` triggers `supported-empty`.
+- **Missing `_prs_cap` on a contributing rollup**: the consumer cannot compute the `capValue` field (= `max(per-rollup _prs_cap)`) without every contributing rollup providing its `_prs_cap`. Per contract § 3 mirrored from reviewer-drilldown: any participating rollup missing `_prs_cap` triggers `supported-empty`.
 - **Missing `webContext`**: links can't be composed; the panel falls through to `supported-empty`.
 - **Pure-overlay reduction — *forward-compatibility note only, unreachable in #363's scope***: per Pass 3 Q-R1=R1-A lock, source rollups are already PR-level filter-applied by the dashboard before they reach the drilldown layer; #363 introduces NO supplementary client-side overlay. This edge case is preserved purely as a forward-compatibility marker — if a future scope re-introduces an overlay at this layer, applying it must NOT fire the truncation cue (cue is producer-driven; a pure-overlay reduction would not change `collected.length` and therefore would not change the cue gate). For #363, this branch is dead code that does not appear in the spec's contract surface.
 - **Keyboard activation on the reviewers card**: Enter/Space trigger the same scroll-and-highlight path as click; no DetailPanel opens (US3 invariant).
