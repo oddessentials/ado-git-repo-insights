@@ -1497,6 +1497,63 @@ describe("reviewer-drilldown", () => {
     expect(cueText).toContain("500");
   });
 
+  // Issue #367 — reviewer-drilldown wiring: production reviewer path
+  // MUST pass ``capScope: "per-rollup-union"`` to the shared renderer
+  // so the truncation cue surfaces the ``per week`` qualifier.  The
+  // sibling byte-pin in pr-list-comments-columns.test.ts proves the
+  // renderer branch; this test proves the call site picks the right
+  // value (a single character flip at the wiring would still pass the
+  // renderer test but flip this assertion).
+  it("reviewer-drilldown truncation cue surfaces 'per week by cycle time' (issue #367 wiring)", () => {
+    // Same truncation scenario as T030 above so the cue is guaranteed
+    // to fire (W11 truncated at cap=500, reviewed_prs=700; W10/W12
+    // untruncated).  The only assertion difference is the new copy
+    // qualifier the production reviewer call site is responsible for.
+    const w10Prs: PrRecord[] = [];
+    for (let i = 0; i < 30; i += 1) w10Prs.push(makePr(1100 + i, 100 + i));
+    const w11Prs: PrRecord[] = [];
+    for (let i = 0; i < 500; i += 1) w11Prs.push(makePr(2000 + i, 1500 - i));
+    const w12Prs: PrRecord[] = [];
+    for (let i = 0; i < 20; i += 1) w12Prs.push(makePr(3000 + i, 90 - i));
+    const rollups = [
+      rollupWithPrs(
+        { ...defaultPrListWeek("2025-W10"), reviewedPrs: 30, reviewsCount: 30 },
+        w10Prs,
+        { reviewerId: REVIEWER_ID },
+      ),
+      rollupWithPrs(
+        {
+          ...defaultPrListWeek("2025-W11"),
+          reviewedPrs: 700,
+          reviewsCount: 700,
+        },
+        w11Prs,
+        { reviewerId: REVIEWER_ID, prsTruncated: true, prsCap: 500 },
+      ),
+      rollupWithPrs(
+        { ...defaultPrListWeek("2025-W12"), reviewedPrs: 20, reviewsCount: 20 },
+        w12Prs,
+        { reviewerId: REVIEWER_ID },
+      ),
+    ];
+    const container = mountChart(rollups);
+    installReviewerDrilldown(container, rollups, fullOptions());
+
+    click(rowFor(container, "2025-W10"));
+
+    expect(prListContentState()).toBe("pr-list");
+    const cue = prListSection()!.querySelector(".truncation-indicator");
+    expect(cue).not.toBeNull();
+    const cueText = cue!.textContent ?? "";
+    // The wiring assertion: ``per week`` MUST appear, and the single-
+    // rollup parenthetical (``top 500 by cycle time`` without ``per
+    // week``) MUST NOT.  Together these prove ``capScope`` was wired
+    // to ``"per-rollup-union"`` rather than the wrong-but-valid
+    // ``"single-rollup"``.
+    expect(cueText).toContain("per week by cycle time");
+    expect(cueText).not.toMatch(/\(top \d+ by cycle time\)/);
+  });
+
   // T031 — supported-empty for a reviewer with zero qualifying PRs.
   it("supported-empty renders for a reviewer with zero qualifying PRs in the period", () => {
     // The default fixture rollups carry reviewer_id = REVIEWER_ID with a

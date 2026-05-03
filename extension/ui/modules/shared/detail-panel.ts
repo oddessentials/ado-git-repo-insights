@@ -153,6 +153,16 @@ export interface PrListSectionWithRows {
   // additional header + three `<span>`s per row; when `false` the
   // DOM stays byte-identical to the pre-310 shape (SC-03 / FR-3-06).
   readonly commentsMetricsAvailable: boolean;
+  // Issue #367 — cap-scope discriminator for the truncation cue copy.
+  // ``single-rollup`` (throughput / cycle-time per-week) keeps the
+  // pre-#367 literal: ``... (top {capValue} by cycle time)`` because
+  // the rendered rows ARE the top-{capValue}-by-cycle-time slice of a
+  // single rollup.  ``per-rollup-union`` (reviewer cross-week, future
+  // sparkline period drill-downs) renders ``... (top {capValue} per
+  // week by cycle time)`` because the rendered set is the union of
+  // per-rollup top-{capValue} slices and carries no global cycle-time
+  // rank guarantee — the parenthetical otherwise lies (#367).
+  readonly capScope: "single-rollup" | "per-rollup-union";
 }
 
 export interface PrListSectionMessage {
@@ -258,6 +268,10 @@ export type PrListSectionInput =
       // Feature 310 — required on the pr-list variant only.  Message
       // variants never render rows so the flag does not apply there.
       readonly commentsMetricsAvailable: boolean;
+      // Issue #367 — required on the pr-list variant only.  Message
+      // variants render no truncation cue so the discriminator does
+      // not apply there.  See PrListSectionWithRows for full semantics.
+      readonly capScope: "single-rollup" | "per-rollup-union";
     }
   | {
       readonly contentState:
@@ -276,6 +290,7 @@ export function makePrListSection(input: PrListSectionInput): PrListSection {
       actualFilteredCount: input.actualFilteredCount,
       capValue: input.capValue,
       commentsMetricsAvailable: input.commentsMetricsAvailable,
+      capScope: input.capScope,
     };
   }
   return { type: "pr-list", contentState: input.contentState };
@@ -1187,6 +1202,7 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         actualFilteredCount,
         capValue,
         commentsMetricsAvailable,
+        capScope,
       } = section;
 
       // Issue #331 / C2 + C3: pre-compute the slice-level partial
@@ -1222,7 +1238,22 @@ function renderPrListSection(section: PrListSection): HTMLElement {
         // partial slices — the sort/filter controls are suppressed
         // there (see emit gate below), so the disclosure would
         // promise an interaction that never lands.
-        const base = `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
+        //
+        // Issue #367: switch the parenthetical on ``capScope``.  For
+        // ``single-rollup`` consumers (throughput / cycle-time per-
+        // week) the rendered rows ARE the top-{capValue}-by-cycle-
+        // time slice of one rollup, so the pre-#367 literal stays
+        // byte-identical.  For ``per-rollup-union`` consumers
+        // (reviewer cross-week + future sparkline period drill-downs)
+        // ``capValue`` is ``max(per-rollup _prs_cap)`` and the
+        // rendered set is the union of per-rollup top-{capValue}
+        // slices — no global cycle-time-rank guarantee — so the copy
+        // adds ``per week`` to surface that the cap was applied
+        // independently to each contributing rollup.
+        const base =
+          capScope === "per-rollup-union"
+            ? `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} per week by cycle time)`
+            : `Showing ${renderedCount} of ${actualFilteredCount} matching PRs (top ${capValue} by cycle time)`;
         appendText(
           indicator,
           commentsMetricsAvailable && !allRowsPartial
