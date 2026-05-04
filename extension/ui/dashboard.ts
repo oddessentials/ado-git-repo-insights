@@ -81,6 +81,7 @@ import {
   isLocalMode,
   getLocalDatasetPath,
   getLocalCollectionUri,
+  getRuntimeLocalCollectionUri,
   getExtensionDataService,
   getWebContext,
   getCollectionUri,
@@ -625,7 +626,13 @@ async function init(): Promise<void> {
       // `getCollectionUri()` is unreachable. Populate a deterministic stub
       // so the feature-060 throughput drill-down receives a defined
       // `webContext` and renders the PR list against synthetic `prs` data.
-      currentCollectionUri = getLocalCollectionUri();
+      // Hotfix: prefer the CLI-injected runtime collection URI (sourced
+      // from `--org` in `_prepare_serve_directory`) so PR hyperlinks
+      // resolve under the customer's real tenant rather than the
+      // synthetic-demo fallback. Falls back to the demo literal when
+      // unset (synthetic-data demos / out-of-scope CLI paths).
+      currentCollectionUri =
+        getRuntimeLocalCollectionUri() ?? getLocalCollectionUri();
 
       const projectNameEl = document.getElementById("current-project-name");
       if (projectNameEl) {
