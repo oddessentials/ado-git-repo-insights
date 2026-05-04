@@ -14,14 +14,15 @@ import hashlib
 import importlib.util
 import shutil
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
+from ado_git_repo_insights.utils import ui_sync as ui_sync_module
 from ado_git_repo_insights.utils.ui_sync import (
     SyncError,
     _atomic_replace,
     compute_manifest,
+    is_dev_mode,
     sync_needed,
     sync_ui_bundle,
     validate_dist,
@@ -82,43 +83,159 @@ def empty_bundle(tmp_path: Path) -> Path:
 
 
 class TestDevModeDetection:
-    """Tests for is_dev_mode() function."""
+    """Tests for is_dev_mode() function.
 
-    def test_detects_dev_mode_from_cwd(self, temp_repo: Path) -> None:
-        """Dev mode detected when cwd is inside repo with extension/package.json."""
-        with patch("ado_git_repo_insights.utils.ui_sync.Path") as mock_path:
-            # Mock cwd to be inside temp_repo
-            mock_path.cwd.return_value.resolve.return_value = temp_repo / "src"
-            mock_path.side_effect = Path  # Keep normal Path behavior for __file__
+    Contract: dev mode is anchored on the installed module's __file__ ONLY.
+    The user's CWD is intentionally not consulted, so a customer running the
+    PyPI-installed CLI from inside an unrelated checkout that happens to
+    contain extension/package.json must still get (False, None).
+    """
 
-            # Can't easily mock __file__, so test the marker detection directly
-            marker = temp_repo / "extension" / "package.json"
-            assert marker.exists()
+    def test_editable_install_detects_repo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Editable install: __file__ inside repo checkout returns (True, repo_root)."""
+        repo = tmp_path / "repo"
+        (repo / "extension").mkdir(parents=True)
+        (repo / "extension" / "package.json").write_text('{"name": "test"}')
 
-    def test_detects_dev_mode_walks_parents(self, temp_repo: Path) -> None:
-        """Dev mode detection walks up parent directories."""
-        deep_path = temp_repo / "src" / "ado_git_repo_insights" / "utils"
-        deep_path.mkdir(parents=True, exist_ok=True)
+        installed = repo / "src" / "ado_git_repo_insights" / "utils"
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "ui_sync.py"
+        fake_module_file.write_text("")
 
-        # Verify marker is findable from deep path
-        for parent in [deep_path, *deep_path.parents]:
-            marker = parent / "extension" / "package.json"
-            if marker.exists():
-                break
-        else:
-            pytest.fail("Marker should be found in parents")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
 
-    def test_installed_mode_no_marker(self, tmp_path: Path) -> None:
-        """Installed mode when no extension/package.json found."""
-        # Create directory without marker
-        pkg_dir = tmp_path / "site-packages" / "ado_git_repo_insights"
-        pkg_dir.mkdir(parents=True)
+        dev_mode, repo_root = is_dev_mode()
 
-        # No marker in any parent
-        for parent in [pkg_dir, *pkg_dir.parents]:
-            marker = parent / "extension" / "package.json"
-            if marker.exists():
-                pytest.fail("No marker should exist in installed scenario")
+        assert dev_mode is True
+        assert repo_root == repo
+
+    def test_pypi_install_returns_false_even_when_cwd_is_a_repo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: customer ran PyPI ado-insights from C:\\projects\\ado-git-repo-insights\\
+        which had extension/package.json in its tree but no extension/dist/ui.
+
+        Pre-fix is_dev_mode walked CWD ancestors and returned (True, customer_dir),
+        causing _serve_dashboard to validate a non-existent extension/dist/ui and
+        hard-fail with 'extension/dist/ui not found ... Run npm run build:ui'.
+
+        Post-fix: __file__ lives under site-packages so the walk finds no marker,
+        is_dev_mode returns (False, None), and the packaged ui_bundle is used.
+        """
+        # Customer CWD: a directory that DOES contain extension/package.json but
+        # NOT extension/dist/ui (the exact failure shape from the bug report).
+        customer_cwd = tmp_path / "customer_dir"
+        (customer_cwd / "extension").mkdir(parents=True)
+        (customer_cwd / "extension" / "package.json").write_text('{"name": "src"}')
+        assert not (customer_cwd / "extension" / "dist" / "ui").exists()
+        monkeypatch.chdir(customer_cwd)
+
+        # Installed module path: simulate site-packages, no marker in walk.
+        site_packages = tmp_path / "venv" / "Lib" / "site-packages"
+        installed = site_packages / "ado_git_repo_insights" / "utils"
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "ui_sync.py"
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        dev_mode, repo_root = is_dev_mode()
+
+        assert dev_mode is False
+        assert repo_root is None
+
+    def test_installed_mode_no_marker_anywhere(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No marker in module ancestry → installed mode."""
+        installed = (
+            tmp_path / "venv" / "Lib" / "site-packages" / "ado_git_repo_insights"
+        )
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "utils" / "ui_sync.py"
+        fake_module_file.parent.mkdir(parents=True)
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        dev_mode, repo_root = is_dev_mode()
+
+        assert dev_mode is False
+        assert repo_root is None
+
+    def test_walks_parents_to_find_marker(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Editable install at any depth under repo root still finds marker."""
+        repo = tmp_path / "repo"
+        (repo / "extension").mkdir(parents=True)
+        (repo / "extension" / "package.json").write_text('{"name": "test"}')
+
+        deep = repo / "src" / "ado_git_repo_insights" / "utils"
+        deep.mkdir(parents=True)
+        fake_module_file = deep / "ui_sync.py"
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        dev_mode, repo_root = is_dev_mode()
+
+        assert dev_mode is True
+        assert repo_root == repo
+
+
+class TestSyncUiBundleIfNeededRegression:
+    """End-to-end regression for the customer failure on v101.27.0.
+
+    Reproduces the exact preconditions reported in the bug:
+      - CWD is C:\\projects\\ado-git-repo-insights\\ (contains extension/package.json)
+      - No extension/dist/ui exists in CWD
+      - ado-insights came from PyPI (module under site-packages)
+
+    Pre-fix: _sync_ui_bundle_if_needed called validate_dist on the non-existent
+    dist path and returned the 'extension/dist/ui not found ... Run npm run
+    build:ui' error string, which _serve_dashboard logged and exited 1.
+
+    Post-fix: dev mode is False, _sync_ui_bundle_if_needed returns None, and the
+    packaged ui_bundle is used unchanged.
+    """
+
+    def test_pypi_install_from_repo_shaped_cwd_does_not_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from ado_git_repo_insights.cli import _sync_ui_bundle_if_needed
+
+        # Customer CWD with marker but no dist/ui (exact bug shape).
+        customer_cwd = tmp_path / "customer_dir"
+        (customer_cwd / "extension").mkdir(parents=True)
+        (customer_cwd / "extension" / "package.json").write_text('{"name": "src"}')
+        assert not (customer_cwd / "extension" / "dist" / "ui").exists()
+        monkeypatch.chdir(customer_cwd)
+
+        # Installed module location under simulated site-packages.
+        site_packages = tmp_path / "venv" / "Lib" / "site-packages"
+        installed = site_packages / "ado_git_repo_insights" / "utils"
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "ui_sync.py"
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        # Packaged ui_bundle path the CLI would resolve to.
+        packaged_ui = (
+            tmp_path
+            / "venv"
+            / "Lib"
+            / "site-packages"
+            / ("ado_git_repo_insights")
+            / "ui_bundle"
+        )
+        packaged_ui.mkdir(parents=True)
+        (packaged_ui / "index.html").write_text("<html></html>")
+        (packaged_ui / "dashboard.js").write_text("// packaged")
+
+        # Must NOT raise SyncError and must return None (no error string).
+        result = _sync_ui_bundle_if_needed(packaged_ui)
+
+        assert result is None
 
 
 # =============================================================================

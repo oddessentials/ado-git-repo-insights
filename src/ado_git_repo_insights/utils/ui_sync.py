@@ -4,7 +4,11 @@ This module provides content-addressed sync from extension/dist/ui/ to ui_bundle
 with atomic replacement and proper rollback on failure.
 
 Dev mode is detected by finding extension/package.json in an ancestor directory
-of both the current working directory AND the installed package location.
+of THIS module's installed location. Wheel/PyPI installs live under site-packages
+and never match; only editable (`pip install -e .`) installs resolve into the
+repo checkout and trigger the sync. The user's CWD is intentionally NOT consulted:
+a customer running the installed CLI from inside an unrelated checkout that
+happens to contain extension/package.json must still get the packaged ui_bundle.
 """
 
 from __future__ import annotations
@@ -35,24 +39,26 @@ class SyncError(Exception):
 def is_dev_mode() -> tuple[bool, Path | None]:
     """Detect if running from a repository checkout (dev mode).
 
-    Searches for extension/package.json in ancestors of BOTH:
-    1. Current working directory
-    2. This module's installed location
+    Searches for extension/package.json ONLY in ancestors of this module's
+    installed location. Wheel/PyPI installs land under site-packages and the
+    walk never finds the marker; editable installs resolve __file__ into the
+    source tree and find it.
+
+    The current working directory is intentionally NOT used as a search anchor.
+    A customer running the installed CLI from inside an unrelated repo
+    checkout that contains extension/package.json must still receive the
+    packaged ui_bundle, not be redirected to a non-existent extension/dist/ui.
 
     Returns:
-        (True, repo_root) if dev mode detected
+        (True, repo_root) if dev mode detected (editable install in checkout)
         (False, None) if running as installed package
     """
-    anchors = [
-        Path.cwd().resolve(),
-        Path(__file__).resolve().parent,
-    ]
+    module_anchor = Path(__file__).resolve().parent
 
-    for anchor in anchors:
-        for parent in [anchor, *anchor.parents]:
-            marker = parent / "extension" / "package.json"
-            if marker.exists():
-                return True, parent
+    for parent in [module_anchor, *module_anchor.parents]:
+        marker = parent / "extension" / "package.json"
+        if marker.exists():
+            return True, parent
 
     return False, None
 
