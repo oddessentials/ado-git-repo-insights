@@ -728,3 +728,106 @@ class TestRunAclHealthCheck:
                 pytest.raises(SystemExit),
             ):
                 run_acl_health_check()
+
+
+class TestCrlfGuardChecksIndexNotWorktree:
+    """run_crlf_guard validates indexed (push-bound) line endings, not raw
+    working-tree bytes.
+
+    The Windows pattern that motivated this fix: an editor or script writes
+    CRLF, ``git add`` converts to LF in the index per ``.gitattributes``
+    ``text=auto eol=lf``, and ``git status`` reports clean. The OLD guard
+    read working-tree bytes and falsely blocked the push even though git
+    was about to push LF blobs. The fix reads ``git ls-files --eol`` so the
+    guard sees the same content git is about to send.
+    """
+
+    def test_check_crlf_in_index_passes_when_index_is_lf(self) -> None:
+        """LF in index (regardless of worktree) → False (push allowed)."""
+        eol_map = {"scripts/foo.py": "lf"}
+        assert _hook_module.check_crlf_in_index("scripts/foo.py", eol_map) is False
+
+    def test_check_crlf_in_index_fails_when_index_is_crlf(self) -> None:
+        """CRLF in index → True (push blocked — genuine repo-content issue)."""
+        eol_map = {"scripts/foo.py": "crlf"}
+        assert _hook_module.check_crlf_in_index("scripts/foo.py", eol_map) is True
+
+    def test_check_crlf_in_index_fails_when_index_is_mixed(self) -> None:
+        """Mixed line endings in index → True (push blocked)."""
+        eol_map = {"scripts/foo.py": "mixed"}
+        assert _hook_module.check_crlf_in_index("scripts/foo.py", eol_map) is True
+
+    def test_check_crlf_in_index_passes_for_untracked_path(self) -> None:
+        """Untracked file → False (won't be pushed; out of scope)."""
+        assert _hook_module.check_crlf_in_index("scripts/new.py", {}) is False
+
+    def test_check_crlf_in_index_passes_for_binary(self) -> None:
+        """Binary file (i/none) → False (no line-ending question)."""
+        eol_map = {"extension/ui/icon.png": "none"}
+        assert (
+            _hook_module.check_crlf_in_index("extension/ui/icon.png", eol_map) is False
+        )
+
+    def test_run_crlf_guard_blocks_when_indexed_eol_is_crlf(self) -> None:
+        """Block when ``git ls-files --eol`` reports a CRLF blob in scope."""
+        with patch.object(
+            _hook_module,
+            "_scan_indexed_eol",
+            return_value={"scripts/bad.py": "crlf"},
+        ):
+            with pytest.raises(SystemExit):
+                _hook_module.run_crlf_guard()
+
+    def test_run_crlf_guard_blocks_when_indexed_eol_is_mixed(self) -> None:
+        """Mixed-line-ending blob in scope → blocked."""
+        with patch.object(
+            _hook_module,
+            "_scan_indexed_eol",
+            return_value={"extension/ui/foo.ts": "mixed"},
+        ):
+            with pytest.raises(SystemExit):
+                _hook_module.run_crlf_guard()
+
+    def test_run_crlf_guard_passes_when_lf_index_with_crlf_worktree(
+        self,
+    ) -> None:
+        """The motivating regression: LF in index + CRLF in worktree → PASS.
+
+        Mocks ``_scan_indexed_eol`` to report all-LF; the guard MUST
+        succeed even though the real worktree on Windows might render
+        CRLF after a Python script write.
+        """
+        with patch.object(
+            _hook_module,
+            "_scan_indexed_eol",
+            return_value={
+                "scripts/foo.py": "lf",
+                "extension/ui/dashboard.ts": "lf",
+                ".husky/pre-push": "lf",
+            },
+        ):
+            _hook_module.run_crlf_guard()  # must not raise
+
+    def test_run_crlf_guard_ignores_files_outside_scope(self) -> None:
+        """CRLF in an out-of-scope file (e.g., docs/) does not block."""
+        with patch.object(
+            _hook_module,
+            "_scan_indexed_eol",
+            return_value={"docs/random.md": "crlf"},
+        ):
+            _hook_module.run_crlf_guard()  # must not raise
+
+    def test_run_crlf_guard_passes_against_real_repo_index(self) -> None:
+        """Regression: real repo index is LF, guard MUST pass.
+
+        This is the live integration check that would have caught the
+        original false-positive: before the fix the guard scanned raw
+        worktree bytes and could fail here on Windows; after the fix it
+        reads the LF-normalized index and passes.
+        """
+        try:
+            _hook_module.run_crlf_guard()
+        except SystemExit as exc:
+            pytest.fail(
+                f"run_crlf_guard incorrectly blocked clean repo: exit={exc.code}"
+            )

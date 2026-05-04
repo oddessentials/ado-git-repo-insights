@@ -1200,62 +1200,107 @@ def run_pre_push_pre_commit_checks() -> None:
     run_command([pre_commit, "run", "--all-files", "--hook-stage", "pre-push"])
 
 
-def check_crlf(path: Path) -> bool:
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return False
-    return b"\r" in data
+_CRLF_CATEGORY_LABELS: tuple[str, ...] = (
+    ".husky",
+    "*.sh",
+    ".github/scripts",
+    "scripts",
+    "extension/scripts",
+    "extension/ui",
+)
 
 
-def iter_files(root: Path) -> list[Path]:
-    files: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
+def _scan_indexed_eol() -> dict[str, str]:
+    """Return ``{tracked-path: i/<eol>}`` for every file in the index.
+
+    One ``git ls-files --eol`` call so the result reflects what git would
+    push after applying ``.gitattributes`` text filters — independent of
+    Windows working-tree rendering. Possible eol values: ``lf``, ``crlf``,
+    ``mixed``, ``none`` (binary), ``-`` (no info).
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "--eol"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    eols: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        # Format: "i/<eol> w/<eol> attr/<text-attr>\t<path>"
+        if "\t" not in line:
             continue
-        if "__pycache__" in path.parts:
+        attrs_part, path = line.split("\t", 1)
+        tokens = attrs_part.split()
+        if not tokens or not tokens[0].startswith("i/"):
             continue
-        if any(part in {"node_modules", ".venv"} for part in path.parts):
-            continue
-        files.append(path)
-    return files
+        eols[path.strip()] = tokens[0][2:]  # strip "i/" prefix
+    return eols
+
+
+def check_crlf_in_index(path: str, indexed_eol: dict[str, str]) -> bool:
+    """True iff ``path``'s indexed (push-bound) content has CR.
+
+    Reads the i/<eol> attribute computed by ``git ls-files --eol`` rather
+    than raw working-tree bytes, so Windows worktree CRLF rendering
+    (which git auto-converts to LF on commit per ``.gitattributes``
+    ``text=auto eol=lf``) does not falsely trip the guard. Untracked
+    paths return False — they aren't in the push-bound set.
+    """
+    eol = indexed_eol.get(path)
+    return eol in {"crlf", "mixed"}
+
+
+def _crlf_categories(path: str) -> list[str]:
+    """Return all CRLF-guard category labels that ``path`` falls under."""
+    cats: list[str] = []
+    if path.startswith(".husky/"):
+        cats.append(".husky")
+    if path.endswith(".sh"):
+        cats.append("*.sh")
+    if path.startswith(".github/scripts/"):
+        cats.append(".github/scripts")
+    if path.startswith("scripts/"):
+        cats.append("scripts")
+    if path.startswith("extension/scripts/"):
+        cats.append("extension/scripts")
+    if path.startswith("extension/ui/"):
+        cats.append("extension/ui")
+    return cats
 
 
 def run_crlf_guard() -> None:
-    safe_print("[pre-push] running CRLF line ending guard")
-    targets = {
-        ".husky": REPO_ROOT / ".husky",
-        "*.sh": REPO_ROOT,
-        ".github/scripts": REPO_ROOT / ".github" / "scripts",
-        "scripts": REPO_ROOT / "scripts",
-        "extension/scripts": EXTENSION_ROOT / "scripts",
-        "extension/ui": EXTENSION_ROOT / "ui",
-    }
-    failures: dict[str, list[str]] = {label: [] for label in targets}
+    """Block push if any in-scope file has CRLF in its indexed content.
 
-    for label, root in targets.items():
-        if not root.exists():
+    Validates push-bound content (post-``.gitattributes`` normalization)
+    via ``git ls-files --eol``, not raw working-tree bytes — the latter
+    falsely flags Windows worktree rendering of files git committed as LF.
+    """
+    safe_print("[pre-push] running CRLF line ending guard")
+    indexed_eol = _scan_indexed_eol()
+    failures: dict[str, list[str]] = {label: [] for label in _CRLF_CATEGORY_LABELS}
+    for path, eol in indexed_eol.items():
+        if eol not in {"crlf", "mixed"}:
             continue
-        for path in iter_files(root):
-            if label == "*.sh" and path.suffix != ".sh":
-                continue
-            if check_crlf(path):
-                failures[label].append(path.relative_to(REPO_ROOT).as_posix())
+        for label in _crlf_categories(path):
+            failures[label].append(path)
 
     found = False
-    for label, matches in failures.items():
+    for label in _CRLF_CATEGORY_LABELS:
+        matches = failures[label]
         if not matches:
             continue
         found = True
-        safe_print(f"[pre-push] CRLF detected in {label}:")
+        safe_print(f"[pre-push] CRLF detected in indexed content under {label}:")
         for match in matches:
             safe_print(f"  - {match}")
 
     if found:
         safe_print("")
-        safe_print("[pre-push] push blocked: CRLF line endings found")
+        safe_print("[pre-push] push blocked: CRLF in indexed (push-bound) content")
         safe_print(
-            "[pre-push] Fix: run `git add --renormalize .` after checking .gitattributes"
+            "[pre-push] Fix: check .gitattributes and run "
+            "`git add --renormalize <path>` to fix the index"
         )
         raise SystemExit(1)
 
