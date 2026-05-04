@@ -1,3 +1,10 @@
+# [101.27.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.26.1...v101.27.0) (2026-05-04)
+
+
+### Features
+
+* **363:** summary-card sparkline PR drill-down ([#369](https://github.com/oddessentials/ado-git-repo-insights/issues/369)) ([3c57652](https://github.com/oddessentials/ado-git-repo-insights/commit/3c57652620462677f5bd8f14254e20fba07c108b)), closes [#363](https://github.com/oddessentials/ado-git-repo-insights/issues/363) [#318](https://github.com/oddessentials/ado-git-repo-insights/issues/318) [#363](https://github.com/oddessentials/ado-git-repo-insights/issues/363) [#363](https://github.com/oddessentials/ado-git-repo-insights/issues/363) [#362](https://github.com/oddessentials/ado-git-repo-insights/issues/362) [#363](https://github.com/oddessentials/ado-git-repo-insights/issues/363) [#367](https://github.com/oddessentials/ado-git-repo-insights/issues/367) [#367](https://github.com/oddessentials/ado-git-repo-insights/issues/367) [#367](https://github.com/oddessentials/ado-git-repo-insights/issues/367) [pre-#363](https://github.com/pre-/issues/363) [Post-#363](https://github.com/Post-/issues/363) [post-#363](https://github.com/post-/issues/363)
+
 ## [101.26.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.26.0...v101.26.1) (2026-05-03)
 
 
