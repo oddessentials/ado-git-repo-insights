@@ -290,6 +290,10 @@ def build_commands(
 
     commands = [
         CommandSpec(
+            "Tracked artifact cleanliness",
+            ("__PYTHON__", "scripts/check_tracked_artifacts_clean.py"),
+        ),
+        CommandSpec(
             "Suppression baseline sync gate",
             tuple(local_suppression_gate),
             extra_env=suppression_env,

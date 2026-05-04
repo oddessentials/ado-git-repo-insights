@@ -30,7 +30,11 @@ def main() -> int:
     """
     require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
     result = subprocess.run(
-        [sys.executable, str(_scripts_dir / "build-demo-dataset.py")],
+        [
+            sys.executable,
+            str(_scripts_dir / "build-demo-dataset.py"),
+            "--commit-canonical",
+        ],
         check=False,
     )
     return result.returncode

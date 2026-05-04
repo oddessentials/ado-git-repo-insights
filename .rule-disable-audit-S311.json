@@ -4,61 +4,61 @@
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 256,
+      "line": 257,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 319,
-      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/generate-demo-data.py",
       "line": 320,
-      "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
       "line": 321,
-      "code": "comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/generate-demo-data.py",
-      "line": 322,
-      "code": "vote_event_rng = random.Random(SEED + _VOTE_EVENT_SEED_OFFSET)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/generate-demo-data.py",
-      "line": 2125,
-      "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/generate-demo-data.py",
-      "line": 2736,
-      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/generate-demo-data.py",
-      "line": 2737,
       "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 2742,
+      "line": 322,
       "code": "comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-demo-data.py",
+      "line": 323,
+      "code": "vote_event_rng = random.Random(SEED + _VOTE_EVENT_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 2126,
+      "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
       "line": 2749,
+      "code": "pr_record_rng = random.Random(SEED + _PR_RECORD_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 2750,
+      "code": "comments_metrics_rng = random.Random(SEED + _COMMENTS_METRICS_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 2755,
+      "code": "comment_stream_rng = random.Random(SEED + _COMMENT_STREAM_SEED_OFFSET)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 2762,
       "code": "vote_event_rng = random.Random(SEED + _VOTE_EVENT_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },

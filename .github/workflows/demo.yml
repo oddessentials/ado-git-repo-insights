@@ -85,7 +85,7 @@ jobs:
         run: python scripts/run_repo_hook.py sentinel-absence
 
       - name: Run canonical committed-demo build
-        run: python scripts/build-demo-dataset.py
+        run: python scripts/build-demo-dataset.py --commit-canonical
 
       - name: Upload regenerated data
         uses: actions/upload-artifact@v4
@@ -118,7 +118,7 @@ jobs:
             echo ""
             echo "To fix:"
             echo "1. Use Python 3.12.x"
-            echo "2. Run: python scripts/build-demo-dataset.py"
+            echo "2. Run: python scripts/build-demo-dataset.py --commit-canonical"
             echo "3. Commit the updated files"
             exit 1
           fi

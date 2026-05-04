@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 123,
+  "total_call_sites": 131,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -13,31 +13,31 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 166,
-      "code": "result = subprocess.run(",
+      "line": 180,
+      "code": "git_result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 221,
-      "code": "result = subprocess.run(",
+      "line": 237,
+      "code": "gen_result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 266,
-      "code": "result = subprocess.run(",
+      "line": 282,
+      "code": "repo_result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 384,
+      "line": 400,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 422,
+      "line": 438,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -53,7 +53,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 430,
+      "line": 446,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -164,6 +164,22 @@
       "safety": "unsafe-non-literal-command"
     },
     {
+      "file": "scripts/check_tracked_artifacts_clean.py",
+      "line": 18,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_tracked_artifacts_clean.py",
+      "line": 32,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
       "file": "scripts/clean_ephemeral.py",
       "line": 364,
       "code": "return subprocess.run(",
@@ -237,7 +253,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 672,
+      "line": 676,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +261,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 695,
+      "line": 699,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +269,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 793,
+      "line": 797,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -261,7 +277,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 875,
+      "line": 879,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -317,7 +333,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 232,
+      "line": 236,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +341,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 241,
+      "line": 245,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -333,7 +349,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 250,
+      "line": 254,
       "code": "build_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +357,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 266,
+      "line": 270,
       "code": "validate_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -349,7 +365,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 283,
+      "line": 287,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -357,7 +373,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 324,
+      "line": 328,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -365,7 +381,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 374,
+      "line": 378,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -373,7 +389,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 430,
+      "line": 434,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -381,7 +397,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 487,
+      "line": 491,
       "code": "proc_a = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
@@ -389,7 +405,7 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 493,
+      "line": 497,
       "code": "proc_b = subprocess.Popen(",
       "shell_true": false,
       "literal_list": true,
@@ -975,6 +991,54 @@
       "file": "tests/unit/test_tenant_provenance_negative.py",
       "line": 40,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 16,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 20,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 24,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 36,
+      "code": "subprocess.run([\"git\", \"-C\", str(repo), \"add\", \".\"], check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 37,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_tracked_artifact_clean_check.py",
+      "line": 44,
+      "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
