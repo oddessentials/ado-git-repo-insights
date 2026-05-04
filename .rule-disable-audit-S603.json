@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 117,
+  "total_call_sites": 123,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -775,6 +775,54 @@
       "file": "tests/unit/test_demo_generation_contract.py",
       "line": 15,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 857,
+      "code": "subprocess.run([\"git\", \"init\", \"-q\"], cwd=repo, check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 858,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 863,
+      "code": "subprocess.run([\"git\", \"config\", \"user.name\", \"t\"], cwd=repo, check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 868,
+      "code": "subprocess.run([\"git\", \"add\", \".\"], cwd=repo, check=True)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 869,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_hook_guards.py",
+      "line": 889,
+      "code": "eol_inspect = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

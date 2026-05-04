@@ -13,6 +13,7 @@ requiring actual git state manipulation.
 """
 
 import importlib
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -830,4 +831,78 @@ class TestCrlfGuardChecksIndexNotWorktree:
         except SystemExit as exc:
             pytest.fail(
                 f"run_crlf_guard incorrectly blocked clean repo: exit={exc.code}"
+            )
+
+    def test_run_crlf_guard_passes_with_real_crlf_worktree_and_lf_index(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The exact Windows parity bug: real git repo, LF blob, CRLF worktree.
+
+        Sets up a real git repository with ``text=auto eol=lf`` in
+        ``.gitattributes``, commits a file (so the indexed blob is LF),
+        then writes raw CRLF bytes to the worktree (mimicking what a
+        Python script using default text mode does on Windows).
+        ``git ls-files --eol`` then reports ``i/lf w/crlf``.  The pre-push
+        guard MUST PASS — the push-bound (indexed) content is clean LF;
+        worktree CRLF is incidental Windows rendering.
+
+        Pre-fix the guard read raw worktree bytes and falsely blocked.
+        Post-fix it reads ``git ls-files --eol`` and validates the
+        push-bound view, restoring local = CI parity on Windows.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+        (repo / ".gitattributes").write_bytes(b"* text=auto eol=lf\n")
+        (repo / "scripts").mkdir()
+        sample = repo / "scripts" / "foo.py"
+        sample.write_bytes(b"hello\nworld\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "init"],
+            cwd=repo,
+            check=True,
+        )
+
+        # Now force CRLF bytes into the worktree (Python text-mode write
+        # on Windows produces this exact state).  Index stays LF.
+        sample.write_bytes(b"hello\r\nworld\r\n")
+        assert b"\r\n" in sample.read_bytes(), "worktree must have CRLF"
+
+        # Point the guard at the temp repo so it scans the right index.
+        monkeypatch.setattr(_hook_module, "REPO_ROOT", repo)
+
+        # Setup invariant: indexed blob is LF, worktree is CRLF.
+        eol_map = _hook_module._scan_indexed_eol()
+        assert eol_map.get("scripts/foo.py") == "lf", (
+            f"index should be LF after .gitattributes normalization, got: "
+            f"{eol_map.get('scripts/foo.py')!r}"
+        )
+        eol_inspect = subprocess.run(
+            ["git", "ls-files", "--eol"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "w/crlf" in eol_inspect.stdout, (
+            f"git ls-files --eol should report w/crlf for the mutated worktree, "
+            f"got: {eol_inspect.stdout!r}"
+        )
+
+        # The guard MUST pass: what gets pushed is the LF blob.
+        try:
+            _hook_module.run_crlf_guard()
+        except SystemExit as exc:
+            pytest.fail(
+                "run_crlf_guard incorrectly blocked push despite LF index "
+                f"(parity-bug regression): exit={exc.code}"
             )

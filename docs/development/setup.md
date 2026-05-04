@@ -195,6 +195,12 @@ git config core.autocrlf false
 
 If you see "CRLF will be replaced by LF" warnings, that's expected behavior.
 
+**Bulk-edit scripts must write LF explicitly** (`Path.write_bytes()` with
+`\n`, or `open(path, 'w', newline='\n')`). Windows default text mode emits
+CRLF; `git add` normalizes to LF in the index but leaves CRLF in the
+worktree until something rewrites the file, which can confuse Windows-only
+diagnostics.
+
 ---
 
 ## Project Structure
