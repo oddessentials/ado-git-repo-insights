@@ -3,12 +3,13 @@
 This module provides content-addressed sync from extension/dist/ui/ to ui_bundle/
 with atomic replacement and proper rollback on failure.
 
-Dev mode is detected by finding extension/package.json in an ancestor directory
-of THIS module's installed location. Wheel/PyPI installs live under site-packages
-and never match; only editable (`pip install -e .`) installs resolve into the
-repo checkout and trigger the sync. The user's CWD is intentionally NOT consulted:
-a customer running the installed CLI from inside an unrelated checkout that
-happens to contain extension/package.json must still get the packaged ui_bundle.
+Dev mode is detected by walking ancestors of THIS module's installed location
+looking for extension/package.json. The walk aborts the moment it crosses a
+site-packages or dist-packages directory: a marker found above that boundary
+belongs to a checkout that happens to contain the venv, not to the source the
+package was built from. Only true editable installs (where __file__ resolves
+into the source tree above any install boundary) trigger dev mode. The user's
+CWD is intentionally NOT consulted.
 """
 
 from __future__ import annotations
@@ -39,15 +40,16 @@ class SyncError(Exception):
 def is_dev_mode() -> tuple[bool, Path | None]:
     """Detect if running from a repository checkout (dev mode).
 
-    Searches for extension/package.json ONLY in ancestors of this module's
-    installed location. Wheel/PyPI installs land under site-packages and the
-    walk never finds the marker; editable installs resolve __file__ into the
-    source tree and find it.
+    Walks ancestors of this module's installed location looking for
+    extension/package.json. The walk stops at any site-packages or
+    dist-packages directory: a marker found above that boundary belongs to
+    a checkout that merely contains the venv, not to the source the package
+    was built from. This handles the case where a customer creates their
+    venv inside a directory that happens to also contain a source checkout.
 
-    The current working directory is intentionally NOT used as a search anchor.
-    A customer running the installed CLI from inside an unrelated repo
-    checkout that contains extension/package.json must still receive the
-    packaged ui_bundle, not be redirected to a non-existent extension/dist/ui.
+    Only true editable installs — where __file__ resolves into the source
+    tree above any install boundary — trigger dev mode. The current working
+    directory is intentionally NOT used as a search anchor.
 
     Returns:
         (True, repo_root) if dev mode detected (editable install in checkout)
@@ -56,6 +58,8 @@ def is_dev_mode() -> tuple[bool, Path | None]:
     module_anchor = Path(__file__).resolve().parent
 
     for parent in [module_anchor, *module_anchor.parents]:
+        if parent.name.lower() in ("site-packages", "dist-packages"):
+            return False, None
         marker = parent / "extension" / "package.json"
         if marker.exists():
             return True, parent

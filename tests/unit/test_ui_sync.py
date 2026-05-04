@@ -182,6 +182,60 @@ class TestDevModeDetection:
         assert dev_mode is True
         assert repo_root == repo
 
+    def test_regular_install_in_venv_inside_checkout_returns_false(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: wheel install in a .venv created inside a source checkout.
+
+        The walk from the installed module crosses site-packages on its way up
+        to the repo root, so the marker above the boundary must NOT trigger
+        dev mode. Without the boundary stop, this returned (True, repo_root)
+        and the dashboard hard-failed on the missing extension/dist/ui.
+        """
+        repo = tmp_path / "ado-git-repo-insights"
+        (repo / "extension").mkdir(parents=True)
+        (repo / "extension" / "package.json").write_text('{"name": "test"}')
+
+        installed = (
+            repo / ".venv" / "Lib" / "site-packages" / "ado_git_repo_insights" / "utils"
+        )
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "ui_sync.py"
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        dev_mode, repo_root = is_dev_mode()
+
+        assert dev_mode is False
+        assert repo_root is None
+
+    def test_regular_install_in_dist_packages_inside_checkout_returns_false(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same boundary stop must apply to Debian-style dist-packages."""
+        repo = tmp_path / "ado-git-repo-insights"
+        (repo / "extension").mkdir(parents=True)
+        (repo / "extension" / "package.json").write_text('{"name": "test"}')
+
+        installed = (
+            repo
+            / "usr"
+            / "lib"
+            / "python3.12"
+            / "dist-packages"
+            / "ado_git_repo_insights"
+            / "utils"
+        )
+        installed.mkdir(parents=True)
+        fake_module_file = installed / "ui_sync.py"
+        fake_module_file.write_text("")
+        monkeypatch.setattr(ui_sync_module, "__file__", str(fake_module_file))
+
+        dev_mode, repo_root = is_dev_mode()
+
+        assert dev_mode is False
+        assert repo_root is None
+
 
 class TestSyncUiBundleIfNeededRegression:
     """End-to-end regression for the customer failure on v101.27.0.
