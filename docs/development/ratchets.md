@@ -107,9 +107,23 @@ about a missing or stale JUnit artifact.
 **Per-file thresholds are enforced identically to globals.** Bumping
 `ui/modules/ml.ts`, `ui/artifact-client.ts`, or any other per-file entry
 requires the same marker — the threshold-change-guard's regex matches indented
-per-file values exactly the same way as the top-level global. The TypeScript
-per-file tier table, phase schedule, and history live in
-[`extension/COVERAGE_RATCHET.md`](/extension/COVERAGE_RATCHET.md).
+per-file values exactly the same way as the top-level global.
+
+The following extension modules currently carry per-file thresholds, set
+1–2% below their current coverage to allow minor fluctuation:
+
+- `ui/schemas/types.ts`, `ui/schemas/errors.ts`, `ui/schemas/rollup.schema.ts`
+- `ui/dataset-loader.ts`
+- `ui/error-codes.ts`, `ui/error-types.ts`
+- `ui/modules/ml.ts`
+- `ui/artifact-client.ts`
+- `ui/modules/shared/security.ts`
+
+Authoritative per-metric values (statements / branches / functions / lines)
+live in [`extension/jest.config.ts`](/extension/jest.config.ts). Excluded
+from coverage requirements: barrel/index re-export files, TypeScript type
+declarations, and DOM-heavy entry points (`dashboard.ts`, `settings.ts`)
+that need browser integration tests rather than unit coverage.
 
 ---
 
@@ -216,7 +230,6 @@ recomputing thresholds and floors is a silent correctness break.
 ## See also
 
 - [`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) — governance contract for every gate; rows 25 / 26 / 27 / 27a / 32 own the policies in this doc
-- [`extension/COVERAGE_RATCHET.md`](/extension/COVERAGE_RATCHET.md) — TypeScript per-file tier table, TS phase schedule, TS history
 - [`specs/016-coverage-ratchet/spec.md`](/specs/016-coverage-ratchet/spec.md) — policy origin for the coverage-threshold ratchet
 - [`extension/tests/meta/`](/extension/tests/meta/) — meta-gates that can fire on test-adding commits but are not ratchets (config-parity, any-type, build-output-format, smoke-determinism, suppression-ratchet)
 - [Testing guide](testing.md) — test organization and local run recipes

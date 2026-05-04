@@ -25,7 +25,7 @@ const config: Config = {
   // docs/development/ratchets.md for the ratchet workflow.
   //
   // See: specs/009-enterprise-coverage-upgrade for coverage target plan
-  // See: COVERAGE_RATCHET.md for the TS per-file ratchet-up plan
+  // See: docs/development/ratchets.md for the TS per-file ratchet workflow
   // Current global: ~55%, Target: 70% (Phase 6)
   // ============================================================================
   coverageThreshold: {
