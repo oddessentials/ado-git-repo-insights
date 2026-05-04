@@ -1,7 +1,7 @@
 """Feature 333 FR-2-03 (b) — per-PR week-attribution parity test.
 
-ADR T003 (``specs/333-comments-trend-chart/research.md`` Decision 7) pinned
-**option (b)** for FR-2-03 because throughput's week-attribution is fully
+ADR T003 pinned **option (b)** for FR-2-03 because throughput's
+week-attribution is fully
 inlined in ``aggregators.py::_generate_weekly_rollups`` (lines 647-657) as a
 sequence of pandas operations: ``pd.to_datetime(closed_date) ->
 .dt.isocalendar().year/.week -> f"{year}-W{week:02d}"``. Extracting that
@@ -32,10 +32,9 @@ end-to-end verifiable.
 
 Authoritative refs:
 
-* Spec: ``specs/333-comments-trend-chart/spec.md`` FR-2-03, INV-1-02.
-* Research: ``specs/333-comments-trend-chart/research.md`` Decision 7
-  (ADR T003) + Decision 6 (round-9 isolation rule).
-* Tasks: ``specs/333-comments-trend-chart/tasks.md`` T012 at line 71.
+* FR-2-03, INV-1-02.
+* ADR T003 + Decision 6 (round-9 isolation rule).
+* T012.
 
 Fixture (Round 14, revised — production-driven): the test consumes the
 session-scoped ``sc05_fixture`` (``tests/integration/conftest.py``). The

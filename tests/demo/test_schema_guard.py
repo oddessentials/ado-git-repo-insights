@@ -48,8 +48,7 @@ DEPRECATED_FIELDS: set[str] = set()
 OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
 # Feature 309 (#315): these PR-level detail fields are emitted by the
 # synthetic demo via the provenance-based binary gate in `promote_data`
-# (docs/reference/dataset-contract.md + specs/309-demo-pr-drilldown/
-# contracts/demo-strip-gate-v2.md). On non-empty weeks they MUST be
+# (see docs/reference/dataset-contract.md). On non-empty weeks they MUST be
 # PRESENT (synthetic records preserved through promotion). The schema-
 # guard completeness check excludes them because their presence is
 # enforced by test_synthetic_demo_has_prs below instead.
@@ -108,8 +107,7 @@ class TestRootFieldCompleteness:
         PRESENT on any non-empty-week rollup after promotion. The synthetic
         generator emits them; the binary gate preserves them through
         promote_data on sentinel-present source; sentinel-absent source
-        falls back to the legacy strip helper (for tenant data). See
-        `specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`.
+        falls back to the legacy strip helper (for tenant data).
         """
         pr_count = sample_rollup.get("pr_count", 0)
         keys = set(sample_rollup.keys())

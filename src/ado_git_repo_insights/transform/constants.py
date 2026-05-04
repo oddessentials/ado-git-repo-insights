@@ -8,10 +8,8 @@ import the constants without violating the Feature 333 round-9
 import-block isolation rule (``aggregators.py`` import is forbidden
 by file from that test).
 
-Spec anchors:
-- ``specs/334-comments-author-density/spec.md`` FR-1-03, CL-03, ADR T006
-- ``specs/310-comments-visualization/spec.md`` "Shared inclusion-rule
-  contract (C1)" — single-sentinel-identity rule for unknown authors.
+Spec anchors: FR-1-03, CL-03, ADR T006; the shared inclusion-rule contract
+(C1) defines the single-sentinel-identity rule for unknown authors.
 """
 
 from typing import Final

@@ -61,8 +61,7 @@ export interface BreakdownEntry {
  * together; the validator warns on partial presence and the consumer
  * treats partial entries as if absent (renders `supported-empty`).  Public
  * and demo artifacts have all three fields stripped at depth-2 by
- * `scripts/strip_pr_arrays.py` (FR-028).  Authoritative declaration:
- * specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md §§ 1, 5.
+ * `scripts/strip_pr_arrays.py` (FR-028).
  */
 export interface ReviewerBreakdownEntry {
   reviewed_prs: number;
@@ -79,11 +78,9 @@ export interface ReviewerBreakdownEntry {
  * Individual PR record element of the weekly rollup `prs` array (feature 060).
  *
  * The five presence-required fields are locked by feature 060
- * (FR-001, data-model §1, specs/060-throughput-pr-drilldown/contracts/pr-record.md).
+ * (FR-001, data-model §1).
  * Feature 310 extends the contract with three presence-optional comments-metrics
- * fields (`thread_count` / `comment_count` / `active_thread_count`); the
- * authoritative declaration for the extended shape is
- * specs/310-comments-visualization/contracts/pr-record-comments-fields.md §1.
+ * fields (`thread_count` / `comment_count` / `active_thread_count`).
  *
  * Presence semantics:
  *   - The five feature-060 fields are always emitted on every PrRecord.
@@ -96,8 +93,8 @@ export interface ReviewerBreakdownEntry {
  *
  * Expansion requires a fresh scoping round — do not add fields
  * opportunistically.  Drift between this interface, the Python `PrRecord`
- * TypedDict, `PR_RECORD_REQUIRED_FIELDS`, and the 310 §1 table is detected
- * by `scripts/check_pr_record_schema_parity.py`.
+ * TypedDict, and `PR_RECORD_REQUIRED_FIELDS` is detected by
+ * `scripts/check_pr_record_schema_parity.py`.
  */
 export interface PrRecord {
   id: number;
@@ -120,9 +117,6 @@ export interface PrRecord {
  * `author_id` (UUID string) or the reserved sentinel literal
  * `__former_or_unavailable_author__` for PRs whose `author_id` is
  * absent from the `users` table per CL-03.
- *
- * Authoritative declaration:
- * specs/334-comments-author-density/contracts/per-author-comments-density.md §1.
  */
 export interface AuthorCommentsDensityEntry {
   thread_count: number;
@@ -151,9 +145,6 @@ export interface AuthorCommentsDensityEntry {
  * dimension (CL-03 / FR-1-03 / INV-3-12; the FK constraint at
  * `models.py:88` makes unknown-to-`repositories` IDs impossible in
  * well-formed production data).
- *
- * Authoritative declaration:
- * specs/335-comments-repo-density/contracts/per-repo-comments-density.md §1.
  */
 export interface RepositoryCommentsDensityEntry {
   thread_count: number;
@@ -179,9 +170,6 @@ export interface RepositoryCommentsDensityEntry {
  * is FK-protected at `models.py:88`).  The sentinel literal is reused
  * verbatim from #334 (`transform/constants.py:27`); renderer-side maps
  * it to the fixed-string label `"Former / unavailable author"`.
- *
- * Authoritative declaration:
- * specs/336-comments-reviewer-density/contracts/per-reviewer-comments-density.md §1.
  */
 export interface ReviewerCommentsDensityEntry {
   thread_count: number;
@@ -223,8 +211,6 @@ export interface WeeklyRollup {
   // present together with non-null typed values, or the entire `comments`
   // key MUST be absent. Capability-off (FR-3-03): the key is absent
   // entirely (NOT `{}`, NOT `null`).
-  // Authoritative declaration:
-  // specs/333-comments-trend-chart/contracts/weekly-comments-aggregate.md §3.
   comments?: {
     thread_count: number;
     comment_count: number;
@@ -241,8 +227,6 @@ export interface WeeklyRollup {
   // optional at the root level; when present every entry is atomic per
   // INV-2-08 (mirrors 333 INV-1-08 at sub-object granularity).
   // Capability-off (FR-3-03) omits the entire key (NOT `{}`, NOT `null`).
-  // Authoritative declaration:
-  // specs/334-comments-author-density/contracts/per-author-comments-density.md §1.
   by_author_comments?: Record<string, AuthorCommentsDensityEntry>;
   // Feature 335 per-repo comments-density (rollup root).  Outer dict
   // optional at the root level; when present every entry is atomic per
@@ -250,8 +234,6 @@ export interface WeeklyRollup {
   // granularity).  Capability-off (FR-3-03 + INV-3-09) omits the entire
   // key (NOT `{}`, NOT `null`).  No sentinel concept (CL-03 / INV-3-12;
   // repository_id is FK-protected at models.py:88).
-  // Authoritative declaration:
-  // specs/335-comments-repo-density/contracts/per-repo-comments-density.md §1.
   by_repository_comments?: Record<string, RepositoryCommentsDensityEntry>;
   // Feature 336 per-reviewer comments-density (rollup root).  Outer dict
   // optional at the root level; when present every entry is atomic per
@@ -262,8 +244,6 @@ export interface WeeklyRollup {
   // (CL-03 / INV-4-12) — divergence from 335's FK-protected posture; the
   // reserved literal `__former_or_unavailable_author__` is a permitted
   // outer-dict key for commenter user_ids absent from the `users` table.
-  // Authoritative declaration:
-  // specs/336-comments-reviewer-density/contracts/per-reviewer-comments-density.md §1.
   by_reviewer_comments?: Record<string, ReviewerCommentsDensityEntry>;
 }
 
@@ -501,8 +481,7 @@ function validateReviewerBreakdownEntry(
   // when present (all three or none); permissive validation — every
   // shape violation surfaces as a warning, never an error.  The
   // consumer treats partial / malformed entries as if absent
-  // (renders `supported-empty` per FR-011).  Authoritative declaration:
-  // specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md §§ 1, 5.
+  // (renders `supported-empty` per FR-011).
   const hasPrs = Object.prototype.hasOwnProperty.call(data, "prs");
   const hasPrsTruncated = Object.prototype.hasOwnProperty.call(
     data,
@@ -1488,9 +1467,6 @@ function validateRepositoryCommentsDensity(
  * outer-dict key (CL-03 / INV-4-12 — sentinel applies, divergence from
  * 335 which is FK-protected) and flows through the same atomicity +
  * ordering checks as any real `user_id` UUID key.
- *
- * Authoritative declaration:
- * specs/336-comments-reviewer-density/contracts/per-reviewer-comments-density.md §1+§3.
  */
 function validateReviewerCommentsDensity(
   data: unknown,

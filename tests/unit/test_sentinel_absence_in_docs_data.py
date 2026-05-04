@@ -1,7 +1,6 @@
 """Guard invariant: the sentinel must never appear under `docs/data/`.
 
-Feature 309 (`309-demo-pr-drilldown`), slice 2b. Enforces contract
-`specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md` §6:
+Feature 309 (`309-demo-pr-drilldown`), slice 2b. Enforces contract:
 the sentinel file `.synthetic-prs-authorized` is consumed (unlinked from the
 scratch artifact tree) by ``promote_data`` before ``shutil.copytree`` runs.
 If the published mirror under `docs/data/` ever contains the sentinel, the

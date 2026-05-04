@@ -3,8 +3,7 @@
  *
  * Mirrors `cycle-time-pr-list-count-parity.test.ts` (#361) and the
  * cross-cutting count-parity contract from feature 060.  Two assertions
- * per the consumer contract
- * (`specs/362-reviewer-pr-drilldown/contracts/reviewer-pr-list.md` § 12):
+ * per the consumer contract:
  *
  *   - Non-truncation: rendered row count equals `sum(K_i)` across the
  *     reviewer's participating weeks where `K_i` is each week's

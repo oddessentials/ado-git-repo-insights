@@ -7,8 +7,6 @@
  * Contract: CQ-003
  * - Files under extension/ui/ MUST NOT import from extension/tests/types/
  * - This includes both static imports and dynamic requires
- *
- * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
 import * as path from "path";

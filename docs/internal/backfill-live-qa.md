@@ -403,10 +403,8 @@ invocation.
 Seed PR rows pointing at repositories the PAT cannot read (403) or that
 do not exist upstream (404), so every `get_pr_threads` call fails.
 
-**Pre-written expected outcome.** Every value below is pinned by the
-feature's contract spec at
-`specs/058-backfill-comments/contracts/cli-subcommand.md` and locked by
-unit tests in `tests/unit/test_backfill_comments.py`. Record these
+**Pre-written expected outcome.** Every value below is locked by unit
+tests in `tests/unit/test_backfill_comments.py`. Record these
 values per the Discipline section at the top of this doc before
 running:
 

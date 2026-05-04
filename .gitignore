@@ -132,3 +132,7 @@ artifacts/demo-enterprise/
 extension/[0-9]*
 
 .claude/settings.local.json
+
+# Speckit planning specs — retired from active tree on 2026-05-04
+# (tag: pre-specs-retirement-2026-05-04). See docs/specs-retirement.md.
+specs/

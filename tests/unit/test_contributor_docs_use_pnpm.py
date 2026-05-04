@@ -32,7 +32,6 @@ _LOCKED_DOCS: tuple[Path, ...] = (
     _REPO_ROOT / "CONTRIBUTING.md",
     _REPO_ROOT / "docs" / "development" / "ratchets.md",
     _REPO_ROOT / "docs" / "development" / "testing.md",
-    _REPO_ROOT / "extension" / "COVERAGE_RATCHET.md",
 )
 
 # Forbid the `npm` verbs that have a `pnpm` equivalent in this repo's

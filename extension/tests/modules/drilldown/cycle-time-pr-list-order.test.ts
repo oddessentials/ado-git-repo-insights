@@ -2,10 +2,8 @@
  * FR-019 — Rendered DOM order assertion for the cycle-time PR list.
  *
  * The cycle-time drill-down's `prs` array is sorted `cycle_time desc, id asc`
- * by the producer (per `specs/060-throughput-pr-drilldown/contracts/pr-record.md`
- * § Behavior step 2). The cycle-time consumer trusts that order and does NOT
- * re-sort (per `specs/361-cycle-time-pr-drilldown/contracts/cycle-time-pr-list.md`
- * § 4 and `data-model.md` § 1).
+ * by the producer. The cycle-time consumer trusts that order and does NOT
+ * re-sort.
  *
  * This test does not seed unsorted input; order correctness is
  * producer-owned, and this consumer test verifies preservation of the

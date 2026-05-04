@@ -8,8 +8,6 @@
  * Contract: CQ-002
  * - Type-test files (*.type-test.ts) MUST include "COMPILE-TIME ONLY" in header
  * - Header must appear at the beginning of the file (within first 5 lines)
- *
- * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
 import * as path from "path";

@@ -473,7 +473,6 @@ jobs:
 
   # Guard: Enforce centralized pagination token handling (SC-009)
   # Prevents direct continuationToken string concatenation (parameter injection vector)
-  # See: specs/017-security-fixes/spec.md for security requirements
   # Allowlist: .pagination-allowlist (edit to add new exceptions)
   pagination-token-guard:
     runs-on: ubuntu-latest
@@ -500,7 +499,7 @@ jobs:
             done < ".pagination-allowlist"
           else
             echo "::warning::Allowlist file .pagination-allowlist not found, using defaults"
-            GLOB_ARGS="--glob '!**/pagination.py' --glob '!**/test_pagination*.py' --glob '!specs/**' --glob '!**/*.md'"
+            GLOB_ARGS="--glob '!**/pagination.py' --glob '!**/test_pagination*.py' --glob '!**/*.md'"
           fi
 
           # Find continuationToken outside allowed paths
@@ -1289,7 +1288,7 @@ jobs:
       - name: Check Baseline Integrity
         run: node .github/scripts/check-baseline-integrity.js
 
-  # Hook entrypoint stability test (T-3 in specs/049-cross-platform-hardening)
+  # Hook entrypoint stability test
   # Runs .husky/pre-commit end-to-end on all 3 OS to catch regressions in
   # the sh -> Python invocation chain that unit tests cannot cover.
   hook-entrypoint-test:

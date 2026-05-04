@@ -141,11 +141,7 @@ present the source is asserted to conform to the synthetic-PR-record shape
 and the PR-level fields are preserved through the promotion; when the sentinel
 is absent the feature-060 strip helper runs unchanged. Both branches
 fail-closed on shape or residue violations with destination byte-identical to
-its pre-call state. See
-[`specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`](../../specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md)
-for the binary-gate contract and
-[`specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md`](../../specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md)
-for the sentinel-lifecycle contract.
+its pre-call state.
 
 ## Schema Versions
 

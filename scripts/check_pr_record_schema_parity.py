@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """PrRecord cross-surface schema parity gate (Feature 310, DIRECTIVE 2).
 
-Parses the four authoritative PrRecord schema surfaces and fails the build
-when any two disagree on field name set or type.  The four surfaces are:
+Parses the three authoritative PrRecord schema surfaces and fails the build
+when any two disagree on field name set or type.  The three surfaces are:
 
 1. Python ``PrRecord`` TypedDict at
    ``src/ado_git_repo_insights/types.py``.
 2. TypeScript ``PrRecord`` interface at
    ``extension/ui/schemas/rollup.schema.ts``.
 3. TypeScript ``PR_RECORD_REQUIRED_FIELDS`` array literal in the same file.
-4. 310 sibling contract §1 canonical field declaration table at
-   ``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``.
 
 **Python-only implementation.** No node / TypeScript runtime dependency —
 the TypeScript interface + required-fields array are parsed via Python
@@ -22,8 +20,6 @@ that points at the offending construct.  Broadening the parser is the
 caller's lever — broadening via silent permissive branches is forbidden
 (feedback_hook_env_parity_across_all_ci_jobs +
 feedback_parser_tolerance_is_silent_mutation).
-
-Contract: ``specs/310-comments-visualization/contracts/schema-parity-gate.md``.
 
 Usage (identical across all four QG-49 entry points):
 
@@ -45,13 +41,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PY_TYPES_PATH = REPO_ROOT / "src" / "ado_git_repo_insights" / "types.py"
 TS_SCHEMA_PATH = REPO_ROOT / "extension" / "ui" / "schemas" / "rollup.schema.ts"
-CONTRACT_PATH = (
-    REPO_ROOT
-    / "specs"
-    / "310-comments-visualization"
-    / "contracts"
-    / "pr-record-comments-fields.md"
-)
 
 # Accepted value-type sets.  Any annotation / TS expression outside these
 # sets fails the gate closed — callers MUST broaden the parser in the same
@@ -67,8 +56,6 @@ PY_TO_TS: dict[str, str] = {
     "bool": "boolean",
 }
 
-CONTRACT_SECTION_HEADING: str = "## §1 Canonical field declaration"
-
 
 @dataclass(frozen=True)
 class FieldDecl:
@@ -76,7 +63,7 @@ class FieldDecl:
 
     ``type_str`` is stored in canonical Python form
     (``int`` / ``str`` / ``float`` / ``bool`` / ``X | None``) for the
-    Python TypedDict and the contract rows, and in canonical TS form
+    Python TypedDict, and in canonical TS form
     (``number`` / ``string`` / ``boolean`` / ``X | null``) for the
     TypeScript interface.  ``_types_compatible`` bridges the two.
     """
@@ -267,116 +254,12 @@ def parse_ts_required_fields(source: str) -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Surface 4 — 310 sibling contract §1 canonical field declaration (markdown).
-# ---------------------------------------------------------------------------
-
-
-_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
-
-
-def parse_contract_section(source: str) -> dict[str, FieldDecl]:
-    """Parse the §1 Canonical field declaration table from the 310 contract."""
-    if CONTRACT_SECTION_HEADING not in source:
-        raise ParityError(
-            f"Anchor heading {CONTRACT_SECTION_HEADING!r} not found in "
-            f"{CONTRACT_PATH.name}; the parity gate cannot proceed."
-        )
-    after_heading = source.split(CONTRACT_SECTION_HEADING, maxsplit=1)[1]
-    lines = after_heading.splitlines()
-    table_start: int | None = None
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        # Match the header row exactly: ``| Field | Python type | TypeScript type | ...``
-        if stripped.startswith("| Field ") and "Python type" in stripped:
-            table_start = idx
-            break
-    if table_start is None:
-        raise ParityError(
-            f"§1 Canonical field declaration table not found in {CONTRACT_PATH.name}"
-        )
-    # Skip header + separator rows.
-    fields: dict[str, FieldDecl] = {}
-    for line in lines[table_start + 2 :]:
-        stripped = line.strip()
-        if not stripped or not stripped.startswith("|"):
-            break
-        cells = _split_table_row(stripped)
-        if len(cells) < 3:
-            raise ParityError(f"Contract §1 row has fewer than 3 columns: {line!r}")
-        raw_name = cells[0]
-        raw_py = cells[1]
-        raw_ts = cells[2]
-        name = _strip_backticks(raw_name)
-        py_cell = _strip_backticks(raw_py)
-        ts_cell = _strip_backticks(raw_ts)
-        presence_py = "optional" if py_cell.startswith("NotRequired[") else "required"
-        presence_ts = "optional" if ts_cell.startswith("?:") else "required"
-        if presence_py != presence_ts:
-            raise ParityError(
-                f"Contract §1 row {name!r} has a presence mismatch within "
-                f"the row: Python={presence_py!r} vs TypeScript={presence_ts!r}"
-            )
-        inner_py = _strip_not_required(py_cell)
-        inner_ts = _strip_ts_optional(ts_cell)
-        _assert_contract_row_type_compat(name, inner_py, inner_ts)
-        fields[name] = FieldDecl(name=name, presence=presence_py, type_str=inner_py)
-    if not fields:
-        raise ParityError(
-            f"Contract §1 table at {CONTRACT_PATH.name} is empty; expected "
-            "at least one field row."
-        )
-    return fields
-
-
-def _split_table_row(line: str) -> list[str]:
-    """Split a markdown-table row on unescaped pipes; trim leading/trailing."""
-    trimmed = line.strip()
-    if trimmed.startswith("|"):
-        trimmed = trimmed[1:]
-    if trimmed.endswith("|"):
-        trimmed = trimmed[:-1]
-    raw_cells = _UNESCAPED_PIPE.split(trimmed)
-    return [cell.strip() for cell in raw_cells]
-
-
-def _strip_backticks(cell: str) -> str:
-    """Strip backticks and unescape the markdown ``\\|`` pipe escape."""
-    text = cell.strip().replace("\\|", "|").replace("`", "")
-    return text.strip()
-
-
-def _strip_not_required(py_type_str: str) -> str:
-    """Return ``X`` from ``NotRequired[X]``, else the input unchanged."""
-    if py_type_str.startswith("NotRequired[") and py_type_str.endswith("]"):
-        return py_type_str[len("NotRequired[") : -1].strip()
-    return py_type_str
-
-
-def _strip_ts_optional(ts_type_str: str) -> str:
-    """Return ``X`` from ``?: X``, else the input unchanged."""
-    if ts_type_str.startswith("?:"):
-        return ts_type_str[2:].strip()
-    return ts_type_str
-
-
-def _assert_contract_row_type_compat(name: str, py: str, ts: str) -> None:
-    """Verify a contract row's Python cell and TypeScript cell agree."""
-    py_norm = " | ".join(p.strip() for p in py.split("|") if p.strip())
-    ts_norm = " | ".join(p.strip() for p in ts.split("|") if p.strip())
-    if not _types_compatible(py_norm, ts_norm):
-        raise ParityError(
-            f"Contract §1 row {name!r} declares incompatible types: "
-            f"Python {py_norm!r} vs TypeScript {ts_norm!r}"
-        )
-
-
-# ---------------------------------------------------------------------------
 # Type compatibility + cross-surface comparison.
 # ---------------------------------------------------------------------------
 
 
 def _types_compatible(py: str, ts: str) -> bool:
-    """Cross-language type compatibility per ``schema-parity-gate.md``."""
+    """Cross-language type compatibility per the parity contract."""
     py_nullable = py.endswith(" | None")
     ts_nullable = ts.endswith(" | null")
     if py_nullable != ts_nullable:
@@ -394,21 +277,18 @@ def compare_surfaces(
     python_fields: dict[str, FieldDecl],
     ts_fields: dict[str, FieldDecl],
     required_array: tuple[str, ...],
-    contract_fields: dict[str, FieldDecl],
 ) -> list[str]:
     """Return a list of human-readable drift diagnostics (empty = parity)."""
     diagnostics: list[str] = []
 
     py_names = set(python_fields.keys())
     ts_names = set(ts_fields.keys())
-    contract_names = set(contract_fields.keys())
     required_names = set(required_array)
 
-    all_names = py_names | ts_names | contract_names
+    all_names = py_names | ts_names
     for surface_label, present in (
         ("Python TypedDict (types.py)", py_names),
         ("TypeScript interface (rollup.schema.ts)", ts_names),
-        ("310 contract §1 table", contract_names),
     ):
         missing = all_names - present
         if missing:
@@ -417,25 +297,16 @@ def compare_surfaces(
                 f"present-elsewhere union is {sorted(all_names)!r}"
             )
 
-    for name in sorted(py_names & ts_names & contract_names):
+    for name in sorted(py_names & ts_names):
         py_field = python_fields[name]
         ts_field = ts_fields[name]
-        contract_field = contract_fields[name]
-        presences = {py_field.presence, ts_field.presence, contract_field.presence}
-        if len(presences) > 1:
+        if py_field.presence != ts_field.presence:
             diagnostics.append(
                 f"Field {name!r} presence mismatch: "
                 f"Python={py_field.presence!r}, "
-                f"TypeScript={ts_field.presence!r}, "
-                f"contract={contract_field.presence!r}"
+                f"TypeScript={ts_field.presence!r}"
             )
             continue
-        if py_field.type_str != contract_field.type_str:
-            diagnostics.append(
-                f"Field {name!r} Python-side type drift: "
-                f"types.py declares {py_field.type_str!r}, "
-                f"contract §1 declares {contract_field.type_str!r}"
-            )
         if not _types_compatible(py_field.type_str, ts_field.type_str):
             diagnostics.append(
                 f"Field {name!r} cross-language type mismatch: "
@@ -473,9 +344,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "PrRecord cross-surface schema parity gate (Feature 310). "
-            "Asserts the Python TypedDict, TypeScript interface, "
-            "PR_RECORD_REQUIRED_FIELDS array, and 310 contract §1 table "
-            "all agree on the field name set and types."
+            "Asserts the Python TypedDict, TypeScript interface, and "
+            "PR_RECORD_REQUIRED_FIELDS array all agree on the field name "
+            "set and types."
         ),
     )
     parser.parse_args(argv)
@@ -485,12 +356,9 @@ def main(argv: list[str] | None = None) -> int:
         ts_source = TS_SCHEMA_PATH.read_text(encoding="utf-8")
         ts_fields = parse_ts_pr_record(ts_source)
         required_array = parse_ts_required_fields(ts_source)
-        contract_fields = parse_contract_section(
-            CONTRACT_PATH.read_text(encoding="utf-8")
-        )
     except ParityError as exc:
         print(
-            f"[parity] failed to parse one of the four surfaces: {exc}",
+            f"[parity] failed to parse one of the three surfaces: {exc}",
             file=sys.stderr,
         )
         return 1
@@ -498,9 +366,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[parity] cannot read a surface file: {exc}", file=sys.stderr)
         return 1
 
-    diagnostics = compare_surfaces(
-        py_fields, ts_fields, required_array, contract_fields
-    )
+    diagnostics = compare_surfaces(py_fields, ts_fields, required_array)
     if diagnostics:
         print(
             "[parity] PrRecord schema drift detected across surfaces:",
@@ -509,9 +375,9 @@ def main(argv: list[str] | None = None) -> int:
         for msg in diagnostics:
             print(f"  - {msg}", file=sys.stderr)
         print(
-            "  Fix: land the same field name + type in all four surfaces "
-            "(types.py, rollup.schema.ts interface, PR_RECORD_REQUIRED_FIELDS, "
-            "and the 310 contract §1 table) in the same commit.",
+            "  Fix: land the same field name + type in all three surfaces "
+            "(types.py, rollup.schema.ts interface, and PR_RECORD_REQUIRED_FIELDS) "
+            "in the same commit.",
             file=sys.stderr,
         )
         return 1

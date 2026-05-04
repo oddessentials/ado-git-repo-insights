@@ -30,7 +30,7 @@ PREFLIGHT_ROOT = Path(tempfile.gettempdir()) / "ado-git-repo-insights" / "pr-pre
 BASELINE_PYTHON = "3.12"
 PNPM_SENTINEL = "__PNPM__"
 
-# Exit code contract (AD-5 in specs/049-cross-platform-hardening/spec.md):
+# Exit code contract (AD-5):
 #   GATE  = 1: Code quality regression (always fatal)
 #   SETUP = 2: Machine not ready / missing tool (always fatal)
 #   INFRA = 3: Network or environment issue (skippable in degraded mode)

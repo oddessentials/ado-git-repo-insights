@@ -1,7 +1,6 @@
 """Feature 335 producer-side tests: per-(week, repo) comments-density emission.
 
-Covers the invariants asserted by the producer contract
-(``specs/335-comments-repo-density/contracts/per-repo-comments-density.md``):
+Covers the invariants asserted by the producer contract:
 
 - FR-1-01..02  Capability gating + emission shape: when ``_has_comments()``
                is False, the aggregator omits the entire

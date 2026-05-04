@@ -1012,8 +1012,7 @@ async function refreshMetrics(): Promise<void> {
 
   // Drill-down: announce filter-change now that we've committed to an actual
   // refresh (post no-op-guard). Subscribers that hard-dismiss on this event
-  // must not do DOM work against the about-to-change state — see
-  // specs/059-chart-drill-down/contracts/lifecycle-signals.md. DetailPanel's
+  // must not do DOM work against the about-to-change state. DetailPanel's
   // own filters-changed subscriber hard-dismisses any open panel in the same
   // synchronous tick, so the panel is closed before any subsequent click can
   // re-open it against pre-change data.
@@ -1725,9 +1724,6 @@ function renderReviewerActivity(
 // re-render idempotency (round-13 addition — the dashboard-layer
 // idempotency that round-12's `ensureCommentsTrendContainer` check-first
 // design exists to provide).
-//
-// See `specs/333-comments-trend-chart/research.md` Decision 10 for the
-// full rationale and the round-by-round resolution history.
 
 /**
  * Idempotently ensure the comments-trend chart row exists in the DOM.

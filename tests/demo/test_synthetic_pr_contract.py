@@ -1,10 +1,8 @@
 """Unit contract tests for the synthetic PR-record generator (feature 309, slice 2c).
 
 Contracts:
-    * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md`` §4-5
-      (key-insertion order; isolated RNG)
-    * ``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md``
-      (sentinel protocol — consumed indirectly via generator tests)
+    * key-insertion order and isolated RNG
+    * sentinel protocol (consumed indirectly via generator tests)
 
 These tests drive ``generate_pr_records`` directly (via importlib) at unit
 level; they do NOT invoke the full build pipeline. Slice 2c lands the

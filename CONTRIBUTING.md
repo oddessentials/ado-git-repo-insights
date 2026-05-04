@@ -260,7 +260,7 @@ Internal development principles (for agents and maintainers):
 |----------|-------------|
 | [Invariants](agents/INVARIANTS.md) | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria |
-| [Victory Gates](agents/victory-gates.md) | Verification checkpoints |
+| [Verification Gates](agents/definition-of-done.md#end-to-end-verification-gates) | Verification checkpoints |
 
 **How to use these docs:** Invariants are organized by category (Output
 Contract, Persistence, Extraction, etc.) — read the category that matches

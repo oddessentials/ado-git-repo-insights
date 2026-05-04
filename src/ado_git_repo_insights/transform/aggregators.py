@@ -88,8 +88,7 @@ _PR_DETAIL_CAP = 500
 # a single source of truth (CL-02 guardrail #1: "the cap is the same number
 # regardless of which slice you're looking at").  Future divergence is a
 # one-line edit at this declaration; downstream call sites read the alias by
-# name and need no change.  Contract:
-# ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` § 4.
+# name and need no change.
 _PR_DETAIL_CAP_PER_REVIEWER_WEEK = _PR_DETAIL_CAP
 
 # Feature 336 (T016 / FR-1-12 / CL-15): pr_comments.author_id structural
@@ -1078,8 +1077,7 @@ class AggregateGenerator:
         the canonical set that are unextracted contribute zero to the sums
         but flip ``coverage_partial`` to ``True``.
 
-        C1 inclusion rules (per
-        ``specs/310-comments-visualization/spec.md`` lines 75-87) are
+        C1 inclusion rules are
         encoded in the SQL: ``pr_threads.is_deleted = 0`` excluded;
         ``status = 'active'`` predicate isolates active threads;
         ``pr_comments.is_deleted = 0`` excluded.  Same temp-table staging
@@ -1227,9 +1225,7 @@ class AggregateGenerator:
         per ``reference_s608_refactor_pattern.md``.
 
         Spec anchors: FR-1-01..FR-1-08, FR-3-03, INV-2-07, INV-2-08,
-        ADR T005, ADR T006, CL-03, CL-07.  C1 contract authority:
-        ``specs/310-comments-visualization/spec.md`` "Shared
-        inclusion-rule contract (C1)".
+        ADR T005, ADR T006, CL-03, CL-07.
         """
         if not self._has_comments():
             return None
@@ -1384,9 +1380,7 @@ class AggregateGenerator:
         in a temp table and joined.
 
         Spec anchors: FR-1-01..FR-1-10, FR-3-03, INV-3-07, INV-3-08,
-        INV-3-09, INV-3-10, INV-3-12, CL-03, CL-04, CL-09.  C1 contract
-        authority: ``specs/310-comments-visualization/spec.md`` "Shared
-        inclusion-rule contract (C1)".
+        INV-3-09, INV-3-10, INV-3-12, CL-03, CL-04, CL-09.
         """
         if not self._has_comments():
             return None
@@ -1587,9 +1581,7 @@ class AggregateGenerator:
 
         Spec anchors: FR-1-01..FR-1-12, FR-3-03, INV-4-07, INV-4-08,
         INV-4-09, INV-4-10, INV-4-12, INV-4-13, CL-03, CL-04, CL-10,
-        CL-13, CL-15.  C1 contract authority:
-        ``specs/310-comments-visualization/spec.md`` "Shared
-        inclusion-rule contract (C1)".  C2 reviewer-semantics
+        CL-13, CL-15.  C2 reviewer-semantics
         authority: same file under "Reviewer activity (C2)".
         """
         if not self._has_comments():
@@ -1707,8 +1699,7 @@ class AggregateGenerator:
         #     in UUID-format pull_request_uid values (UUIDs use only hex
         #     chars + hyphens) so the concatenation is collision-safe.
         #
-        # (2) Per the C1 inclusion-rule contract at
-        #     ``specs/310-comments-visualization/spec.md`` line 81: "Rows
+        # (2) Per the C1 inclusion-rule contract: "Rows
         #     where pr_threads.is_deleted = 1 MUST be excluded from every
         #     thread count."  The pre-fix COUNT(DISTINCT) without
         #     ``t.is_deleted = 0`` filter would count threads that have
@@ -2165,8 +2156,7 @@ class AggregateGenerator:
         carrying every PR the reviewer cast a non-zero vote on in the week,
         sorted ``cycle_time desc, id asc`` BEFORE truncation, capped at
         ``_PR_DETAIL_CAP_PER_REVIEWER_WEEK`` (= 500).  The trio is atomic
-        (present together or absent together).  Authoritative declaration:
-        ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md``.
+        (present together or absent together).
         """
         if week_reviewers.empty:
             return {}
