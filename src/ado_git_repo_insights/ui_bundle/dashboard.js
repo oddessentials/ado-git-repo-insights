@@ -5531,10 +5531,15 @@ var PRInsightsDashboard = (() => {
     }
     const els = ensurePanelEls();
     const wasOpen = isDetailPanelOpen();
+    const previousTrigger = wasOpen && activeContext ? activeContext.triggerElement : null;
     activeContext = context;
     if (wasOpen) {
       dismissAllTooltips();
       clearOutsideClickListener();
+      if (previousTrigger !== null && previousTrigger !== context.triggerElement) {
+        previousTrigger.classList.remove("is-drilldown-active");
+        previousTrigger.setAttribute("aria-expanded", "false");
+      }
     }
     if (!wasOpen) {
       openScopedController = installOpenScopedListeners(els);

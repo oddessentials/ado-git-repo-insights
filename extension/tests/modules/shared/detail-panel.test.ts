@@ -402,6 +402,42 @@ describe("detail-panel — retarget and comparison guards", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     warnSpy.mockRestore();
   });
+
+  it("clears is-drilldown-active and aria-expanded on the previously-active trigger when the panel is retargeted to a different source", () => {
+    // Cross-source retarget regression-lock (Codex stop-time review on
+    // #363 post-commit 4682bd53). Simulates two different drill-down
+    // installs taking turns opening the panel: each install
+    // independently sets ``is-drilldown-active`` /
+    // ``aria-expanded="true"`` on its trigger BEFORE calling
+    // openDetailPanel. The panel module — the only shared authority
+    // that sees both contexts — MUST clear those attributes from the
+    // previous trigger when the new context takes over, otherwise the
+    // first install's MutationObserver (which only fires on
+    // ``is-open`` removal, not on content swap) leaves the prior
+    // trigger stuck in active state across the retarget.
+    const ctxA = makeThroughputContext();
+    ctxA.triggerElement.classList.add("is-drilldown-active");
+    ctxA.triggerElement.setAttribute("aria-expanded", "true");
+    openDetailPanel(ctxA);
+
+    const ctxB = makeCycleTimeContext();
+    ctxB.triggerElement.classList.add("is-drilldown-active");
+    ctxB.triggerElement.setAttribute("aria-expanded", "true");
+    openDetailPanel(ctxB);
+
+    // Previous trigger (A) lost its active state.
+    expect(ctxA.triggerElement.classList.contains("is-drilldown-active")).toBe(
+      false,
+    );
+    expect(ctxA.triggerElement.getAttribute("aria-expanded")).toBe("false");
+    // New trigger (B) retains its active state — the panel module
+    // only clears the SUPERSEDED trigger; setting active state on
+    // the new trigger is the install's responsibility.
+    expect(ctxB.triggerElement.classList.contains("is-drilldown-active")).toBe(
+      true,
+    );
+    expect(ctxB.triggerElement.getAttribute("aria-expanded")).toBe("true");
+  });
 });
 
 describe("detail-panel — performance and viewport (SC-001, FR-012)", () => {
