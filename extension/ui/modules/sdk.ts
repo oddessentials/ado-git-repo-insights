@@ -423,9 +423,8 @@ export function getLocalDatasetPath(): string {
  *
  * The literal targets the synthetic organization name used by the tenant
  * seed extract (see `scripts/demo-distributions/`). Composed PR links
- * resolve to a 404 from Azure DevOps — intentional, per feature 309's
- * `specs/309-demo-pr-drilldown/tasks.md` T063 ("synthetic org — known
- * limitation").
+ * resolve to a 404 from Azure DevOps — intentional (synthetic org —
+ * known limitation).
  */
 export const LOCAL_DASHBOARD_COLLECTION_URI: string =
   "https://dev.azure.com/oddessentials/";

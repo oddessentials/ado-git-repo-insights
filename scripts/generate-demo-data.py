@@ -268,8 +268,7 @@ _REVIEW_TIME_SEED_OFFSET = 1_000_000
 
 # Feature 309 (#315): synthetic PR-record generator state. Isolated seed
 # offset keeps pr-record draws independent of the shared RNG, mirroring
-# the review-time pattern above. Contract:
-# specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md §5.
+# the review-time pattern above.
 _PR_RECORD_SEED_OFFSET: Final[int] = 2000
 _PR_DETAIL_CAP: Final[int] = 500
 _DISTRIBUTION_FIXTURE_DIR: Final[Path] = (
@@ -386,8 +385,7 @@ class _TruncationExerciseConfig(TypedDict):
 def _load_truncation_exercise_config() -> _TruncationExerciseConfig:
     """Load + validate the locked truncation-exercise-week fixture.
 
-    Contract: ``specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md``
-    §2.5 — the values are locked LITERALS. If the fixture drifts, the
+    The values are locked LITERALS. If the fixture drifts, the
     generator aborts loudly instead of silently emitting a non-contract spike.
     """
     path = _DISTRIBUTION_FIXTURE_DIR / "truncation-exercise-week.json"
@@ -443,7 +441,6 @@ def _log_normal(rng: random.Random, mu: float, sigma: float) -> float:
 # Distribution-fixture loaders are memoized via functools.lru_cache so unit
 # tests can import this module without touching disk until they exercise
 # the helper, while keeping the per-call cost at a single dict lookup.
-# Contract: specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md.
 _REPO_CATEGORY_LABELS: Final[tuple[str, str, str]] = ("small", "medium", "large")
 
 
@@ -542,8 +539,7 @@ def generate_pr_records(
     to exercise isolation.
 
     Contract:
-        * ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
-          §4 (key-insertion order) and §5 (isolated RNG).
+        * key-insertion order and isolated RNG.
         * Reads fixtures from ``scripts/demo-distributions/`` (slice 2a).
     """
     # Fall back to the module-level stream when callers don't supply

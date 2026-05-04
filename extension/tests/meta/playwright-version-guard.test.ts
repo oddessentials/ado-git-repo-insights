@@ -7,8 +7,6 @@
  * Contract: DC-001
  * - Playwright version MUST be exactly pinned (no ^, no ~, no range)
  * - Format: "X.Y.Z" (three-part semver, no prefix)
- *
- * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
 import * as path from "path";

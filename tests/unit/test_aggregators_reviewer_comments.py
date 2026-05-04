@@ -1,7 +1,6 @@
 """Feature 336 producer-side tests: per-(week, reviewer) comments-density emission.
 
-Covers the invariants asserted by the producer contract
-(``specs/336-comments-reviewer-density/contracts/per-reviewer-comments-density.md``):
+Covers the invariants asserted by the producer contract:
 
 - FR-1-01..02  Capability gating + emission shape: when ``_has_comments()``
                is False, the aggregator omits the entire
@@ -1135,8 +1134,7 @@ def test_deleted_thread_excluded_from_thread_counts_per_c1(
     reviewer_comments_db: tuple[DatabaseManager, Path],
 ) -> None:
     """C1 (case xv) — Codex stop-time review regression on commit 182b41f1:
-    per the C1 inclusion-rule contract at
-    ``specs/310-comments-visualization/spec.md`` line 81 ("Rows where
+    per the C1 inclusion-rule contract ("Rows where
     pr_threads.is_deleted = 1 MUST be excluded from every thread count"),
     deleted threads MUST NOT contribute to ``thread_count`` /
     ``active_thread_count``.  Pre-fix the LEFT JOIN to pr_threads didn't
@@ -1184,7 +1182,7 @@ def test_deleted_thread_excluded_from_thread_counts_per_c1(
     # thread_count and active_thread_count exclude deleted threads per C1.
     assert buckets[USER_BOB]["thread_count"] == 1, (
         f"C1 violation: thread_count must exclude pr_threads.is_deleted=1 "
-        f"threads (per specs/310-comments-visualization/spec.md line 81); "
+        f"threads; "
         f"bob commented on t-live (is_deleted=0) + t-dead (is_deleted=1) "
         f"but thread_count={buckets[USER_BOB]['thread_count']} "
         "(expected 1 — only t-live)"

@@ -20,9 +20,8 @@
  *     when two rows have identical cycle-times).
  *   - Row drops or duplications (cardinality assertion).
  *
- * The single source of truth for sort semantics is the PR-list contract
- * (`specs/362-reviewer-pr-drilldown/contracts/reviewer-pr-list.md` § 8)
- * and the producer contract (`per-reviewer-week-prs.md` § 3).
+ * The single source of truth for sort semantics is the PR-list consumer
+ * contract and the producer contract.
  */
 
 import { renderReviewerActivity } from "../../../ui/modules/charts/reviewer-activity";

@@ -1,7 +1,5 @@
 """Unit tests for ``scripts/strip_pr_arrays.py`` (feature 060 FR-023).
 
-Contract: ``specs/060-throughput-pr-drilldown/contracts/demo-strip-gate.md``.
-
 Covers the full positive + negative matrix from the contract:
 
 * Mixed input (some rollups with PR-level fields, some without) stripped

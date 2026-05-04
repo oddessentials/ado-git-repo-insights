@@ -283,8 +283,7 @@ class ReviewerSliceMetrics(TypedDict):
     ``_prs_cap`` triplet carries per-(reviewer, week) PR-level detail on
     private-tenant artifacts only.  Atomicity invariant: present together
     or absent together.  Stripped from public/demo artifacts by
-    ``scripts/strip_pr_arrays.py`` (FR-028).  Authoritative declaration:
-    ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` §§ 1, 5.
+    ``scripts/strip_pr_arrays.py`` (FR-028).
     """
 
     reviewed_prs: int
@@ -301,11 +300,9 @@ class PrRecord(TypedDict):
     """Individual PR element of a weekly rollup's ``prs`` array (feature 060).
 
     The five presence-required fields are locked by feature 060
-    (FR-001, data-model §1 and ``specs/060-throughput-pr-drilldown/contracts/pr-record.md``).
+    (FR-001, data-model §1).
     Feature 310 extends the contract with three presence-optional comments-metrics
-    fields (``thread_count`` / ``comment_count`` / ``active_thread_count``); the
-    authoritative declaration for the extended shape is
-    ``specs/310-comments-visualization/contracts/pr-record-comments-fields.md`` §1.
+    fields (``thread_count`` / ``comment_count`` / ``active_thread_count``).
 
     Presence semantics:
       - The five feature-060 fields are always emitted on every PrRecord.
@@ -317,11 +314,9 @@ class PrRecord(TypedDict):
         coverage sentinel per INV-10 / FR-3-05).
 
     Expansion requires a fresh scoping round — do NOT add fields
-    opportunistically.  New presence-required fields extend the 060 contract
-    file; new comments-metrics fields extend the 310 sibling contract's §1
-    table.  Drift between this TypedDict, the TypeScript
-    ``PrRecord`` interface, ``PR_RECORD_REQUIRED_FIELDS``, and the 310 §1
-    table is detected by ``scripts/check_pr_record_schema_parity.py``.
+    opportunistically.  Drift between this TypedDict, the TypeScript
+    ``PrRecord`` interface, and ``PR_RECORD_REQUIRED_FIELDS`` is
+    detected by ``scripts/check_pr_record_schema_parity.py``.
     """
 
     id: int

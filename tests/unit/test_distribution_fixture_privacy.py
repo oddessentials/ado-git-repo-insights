@@ -1,7 +1,5 @@
 """Commit-time privacy-review gate for distribution fixtures (feature 309, slice 2a).
 
-Contract: ``specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md``.
-
 Enforces, at commit and CI time, that every committed fixture under
 ``scripts/demo-distributions/`` conforms to its locked schema AND carries no
 residue that could leak tenant identity:

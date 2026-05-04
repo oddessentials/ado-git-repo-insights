@@ -26,7 +26,7 @@ EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
 
-# Exit code contract (AD-5 in specs/049-cross-platform-hardening/spec.md):
+# Exit code contract (AD-5):
 #   GATE  = 1: Code quality regression (always fatal)
 #   SETUP = 2: Machine not ready / missing tool (always fatal)
 #   INFRA = 3: Network or environment issue (skippable in degraded mode)
@@ -645,26 +645,25 @@ def is_ui_trigger(path: str) -> bool:
 
 
 # Feature 310 — PrRecord schema parity gate triggers (DIRECTIVE 2 / QG-47).
-# The gate parses exactly three files; staging any of them MUST fire the
+# The gate parses exactly two files; staging either of them MUST fire the
 # gate before commit.  Kept separate from ``is_ui_trigger`` / ``is_test_trigger``
-# because a commit that stages only ``types.py`` or only the 310 contract
-# markdown matches neither of those predicates and would otherwise hit the
-# early-return in ``run_pre_commit_hook`` and silently skip the parity gate.
+# because a commit that stages only ``types.py`` matches neither of those
+# predicates and would otherwise hit the early-return in
+# ``run_pre_commit_hook`` and silently skip the parity gate.
 _PR_RECORD_PARITY_PATHS: frozenset[str] = frozenset(
     {
         "src/ado_git_repo_insights/types.py",
         "extension/ui/schemas/rollup.schema.ts",
-        "specs/310-comments-visualization/contracts/pr-record-comments-fields.md",
     }
 )
 
 
 def is_pr_record_parity_trigger(path: str) -> bool:
-    """Return True iff ``path`` is one of the three files the parity gate reads.
+    """Return True iff ``path`` is one of the two files the parity gate reads.
 
     CONTRACT: every file parsed by ``scripts/check_pr_record_schema_parity.py``
     MUST be covered here (QG-47 trigger-scope alignment).  The gate today
-    parses exactly three files — see ``_PR_RECORD_PARITY_PATHS``.  If the
+    parses exactly two files — see ``_PR_RECORD_PARITY_PATHS``.  If the
     gate ever grows another read path, add it to the frozenset and extend
     the regression test in ``tests/unit/test_hook_triggers.py``.
     """
@@ -841,7 +840,6 @@ def run_pagination_token_guard() -> None:
         allowed_patterns = [
             "**/pagination.py",
             "**/test_pagination*.py",
-            "specs/**",
             "**/*.md",
         ]
 
@@ -1157,9 +1155,9 @@ def run_pre_commit_hook() -> None:
     ]
 
     # Feature 310 — PR-record schema parity dispatch MUST precede the
-    # early-return below.  A commit that stages only ``types.py`` or only
-    # the 310 contract markdown matches neither ``is_ui_trigger`` nor
-    # ``is_test_trigger`` and would otherwise skip the gate silently.
+    # early-return below.  A commit that stages only ``types.py`` matches
+    # neither ``is_ui_trigger`` nor ``is_test_trigger`` and would otherwise
+    # skip the gate silently.
     if parity_triggers:
         safe_print("")
         safe_print("[pre-commit] PR-record schema parity triggers detected")
@@ -1301,8 +1299,7 @@ def run_version_guard() -> None:
 def run_sentinel_absence_check(docs_data_dir: Path | None = None) -> None:
     """Verify no synthetic-authorization sentinel leaked into the public demo tree.
 
-    Feature 309 binary gate (contract:
-    ``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md`` §6).
+    Feature 309 binary gate.
     The gate is defense in depth — ``promote_data`` already unlinks the sentinel
     before ``shutil.copytree`` — but if that ordering regresses or a developer
     writes the sentinel manually, this check fails the push before publish.

@@ -1,7 +1,5 @@
 """Entrypoint-command parity for the sentinel-absence subcommand (feature 309, slice 2c).
 
-Contract: `specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md` §8.
-
 Verifies that the SAME CLI invocation
 ``python scripts/run_repo_hook.py sentinel-absence`` runs identically from
 two invocation sources (local pre-push and CI first-step) — both surfaces

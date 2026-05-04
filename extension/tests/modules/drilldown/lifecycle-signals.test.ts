@@ -2,8 +2,7 @@
  * Lifecycle signals tests.
  *
  * Covers the publish/subscribe surface from
- * extension/ui/modules/drilldown/lifecycle-signals.ts per
- * specs/059-chart-drill-down/contracts/lifecycle-signals.md.
+ * extension/ui/modules/drilldown/lifecycle-signals.ts.
  *
  * Includes a static-audit test that verifies the three `publish*` callsites
  * live only in `extension/ui/dashboard.ts` within the `extension/ui/**` tree

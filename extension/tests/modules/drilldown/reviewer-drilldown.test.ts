@@ -1,9 +1,8 @@
 /**
  * Reviewer drill-down unit tests (US3).
  *
- * Covers `extension/ui/modules/drilldown/reviewer-drilldown.ts` per
- * `specs/059-chart-drill-down/contracts/drilldown-integration.md` and
- * spec.md FR-040 / FR-041 / FR-042 / FR-043: delegated click + keyboard
+ * Covers `extension/ui/modules/drilldown/reviewer-drilldown.ts` —
+ * FR-040 / FR-041 / FR-042 / FR-043: delegated click + keyboard
  * activation on `.h-bar-row` targets, total reviews / PRs reviewed,
  * weighted approval rate with empty-state variant, peak repository
  * breadth with qualifying week label, per-week activity table, and

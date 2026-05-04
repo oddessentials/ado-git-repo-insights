@@ -3,8 +3,7 @@
  *
  * Typed CustomEvent publish / subscribe layer that lets the DetailPanel
  * and comparison-advisory modules subscribe to dashboard-level state
- * transitions without importing dashboard internals. Per
- * `specs/059-chart-drill-down/contracts/lifecycle-signals.md`:
+ * transitions without importing dashboard internals.
  *
  *   - publisher: `extension/ui/dashboard.ts` only
  *   - subscribers: DetailPanel (open-scoped), comparison-advisory (lifetime)

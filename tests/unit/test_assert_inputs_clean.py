@@ -1,7 +1,6 @@
 """Unit tests for `assert_inputs_clean` (feature 309, slice 2c).
 
-Contract: `specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md`
-sections 6-8. Guards against running the promotion step on an undefined
+Guards against running the promotion step on an undefined
 combination of staged-and-unstaged input state that cannot be reproduced
 from any single git commit.
 

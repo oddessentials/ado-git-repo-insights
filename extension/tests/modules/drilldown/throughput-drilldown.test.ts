@@ -1,8 +1,7 @@
 /**
  * Throughput drill-down unit tests (US1).
  *
- * Covers `extension/ui/modules/drilldown/throughput-drilldown.ts` per
- * `specs/059-chart-drill-down/contracts/drilldown-integration.md`:
+ * Covers `extension/ui/modules/drilldown/throughput-drilldown.ts`:
  * delegated click activation, keyboard activation (Enter/Space),
  * panel content shape, `is-drilldown-active` lifecycle (MutationObserver
  * tied to panel root + install-scope AbortController), comparison-mode

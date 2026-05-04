@@ -305,8 +305,7 @@ export function renderCycleTimeTrend(
                  the data-tooltip surface so addChartTooltips's pointer
                  listeners stay anchored to the small visible dot — moving
                  data-tooltip onto the <g> would shift the tooltip anchor
-                 onto the larger hit-rect bounding box.
-                 See specs/059-chart-drill-down + PR #302 review P1.D. -->
+                 onto the larger hit-rect bounding box. -->
             ${p90Path ? p90Path.points.map((p) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p90" aria-expanded="false" aria-label="${escapeHtml(`Drill into P90 for week of ${p.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p.x - HIT_HALF}" y="${p.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/></g>`).join("") : ""}
             ${p50Path ? p50Path.points.map((p) => `<g role="button" tabindex="0" data-drilldown-week="${escapeHtml(p.week)}" data-drilldown-metric="p50" aria-expanded="false" aria-label="${escapeHtml(`Drill into P50 for week of ${p.ariaRange}`)}"><rect class="line-chart-dot-hit" x="${p.x - HIT_HALF}" y="${p.y - HIT_HALF}" width="${HIT_HALF * 2}" height="${HIT_HALF * 2}" fill="transparent" pointer-events="all"/><circle class="line-chart-dot" data-tooltip="true" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/></g>`).join("") : ""}
         </svg>

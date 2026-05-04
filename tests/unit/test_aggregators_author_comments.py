@@ -1,7 +1,6 @@
 """Feature 334 producer-side tests: per-(week, author) comments-density emission.
 
-Covers the invariants asserted by the producer contract
-(``specs/334-comments-author-density/contracts/per-author-comments-density.md``):
+Covers the invariants asserted by the producer contract:
 
 - FR-1-01..02  Capability gating + emission shape: when ``_has_comments()``
                is False, the aggregator omits the entire
@@ -583,8 +582,7 @@ def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
             "Feature 334 A-07 violation: dimensions.json carries an authors[] "
             f"entry whose author_id collides with the reserved sentinel "
             f"literal {FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Real "
-            "author_ids must NEVER equal the sentinel literal — see "
-            "specs/334-comments-author-density/spec.md Assumption A-07."
+            "author_ids must NEVER equal the sentinel literal (Assumption A-07)."
         )
 
     # Feature 336 widening: scan users[].user_id (the FK target for
@@ -605,8 +603,7 @@ def test_sentinel_literal_does_not_collide_with_real_author_ids() -> None:
             "Feature 336 A-07 violation: dimensions.json carries a users[] "
             f"entry whose user_id collides with the reserved sentinel "
             f"literal {FORMER_OR_UNAVAILABLE_AUTHOR_SENTINEL!r}.  Real "
-            "user_ids must NEVER equal the sentinel literal — see "
-            "specs/336-comments-reviewer-density/spec.md Assumption A-07.  "
+            "user_ids must NEVER equal the sentinel literal (Assumption A-07).  "
             "The pr_comments.author_id FK at models.py:172 references this "
             "user_id; a collision would corrupt the per-reviewer "
             "by_reviewer_comments bucket-key namespace (INV-4-12)."

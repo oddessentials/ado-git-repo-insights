@@ -8,8 +8,6 @@ This test runs the demo generator in-process (mirroring
 ``test_generate_demo_data_types.py``) and asserts the demo's per-
 (reviewer, week) ``prs[]`` emission satisfies the same atomicity / sort
 / coherence invariants the production producer asserts.
-
-Contract: ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` § 9.
 """
 
 from __future__ import annotations

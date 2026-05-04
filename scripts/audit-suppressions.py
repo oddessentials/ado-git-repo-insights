@@ -168,12 +168,6 @@ SCOPES: dict[str, ScopeConfig] = {
         "language": "typescript",
         "check_test_patterns": False,
     },
-    "typescript-spec-contracts": {
-        "dir": "specs/",
-        "pattern": "*.ts",
-        "language": "typescript",
-        "check_test_patterns": False,
-    },
 }
 
 # Derived — kept for backward compatibility with scan_codebase() iteration

@@ -1,8 +1,5 @@
 """Unlink-ordering + atomic-failure tests for promote_data (feature 309, slice 2b).
 
-Contract: `specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md` §1 and
-`specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md` §5.
-
 Records the exact order of mutating calls (`sentinel.unlink`,
 `destination.mkdir`, `shutil.copytree`, `strip_pr_arrays_from_rollups`) on
 the sentinel-present branch of ``promote_data``. Asserts unlink is the FIRST

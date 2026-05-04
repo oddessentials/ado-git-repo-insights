@@ -44,7 +44,7 @@ def test_parity_gate_holds_on_current_tree() -> None:
     When this fails the diagnostic printed by ``main`` explains which
     surface drifted.  The fix is to land the missing / mismatched field
     in every surface in the same commit (types.py, rollup.schema.ts
-    interface + PR_RECORD_REQUIRED_FIELDS, and the 310 §1 table).
+    interface, and PR_RECORD_REQUIRED_FIELDS).
     """
     exit_code = _MOD.main([])
     assert exit_code == 0, (
@@ -87,15 +87,6 @@ def test_ts_required_fields_surface_parses_exact_five() -> None:
     )
 
 
-def test_contract_surface_parses_expected_fields() -> None:
-    """Surface 4 smoke: the 310 §1 table yields at least the five 060 fields."""
-    fields = _MOD.parse_contract_section(_MOD.CONTRACT_PATH.read_text(encoding="utf-8"))
-    for required_field in ("id", "title", "author_id", "repository_id", "cycle_time"):
-        assert required_field in fields, (
-            f"310 contract §1 table is missing required field {required_field!r}"
-        )
-
-
 def test_ts_interface_parser_fails_closed_on_unsupported_type() -> None:
     """An unrecognized TS type inside the interface MUST raise ParityError."""
     with pytest.raises(_MOD.ParityError, match="Unsupported TypeScript type"):
@@ -110,12 +101,6 @@ def test_python_annotation_parser_fails_closed_on_unsupported_union() -> None:
             "class PrRecord(TypedDict):\n"
             "    id: int | str\n"
         )
-
-
-def test_contract_parser_fails_closed_on_missing_anchor() -> None:
-    """Contract parsing MUST fail if the §1 heading is removed."""
-    with pytest.raises(_MOD.ParityError, match="Anchor heading"):
-        _MOD.parse_contract_section("# Contract without the §1 anchor")
 
 
 def test_types_compatible_matrix() -> None:

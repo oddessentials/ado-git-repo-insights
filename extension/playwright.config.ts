@@ -8,7 +8,7 @@ const smokeReportDir =
 /**
  * Playwright configuration for smoke tests.
  *
- * Contract (from specs/021-spec-task-coverage-gaps/contracts/test-contracts.md):
+ * Contract:
  * - MUST use port 3000 for webServer (positive tests)
  * - MUST use port 3001 for broken-docs webServer (negative tests)
  * - MUST serve `../docs` directory for positive tests

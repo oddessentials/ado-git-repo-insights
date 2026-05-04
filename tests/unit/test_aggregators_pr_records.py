@@ -1,7 +1,5 @@
 """Unit tests for feature 060 PR-level detail emission in weekly rollups.
 
-Producer contract: `specs/060-throughput-pr-drilldown/contracts/pr-record.md`.
-
 Covers the six producer-side requirements from T017:
 
 1. PR array shape + field order (exactly five fields per PrRecord).

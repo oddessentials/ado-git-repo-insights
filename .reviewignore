@@ -22,10 +22,6 @@ coverage/
 router/tests/fixtures/benchmark/\*.snapshot.json
 router/tests/fixtures/redos-corpus/
 
-# Specs (contract docs, not source)
-
-specs/
-
 # IDE and OS artifacts
 
 .idea/

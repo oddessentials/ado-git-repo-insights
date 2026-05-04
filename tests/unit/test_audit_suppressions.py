@@ -209,10 +209,6 @@ class TestCanonicalScopeMap:
             _resolve_scope("extension/jest.config.ts") == "typescript-extension-config"
         )
         assert _resolve_scope("scripts/validate.ts") == "typescript-root-scripts"
-        assert (
-            _resolve_scope("specs/009/contracts/schema.ts")
-            == "typescript-spec-contracts"
-        )
         # Mixed-language directory: scripts/ has both .py and .ts scopes
         assert _resolve_scope("scripts/foo.py") == "python-scripts"
         assert _resolve_scope("scripts/foo.ts") == "typescript-root-scripts"

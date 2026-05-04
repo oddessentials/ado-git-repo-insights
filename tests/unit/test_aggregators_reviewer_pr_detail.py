@@ -1,7 +1,5 @@
 """Unit tests for Feature 362 producer-side per-(reviewer, week) PR detail.
 
-Producer contract: ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md``.
-
 Covers the producer-side requirements asserted by Feature 362's contract:
 
 - Basic emission shape (T013): every ``by_reviewer[reviewer_id]`` entry

@@ -4,8 +4,6 @@
  * Validates the refresh-cycle state machine for the Metrics tab.
  * Five required behavioral tests per spec, plus regression tests
  * for correctness invariants, plus edge cases.
- *
- * @see specs/045-professional-loading-feedback/spec.md — Required Test Coverage
  */
 import {
   startRefresh,

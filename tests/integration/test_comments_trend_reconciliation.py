@@ -19,20 +19,15 @@ asserts two properties per spec ``FR-2-04`` (a) + (b):
   (``FR-2-03``): for every week W, each numeric field of ``rollup[W].comments``
   matches the result of an independent re-computation that determines W's
   canonical throughput PR set via DIRECT SQL against the ``pull_requests``
-  table (week-attribution rule re-implemented inline per ADR T003 in
-  ``research.md`` Decision 7), filters to W's extracted-subset, applies C1
-  inclusion rules from the authoritative site (``specs/310-comments-visualization
-  /spec.md`` lines 75-87) directly against ``pr_threads`` / ``pr_comments``,
+  table (week-attribution rule re-implemented inline per ADR T003), filters
+  to W's extracted-subset, applies C1 inclusion rules directly against
+  ``pr_threads`` / ``pr_comments``,
   sums per-PR contributions, and re-derives ``coverage_partial`` independently.
 
 Authoritative refs:
 
-* Spec FRs: ``specs/333-comments-trend-chart/spec.md`` FR-2-01, FR-2-03, FR-2-04
-  (a)/(b), INV-1-02, INV-1-06, INV-1-08, SC-1-05.
-* Contract: ``specs/333-comments-trend-chart/contracts/sc05-reconciliation-test.md``
-  sections 1, 2.
-* C1 inclusion rules (DO NOT re-declare here per INV-1-03):
-  ``specs/310-comments-visualization/spec.md`` lines 75-87.
+* FR-2-01, FR-2-03, FR-2-04 (a)/(b), INV-1-02, INV-1-06, INV-1-08, SC-1-05.
+* C1 inclusion rules (DO NOT re-declare here per INV-1-03).
 
 Round-9 isolation rule (load-bearing — enforced structurally by sibling
 ``test_comments_trend_reconciliation_isolation.py``): this module MUST NOT
@@ -172,8 +167,7 @@ def _attribute_prs_to_weeks(
 # --------------------------------------------------------------------------- #
 #
 # C1 inclusion rules (DO NOT re-declare in docstring — INV-1-03 forbids it).
-# The authoritative site is ``specs/310-comments-visualization/spec.md`` lines
-# 75-87. The SQL below encodes those rules directly, NOT via aggregator helpers.
+# The SQL below encodes those rules directly, NOT via aggregator helpers.
 #
 # The SQL composition uses ``" ".join([...])`` for any dynamic parts per
 # ``reference_s608_refactor_pattern.md``. There are no dynamic parts in these
@@ -229,8 +223,7 @@ def _per_pr_counts(
 ) -> tuple[int, int, int, int]:
     """Independent per-PR ``(thread_count, comment_count, active_thread_count, vote_event_count)``.
 
-    Applies C1 inclusion rules (per ``specs/310-comments-visualization/spec.md``
-    lines 75-87) directly against ``pr_threads`` and ``pr_comments`` — no
+    Applies C1 inclusion rules directly against ``pr_threads`` and ``pr_comments`` — no
     aggregator helpers. ``COALESCE``s NULL results from ``SUM(...) OVER an
     empty set`` to 0 so the integer-typed return shape is unconditional.
 
@@ -1470,8 +1463,7 @@ def _build_expected_reviewer_buckets(
             # right-hand side which filters only pc.is_deleted = 0).
             comment_count_by_bucket[bucket] = comment_count_by_bucket.get(bucket, 0) + 1
             # Thread tracking applies the C1 rule
-            # (specs/310-comments-visualization/spec.md line 81:
-            # "pr_threads.is_deleted = 1 MUST be excluded from every
+            # ("pr_threads.is_deleted = 1 MUST be excluded from every
             # thread count").  Match the production aggregator's
             # ``t.is_deleted = 0`` CASE filter so the per-bucket
             # thread_count + active_thread_count expectations align with

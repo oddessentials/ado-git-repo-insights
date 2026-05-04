@@ -2,8 +2,7 @@
  * DetailPanel unit tests.
  *
  * Covers the public contract of
- * `extension/ui/modules/shared/detail-panel.ts` per
- * `specs/059-chart-drill-down/contracts/detail-panel-api.md`:
+ * `extension/ui/modules/shared/detail-panel.ts`:
  * construction invariants, DOM rendering per section type, lifecycle
  * dismissal for every DismissReason, hard-dismiss on filters-changed,
  * retarget-in-place on re-open, comparison-mode no-op, the SC-001

@@ -230,6 +230,5 @@ recomputing thresholds and floors is a silent correctness break.
 ## See also
 
 - [`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) — governance contract for every gate; rows 25 / 26 / 27 / 27a / 32 own the policies in this doc
-- [`specs/016-coverage-ratchet/spec.md`](/specs/016-coverage-ratchet/spec.md) — policy origin for the coverage-threshold ratchet
 - [`extension/tests/meta/`](/extension/tests/meta/) — meta-gates that can fire on test-adding commits but are not ratchets (config-parity, any-type, build-output-format, smoke-determinism, suppression-ratchet)
 - [Testing guide](testing.md) — test organization and local run recipes

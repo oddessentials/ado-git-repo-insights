@@ -1,8 +1,8 @@
 """Structural import-block isolation test for the SC-05 reconciliation test.
 
 Feature 333 (comments-trend-chart) — task T008. Implements the round-9 mechanism
-pinned in ADR T002 (specs/333-comments-trend-chart/contracts/sc05-reconciliation-test.md
-§2). Closes the structural side of FR-2-04 (b)'s "no shared code with EITHER aggregator"
+pinned in ADR T002. Closes the structural side of FR-2-04 (b)'s "no shared code
+with EITHER aggregator"
 constraint.
 
 The SC-05 reconciliation test (`tests/integration/test_comments_trend_reconciliation.py`)
@@ -334,9 +334,6 @@ def test_reconciliation_test_does_not_import_aggregators() -> None:
     Round-9 finding: both aggregators live in
     `src/ado_git_repo_insights/transform/aggregators.py`. A single negative
     containment assertion against that file covers both surfaces.
-
-    See `specs/333-comments-trend-chart/contracts/sc05-reconciliation-test.md`
-    §2 (ADR T002) for the pinned mechanism.
     """
 
     if not _RECONCILIATION_TEST_PATH.exists():

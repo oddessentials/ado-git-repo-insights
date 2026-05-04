@@ -150,8 +150,7 @@ DEMO_BUILD_INPUTS: Final[list[Path]] = [
 class UncommittedInputsError(RuntimeError):
     """Raised when demo-build inputs have unstaged or staged-but-not-in-HEAD changes.
 
-    Contract: ``specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md``
-    sections 6-8. The guard rejects any combination of staged + worktree
+    The guard rejects any combination of staged + worktree
     state that cannot be reproduced from a single git commit, ensuring the
     promotion step operates on a reviewable snapshot only.
     """
@@ -1184,7 +1183,6 @@ def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, object]:
 class SyntheticShapeError(RuntimeError):
     """Raised when a sentinel-present source violates the synthetic PR-record shape.
 
-    Contract: ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §3.
     The fail-closed gate on the sentinel-present branch of ``promote_data``
     raises this before any destination mutation occurs, preserving atomicity.
     """
@@ -1289,8 +1287,7 @@ def assert_synthetic_shape(aggregates_dir: Path) -> None:
     """Verify every weekly rollup under ``aggregates_dir`` matches the synthetic contract.
 
     Raises :class:`SyntheticShapeError` listing every offending rollup if any
-    rule is violated. Contract:
-    ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §3.
+    rule is violated.
     """
     rollup_dir = aggregates_dir / "weekly_rollups"
     if not rollup_dir.is_dir():
@@ -1313,8 +1310,7 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
     When ``destination_dir`` is the public demo surface (``DOCS_DATA_DIR``),
     behavior branches on the presence of the synthetic-authorization sentinel
     (``scripts/strip_pr_arrays.SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME``) at
-    ``source_dir / 'aggregates' /`` — feature-309 binary gate. Contract:
-    ``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md`` §1.
+    ``source_dir / 'aggregates' /`` — feature-309 binary gate.
 
         * Sentinel PRESENT: ``assert_synthetic_shape`` fails closed on any
           shape violation; otherwise ``sentinel.unlink()`` runs FIRST (before

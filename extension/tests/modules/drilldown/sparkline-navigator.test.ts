@@ -1,9 +1,8 @@
 /**
  * Sparkline navigator unit tests (US4).
  *
- * Covers `extension/ui/modules/drilldown/sparkline-navigator.ts` per
- * `specs/059-chart-drill-down/contracts/drilldown-integration.md` and
- * spec.md FR-050 / FR-051 / FR-052: delegated click + keyboard
+ * Covers `extension/ui/modules/drilldown/sparkline-navigator.ts` —
+ * FR-050 / FR-051 / FR-052: delegated click + keyboard
  * activation on `.sparkline-trigger` buttons, scrollIntoView on the
  * target chart container, short-lived `is-sparkline-highlight` CSS
  * class with self-dismiss after `SPARKLINE_HIGHLIGHT_MS`, missing-

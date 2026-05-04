@@ -5,7 +5,7 @@
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
-      "line": 1290,
+      "line": 1284,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -269,7 +269,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 115,
+      "line": 118,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -277,7 +277,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 210,
+      "line": 213,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -285,7 +285,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 371,
+      "line": 374,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -293,7 +293,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 395,
+      "line": 398,
       "code": "fetch = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -301,7 +301,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 415,
+      "line": 418,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -389,7 +389,7 @@
     },
     {
       "file": "tests/demo/test_regen_byte_stability.py",
-      "line": 113,
+      "line": 133,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -541,7 +541,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 56,
+      "line": 55,
       "code": "subprocess.run([\"git\", \"init\", \"-q\"], cwd=str(repo_root), check=True)",
       "shell_true": false,
       "literal_list": true,
@@ -549,7 +549,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 57,
+      "line": 56,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -557,7 +557,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 62,
+      "line": 61,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -565,7 +565,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 74,
+      "line": 73,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -573,7 +573,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 79,
+      "line": 78,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -581,7 +581,7 @@
     },
     {
       "file": "tests/unit/test_assert_inputs_clean.py",
-      "line": 114,
+      "line": 113,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -613,7 +613,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 296,
+      "line": 292,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -621,7 +621,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 326,
+      "line": 322,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -629,7 +629,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 341,
+      "line": 337,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -637,7 +637,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 349,
+      "line": 345,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -645,7 +645,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 356,
+      "line": 352,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -653,7 +653,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 1069,
+      "line": 1065,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -661,7 +661,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 1115,
+      "line": 1111,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -877,7 +877,7 @@
     },
     {
       "file": "tests/unit/test_strip_gate_entrypoint_parity.py",
-      "line": 38,
+      "line": 36,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -917,7 +917,7 @@
     },
     {
       "file": "tests/unit/test_tenant_provenance_negative.py",
-      "line": 41,
+      "line": 40,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
