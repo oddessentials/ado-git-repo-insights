@@ -190,7 +190,7 @@ Diagnose issues: `ado-insights doctor`
 | -------------------------------------------------- | ----------------------------------- |
 | [Invariants](agents/INVARIANTS.md)                 | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria for features    |
-| [Victory Gates](agents/victory-gates.md)           | Verification checkpoints            |
+| [Verification Gates](agents/definition-of-done.md#end-to-end-verification-gates) | Verification checkpoints            |
 
 ---
 
