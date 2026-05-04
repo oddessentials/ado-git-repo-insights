@@ -9,7 +9,7 @@ This document describes the tooling and quality gates for the extension codebase
 | Node.js    | 22      | Runtime                                              |
 | pnpm       | 9.15.0  | Package manager (declared in `packageManager` field) |
 | TypeScript | 6.0.2   | Type checking and compilation                        |
-| Playwright | 1.58.2  | Browser automation for smoke tests                   |
+| Playwright | 1.59.1  | Browser automation for smoke tests                   |
 | Jest       | 30.3.0  | Unit test framework                                  |
 | ESLint     | 10.1.0  | Code linting                                         |
 
