@@ -1,7 +1,5 @@
 """Feature 362 FR-028 — strip-helper depth-2 coverage tests.
 
-Contract: ``specs/362-reviewer-pr-drilldown/contracts/per-reviewer-week-prs.md`` § 8.
-
 Covers the three FR-028 invariants:
 
 1. **Top-level strip preserved**: a rollup with rollup-root PR-level fields

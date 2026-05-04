@@ -1,7 +1,5 @@
 """Shape-guard test for `assert_synthetic_shape` (feature 309, slice 2b).
 
-Contract: `specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md` §3.
-
 Drives the helper directly against the four committed fixture trees under
 ``tests/demo/fixtures/strip_gate/`` plus inline tmp_path fixtures that
 exercise specific rule violations (missing `_prs_cap`; `_prs_cap != 500`).

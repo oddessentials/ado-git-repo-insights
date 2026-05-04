@@ -7,8 +7,6 @@ tenant-sensitive PR-level fields — ``prs``, ``_prs_truncated``, ``_prs_cap``
 the helper is invoked (as the first step inside ``promote_data`` in
 ``scripts/build-demo-dataset.py``), NOT from anything this helper does.
 
-Contract: ``specs/060-throughput-pr-drilldown/contracts/demo-strip-gate.md``.
-
 Cross-OS (QG-39): ``pathlib`` only, no shell tools. UTF-8 explicit.
 Typing (QG-40): full annotations, no ``typing.Any``.
 """
@@ -34,8 +32,7 @@ SYNTHETIC_PRS_AUTHORIZED_SENTINEL_NAME: Final[str] = ".synthetic-prs-authorized"
 
 The single-source-of-truth for the sentinel name. Lives here (not in
 ``scripts/build-demo-dataset.py``) because that orchestrator is hyphenated
-and cannot be imported by other modules. Contract:
-``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md``.
+and cannot be imported by other modules.
 """
 
 

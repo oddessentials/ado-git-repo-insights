@@ -1,8 +1,7 @@
 /**
  * Cycle-time drill-down unit tests (US2).
  *
- * Covers `extension/ui/modules/drilldown/cycle-time-drilldown.ts` per
- * `specs/059-chart-drill-down/contracts/drilldown-integration.md`:
+ * Covers `extension/ui/modules/drilldown/cycle-time-drilldown.ts`:
  * delegated click activation on `.line-chart-dot` targets, keyboard
  * activation (Enter/Space), retarget-in-place between P50 and P90,
  * duration formatting via shared/format.formatDuration, per-repository

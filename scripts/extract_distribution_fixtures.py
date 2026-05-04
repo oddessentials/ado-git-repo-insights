@@ -19,8 +19,6 @@ Outputs (emitted files):
 The fifth fixture `truncation-exercise-week.json` is author-committed with
 locked literals and is NOT derived by this script.
 
-Contract: `specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md`.
-
 Privacy posture (authoritative):
     Before writing any fixture, an in-process blocklist check compares every
     derived token against:
@@ -163,8 +161,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Derive anonymized statistical distribution fixtures from a "
-            "tenant SQLite extract. See "
-            "specs/309-demo-pr-drilldown/contracts/distribution-fixture-schema.md."
+            "tenant SQLite extract."
         )
     )
     parser.add_argument(

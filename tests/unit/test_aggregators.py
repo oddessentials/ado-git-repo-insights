@@ -4578,8 +4578,7 @@ class TestWeeklyRollupCommentsAggregate:
             "coverage_partial": bool,
         }
 
-    These tests cover the four shape-and-value contracts from
-    ``specs/333-comments-trend-chart/spec.md`` FR-2-06:
+    These tests cover the four shape-and-value contracts from FR-2-06:
 
     * **case (i) all-full** — every PR in W has
       ``comments_extracted_at IS NOT NULL`` → ``coverage_partial=False``;

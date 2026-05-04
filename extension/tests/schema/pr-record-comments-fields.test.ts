@@ -11,8 +11,6 @@
  * tests/unit/test_aggregators_pr_records_comments.py (producer) — the tests
  * below are the consumer-side parity (INV-07) surface.
  *
- * Authoritative shape: specs/310-comments-visualization/contracts/pr-record-comments-fields.md §1.
- *
  * @module tests/schema/pr-record-comments-fields.test.ts
  */
 

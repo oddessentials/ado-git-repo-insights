@@ -97,52 +97,18 @@ steps:
 
 The Python CLI provides full control for local analysis, custom scripts, and non-ADO CI/CD systems.
 
-### What you get
-
 ```bash
-# Extract PR data
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1,Project2" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite
+# Install (recommended)
+pipx install ado-git-repo-insights
 
-# Generate CSVs for PowerBI
-ado-insights generate-csv \
-  --database ./ado-insights.sqlite \
-  --output ./csv_output
-
-# View local dashboard
+# Extract → CSV → dashboard
+ado-insights extract --organization MyOrg --projects "Project1,Project2" --pat $ADO_PAT --database ./ado-insights.sqlite
+ado-insights generate-csv --database ./ado-insights.sqlite --output ./csv_output
 ado-insights build-aggregates --db ./ado-insights.sqlite --out ./dataset
 ado-insights dashboard --dataset ./dataset --open
 ```
 
-### Installation
-
-**Recommended: pipx** (handles PATH automatically)
-
-```bash
-pipx install ado-git-repo-insights
-```
-
-**Alternative: uv** (fast, modern)
-
-```bash
-uv tool install ado-git-repo-insights
-```
-
-**Advanced: pip** (manual PATH setup may be needed)
-
-```bash
-pip install ado-git-repo-insights
-# If 'ado-insights' not found, run: ado-insights setup-path
-```
-
-Verify installation: `ado-insights --version`
-
-Diagnose issues: `ado-insights doctor`
-
-**Get started:** [CLI User Guide](docs/user-guide/local-cli.md)
+**Get started:** [CLI User Guide](docs/user-guide/local-cli.md) — covers `uv` and `pip` install paths, configuration files, and CI/CD integration.
 
 ---
 
@@ -190,7 +156,7 @@ Diagnose issues: `ado-insights doctor`
 | -------------------------------------------------- | ----------------------------------- |
 | [Invariants](agents/INVARIANTS.md)                 | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria for features    |
-| [Victory Gates](agents/victory-gates.md)           | Verification checkpoints            |
+| [Verification Gates](agents/definition-of-done.md#end-to-end-verification-gates) | Verification checkpoints            |
 
 ---
 
@@ -225,178 +191,32 @@ Comment extraction is opt-in via `--include-comments` on extract; to cover PR co
 
 ## 🤖 ML Features (Optional)
 
-The dashboard supports optional ML-powered features for forecasting and insights. These features require additional pipeline configuration.
+The dashboard supports optional ML-powered features: **time-series forecasting** for cycle time and throughput (zero-config, no API key) and **AI insights** for bottleneck analysis (requires an OpenAI API key, ~$0.001–0.01 per pipeline run, only aggregated metrics sent — never PR content, identities, or code).
 
-### Predictions (Time-Series Forecasting)
-
-Enable ML-powered forecasting for PR throughput and cycle times. **Zero-config** — no API key required.
-
-Add to your pipeline YAML:
-
-```yaml
-- task: ExtractPullRequests@2
-  inputs:
-    generateAggregates: true
-    enablePredictions: true
-```
-
-Features:
-
-- Cycle time forecasts using historical trends
-- Throughput predictions for capacity planning
-- Confidence intervals for forecast accuracy
-
-![ML Predictions panel showing cycle time forecasts and confidence intervals](extension/screenshots/ml-predictions.png)
-
-### AI Insights (Optional)
-
-Enable AI-powered analysis of your PR patterns. Requires an OpenAI API key.
-
-**Setup:**
-
-1. Get an API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. Add `OPENAI_API_KEY` as a secret variable in your ADO pipeline or variable group
-3. Add to your pipeline YAML:
-
-```yaml
-- task: ExtractPullRequests@2
-  inputs:
-    generateAggregates: true
-    enableInsights: true
-    openaiApiKey: $(OPENAI_API_KEY)
-```
-
-Features:
-
-- Automated bottleneck identification
-- Reviewer workload recommendations
-- Process improvement suggestions
-
-![AI Insights panel with automated bottleneck analysis and recommendations](extension/screenshots/ai-insights.png)
-
-**Cost:** Approximately $0.001-0.01 per pipeline run (uses GPT-4o-mini).
-
-**Data Privacy:** Only aggregated metrics are sent to OpenAI. The following are **never sent**:
-
-- PR titles, descriptions, or content
-- User identities or email addresses
-- Code changes or file contents
-- Comments or review feedback
-
-### Troubleshooting ML Features
-
-| State                  | Cause                          | Solution                                                   |
-| ---------------------- | ------------------------------ | ---------------------------------------------------------- |
-| **Setup Required**     | Artifact file not found        | Enable feature in pipeline YAML and run pipeline           |
-| **No Data**            | Empty forecasts/insights array | Accumulate more historical data (min. 4 weeks recommended) |
-| **Invalid Artifact**   | JSON parse or validation error | Check pipeline logs for generation errors                  |
-| **Unsupported Schema** | Version mismatch               | Update dashboard extension to latest version               |
+**Setup and troubleshooting:** [Enable ML Features](docs/user-guide/enable-ml-features.md)
 
 ---
 
 ## 🛠️ Developer Setup
 
-### Prerequisites
-
-- Node.js 22+
-- Python 3.12+ (for backend/CLI)
-- pnpm (for extension development)
-
-### Extension Development
-
-The extension uses **pnpm** exclusively. npm is not supported.
+Prerequisites: Node.js 22+, Python 3.12+, pnpm (extension only).
 
 ```bash
-# Enable Corepack (provides pnpm)
-corepack enable
-
-# Install dependencies
-cd extension
-pnpm install
-
-# Build
-pnpm run build
-
-# Run tests
-pnpm test
-
-# Package VSIX
-pnpm run package:vsix
-```
-
-> **Note:** The root `package.json` uses npm for semantic-release tooling. Only the `extension/` directory uses pnpm.
-
-### Python Development
-
-```bash
-# Install with development dependencies (uv-managed, Python 3.12)
+# Python (uv-managed)
 uv sync --extra dev
 
-# Run tests
-uv run python scripts/run_pytest.py
-
-# Run linting
-uv run ruff check .
+# Extension (pnpm)
+corepack enable
+cd extension && pnpm install && pnpm run build
 ```
 
-### Demo Parity Build
-
-The public demo and CLI synthetic demo are governed by one canonical demo publish flow:
-
-```bash
-python scripts/build_demo.py
-```
-
-This rebuilds the extension UI shell, republishes the GitHub Pages demo surface, regenerates `artifacts/demo-enterprise/`, and promotes the published mirror under `docs/data/`.
-
-For manual generated-asset sync outside the full demo build, use:
-
-```bash
-python scripts/manage_generated_artifacts.py sync --scope ui
-python scripts/manage_generated_artifacts.py sync --scope all
-```
-
-### Manual Demo Preview
-
-For local manual testing of the synthetic demo dashboard in PowerShell:
-
-```powershell
-cd extension
-pnpm install
-pnpm run build:ui
-
-cd ..
-python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
-python scripts/build-demo-dataset.py
-
-cd docs
-python -m http.server 8080
-```
-
-Open `http://localhost:8080`.
-
-For repeat runs after dependencies are already installed:
-
-```powershell
-cd extension
-pnpm run build:ui
-
-cd ..
-python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
-python scripts/build-demo-dataset.py
-
-cd docs
-python -m http.server 8080
-```
+For full setup, contribution workflow, and quality gates: [Contributing Guide](CONTRIBUTING.md) and [Development Setup](docs/development/setup.md). For the canonical demo build, see [Demo Data Versioning](docs/DEMO-DATA-VERSIONING.md).
 
 ---
 
 ## 🔒 Security
 
-- **PAT with Code (Read) scope** — Minimum required permission
-- **PATs are never logged** — Secrets are redacted from all output
-- **No secrets stored at rest** — Database contains only PR metadata
-- **Dashboard access** — Requires Build Read permission on the analytics pipeline
+PATs use minimum **Code (Read)** scope, are never logged, and are never persisted at rest. Full posture: [docs/SECURITY.md](docs/SECURITY.md).
 
 ---
 

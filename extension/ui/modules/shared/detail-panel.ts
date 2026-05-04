@@ -2,8 +2,7 @@
  * Shared DetailPanel component.
  *
  * A single right-side dialog/dismissable overlay consumed by the Phase 1
- * drill-down cohort (throughput, cycle-time, reviewer). Per
- * `specs/059-chart-drill-down/contracts/detail-panel-api.md`:
+ * drill-down cohort (throughput, cycle-time, reviewer).
  *
  *   - One DOM root appended lazily to document.body; opens toggle
  *     `is-open` class, content is replaced in place (idempotent).
@@ -853,9 +852,8 @@ function advanceSortDirection(current: SortDirection): SortDirection {
 
 /**
  * Issue #332 / B2: condensed C1 inclusion-rule disclosure surfaced via
- * a single info tooltip on the controls bar.  Authoritative source is
- * ``specs/310-comments-visualization/spec.md`` "Shared inclusion-rule
- * contract (C1)" — this string distills those rules per axis in user-
+ * a single info tooltip on the controls bar.  This string distills the
+ * shared inclusion-rule contract (C1) per axis in user-
  * facing language without re-declaring them.  One icon (not three per-
  * axis) so the disclosure adds zero pixels to the columnheader tracks
  * (Linux DejaVu header-fit contract from #341 / #330 stays intact).

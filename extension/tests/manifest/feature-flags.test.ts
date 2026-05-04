@@ -2,9 +2,7 @@
  * Manifest Contract Tests: Feature Flags
  *
  * Validates feature flag contributions in vss-extension.json against
- * the naming, scoping, and constraint rules defined in:
- * - specs/026-discovery-refactor-ff-prefix/spec.md (FR-008 through FR-014)
- * - specs/026-discovery-refactor-ff-prefix/contracts/vss-extension-feature-flags.json
+ * the naming, scoping, and constraint rules (FR-008 through FR-014).
  *
  * These tests read the manifest at build time to enforce structural invariants.
  */

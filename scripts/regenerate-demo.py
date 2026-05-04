@@ -25,8 +25,8 @@ def main() -> int:
 
     Feature 309 gate audit: this wrapper only invokes ``build-demo-dataset.py``
     as a subprocess; it never writes to ``docs/data/`` directly. The binary
-    gate in ``promote_data`` (``specs/309-demo-pr-drilldown/contracts/demo-strip-gate-v2.md``)
-    therefore governs every promotion flowing through this entry point.
+    gate in ``promote_data`` therefore governs every promotion flowing through
+    this entry point.
     """
     require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
     result = subprocess.run(

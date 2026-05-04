@@ -1,7 +1,6 @@
 """Guard invariant: only `scripts/strip_pr_arrays.py` may define the sentinel literal.
 
-Feature 309 (`309-demo-pr-drilldown`), slice 2b. Enforces contract
-`specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md` §2:
+Feature 309 (`309-demo-pr-drilldown`), slice 2b. Enforces contract:
 the string `.synthetic-prs-authorized` must appear in exactly one committed
 file under `src/` or `scripts/` — the constant-definition site. Every other
 file MUST import the name instead of re-inventing the literal, so the demo

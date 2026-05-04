@@ -1,7 +1,6 @@
 """Feature 310 producer-side tests: per-PR comments-metrics fields.
 
-Covers the invariants asserted by the producer contract
-(``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``):
+Covers the invariants asserted by the producer contract:
 
 - INV-01  Capability gating: when ``_has_comments()`` returns False, the
           aggregator emits the 5-field 060 shape — no new keys.
@@ -440,9 +439,8 @@ def test_true_zeros_when_extracted_at_nonnull_and_joins_empty(
     ``comments_extracted_at IS NULL``.
 
     The partial sentinel is consumer-visible (the renderer shows ``0`` vs
-    ``—``), so the producer MUST preserve the distinction.  Contract anchor:
-    ``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``
-    (Producer-contract Failure modes) — "emit ``(0, 0, 0)`` in that case
+    ``—``), so the producer MUST preserve the distinction.  Per the
+    Producer-contract Failure modes — "emit ``(0, 0, 0)`` in that case
     (true zeros per Acceptance Scenario 2.2). The partial sentinel is
     reserved for ``comments_extracted_at IS NULL``."
 
@@ -665,10 +663,8 @@ def test_sc04_per_pr_counts_reproducible_via_contract_sql(
     comments_db: tuple[DatabaseManager, Path],
 ) -> None:
     """SC-04 (#324) closure: the aggregator's emitted per-PR triplet equals
-    the result of an INDEPENDENT re-computation using the canonical SQL
-    declared in
-    ``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``
-    §Producer-contract — composed end-to-end, not rule-by-rule.
+    the result of an INDEPENDENT re-computation using the canonical
+    Producer-contract SQL — composed end-to-end, not rule-by-rule.
 
     This is the INV-07 in-feature closure check the spec promised.  The
     sibling tests above (``test_c1_inclusion_rules_applied``, INV-08 /
@@ -817,9 +813,8 @@ def test_sc04_per_pr_counts_reproducible_via_contract_sql(
     rollup = _generate(tmp_path, db)
     prs = _prs(rollup)
 
-    # Independent re-computation via the contract's canonical SQL
-    # (``specs/310-comments-visualization/contracts/pr-record-comments-fields.md``
-    # §Producer-contract, lines 56-82) — issued VERBATIM modulo the
+    # Independent re-computation via the contract's canonical Producer-contract
+    # SQL — issued VERBATIM modulo the
     # ``WHERE IN`` placeholder form.  ``sqlite3`` cannot bind a list to a
     # single named placeholder, so the ``:slice_uids`` parameter is
     # expanded to positional ``?, ?, ?, ...`` of equal arity — purely a
@@ -830,8 +825,7 @@ def test_sc04_per_pr_counts_reproducible_via_contract_sql(
     # check that the two forms agree on the composed per-PR triplet.
     #
     # SQL assembly via ``" ".join([...])`` rather than f-string follows
-    # the project's zero-suppressions refactor pattern
-    # (``specs/043-zero-suppressions/research.md``: replace
+    # the project's zero-suppressions refactor pattern: replace
     # ``f"SELECT {x} FROM {y}"`` with ``" ".join(["SELECT", x, "FROM",
     # y])`` to satisfy ruff S608 without a suppression comment).  The
     # placeholders string is a SINGLE element of the join list — only

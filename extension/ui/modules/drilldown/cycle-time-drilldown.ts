@@ -186,9 +186,8 @@ function buildPanelContent(
 /**
  * Options passed at `installCycleTimeDrilldown` time. Feature 361 mirrors
  * `ThroughputDrilldownOptions` field-for-field so the dashboard can build
- * one options bag and pass it to both installs. See
- * `specs/361-cycle-time-pr-drilldown/data-model.md` § 3 for field
- * semantics. All fields are optional; when absent the cycle-time PR list
+ * one options bag and pass it to both installs. All fields are optional;
+ * when absent the cycle-time PR list
  * falls through to the `supported-empty` content state (no PR list rows).
  *
  * `authorsDimension` is accepted for call-site uniformity with the

@@ -26,7 +26,7 @@ EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
 
-# Exit code contract (AD-5 in specs/049-cross-platform-hardening/spec.md):
+# Exit code contract (AD-5):
 #   GATE  = 1: Code quality regression (always fatal)
 #   SETUP = 2: Machine not ready / missing tool (always fatal)
 #   INFRA = 3: Network or environment issue (skippable in degraded mode)
@@ -645,26 +645,25 @@ def is_ui_trigger(path: str) -> bool:
 
 
 # Feature 310 — PrRecord schema parity gate triggers (DIRECTIVE 2 / QG-47).
-# The gate parses exactly three files; staging any of them MUST fire the
+# The gate parses exactly two files; staging either of them MUST fire the
 # gate before commit.  Kept separate from ``is_ui_trigger`` / ``is_test_trigger``
-# because a commit that stages only ``types.py`` or only the 310 contract
-# markdown matches neither of those predicates and would otherwise hit the
-# early-return in ``run_pre_commit_hook`` and silently skip the parity gate.
+# because a commit that stages only ``types.py`` matches neither of those
+# predicates and would otherwise hit the early-return in
+# ``run_pre_commit_hook`` and silently skip the parity gate.
 _PR_RECORD_PARITY_PATHS: frozenset[str] = frozenset(
     {
         "src/ado_git_repo_insights/types.py",
         "extension/ui/schemas/rollup.schema.ts",
-        "specs/310-comments-visualization/contracts/pr-record-comments-fields.md",
     }
 )
 
 
 def is_pr_record_parity_trigger(path: str) -> bool:
-    """Return True iff ``path`` is one of the three files the parity gate reads.
+    """Return True iff ``path`` is one of the two files the parity gate reads.
 
     CONTRACT: every file parsed by ``scripts/check_pr_record_schema_parity.py``
     MUST be covered here (QG-47 trigger-scope alignment).  The gate today
-    parses exactly three files — see ``_PR_RECORD_PARITY_PATHS``.  If the
+    parses exactly two files — see ``_PR_RECORD_PARITY_PATHS``.  If the
     gate ever grows another read path, add it to the frozenset and extend
     the regression test in ``tests/unit/test_hook_triggers.py``.
     """
@@ -841,7 +840,6 @@ def run_pagination_token_guard() -> None:
         allowed_patterns = [
             "**/pagination.py",
             "**/test_pagination*.py",
-            "specs/**",
             "**/*.md",
         ]
 
@@ -1157,9 +1155,9 @@ def run_pre_commit_hook() -> None:
     ]
 
     # Feature 310 — PR-record schema parity dispatch MUST precede the
-    # early-return below.  A commit that stages only ``types.py`` or only
-    # the 310 contract markdown matches neither ``is_ui_trigger`` nor
-    # ``is_test_trigger`` and would otherwise skip the gate silently.
+    # early-return below.  A commit that stages only ``types.py`` matches
+    # neither ``is_ui_trigger`` nor ``is_test_trigger`` and would otherwise
+    # skip the gate silently.
     if parity_triggers:
         safe_print("")
         safe_print("[pre-commit] PR-record schema parity triggers detected")
@@ -1202,62 +1200,107 @@ def run_pre_push_pre_commit_checks() -> None:
     run_command([pre_commit, "run", "--all-files", "--hook-stage", "pre-push"])
 
 
-def check_crlf(path: Path) -> bool:
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return False
-    return b"\r" in data
+_CRLF_CATEGORY_LABELS: tuple[str, ...] = (
+    ".husky",
+    "*.sh",
+    ".github/scripts",
+    "scripts",
+    "extension/scripts",
+    "extension/ui",
+)
 
 
-def iter_files(root: Path) -> list[Path]:
-    files: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
+def _scan_indexed_eol() -> dict[str, str]:
+    """Return ``{tracked-path: i/<eol>}`` for every file in the index.
+
+    One ``git ls-files --eol`` call so the result reflects what git would
+    push after applying ``.gitattributes`` text filters — independent of
+    Windows working-tree rendering. Possible eol values: ``lf``, ``crlf``,
+    ``mixed``, ``none`` (binary), ``-`` (no info).
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "--eol"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    eols: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        # Format: "i/<eol> w/<eol> attr/<text-attr>\t<path>"
+        if "\t" not in line:
             continue
-        if "__pycache__" in path.parts:
+        attrs_part, path = line.split("\t", 1)
+        tokens = attrs_part.split()
+        if not tokens or not tokens[0].startswith("i/"):
             continue
-        if any(part in {"node_modules", ".venv"} for part in path.parts):
-            continue
-        files.append(path)
-    return files
+        eols[path.strip()] = tokens[0][2:]  # strip "i/" prefix
+    return eols
+
+
+def check_crlf_in_index(path: str, indexed_eol: dict[str, str]) -> bool:
+    """True iff ``path``'s indexed (push-bound) content has CR.
+
+    Reads the i/<eol> attribute computed by ``git ls-files --eol`` rather
+    than raw working-tree bytes, so Windows worktree CRLF rendering
+    (which git auto-converts to LF on commit per ``.gitattributes``
+    ``text=auto eol=lf``) does not falsely trip the guard. Untracked
+    paths return False — they aren't in the push-bound set.
+    """
+    eol = indexed_eol.get(path)
+    return eol in {"crlf", "mixed"}
+
+
+def _crlf_categories(path: str) -> list[str]:
+    """Return all CRLF-guard category labels that ``path`` falls under."""
+    cats: list[str] = []
+    if path.startswith(".husky/"):
+        cats.append(".husky")
+    if path.endswith(".sh"):
+        cats.append("*.sh")
+    if path.startswith(".github/scripts/"):
+        cats.append(".github/scripts")
+    if path.startswith("scripts/"):
+        cats.append("scripts")
+    if path.startswith("extension/scripts/"):
+        cats.append("extension/scripts")
+    if path.startswith("extension/ui/"):
+        cats.append("extension/ui")
+    return cats
 
 
 def run_crlf_guard() -> None:
-    safe_print("[pre-push] running CRLF line ending guard")
-    targets = {
-        ".husky": REPO_ROOT / ".husky",
-        "*.sh": REPO_ROOT,
-        ".github/scripts": REPO_ROOT / ".github" / "scripts",
-        "scripts": REPO_ROOT / "scripts",
-        "extension/scripts": EXTENSION_ROOT / "scripts",
-        "extension/ui": EXTENSION_ROOT / "ui",
-    }
-    failures: dict[str, list[str]] = {label: [] for label in targets}
+    """Block push if any in-scope file has CRLF in its indexed content.
 
-    for label, root in targets.items():
-        if not root.exists():
+    Validates push-bound content (post-``.gitattributes`` normalization)
+    via ``git ls-files --eol``, not raw working-tree bytes — the latter
+    falsely flags Windows worktree rendering of files git committed as LF.
+    """
+    safe_print("[pre-push] running CRLF line ending guard")
+    indexed_eol = _scan_indexed_eol()
+    failures: dict[str, list[str]] = {label: [] for label in _CRLF_CATEGORY_LABELS}
+    for path, eol in indexed_eol.items():
+        if eol not in {"crlf", "mixed"}:
             continue
-        for path in iter_files(root):
-            if label == "*.sh" and path.suffix != ".sh":
-                continue
-            if check_crlf(path):
-                failures[label].append(path.relative_to(REPO_ROOT).as_posix())
+        for label in _crlf_categories(path):
+            failures[label].append(path)
 
     found = False
-    for label, matches in failures.items():
+    for label in _CRLF_CATEGORY_LABELS:
+        matches = failures[label]
         if not matches:
             continue
         found = True
-        safe_print(f"[pre-push] CRLF detected in {label}:")
+        safe_print(f"[pre-push] CRLF detected in indexed content under {label}:")
         for match in matches:
             safe_print(f"  - {match}")
 
     if found:
         safe_print("")
-        safe_print("[pre-push] push blocked: CRLF line endings found")
+        safe_print("[pre-push] push blocked: CRLF in indexed (push-bound) content")
         safe_print(
-            "[pre-push] Fix: run `git add --renormalize .` after checking .gitattributes"
+            "[pre-push] Fix: check .gitattributes and run "
+            "`git add --renormalize <path>` to fix the index"
         )
         raise SystemExit(1)
 
@@ -1301,8 +1344,7 @@ def run_version_guard() -> None:
 def run_sentinel_absence_check(docs_data_dir: Path | None = None) -> None:
     """Verify no synthetic-authorization sentinel leaked into the public demo tree.
 
-    Feature 309 binary gate (contract:
-    ``specs/309-demo-pr-drilldown/contracts/synthetic-authorization-signal.md`` §6).
+    Feature 309 binary gate.
     The gate is defense in depth — ``promote_data`` already unlinks the sentinel
     before ``shutil.copytree`` — but if that ordering regresses or a developer
     writes the sentinel manually, this check fails the push before publish.

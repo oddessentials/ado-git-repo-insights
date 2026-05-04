@@ -2607,10 +2607,9 @@ class TestPreLoopConnectivity:
         """SC-012: a 100%-failure run is a loop-completed run, exit 0.
 
         Authoritative contract:
-          - specs/058-backfill-comments/spec.md:19 Q&A — exit 0 on loop
-            completion regardless of per-PR failure rate; non-zero is
-            reserved for fatal pre-loop errors.
-          - specs/058-backfill-comments/spec.md:346 SC-012 — "A run in which
+          - exit 0 on loop completion regardless of per-PR failure rate;
+            non-zero is reserved for fatal pre-loop errors.
+          - SC-012 — "A run in which
             every attempted pull request fails still exits with status code
             zero, and its run_summary.json artifact carries counts accurate
             enough for a downstream consumer to enforce its own failure-rate

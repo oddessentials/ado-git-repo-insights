@@ -6,9 +6,7 @@
  * (`parseIsoLocalDate`, `isoWeekRange`, `formatWeekRangeTitle`,
  * `formatWeekTitle`, `weekRangeForAria`) are exercised indirectly by the
  * throughput / cycle-time / reviewer drill-down tests; this file pins
- * `formatPeriodTitle`'s four output-string branches per
- * `specs/363-summary-card-pr-drilldown/data-model.md` § 4 and
- * `contracts/sparkline-pr-list.md` § 2.
+ * `formatPeriodTitle`'s four output-string branches.
  */
 
 import {

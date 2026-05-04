@@ -1256,7 +1256,6 @@ describe("Rollup Schema Validator", () => {
 
   // =========================================================================
   // Feature 333 weekly-comments-aggregate: rollup-root `comments` sub-object.
-  // Contract: specs/333-comments-trend-chart/contracts/weekly-comments-aggregate.md §3
   //   - Atomic: all four fields (thread_count, comment_count, active_thread_count,
   //     coverage_partial) MUST be present together with non-null typed values.
   //   - Capability-off: the `comments` key is absent entirely (FR-3-03).

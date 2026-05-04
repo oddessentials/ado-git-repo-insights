@@ -1,7 +1,6 @@
 """Feature 310 R-08 + Feature 333 FR-3-03 byte-identity test between demo
 variant-on and variant-off.
 
-Per R-08 (``specs/310-comments-visualization/research.md``):
 ``scripts/generate-demo-data.py`` gains a ``--comments-metrics`` flag
 that gates output serialization only.  Generation-layer draws are
 identical regardless of the flag — the capability-on artifact

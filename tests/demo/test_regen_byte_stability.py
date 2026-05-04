@@ -1,7 +1,5 @@
 """Byte-determinism invariant for demo regeneration (feature 309, slice 2d).
 
-Contract: `specs/309-demo-pr-drilldown/contracts/byte-determinism-regen.md` §3.
-
 For every committed weekly rollup under ``docs/data/aggregates/weekly_rollups/``,
 regenerate the canonical demo into a scratch artifact root on the baseline
 Python interpreter, then strip the three PR-level keys (``prs``,

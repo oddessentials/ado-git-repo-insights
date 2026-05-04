@@ -16,8 +16,7 @@
  *   - Impossible calendar dates (e.g. "2025-02-31") are rejected by
  *     round-tripping y/m/d through `new Date` and matching the fields
  *     back out, so silent rollover can't masquerade as a valid date.
- *   - Condensed range format matches `specs/059-chart-drill-down/data-
- *     model.md:19` ("Mar 18 – 24, 2025" same-month,
+ *   - Condensed range format renders as "Mar 18 – 24, 2025" (same-month),
  *     "Mar 31 – Apr 6, 2025" cross-month,
  *     "Dec 30, 2024 – Jan 5, 2025" cross-year).
  */
@@ -73,9 +72,7 @@ export function isoWeekRange(week: string): { start: Date; end: Date } | null {
 }
 
 /**
- * Format a Monday/Sunday pair as a condensed week-range string. See
- * `specs/059-chart-drill-down/data-model.md:19` for the canonical
- * examples.
+ * Format a Monday/Sunday pair as a condensed week-range string.
  */
 export function formatWeekRangeTitle(start: Date, end: Date): string {
   const startMonth = start.toLocaleDateString("en-US", { month: "short" });
@@ -155,10 +152,6 @@ export function weekRangeForAria(rollup: Rollup): string {
  *     titles.
  *   - When no rollup contributes a valid date pair after the walk →
  *     `"No period selected"` (same fallback as empty input).
- *
- * See `specs/363-summary-card-pr-drilldown/data-model.md` § 4 and
- * `specs/363-summary-card-pr-drilldown/contracts/sparkline-pr-list.md`
- * § 2 for the full output-string enumeration.
  */
 export function formatPeriodTitle(rollups: readonly Rollup[]): string {
   const [first, ...rest] = rollups;

@@ -10,8 +10,6 @@
  * - TC-002: No timeout literals (must use SMOKE_TIMEOUT_MS)
  * - AC-001: All screenshots must use testInfo.outputPath()
  * - CQ-001: No custom deepClone implementations
- *
- * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
 import * as _fsOriginal from "fs";

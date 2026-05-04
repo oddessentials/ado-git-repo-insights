@@ -2,9 +2,8 @@
  * Comparison-advisory unit tests.
  *
  * Covers
- * `extension/ui/modules/drilldown/comparison-advisory.ts` per
- * `specs/059-chart-drill-down/contracts/lifecycle-signals.md` and
- * research.md R-05 — the three-layer disabled-drill-down UX (chart
+ * `extension/ui/modules/drilldown/comparison-advisory.ts` —
+ * the three-layer disabled-drill-down UX (chart
  * attribute, persistent banner, transient on-attempt toast).
  */
 
