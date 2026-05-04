@@ -62,4 +62,31 @@ describe("formatPeriodTitle", () => {
       "Period of Dec 30, 2024 – Jan 26, 2025",
     );
   });
+
+  it("multi-rollup with one rollup missing start/end dates falls back to isoWeekRange", () => {
+    // Coverage for the falsy-date arms of the start_date / end_date
+    // ternaries and the directStart && directEnd ? ... : isoWeekRange()
+    // fallback inside formatPeriodTitle. The third rollup carries an
+    // unparseable week key alongside missing dates so that the
+    // ``if (!pair) continue`` branch is exercised too — its date
+    // contribution is dropped, leaving the period span anchored on
+    // the two valid rollups.
+    const w12 = makeRollup("2025-W12", "2025-03-17", "2025-03-23");
+    const w13Fallback = makeRollup("2025-W13", undefined, undefined);
+    const wBogus = makeRollup("bogus-key", undefined, undefined);
+    expect(formatPeriodTitle([w12, w13Fallback, wBogus])).toBe(
+      "Period of Mar 17 – 30, 2025",
+    );
+  });
+
+  it("multi-rollup with all rollups invalid returns 'No period selected'", () => {
+    // Every rollup has missing dates AND an unparseable week key, so
+    // every iteration of the period walk hits the ``continue`` arm of
+    // the ``if (!pair) continue`` guard. earliestStart / latestEnd
+    // both stay null → the ``!earliestStart || !latestEnd`` fallback
+    // arm fires and returns "No period selected".
+    const wA = makeRollup("not-a-week", undefined, undefined);
+    const wB = makeRollup("also-bogus", undefined, undefined);
+    expect(formatPeriodTitle([wA, wB])).toBe("No period selected");
+  });
 });

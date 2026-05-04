@@ -1043,4 +1043,340 @@ describe("sparkline-navigator", () => {
       document.querySelector(".detail-panel-section--stat-row"),
     ).toBeNull();
   });
+
+  // -------------------------------------------------------------------------
+  // Partial-branch coverage (post-#363 ratchet)
+  //
+  // The tests below pin the new control-flow branches the partial-branch
+  // ratchet would otherwise treat as gaps: malformed PR arrays, the
+  // empty-union envelope path, the partial-row stat-row branches, the
+  // unknown cycle-metric routing, default-options coalesce, the
+  // singular-PR subtitle, and the panel-observer is-open / null-panel
+  // arms. Coverage failures here block the gate; do not weaken these
+  // tests without a corresponding source-side simplification.
+  // -------------------------------------------------------------------------
+
+  it("rollup missing the prs/_prs_truncated/_prs_cap trio falls through to supported-empty", () => {
+    // L159 (envelope guard): exercises the if-true arm where one of the
+    // three trio fields is structurally invalid. Every other test in
+    // this file feeds well-formed trios, so this is the only path that
+    // triggers the early return inside buildPeriodScopedEnvelope.
+    const rollups: Rollup[] = [
+      {
+        week: "2025-W12",
+        start_date: "2025-03-17",
+        end_date: "2025-03-23",
+        pr_count: 5,
+        cycle_time_p50: 60 * 4,
+        cycle_time_p90: 60 * 18,
+        authors_count: 1,
+        reviewers_count: 0,
+        by_repository: null,
+        by_team: null,
+        // prs / _prs_truncated / _prs_cap omitted on purpose.
+      },
+    ];
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    expect(isDetailPanelOpen()).toBe(true);
+    const section = document.getElementById("pr-detail")!;
+    expect(section.getAttribute("data-content-state")).toBe("supported-empty");
+  });
+
+  it("multi-rollup window with all empty prs arrays renders supported-empty", () => {
+    // L173 (collected.length === 0 arm): every rollup has prs:[] so the
+    // envelope walk completes successfully but the union is empty —
+    // forces the second supported-empty fall-through inside
+    // buildPeriodScopedEnvelope.
+    const rollups: Rollup[] = [
+      makePeriodRollup("2025-W12", "2025-03-17", "2025-03-23", []),
+      makePeriodRollup("2025-W13", "2025-03-24", "2025-03-30", []),
+    ];
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    const section = document.getElementById("pr-detail")!;
+    expect(section.getAttribute("data-content-state")).toBe("supported-empty");
+  });
+
+  it("capability-on PR list with all-partial rows renders 'Pending (N)' on the comments stat row", () => {
+    // L264-L267 (?? 0 left arms + isPartialPrRow true) and L271
+    // (allRowsPartial true): every row carries null counts, so the
+    // partial-row branch fires for every iteration and the stat row's
+    // headline collapses to the "Pending (N)" literal.
+    const partialPrs: PrRecord[] = [
+      {
+        id: 101,
+        title: "feat: oauth",
+        author_id: "alice",
+        repository_id: "repo-1",
+        cycle_time: 800,
+        thread_count: null,
+        comment_count: null,
+        active_thread_count: null,
+      },
+      {
+        id: 102,
+        title: "refactor: hooks",
+        author_id: "alice",
+        repository_id: "repo-1",
+        cycle_time: 500,
+        thread_count: null,
+        comment_count: null,
+        active_thread_count: null,
+      },
+    ];
+    const rollups: Rollup[] = [
+      makePeriodRollup("2025-W12", "2025-03-17", "2025-03-23", partialPrs),
+    ];
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, {
+      ...FIXTURE_OPTIONS_BASE,
+      commentsMetricsAvailable: true,
+    });
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    const statRow = document.querySelector(".detail-panel-section--stat-row");
+    expect(statRow).not.toBeNull();
+    const text = statRow!.textContent ?? "";
+    expect(text).toContain("Pending (2)");
+  });
+
+  it("capability-on PR list with mixed partial/numeric rows renders '(+N partial)' annotation", () => {
+    // L269 (partialCount > 0 && partialCount === rows.length false
+    // arm) and L272 (partialCount > 0 true arm without all-partial):
+    // one partial row + one numeric row hits the mixed-state branch,
+    // producing the "K (+1 partial)" headline.
+    const mixedPrs: PrRecord[] = [
+      {
+        id: 101,
+        title: "feat: oauth",
+        author_id: "alice",
+        repository_id: "repo-1",
+        cycle_time: 800,
+        thread_count: 5,
+        comment_count: 12,
+        active_thread_count: 1,
+      },
+      {
+        id: 102,
+        title: "refactor: hooks",
+        author_id: "alice",
+        repository_id: "repo-1",
+        cycle_time: 500,
+        thread_count: null,
+        comment_count: null,
+        active_thread_count: null,
+      },
+    ];
+    const rollups: Rollup[] = [
+      makePeriodRollup("2025-W12", "2025-03-17", "2025-03-23", mixedPrs),
+    ];
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, {
+      ...FIXTURE_OPTIONS_BASE,
+      commentsMetricsAvailable: true,
+    });
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    const statRow = document.querySelector(".detail-panel-section--stat-row");
+    expect(statRow).not.toBeNull();
+    const text = statRow!.textContent ?? "";
+    expect(text).toContain("5 (+1 partial)");
+  });
+
+  it("cycle-time trigger without data-drilldown-cycle-metric attribute is a no-op", () => {
+    // L291 (resolveTargetCard `metric === "p90"` false arm) and L484
+    // (`!targetCard` true arm): a cycle-time trigger that lacks the
+    // metric attribute makes resolveTargetCard return null, so
+    // activate exits before openDetailPanel — no panel open.
+    // Production triggers always carry the attribute (T017), so this
+    // covers the defensive return path.
+    const rollups = periodFixtureRollups();
+    const container = document.createElement("div");
+    container.className = "summary-cards";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "sparkline-trigger";
+    button.setAttribute("data-drilldown-target-chart", "cycle-time");
+    button.setAttribute("aria-label", "Open full cycle time chart");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    button.appendChild(svg);
+    container.appendChild(button);
+    document.body.appendChild(container);
+
+    mountTargetCharts(["cycle-time"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+    click(button);
+
+    expect(isDetailPanelOpen()).toBe(false);
+  });
+
+  it("install with empty options bag falls through to supported-empty (no webContext)", () => {
+    // L309 (options.filters ?? createEmptyFilterState() right arm) and
+    // L311 (options.commentsMetricsAvailable ?? false right arm) and
+    // L204 (`!webContext` arm): an empty options bag produces undefined
+    // filters / commentsMetricsAvailable / webContext, so the
+    // buildPanelContent coalesce branches fire and the PR-list section
+    // collapses to supported-empty for lack of a URL composer.
+    const rollups = periodFixtureRollups();
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, {});
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    const section = document.getElementById("pr-detail")!;
+    expect(section.getAttribute("data-content-state")).toBe("supported-empty");
+  });
+
+  it("single-PR period subtitle uses singular 'PR'", () => {
+    // L329 (totalPeriodPrCount === 1 ? "PR" : "PRs" true arm): a window
+    // with exactly one PR exercises the singular branch of the subtitle
+    // ternary.
+    const rollups: Rollup[] = [
+      makePeriodRollup("2025-W12", "2025-03-17", "2025-03-23", [
+        makePr(101, 800, "solo"),
+      ]),
+    ];
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+    click(triggerForRich(container, { chart: "throughput" }));
+
+    const subtitle =
+      document.querySelector(".detail-panel-subtitle")?.textContent ?? "";
+    expect(subtitle).toBe("1 PR");
+  });
+
+  it("panel observer no-ops on unrelated class mutations to the panel root", async () => {
+    // L396 (`!panel.classList.contains("is-open")` false arm): the
+    // MutationObserver fires on any class change on the panel root.
+    // When the new class set still contains is-open, the observer must
+    // no-op (not call clearActive). Adding an unrelated class triggers
+    // the observer with is-open still present.
+    const rollups = periodFixtureRollups();
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+    const trigger = triggerForRich(container, { chart: "throughput" });
+
+    click(trigger);
+    expect(trigger.classList.contains("is-drilldown-active")).toBe(true);
+
+    const panel = document.querySelector<HTMLElement>("aside.detail-panel");
+    expect(panel).not.toBeNull();
+    panel!.classList.add("test-only-decoration");
+
+    // Flush the MutationObserver microtask queue.
+    await Promise.resolve();
+
+    expect(trigger.classList.contains("is-drilldown-active")).toBe(true);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("panel observer clears is-drilldown-active when the panel closes via dismissDetailPanel", async () => {
+    // L396 true arm: when is-open is removed, the observer fires
+    // clearActive, which strips the trigger's active class +
+    // aria-expanded.
+    const rollups = periodFixtureRollups();
+    const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+    mountTargetCharts(["throughput"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+    const trigger = triggerForRich(container, { chart: "throughput" });
+
+    click(trigger);
+    expect(trigger.classList.contains("is-drilldown-active")).toBe(true);
+
+    dismissDetailPanel("explicit-close-button");
+    await Promise.resolve();
+
+    expect(trigger.classList.contains("is-drilldown-active")).toBe(false);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("buildPanelContent defaults to bare period title when the trigger's cycle-metric attribute diverges between resolveTargetCard and buildPanelContent reads", () => {
+    // L325 (`else if (metric === "p90")` false arm) defensive
+    // coverage. resolveTargetCard validates the cycle-metric attribute
+    // and rejects unknown values, so in normal flow buildPanelContent's
+    // redundant re-read always sees "p50" or "p90". This test patches
+    // the trigger's ``getAttribute`` to return a different value on
+    // the second read — simulating a hypothetical mid-flow attribute
+    // mutation or a future refactor that bypasses resolveTargetCard's
+    // validation. Pins the safe-default behavior: when the inner ifs
+    // see neither "p50" nor "p90", the title falls through to the
+    // bare period title without a metric marker.
+    const rollups = periodFixtureRollups();
+    const container = mountSummaryCardsRich([
+      { chart: "cycle-time", metric: "p50" },
+    ]);
+    mountTargetCharts(["cycle-time"]);
+    installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+    const trigger = triggerForRich(container, {
+      chart: "cycle-time",
+      metric: "p50",
+    });
+    let metricCallCount = 0;
+    const realGetAttribute = trigger.getAttribute.bind(trigger);
+    trigger.getAttribute = (name: string) => {
+      if (name === "data-drilldown-cycle-metric") {
+        metricCallCount += 1;
+        // First read (resolveTargetCard): valid "p50" so the panel
+        // opens. Second read (buildPanelContent): unknown value so the
+        // else-if false arm fires.
+        return metricCallCount === 1 ? "p50" : "stale-value";
+      }
+      return realGetAttribute(name);
+    };
+
+    click(trigger);
+
+    expect(isDetailPanelOpen()).toBe(true);
+    expect(metricCallCount).toBeGreaterThanOrEqual(2);
+    const title =
+      document.querySelector("#detail-panel-title")?.textContent ?? "";
+    // Bare period title — no "— P50" / "— P90" suffix.
+    expect(title).toBe("Period of Mar 17 – Apr 6, 2025");
+  });
+
+  it("registerPanelObserver no-ops gracefully when the panel root cannot be found", () => {
+    // L394 (`if (!panel) return;` true arm): defensive guard mirroring
+    // the same pattern in throughput- / cycle-time- / reviewer-
+    // drilldown installs. Force the null case by intercepting the
+    // panel-root querySelector — registerPanelObserver must early-
+    // return silently rather than throwing or registering an observer
+    // on null. Keeps the defensive convention consistent across all
+    // four installs.
+    const originalQS = document.querySelector.bind(document);
+    document.querySelector = ((selector: string) => {
+      if (selector === "aside.detail-panel") return null;
+      return originalQS(selector);
+    }) as typeof document.querySelector;
+    try {
+      const rollups = periodFixtureRollups();
+      const container = mountSummaryCardsRich([{ chart: "throughput" }]);
+      mountTargetCharts(["throughput"]);
+      installSparklineNavigator(container, rollups, FIXTURE_OPTIONS_BASE);
+
+      expect(() =>
+        click(triggerForRich(container, { chart: "throughput" })),
+      ).not.toThrow();
+    } finally {
+      document.querySelector = originalQS;
+    }
+  });
 });

@@ -403,6 +403,28 @@ describe("detail-panel — retarget and comparison guards", () => {
     warnSpy.mockRestore();
   });
 
+  it("preserves is-drilldown-active on a same-trigger re-open (idempotent)", () => {
+    // Cross-source retarget cleanup branch coverage: the panel-side
+    // ``previousTrigger !== context.triggerElement`` guard inside
+    // openDetailPanel must NOT clear active state when the same trigger
+    // re-opens its own panel (e.g., user clicks the trigger again
+    // while the panel is open). Pins the false arm of the
+    // ``previousTrigger !== context.triggerElement`` predicate.
+    const ctx = makeThroughputContext();
+    ctx.triggerElement.classList.add("is-drilldown-active");
+    ctx.triggerElement.setAttribute("aria-expanded", "true");
+    openDetailPanel(ctx);
+    // Second call with the SAME triggerElement — same-trigger reopen.
+    // Active state on that trigger must be preserved (it's still the
+    // panel's owner; the panel module does not strip its own owner's
+    // attributes).
+    openDetailPanel(ctx);
+    expect(ctx.triggerElement.classList.contains("is-drilldown-active")).toBe(
+      true,
+    );
+    expect(ctx.triggerElement.getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("clears is-drilldown-active and aria-expanded on the previously-active trigger when the panel is retargeted to a different source", () => {
     // Cross-source retarget regression-lock (Codex stop-time review on
     // #363 post-commit 4682bd53). Simulates two different drill-down
