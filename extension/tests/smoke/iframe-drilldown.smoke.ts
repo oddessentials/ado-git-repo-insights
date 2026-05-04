@@ -124,9 +124,17 @@ test.describe("Iframe drill-down smoke tests", () => {
     await page.addInitScript(SPARKLINE_SCROLL_SPY);
   });
 
-  test("(same-origin) sparkline tap calls scrollIntoView on target chart and adds highlight class", async ({
+  test("(same-origin) reviewer sparkline tap calls scrollIntoView on #reviewer-activity and adds highlight class", async ({
     page,
   }, testInfo) => {
+    // Pivoted from throughput → reviewer post-#363 (LD-2 / FR-002 /
+    // SC-005). The reviewer card is the only sparkline that still
+    // preserves scroll-and-highlight; the other three (totalPrs,
+    // cycleP50, cycleP90) open the period-scoped DetailPanel —
+    // covered by the throughput-panel-open test below. The iframe
+    // origin-coupling invariant the FR-050 tests originally guarded
+    // is preserved on the reviewer surface, which is the only one
+    // that still scrolls.
     await page.goto(SAME_ORIGIN_HOST);
     await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
 
@@ -137,11 +145,11 @@ test.describe("Iframe drill-down smoke tests", () => {
       .waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
     const sparklineTrigger = frame
-      .locator('.sparkline-trigger[data-drilldown-target-chart="throughput"]')
+      .locator('.sparkline-trigger[data-drilldown-target-chart="reviewer"]')
       .first();
     await sparklineTrigger.waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
-    const targetChart = frame.locator("#throughput-chart");
+    const targetChart = frame.locator("#reviewer-activity");
     await expect(targetChart).not.toHaveClass(/is-sparkline-highlight/);
 
     // dispatchEvent('click') bypasses Playwright's auto-scroll-into-view
@@ -149,9 +157,9 @@ test.describe("Iframe drill-down smoke tests", () => {
     // scrollIntoView call and confuse the spy.
     await sparklineTrigger.dispatchEvent("click");
 
-    // FR-050 part 1: navigator called scrollIntoView on the target chart
-    // with block:center. Locks application intent; browser response is a
-    // separate concern.
+    // FR-002 / SC-005: reviewer-card scroll-and-highlight is the
+    // post-#363 regression-lock contract. Locks application intent;
+    // browser response is a separate concern.
     await expect
       .poll(
         () => frameBody.evaluate(() => window.__sparklineScrollCalls ?? []),
@@ -159,24 +167,31 @@ test.describe("Iframe drill-down smoke tests", () => {
       )
       .toContainEqual(
         expect.objectContaining({
-          id: "throughput-chart",
+          id: "reviewer-activity",
           opts: expect.objectContaining({ block: "center" }),
         }),
       );
 
-    // FR-050 part 2: navigator added the documented highlight class.
+    // The documented highlight class lands on the reviewer-activity
+    // chart container.
     await expect(targetChart).toHaveClass(/is-sparkline-highlight/, {
       timeout: SMOKE_TIMEOUT_MS,
     });
 
     await page.screenshot({
-      path: testInfo.outputPath("iframe-sparkline-same-origin.png"),
+      path: testInfo.outputPath("iframe-sparkline-reviewer-same-origin.png"),
     });
   });
 
-  test("(cross-origin) sparkline tap calls scrollIntoView and highlights target regardless of iframe origin", async ({
+  test("(cross-origin) reviewer sparkline tap calls scrollIntoView and highlights target regardless of iframe origin", async ({
     page,
   }, testInfo) => {
+    // Cross-origin variant of the reviewer-card scroll-and-highlight
+    // contract. Locks that the navigator's documented scroll intent +
+    // visual cue stay origin-agnostic on the surface that still
+    // scrolls. If a future change couples scroll behavior to same-
+    // origin DOM access or to a host-specific SDK call, this test
+    // fires.
     await page.goto(CROSS_ORIGIN_HOST);
     await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
 
@@ -187,19 +202,15 @@ test.describe("Iframe drill-down smoke tests", () => {
       .waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
     const sparklineTrigger = frame
-      .locator('.sparkline-trigger[data-drilldown-target-chart="throughput"]')
+      .locator('.sparkline-trigger[data-drilldown-target-chart="reviewer"]')
       .first();
     await sparklineTrigger.waitFor({ timeout: SMOKE_TIMEOUT_MS });
 
-    const targetChart = frame.locator("#throughput-chart");
+    const targetChart = frame.locator("#reviewer-activity");
     await expect(targetChart).not.toHaveClass(/is-sparkline-highlight/);
 
     await sparklineTrigger.dispatchEvent("click");
 
-    // Same FR-050 contract as the same-origin sentinel. Locks that the
-    // navigator's documented scroll intent + visual cue are
-    // origin-agnostic — if a future change couples either to same-origin
-    // DOM access or to a host-specific SDK call, this test fires.
     await expect
       .poll(
         () => frameBody.evaluate(() => window.__sparklineScrollCalls ?? []),
@@ -207,7 +218,7 @@ test.describe("Iframe drill-down smoke tests", () => {
       )
       .toContainEqual(
         expect.objectContaining({
-          id: "throughput-chart",
+          id: "reviewer-activity",
           opts: expect.objectContaining({ block: "center" }),
         }),
       );
@@ -217,7 +228,56 @@ test.describe("Iframe drill-down smoke tests", () => {
     });
 
     await page.screenshot({
-      path: testInfo.outputPath("iframe-sparkline-cross-origin.png"),
+      path: testInfo.outputPath("iframe-sparkline-reviewer-cross-origin.png"),
+    });
+  });
+
+  test("(post-#363) totalPrs sparkline tap opens the period-scoped DetailPanel and does NOT scroll the throughput chart", async ({
+    page,
+  }, testInfo) => {
+    // FR-001 / LD-2 in-browser sentinel for the new behavior:
+    // throughput / cycleP50 / cycleP90 sparkline taps open the shared
+    // DetailPanel with a period-scoped PR list. They do NOT scroll
+    // the target chart into view — that path is reserved for the
+    // reviewer card (covered above). Companion to the unit-level
+    // tests in tests/modules/drilldown/sparkline-navigator.test.ts;
+    // this one runs in a real iframe + browser.
+    await page.goto(SAME_ORIGIN_HOST);
+    await page.setContent(iframeHostHtml(SAME_ORIGIN_HOST));
+
+    const frame = page.frameLocator("#dashboard-frame");
+    const frameBody = frame.locator("body");
+    await frame
+      .locator("#main-content:not(.hidden)")
+      .waitFor({ timeout: SMOKE_TIMEOUT_MS });
+
+    const throughputSparkline = frame
+      .locator('.sparkline-trigger[data-drilldown-target-chart="throughput"]')
+      .first();
+    await throughputSparkline.waitFor({ timeout: SMOKE_TIMEOUT_MS });
+
+    // No panel open before activation.
+    const panel = frame.locator(".detail-panel.is-open");
+    await expect(panel).toHaveCount(0);
+
+    await throughputSparkline.dispatchEvent("click");
+
+    // Panel opens with the period-scoped PR list (LD-1 union over the
+    // active rollup window).
+    await expect(panel).toBeVisible({ timeout: SMOKE_TIMEOUT_MS });
+
+    // The navigator MUST NOT have scrolled the throughput chart on
+    // this path — locks the LD-2 split that throughput / cycle-time
+    // sparklines stop calling scrollIntoView post-#363.
+    const scrollCalls = await frameBody.evaluate(
+      () => window.__sparklineScrollCalls ?? [],
+    );
+    expect(
+      scrollCalls.find((call) => call.id === "throughput-chart"),
+    ).toBeUndefined();
+
+    await page.screenshot({
+      path: testInfo.outputPath("iframe-sparkline-totalprs-panel-open.png"),
     });
   });
 

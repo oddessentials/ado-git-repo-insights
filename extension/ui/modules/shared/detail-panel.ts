@@ -193,7 +193,18 @@ export type DismissReason =
   | "explicit-close-button";
 
 export interface DrillDownContext {
-  readonly sourceChart: "throughput" | "cycle-time" | "reviewer";
+  // Issue #363 / data-model.md § 5: ``"summary-card"`` is the discriminator
+  // for the sparkline-driven panel; it disambiguates sparkline retargets
+  // from chart-bar retargets even though both share ``"throughput"`` /
+  // ``"cycle-time"`` chart types. The panel API uses this to keep the
+  // active-class lifecycle and retarget-in-place ordering coherent
+  // when the user clicks a sparkline while a chart-bar panel is open
+  // (or vice versa).
+  readonly sourceChart:
+    | "throughput"
+    | "cycle-time"
+    | "reviewer"
+    | "summary-card";
   readonly focusedData:
     | { readonly kind: "throughput"; readonly weekIso: string }
     | {
@@ -201,7 +212,11 @@ export interface DrillDownContext {
         readonly weekIso: string;
         readonly metric: "p50" | "p90";
       }
-    | { readonly kind: "reviewer"; readonly reviewerId: string };
+    | { readonly kind: "reviewer"; readonly reviewerId: string }
+    | {
+        readonly kind: "summary-card";
+        readonly targetCard: "totalPrs" | "cycleP50" | "cycleP90";
+      };
   readonly triggerElement: HTMLElement;
   readonly content: PanelContent;
 }
@@ -1677,6 +1692,11 @@ export function openDetailPanel(context: DrillDownContext): void {
   const els = ensurePanelEls();
 
   const wasOpen = isDetailPanelOpen();
+  // Capture BEFORE the activeContext reassignment below so the prior
+  // owner's trigger element is still reachable in the cross-source
+  // retarget cleanup further down.
+  const previousTrigger =
+    wasOpen && activeContext ? activeContext.triggerElement : null;
   activeContext = context;
 
   if (wasOpen) {
@@ -1691,6 +1711,31 @@ export function openDetailPanel(context: DrillDownContext): void {
     // listener so the new render starts from a clean tooltip lifecycle.
     dismissAllTooltips();
     clearOutsideClickListener();
+
+    // Cross-source retarget cleanup (Codex stop-time review on #363
+    // post-commit 4682bd53). Each drill-down install
+    // (``throughput-drilldown`` / ``cycle-time-drilldown`` /
+    // ``reviewer-drilldown`` / ``sparkline-navigator``) keeps a
+    // private ``activeTrigger`` reference and a
+    // ``MutationObserver`` that only fires on ``is-open`` removal
+    // (panel close), not on content swap. When source A retargets to
+    // source B in-place, B's install sets its own ``activeTrigger``,
+    // but A's observer never fires and A's trigger stays stuck with
+    // ``is-drilldown-active`` / ``aria-expanded="true"``.  The panel
+    // module is the single shared authority that sees both contexts
+    // (it owns ``activeContext``), so the dispel-on-supersession
+    // belongs here. Idempotent against each install's own
+    // ``clearActive()`` for same-install retargets — class removal
+    // is a no-op on a trigger that doesn't carry the class, and
+    // ``aria-expanded="false"`` is the same value the install would
+    // set itself.
+    if (
+      previousTrigger !== null &&
+      previousTrigger !== context.triggerElement
+    ) {
+      previousTrigger.classList.remove("is-drilldown-active");
+      previousTrigger.setAttribute("aria-expanded", "false");
+    }
   }
 
   if (!wasOpen) {

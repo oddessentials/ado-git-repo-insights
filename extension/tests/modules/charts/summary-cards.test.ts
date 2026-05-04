@@ -1623,4 +1623,47 @@ describe("summary-cards module", () => {
       expect(p90Card.style.display).toBe("none"); // hidden
     });
   });
+
+  describe("sparkline trigger attributes (#363 / FR-005)", () => {
+    it("cycle-time triggers carry data-drilldown-cycle-metric attribute; throughput and reviewer triggers do not", () => {
+      const containers = createContainers();
+      const rollups = createRollups();
+      renderSummaryCards({ rollups, containers });
+
+      const findTrigger = (
+        sparkline: HTMLElement | null,
+      ): HTMLButtonElement | null =>
+        sparkline?.querySelector<HTMLButtonElement>(
+          "button.sparkline-trigger",
+        ) ?? null;
+
+      const totalPrsTrigger = findTrigger(containers.totalPrsSparkline);
+      const cycleP50Trigger = findTrigger(containers.cycleP50Sparkline);
+      const cycleP90Trigger = findTrigger(containers.cycleP90Sparkline);
+      const reviewersTrigger = findTrigger(containers.reviewersSparkline);
+
+      expect(totalPrsTrigger).not.toBeNull();
+      expect(cycleP50Trigger).not.toBeNull();
+      expect(cycleP90Trigger).not.toBeNull();
+      expect(reviewersTrigger).not.toBeNull();
+
+      // Cycle-time triggers carry the cycle-metric discriminator.
+      expect(cycleP50Trigger!.getAttribute("data-drilldown-cycle-metric")).toBe(
+        "p50",
+      );
+      expect(cycleP90Trigger!.getAttribute("data-drilldown-cycle-metric")).toBe(
+        "p90",
+      );
+
+      // Throughput and reviewer triggers MUST NOT carry the attribute —
+      // throughput maps to a single PR set (no metric to disambiguate)
+      // and reviewer preserves scroll-and-highlight (LD-2).
+      expect(totalPrsTrigger!.hasAttribute("data-drilldown-cycle-metric")).toBe(
+        false,
+      );
+      expect(
+        reviewersTrigger!.hasAttribute("data-drilldown-cycle-metric"),
+      ).toBe(false);
+    });
+  });
 });

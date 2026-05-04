@@ -134,3 +134,63 @@ export function weekRangeForAria(rollup: Rollup): string {
   if (!range) return rollup.week;
   return formatWeekRangeTitle(range.start, range.end);
 }
+
+/**
+ * Format the active rollup window as a panel title for the summary-card
+ * sparkline drill-down (#363 / Q-R2 lock).
+ *
+ * Branching:
+ *   - Empty input → `"No period selected"`.
+ *   - Single rollup → delegates to `formatWeekTitle(rollups[0])` so the
+ *     existing per-week panel title shape is preserved.
+ *   - Two or more rollups → walks every rollup, preferring the
+ *     authoritative `start_date` / `end_date` pair via
+ *     `parseIsoLocalDate`, falling back to `isoWeekRange(rollup.week)`
+ *     when either date is missing or unparseable; aggregates
+ *     `earliestStart = min(allStarts)` and `latestEnd = max(allEnds)`,
+ *     and returns `"Period of " + formatWeekRangeTitle(earliestStart,
+ *     latestEnd)`. Same-month / cross-month / cross-year output is
+ *     produced by the existing `formatWeekRangeTitle` formatter, so the
+ *     date-format surface cannot drift between per-week and period
+ *     titles.
+ *   - When no rollup contributes a valid date pair after the walk →
+ *     `"No period selected"` (same fallback as empty input).
+ *
+ * See `specs/363-summary-card-pr-drilldown/data-model.md` § 4 and
+ * `specs/363-summary-card-pr-drilldown/contracts/sparkline-pr-list.md`
+ * § 2 for the full output-string enumeration.
+ */
+export function formatPeriodTitle(rollups: readonly Rollup[]): string {
+  const [first, ...rest] = rollups;
+  if (!first) {
+    return "No period selected";
+  }
+  if (rest.length === 0) {
+    return formatWeekTitle(first);
+  }
+  let earliestStart: Date | null = null;
+  let latestEnd: Date | null = null;
+  for (const rollup of rollups) {
+    const directStart = rollup.start_date
+      ? parseIsoLocalDate(rollup.start_date)
+      : null;
+    const directEnd = rollup.end_date
+      ? parseIsoLocalDate(rollup.end_date)
+      : null;
+    const pair =
+      directStart && directEnd
+        ? { start: directStart, end: directEnd }
+        : isoWeekRange(rollup.week);
+    if (!pair) continue;
+    if (!earliestStart || pair.start < earliestStart) {
+      earliestStart = pair.start;
+    }
+    if (!latestEnd || pair.end > latestEnd) {
+      latestEnd = pair.end;
+    }
+  }
+  if (!earliestStart || !latestEnd) {
+    return "No period selected";
+  }
+  return `Period of ${formatWeekRangeTitle(earliestStart, latestEnd)}`;
+}

@@ -5531,10 +5531,15 @@ var PRInsightsDashboard = (() => {
     }
     const els = ensurePanelEls();
     const wasOpen = isDetailPanelOpen();
+    const previousTrigger = wasOpen && activeContext ? activeContext.triggerElement : null;
     activeContext = context;
     if (wasOpen) {
       dismissAllTooltips();
       clearOutsideClickListener();
+      if (previousTrigger !== null && previousTrigger !== context.triggerElement) {
+        previousTrigger.classList.remove("is-drilldown-active");
+        previousTrigger.setAttribute("aria-expanded", "false");
+      }
     }
     if (!wasOpen) {
       openScopedController = installOpenScopedListeners(els);
@@ -7832,8 +7837,8 @@ var PRInsightsDashboard = (() => {
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
     wrapSparklineTrigger(containers.totalPrsSparkline, "throughput");
-    wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time");
-    wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time");
+    wrapSparklineTrigger(containers.cycleP50Sparkline, "cycle-time", "p50");
+    wrapSparklineTrigger(containers.cycleP90Sparkline, "cycle-time", "p90");
     wrapSparklineTrigger(containers.reviewersSparkline, "reviewer");
     renderSparklineLabels(containers, current);
     if (prevRollups && prevRollups.length > 0) {
@@ -8012,7 +8017,7 @@ var PRInsightsDashboard = (() => {
       containers.reviewersCount.textContent = metrics.avgReviewers.toLocaleString();
     }
   }
-  function wrapSparklineTrigger(container, targetChart) {
+  function wrapSparklineTrigger(container, targetChart, cycleMetric) {
     const svg = container?.querySelector("svg");
     if (!svg) return;
     const label = targetChart === "cycle-time" ? "cycle time" : targetChart;
@@ -8020,6 +8025,9 @@ var PRInsightsDashboard = (() => {
     button.type = "button";
     button.className = "sparkline-trigger";
     button.setAttribute("data-drilldown-target-chart", targetChart);
+    if (cycleMetric !== void 0) {
+      button.setAttribute("data-drilldown-cycle-metric", cycleMetric);
+    }
     button.setAttribute("aria-label", `Open full ${label} chart`);
     svg.before(button);
     button.appendChild(svg);
@@ -8320,6 +8328,33 @@ var PRInsightsDashboard = (() => {
     const range = isoWeekRange(rollup.week);
     if (!range) return rollup.week;
     return formatWeekRangeTitle(range.start, range.end);
+  }
+  function formatPeriodTitle(rollups) {
+    const [first, ...rest] = rollups;
+    if (!first) {
+      return "No period selected";
+    }
+    if (rest.length === 0) {
+      return formatWeekTitle(first);
+    }
+    let earliestStart = null;
+    let latestEnd = null;
+    for (const rollup of rollups) {
+      const directStart = rollup.start_date ? parseIsoLocalDate(rollup.start_date) : null;
+      const directEnd = rollup.end_date ? parseIsoLocalDate(rollup.end_date) : null;
+      const pair = directStart && directEnd ? { start: directStart, end: directEnd } : isoWeekRange(rollup.week);
+      if (!pair) continue;
+      if (!earliestStart || pair.start < earliestStart) {
+        earliestStart = pair.start;
+      }
+      if (!latestEnd || pair.end > latestEnd) {
+        latestEnd = pair.end;
+      }
+    }
+    if (!earliestStart || !latestEnd) {
+      return "No period selected";
+    }
+    return `Period of ${formatWeekRangeTitle(earliestStart, latestEnd)}`;
   }
 
   // ../ui/modules/charts/throughput.ts
@@ -11068,6 +11103,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/drilldown/sparkline-navigator.ts
   var HIGHLIGHT_CLASS = "is-sparkline-highlight";
   var ADVISORY_CLASS = "sparkline-advisory";
+  var ACTIVE_CLASS4 = "is-drilldown-active";
   var TARGET_ID_BY_CHART = {
     throughput: "throughput-chart",
     "cycle-time": "cycle-time-trend",
@@ -11082,10 +11118,141 @@ var PRInsightsDashboard = (() => {
     if (chart === "cycle-time") return "cycle time";
     return chart;
   }
-  function installSparklineNavigator(container) {
+  function buildPeriodScopedEnvelope(rollups) {
+    let capValue;
+    let totalPeriodPrCount = 0;
+    let anyTruncated = false;
+    const collected = [];
+    for (const rollup of rollups) {
+      const prs = rollup.prs;
+      const truncated = rollup._prs_truncated;
+      const cap = rollup._prs_cap;
+      if (!Array.isArray(prs) || typeof truncated !== "boolean" || typeof cap !== "number") {
+        return "supported-empty";
+      }
+      capValue = capValue === void 0 ? cap : Math.max(capValue, cap);
+      totalPeriodPrCount += rollup.pr_count;
+      if (truncated) anyTruncated = true;
+      for (const pr of prs) {
+        collected.push(pr);
+      }
+    }
+    if (collected.length === 0 || capValue === void 0) {
+      return "supported-empty";
+    }
+    return { collected, capValue, anyTruncated, totalPeriodPrCount };
+  }
+  function buildPrListSectionPeriod(envelope, filters, webContext, repositoriesDimension, commentsMetricsAvailable) {
+    const { classification } = classifyFilterState(filters, false);
+    if (classification === "team") {
+      return makePrListSection({ contentState: "team-inline" });
+    }
+    if (classification === "reviewer") {
+      return makePrListSection({ contentState: "reviewer-inline" });
+    }
+    if (envelope === "supported-empty" || !webContext) {
+      return makePrListSection({ contentState: "supported-empty" });
+    }
+    const sorted = envelope.collected.slice().sort((a2, b2) => {
+      if (b2.cycle_time !== a2.cycle_time) return b2.cycle_time - a2.cycle_time;
+      return a2.id - b2.id;
+    });
+    const rows = sorted.map((pr) => {
+      if (!commentsMetricsAvailable) {
+        return {
+          id: pr.id,
+          title: pr.title,
+          cycleTimeMinutes: pr.cycle_time,
+          url: resolvePrUrl(pr, repositoriesDimension, webContext)
+        };
+      }
+      return {
+        id: pr.id,
+        title: pr.title,
+        cycleTimeMinutes: pr.cycle_time,
+        url: resolvePrUrl(pr, repositoriesDimension, webContext),
+        threadCount: pr.thread_count,
+        commentCount: pr.comment_count,
+        activeThreadCount: pr.active_thread_count
+      };
+    });
+    const truncationDetected = envelope.anyTruncated || envelope.collected.length < envelope.totalPeriodPrCount;
+    const actualFilteredCount = truncationDetected ? envelope.totalPeriodPrCount : rows.length;
+    return makePrListSection({
+      contentState: "pr-list",
+      rows,
+      renderedCount: rows.length,
+      actualFilteredCount,
+      capValue: envelope.capValue,
+      capScope: "per-rollup-union",
+      commentsMetricsAvailable
+    });
+  }
+  function buildCommentsStatRowLocal(rows) {
+    let threadsSum = 0;
+    let commentsSum = 0;
+    let unresolvedSum = 0;
+    let partialCount = 0;
+    for (const row of rows) {
+      threadsSum += row.threadCount ?? 0;
+      commentsSum += row.commentCount ?? 0;
+      unresolvedSum += row.activeThreadCount ?? 0;
+      if (isPartialPrRow(row)) partialCount += 1;
+    }
+    const allRowsPartial = partialCount > 0 && partialCount === rows.length;
+    function statValue(numericTotal) {
+      if (allRowsPartial) return `Pending (${partialCount})`;
+      if (partialCount > 0) {
+        return `${numericTotal} (+${partialCount} partial)`;
+      }
+      return String(numericTotal);
+    }
+    return makeStatRow([
+      { label: "Threads", value: statValue(threadsSum) },
+      { label: "Comments", value: statValue(commentsSum) },
+      { label: "Unresolved threads", value: statValue(unresolvedSum) }
+    ]);
+  }
+  function resolveTargetCard(chart, trigger) {
+    if (chart === "throughput") return "totalPrs";
+    const metric = trigger.getAttribute("data-drilldown-cycle-metric");
+    if (metric === "p50") return "cycleP50";
+    if (metric === "p90") return "cycleP90";
+    return null;
+  }
+  function buildPanelContent4(targetChart, trigger, rollups, options) {
+    const filters = options.filters ?? createEmptyFilterState();
+    const envelope = buildPeriodScopedEnvelope(rollups);
+    const commentsMetricsAvailable = options.commentsMetricsAvailable ?? false;
+    const prList = buildPrListSectionPeriod(
+      envelope,
+      filters,
+      options.webContext,
+      options.repositoriesDimension,
+      commentsMetricsAvailable
+    );
+    const periodTitle = formatPeriodTitle(rollups);
+    let title = periodTitle;
+    if (targetChart === "cycle-time") {
+      const metric = trigger.getAttribute("data-drilldown-cycle-metric");
+      if (metric === "p50") title = `${periodTitle} \u2014 P50`;
+      else if (metric === "p90") title = `${periodTitle} \u2014 P90`;
+    }
+    const totalPeriodPrCount = rollups.reduce((sum, r2) => sum + r2.pr_count, 0);
+    const subtitle = `${totalPeriodPrCount} ${totalPeriodPrCount === 1 ? "PR" : "PRs"}`;
+    const sections = [];
+    if (commentsMetricsAvailable && prList.contentState === "pr-list") {
+      sections.push(buildCommentsStatRowLocal(prList.rows));
+    }
+    sections.push(prList);
+    return makePanelContent(title, subtitle, sections);
+  }
+  function installSparklineNavigator(container, rollups, options = {}) {
     const controller = new AbortController();
     const { signal } = controller;
     const highlightTimers = /* @__PURE__ */ new Set();
+    const observers = /* @__PURE__ */ new Set();
+    let activeTrigger = null;
     function resolveTrigger(evt) {
       const target = evt.target;
       if (!(target instanceof Element)) return null;
@@ -11110,6 +11277,26 @@ var PRInsightsDashboard = (() => {
       const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
       return mq ? mq.matches : false;
     }
+    function clearActive() {
+      if (activeTrigger) {
+        activeTrigger.classList.remove(ACTIVE_CLASS4);
+        activeTrigger.setAttribute("aria-expanded", "false");
+        activeTrigger = null;
+      }
+    }
+    function registerPanelObserver() {
+      const panel = document.querySelector("aside.detail-panel");
+      if (!panel) return;
+      const observer = new MutationObserver(() => {
+        if (!panel.classList.contains("is-open")) {
+          observer.disconnect();
+          observers.delete(observer);
+          clearActive();
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      observers.add(observer);
+    }
     function activate(trigger) {
       dismissAllTooltips();
       if (isDrilldownDisabledByComparison()) {
@@ -11122,22 +11309,40 @@ var PRInsightsDashboard = (() => {
       }
       const parent = trigger.parentElement;
       if (!parent) return;
+      clearActive();
       const targetEl = document.getElementById(targetIdFor(chart));
       if (!targetEl) {
         showAdvisoryIn(parent, chartLabel(chart));
         return;
       }
       clearAdvisoryIn(parent);
-      const behavior = prefersReducedMotion() ? "auto" : "smooth";
-      targetEl.scrollIntoView({ behavior, block: "center" });
-      targetEl.classList.remove(HIGHLIGHT_CLASS);
-      void targetEl.offsetWidth;
-      targetEl.classList.add(HIGHLIGHT_CLASS);
-      const timer = setTimeout(() => {
+      if (chart === "reviewer") {
+        const behavior = prefersReducedMotion() ? "auto" : "smooth";
+        targetEl.scrollIntoView({ behavior, block: "center" });
         targetEl.classList.remove(HIGHLIGHT_CLASS);
-        highlightTimers.delete(timer);
-      }, SPARKLINE_HIGHLIGHT_MS);
-      highlightTimers.add(timer);
+        void targetEl.offsetWidth;
+        targetEl.classList.add(HIGHLIGHT_CLASS);
+        const timer = setTimeout(() => {
+          targetEl.classList.remove(HIGHLIGHT_CLASS);
+          highlightTimers.delete(timer);
+        }, SPARKLINE_HIGHLIGHT_MS);
+        highlightTimers.add(timer);
+        return;
+      }
+      const targetCard = resolveTargetCard(chart, trigger);
+      if (!targetCard) return;
+      const content = buildPanelContent4(chart, trigger, rollups, options);
+      const context = {
+        sourceChart: "summary-card",
+        focusedData: { kind: "summary-card", targetCard },
+        triggerElement: trigger,
+        content
+      };
+      openDetailPanel(context);
+      activeTrigger = trigger;
+      trigger.classList.add(ACTIVE_CLASS4);
+      trigger.setAttribute("aria-expanded", "true");
+      registerPanelObserver();
     }
     container.addEventListener(
       "click",
@@ -11166,6 +11371,11 @@ var PRInsightsDashboard = (() => {
           clearTimeout(timer);
         }
         highlightTimers.clear();
+        for (const observer of observers) {
+          observer.disconnect();
+        }
+        observers.clear();
+        clearActive();
       }
     };
   }
@@ -11897,7 +12107,23 @@ var PRInsightsDashboard = (() => {
       const summaryCardsContainer = document.querySelector(".summary-cards");
       if (summaryCardsContainer) {
         activeDrilldownHandles.push(
-          installSparklineNavigator(summaryCardsContainer)
+          installSparklineNavigator(summaryCardsContainer, rollups, {
+            filters: {
+              repos: [...currentFilters.repos],
+              teams: [...currentFilters.teams],
+              reviewers: [...currentFilters.reviewers],
+              authors: [...currentFilters.authors]
+            },
+            repositoriesDimension: currentDimensions?.repositories?.map((r2) => ({
+              repository_id: r2.repository_id,
+              repository_name: r2.repository_name,
+              project_name: r2.project_name ?? "",
+              organization_name: r2.organization_name
+            })),
+            webContext: currentCollectionUri ? { collectionUri: currentCollectionUri } : void 0,
+            authorsDimension: currentDimensions?.authors,
+            commentsMetricsAvailable: loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false
+          })
         );
       }
       if (comparisonMode) {

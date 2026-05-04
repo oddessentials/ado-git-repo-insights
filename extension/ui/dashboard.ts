@@ -1340,7 +1340,26 @@ async function refreshMetrics(): Promise<void> {
       document.querySelector<HTMLElement>(".summary-cards");
     if (summaryCardsContainer) {
       activeDrilldownHandles.push(
-        installSparklineNavigator(summaryCardsContainer),
+        installSparklineNavigator(summaryCardsContainer, rollups, {
+          filters: {
+            repos: [...currentFilters.repos],
+            teams: [...currentFilters.teams],
+            reviewers: [...currentFilters.reviewers],
+            authors: [...currentFilters.authors],
+          },
+          repositoriesDimension: currentDimensions?.repositories?.map((r) => ({
+            repository_id: r.repository_id,
+            repository_name: r.repository_name,
+            project_name: r.project_name ?? "",
+            organization_name: r.organization_name,
+          })),
+          webContext: currentCollectionUri
+            ? { collectionUri: currentCollectionUri }
+            : undefined,
+          authorsDimension: currentDimensions?.authors,
+          commentsMetricsAvailable:
+            loader?.getCapabilityState?.()?.commentsMetricsAvailable ?? false,
+        }),
       );
     }
 
