@@ -128,8 +128,12 @@ def _regenerate_once() -> Path:
     calls succeed. See module-level _TEST_TMP_ROOT comment.
     """
     artifact_root = _make_scratch_dir("byte-stability-regen") / "artifacts"
+    variant_off_root = (
+        _make_scratch_dir("byte-stability-regen-variant-off") / "artifacts"
+    )
     env = os.environ.copy()
     env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
+    env["ADO_DEMO_VARIANT_OFF_ARTIFACT_ROOT"] = str(variant_off_root)
     result = subprocess.run(
         [sys.executable, str(BUILD_SCRIPT), "--no-promote"],
         cwd=str(REPO_ROOT),

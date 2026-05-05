@@ -128,9 +128,11 @@ def _set_artifact_root(root: Path) -> None:
 def _fresh_artifact_env() -> dict[str, str]:
     """Allocate a fresh scratch artifact root for each subprocess build run."""
     artifact_root = make_scratch_dir("artifact-root")
+    variant_off_root = make_scratch_dir("variant-off-root")
     _set_artifact_root(artifact_root)
     env = os.environ.copy()
     env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
+    env["ADO_DEMO_VARIANT_OFF_ARTIFACT_ROOT"] = str(variant_off_root)
     return env
 
 
@@ -138,7 +140,9 @@ def _fresh_artifact_env() -> dict[str, str]:
 def isolate_artifact_root(monkeypatch: pytest.MonkeyPatch) -> None:
     """Give each test a fresh canonical artifact root to avoid cross-test collisions."""
     artifact_root = make_scratch_dir("artifact-root")
+    variant_off_root = make_scratch_dir("variant-off-root")
     monkeypatch.setenv("ADO_DEMO_ARTIFACT_ROOT", str(artifact_root))
+    monkeypatch.setenv("ADO_DEMO_VARIANT_OFF_ARTIFACT_ROOT", str(variant_off_root))
     _set_artifact_root(artifact_root)
 
 

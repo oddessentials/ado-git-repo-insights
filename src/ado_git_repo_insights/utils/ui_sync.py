@@ -3,8 +3,13 @@
 This module provides content-addressed sync from extension/dist/ui/ to ui_bundle/
 with atomic replacement and proper rollback on failure.
 
-Dev mode is detected by finding extension/package.json in an ancestor directory
-of both the current working directory AND the installed package location.
+Dev mode is detected by walking ancestors of THIS module's installed location
+looking for extension/package.json. The walk aborts the moment it crosses a
+site-packages or dist-packages directory: a marker found above that boundary
+belongs to a checkout that happens to contain the venv, not to the source the
+package was built from. Only true editable installs (where __file__ resolves
+into the source tree above any install boundary) trigger dev mode. The user's
+CWD is intentionally NOT consulted.
 """
 
 from __future__ import annotations
@@ -35,24 +40,29 @@ class SyncError(Exception):
 def is_dev_mode() -> tuple[bool, Path | None]:
     """Detect if running from a repository checkout (dev mode).
 
-    Searches for extension/package.json in ancestors of BOTH:
-    1. Current working directory
-    2. This module's installed location
+    Walks ancestors of this module's installed location looking for
+    extension/package.json. The walk stops at any site-packages or
+    dist-packages directory: a marker found above that boundary belongs to
+    a checkout that merely contains the venv, not to the source the package
+    was built from. This handles the case where a customer creates their
+    venv inside a directory that happens to also contain a source checkout.
+
+    Only true editable installs — where __file__ resolves into the source
+    tree above any install boundary — trigger dev mode. The current working
+    directory is intentionally NOT used as a search anchor.
 
     Returns:
-        (True, repo_root) if dev mode detected
+        (True, repo_root) if dev mode detected (editable install in checkout)
         (False, None) if running as installed package
     """
-    anchors = [
-        Path.cwd().resolve(),
-        Path(__file__).resolve().parent,
-    ]
+    module_anchor = Path(__file__).resolve().parent
 
-    for anchor in anchors:
-        for parent in [anchor, *anchor.parents]:
-            marker = parent / "extension" / "package.json"
-            if marker.exists():
-                return True, parent
+    for parent in [module_anchor, *module_anchor.parents]:
+        if parent.name.lower() in ("site-packages", "dist-packages"):
+            return False, None
+        marker = parent / "extension" / "package.json"
+        if marker.exists():
+            return True, parent
 
     return False, None
 

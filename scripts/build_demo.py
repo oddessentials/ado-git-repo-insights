@@ -280,7 +280,7 @@ def main() -> int:
     # Step 2: Build canonical enterprise demo data and docs surface
     safe_print("[2/3] Building canonical enterprise demo dataset and surface...")
     run_step(
-        [python, str(SCRIPTS_DIR / "build-demo-dataset.py")],
+        [python, str(SCRIPTS_DIR / "build-demo-dataset.py"), "--commit-canonical"],
         step_name="Demo dataset generation",
     )
     safe_print("")

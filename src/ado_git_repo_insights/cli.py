@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
+from urllib.parse import quote
 
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
@@ -2433,6 +2434,7 @@ def cmd_build_aggregates(args: Namespace) -> int:
                     dataset_path=args.out.resolve(),
                     port=port,
                     open_browser=open_browser,
+                    org=getattr(args, "organization", None),
                 )
 
             return 0
@@ -2840,6 +2842,7 @@ def cmd_stage_artifacts(args: Namespace) -> int:
                 dataset_path=out_dir,
                 port=port,
                 open_browser=open_browser,
+                org=args.org,
             )
 
         logger.info("Stage complete. Run 'ado-insights dashboard' to view.")
@@ -2902,6 +2905,7 @@ def _prepare_serve_directory(
     ui_source: Path,
     dataset_path: Path,
     serve_dir: Path,
+    org: str | None = None,
 ) -> None:
     """FR-011: Prepare serve directory with UI bundle and dataset.
 
@@ -2909,6 +2913,10 @@ def _prepare_serve_directory(
         ui_source: Path to the UI bundle source
         dataset_path: Path to the dataset
         serve_dir: Path to the temporary serve directory
+        org: Azure DevOps organization name. When provided, written into
+            local-config.js as ``window.LOCAL_COLLECTION_URI`` so the
+            dashboard composes PR hyperlinks under the customer's real
+            org instead of the synthetic-demo fallback.
     """
     import shutil
 
@@ -2920,12 +2928,21 @@ def _prepare_serve_directory(
     shutil.copytree(dataset_path, dataset_dest, dirs_exist_ok=True)
 
     # Write local config to enable local mode
+    local_config_lines = [
+        "// Auto-generated for local dashboard mode",
+        "window.LOCAL_DASHBOARD_MODE = true;",
+        'window.DATASET_PATH = "./dataset";',
+    ]
+    if org:
+        # Pin the runtime collection URI to the CLI-supplied org so PR
+        # drill-down hyperlinks resolve to the customer's tenant rather
+        # than the synthetic demo org.
+        encoded_org = quote(org, safe="")
+        local_config_lines.append(
+            f'window.LOCAL_COLLECTION_URI = "https://dev.azure.com/{encoded_org}/";'
+        )
     local_config = serve_dir / "local-config.js"
-    local_config.write_text(
-        "// Auto-generated for local dashboard mode\n"
-        "window.LOCAL_DASHBOARD_MODE = true;\n"
-        'window.DATASET_PATH = "./dataset";\n'
-    )
+    local_config.write_text("\n".join(local_config_lines) + "\n")
 
     # Inject local-config.js into index.html
     index_html = serve_dir / "index.html"
@@ -3157,6 +3174,7 @@ def _serve_dashboard(
     dataset_path: Path,
     port: int = 8080,
     open_browser: bool = False,
+    org: str | None = None,
 ) -> int:
     """Serve the PR Insights dashboard from the given dataset path.
 
@@ -3167,6 +3185,10 @@ def _serve_dashboard(
         dataset_path: Path to directory containing dataset-manifest.json
         port: HTTP server port (default: 8080)
         open_browser: Whether to open browser automatically
+        org: Azure DevOps organization name (forwarded to
+            ``_prepare_serve_directory`` so PR hyperlinks resolve under
+            the customer's tenant). Optional; when omitted the dashboard
+            falls back to the synthetic-demo collection URI.
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -3199,7 +3221,7 @@ def _serve_dashboard(
         serve_dir = Path(tmpdir)
 
         # Prepare serve directory with UI bundle and dataset
-        _prepare_serve_directory(ui_source, dataset_path, serve_dir)
+        _prepare_serve_directory(ui_source, dataset_path, serve_dir, org=org)
 
         # Run HTTP server
         return _run_http_server(serve_dir, port, open_browser)

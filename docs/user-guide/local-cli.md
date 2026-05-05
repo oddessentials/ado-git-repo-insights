@@ -202,8 +202,8 @@ ado-insights dashboard --dataset ./run_artifacts --open
 Generate synthetic data for UI testing:
 
 ```bash
-# Generate the canonical enterprise demo dataset
-python scripts/build-demo-dataset.py
+# Generate the canonical enterprise demo dataset (writes to artifacts/demo-enterprise/)
+python scripts/build-demo-dataset.py --commit-canonical
 
 # Start the dashboard server against the canonical artifact
 ado-insights dashboard --dataset ./artifacts/demo-enterprise/data --open

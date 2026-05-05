@@ -388,6 +388,7 @@ export function resizeHost(width?: number, height?: number): void {
 
 declare const LOCAL_DASHBOARD_MODE: boolean | undefined;
 declare const DATASET_PATH: string | undefined;
+declare const LOCAL_COLLECTION_URI: string | undefined;
 
 /**
  * Whether the extension is running in local development mode
@@ -439,4 +440,31 @@ export const LOCAL_DASHBOARD_COLLECTION_URI: string =
  */
 export function getLocalCollectionUri(): string {
   return LOCAL_DASHBOARD_COLLECTION_URI;
+}
+
+/**
+ * Read a runtime-injected local-mode collection URI.
+ *
+ * The packaged Python CLI (`ado-insights stage-artifacts --serve`) injects
+ * `window.LOCAL_COLLECTION_URI` into `local-config.js`, sourced from the
+ * caller's `--org` argument, so the offline dashboard can compose PR
+ * hyperlinks under the customer's real Azure DevOps organization rather
+ * than the synthetic-demo fallback (`getLocalCollectionUri()`).
+ *
+ * Returns `null` when no runtime URI is set so callers can fall through
+ * to `getLocalCollectionUri()` for the synthetic-demo path. Always
+ * normalizes to a trailing slash because downstream URL composition
+ * concatenates paths directly.
+ */
+export function getRuntimeLocalCollectionUri(): string | null {
+  if (
+    typeof LOCAL_COLLECTION_URI === "undefined" ||
+    typeof LOCAL_COLLECTION_URI !== "string" ||
+    LOCAL_COLLECTION_URI.length === 0
+  ) {
+    return null;
+  }
+  return LOCAL_COLLECTION_URI.endsWith("/")
+    ? LOCAL_COLLECTION_URI
+    : `${LOCAL_COLLECTION_URI}/`;
 }

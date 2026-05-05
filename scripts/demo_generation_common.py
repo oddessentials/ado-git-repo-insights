@@ -67,7 +67,32 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMITTED_DEMO_OUTPUT_ROOTS = {
     _REPO_ROOT / "docs" / "data",
     _REPO_ROOT / "artifacts" / "demo-enterprise" / "data",
+    _REPO_ROOT / "artifacts" / "demo-enterprise-comments-off" / "data",
 }
+
+
+def assert_safe_output_root(
+    output_root: str | Path,
+    *,
+    commit_canonical: bool = False,
+) -> None:
+    """Refuse writes to committed canonical demo paths without commit_canonical=True."""
+    resolved = Path(output_root).resolve(strict=False)
+    canonical_resolved = {
+        root.resolve(strict=False) for root in COMMITTED_DEMO_OUTPUT_ROOTS
+    }
+    is_canonical = resolved in canonical_resolved or any(
+        canonical in resolved.parents for canonical in canonical_resolved
+    )
+    if is_canonical and not commit_canonical:
+        normalized = _normalize_repo_relative_path(resolved)
+        raise RuntimeError(
+            f"Refusing to write demo artifacts to committed canonical path "
+            f"'{normalized}'. Pass --commit-canonical (only the CI demo "
+            f"regeneration workflow is permitted to do so) or choose an "
+            f"output root outside docs/data, artifacts/demo-enterprise, and "
+            f"artifacts/demo-enterprise-comments-off."
+        )
 
 
 def _normalize_repo_relative_path(path: str | Path) -> str:

@@ -200,6 +200,58 @@ class TestDashboardCommand:
         assert "DATASET_PATH" in content
         assert "window." in content  # Variables are on window object
 
+    def test_local_config_pins_org_collection_uri(
+        self, temp_dataset: Path, temp_ui_bundle: Path, tmp_path: Path
+    ) -> None:
+        """Hotfix: ``_prepare_serve_directory(..., org=...)`` pins the
+        runtime collection URI to the customer's tenant so PR drill-down
+        hyperlinks resolve there rather than the synthetic-demo org.
+
+        Locks the deterministic acceptance gate for
+        ``stage-artifacts --org ITPayerApplications --serve``: the served
+        ``local-config.js`` must reference ``dev.azure.com/ITPayerApplications/``
+        and must not pin the synthetic-demo ``oddessentials`` literal.
+        """
+        from ado_git_repo_insights.cli import _prepare_serve_directory
+
+        serve_dir = tmp_path / "serve_with_org"
+
+        _prepare_serve_directory(
+            ui_source=temp_ui_bundle,
+            dataset_path=temp_dataset,
+            serve_dir=serve_dir,
+            org="ITPayerApplications",
+        )
+
+        local_config = (serve_dir / "local-config.js").read_text()
+        assert (
+            'window.LOCAL_COLLECTION_URI = "https://dev.azure.com/ITPayerApplications/"'
+            in local_config
+        )
+        assert "oddessentials" not in local_config
+
+    def test_local_config_omits_collection_uri_when_org_absent(
+        self, temp_dataset: Path, temp_ui_bundle: Path, tmp_path: Path
+    ) -> None:
+        """When no ``org`` is supplied, the runtime override stays unset
+        so the dashboard falls back to ``getLocalCollectionUri()`` (the
+        synthetic-demo path). This preserves existing behaviour for
+        ``cmd_dashboard`` and synthetic-data demos.
+        """
+        from ado_git_repo_insights.cli import _prepare_serve_directory
+
+        serve_dir = tmp_path / "serve_without_org"
+
+        _prepare_serve_directory(
+            ui_source=temp_ui_bundle,
+            dataset_path=temp_dataset,
+            serve_dir=serve_dir,
+        )
+
+        local_config = (serve_dir / "local-config.js").read_text()
+        assert "LOCAL_COLLECTION_URI" not in local_config
+        assert "LOCAL_DASHBOARD_MODE = true" in local_config
+
 
 class TestHttpServerSignalHandling:
     """Tests for SIGINT signal handling in _run_http_server.

@@ -252,10 +252,16 @@ class TestServeFunctionality:
 
         # Verify
         assert result == 0
+        # ``cmd_build_aggregates --serve`` is not tenant/context aware: there
+        # is no ``--organization`` flag on this command, so the wire forwards
+        # ``org=None`` and the offline dashboard falls back to
+        # ``getLocalCollectionUri()``. The org-aware path is
+        # ``stage-artifacts --org ... --serve``, locked separately.
         mock_serve_dashboard.assert_called_once_with(
             dataset_path=out_path.resolve(),
             port=3000,
             open_browser=True,
+            org=None,
         )
 
     @patch("ado_git_repo_insights.cli._serve_dashboard")

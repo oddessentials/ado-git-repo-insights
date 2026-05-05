@@ -26,11 +26,15 @@ attributes that bare ModuleType lacks, eliminating type: ignore[attr-defined]
 when assigning mock objects to fake module attributes. See research.md R-006.
 """
 
+import hashlib
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+
+import pytest
 
 if TYPE_CHECKING:
     # mypy resolves the helper under its top-level name via
@@ -57,6 +61,53 @@ collect_ignore_glob: list[str] = []
 
 if sys.platform != "win32":
     collect_ignore_glob.extend(PLATFORM_CONDITIONAL_IGNORE_GLOBS)
+
+
+_CANONICAL_ARTIFACT_ROOTS: tuple[Path, ...] = (
+    _REPO_ROOT / "artifacts" / "demo-enterprise",
+    _REPO_ROOT / "artifacts" / "demo-enterprise-comments-off",
+    _REPO_ROOT / "docs" / "data",
+)
+
+
+def _hash_canonical_artifact_tree() -> dict[str, str]:
+    snapshot: dict[str, str] = {}
+    for root in _CANONICAL_ARTIFACT_ROOTS:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            snapshot[str(path.relative_to(_REPO_ROOT)).replace("\\", "/")] = digest
+    return snapshot
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _assert_canonical_artifacts_unchanged() -> Iterator[None]:
+    pre = _hash_canonical_artifact_tree()
+    yield
+    post = _hash_canonical_artifact_tree()
+    if pre == post:
+        return
+    pre_set = set(pre)
+    post_set = set(post)
+    added = sorted(post_set - pre_set)
+    removed = sorted(pre_set - post_set)
+    modified = sorted(p for p in pre_set & post_set if pre[p] != post[p])
+    parts: list[str] = []
+    if added:
+        parts.append("added: " + ", ".join(added))
+    if removed:
+        parts.append("removed: " + ", ".join(removed))
+    if modified:
+        parts.append("modified: " + ", ".join(modified))
+    pytest.fail(
+        "Canonical demo artifact tree mutated during test session — "
+        + "; ".join(parts)
+        + ". Tests must never write to artifacts/demo-enterprise/, "
+        "artifacts/demo-enterprise-comments-off/, or docs/data/."
+    )
 
 
 class FakeProphetModule(ModuleType):

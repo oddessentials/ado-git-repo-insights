@@ -7,10 +7,12 @@ This ensures deterministic generation with seed=42.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from itertools import count
@@ -24,6 +26,14 @@ DOCS_DATA = REPO_ROOT / "docs" / "data"
 ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
 TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
 _SCRATCH_COUNTER = count()
+
+
+def _cleanup_test_tmp_root() -> None:
+    """Best-effort cleanup for the repo-local scratch directory on exit."""
+    shutil.rmtree(TEST_TMP_ROOT, ignore_errors=True)
+
+
+atexit.register(_cleanup_test_tmp_root)
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 BUILD_SCRIPT = SCRIPTS_DIR / "build-demo-dataset.py"
 MANIFEST_PATH = DOCS_DATA / "dataset-manifest.json"
@@ -111,15 +121,13 @@ def run_non_promoting_canonical_data_build(
     separately by the dedicated demo workflow, so Python matrix jobs do not
     depend on Node/pnpm availability.
     """
+    if artifact_root is None:
+        artifact_root = make_repo_local_artifact_root("non-promote-build")
+    variant_off_root = make_repo_local_artifact_root("non-promote-variant-off")
     env = os.environ.copy()
-    resolved_artifact_root = ARTIFACT_ROOT
+    env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
+    env["ADO_DEMO_VARIANT_OFF_ARTIFACT_ROOT"] = str(variant_off_root)
     if not _IS_BASELINE_PYTHON:
-        if artifact_root is None:
-            raise AssertionError(
-                "artifact_root is required for non-baseline validate-only runs"
-            )
-        resolved_artifact_root = artifact_root
-        env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
         result = subprocess.run(
             [
                 sys.executable,
@@ -147,7 +155,7 @@ def run_non_promoting_canonical_data_build(
     assert result.returncode == 0, (
         f"non-promoting build-demo-dataset.py failed: {result.stderr or result.stdout}"
     )
-    return resolved_artifact_root
+    return artifact_root
 
 
 def make_repo_local_artifact_root(prefix: str) -> Path:

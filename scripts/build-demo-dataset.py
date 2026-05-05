@@ -22,6 +22,7 @@ from demo_generation_common import (
     CANONICAL_COMMITTED_DEMO_MODE,
     CANONICAL_COMMITTED_DEMO_SCRIPT,
     VALIDATED_COMMITTED_DEMO_MODE,
+    assert_safe_output_root,
     build_generation_provenance,
     load_json_file,
     narrow_int,
@@ -56,8 +57,11 @@ ARTIFACT_METADATA_DIR = ARTIFACT_ROOT / "metadata"
 # variants are byte-identical except for the five gated keys —
 # ``tests/integration/test_demo_variants_byte_identity.py`` enforces
 # the contract.
-VARIANT_OFF_ARTIFACT_ROOT = (
-    REPO_ROOT / "artifacts" / "demo-enterprise-comments-off"
+VARIANT_OFF_ARTIFACT_ROOT = Path(
+    os.environ.get(
+        "ADO_DEMO_VARIANT_OFF_ARTIFACT_ROOT",
+        str(REPO_ROOT / "artifacts" / "demo-enterprise-comments-off"),
+    )
 ).resolve()
 VARIANT_OFF_DATA_DIR = VARIANT_OFF_ARTIFACT_ROOT / "data"
 DOCS_DATA_DIR = REPO_ROOT / "docs" / "data"
@@ -129,6 +133,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "if --allow-dirty-inputs is set without --no-promote."
         ),
     )
+    parser.add_argument(
+        "--commit-canonical",
+        action="store_true",
+        help=(
+            "Permit writes to committed canonical demo paths "
+            "(docs/data, artifacts/demo-enterprise, "
+            "artifacts/demo-enterprise-comments-off). Reserved for the "
+            "CI demo-regeneration workflow."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -163,14 +177,14 @@ def _run_git_input_diff(repo_root: Path, flag: str, inputs: list[Path]) -> str:
         argv.append(flag)
     argv.extend(["--name-only", "--"])
     argv.extend(p.as_posix() for p in inputs)
-    result = subprocess.run(
+    git_result = subprocess.run(
         argv,
         cwd=str(repo_root),
         capture_output=True,
         text=True,
         check=True,
     )
-    return result.stdout.strip()
+    return git_result.stdout.strip()
 
 
 def assert_inputs_clean(
@@ -217,18 +231,20 @@ def run_generator(
         "--output-root",
         str(output_root),
     ]
+    if script_name == "generate-demo-data.py":
+        command.append("--commit-canonical")
     command.extend(extra_args)
-    result = subprocess.run(
+    gen_result = subprocess.run(
         command,
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
-    if result.returncode != 0:
+    if gen_result.returncode != 0:
         raise RuntimeError(
-            f"{script_name} failed with exit code {result.returncode}\n"
-            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            f"{script_name} failed with exit code {gen_result.returncode}\n"
+            f"STDOUT:\n{gen_result.stdout}\nSTDERR:\n{gen_result.stderr}"
         )
 
 
@@ -263,17 +279,17 @@ def build_variant_off_artifact() -> None:
 
 def run_repo_command(command: list[str], *, cwd: Path = REPO_ROOT) -> None:
     """Run a repo-managed command and raise a detailed error on failure."""
-    result = subprocess.run(
+    repo_result = subprocess.run(
         command,
         cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
     )
-    if result.returncode != 0:
+    if repo_result.returncode != 0:
         raise RuntimeError(
-            f"Command failed with exit code {result.returncode}: {' '.join(command)}\n"
-            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            f"Command failed with exit code {repo_result.returncode}: {' '.join(command)}\n"
+            f"STDOUT:\n{repo_result.stdout}\nSTDERR:\n{repo_result.stderr}"
         )
 
 
@@ -1426,6 +1442,21 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "--allow-dirty-inputs must be combined with --no-promote; promotion "
             "onto docs/data/ requires a staged snapshot (contract: byte-determinism-regen.md §11)."
+        )
+    # ARTIFACT_DATA_DIR is written in BOTH modes (validate-only delete+
+    # recreate from docs/data via prepare_validate_only_artifact_root();
+    # generator path delete+regenerate), so the canonical-path guard MUST
+    # fire before any setup. VARIANT_OFF_DATA_DIR is written only on the
+    # generator path (build_variant_off_artifact never runs in validate-
+    # only), so its guard is scoped to that mode.
+    assert_safe_output_root(ARTIFACT_DATA_DIR, commit_canonical=args.commit_canonical)
+    if not args.validate_only:
+        assert_safe_output_root(
+            VARIANT_OFF_DATA_DIR, commit_canonical=args.commit_canonical
+        )
+    if not args.no_promote:
+        assert_safe_output_root(
+            args.promote_dir, commit_canonical=args.commit_canonical
         )
     assert_inputs_clean(
         REPO_ROOT,

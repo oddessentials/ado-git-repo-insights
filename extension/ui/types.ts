@@ -642,6 +642,8 @@ declare global {
     __dashboardMetrics?: unknown;
     LOCAL_DASHBOARD_MODE?: boolean | string | number; // Wide type to allow testing edge cases
     DATASET_PATH?: string;
+    LOCAL_COLLECTION_URI?: string; // Customer-org collection URI injected by the CLI dashboard
+
     process?: { env?: { NODE_ENV?: string } };
   }
 }

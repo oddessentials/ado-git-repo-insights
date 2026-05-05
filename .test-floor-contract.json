@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "python": {
-    "min_collected": 2459,
+    "min_collected": 2479,
     "authority": "scripts.check_ratchet_bump.collect_python_snapshot(apply_platform_filters=True)"
   },
   "extension": {
-    "min_collected": 3196,
+    "min_collected": 3199,
     "authority": "extension/test-results.xml parsed via measure_extension_count"
   }
 }

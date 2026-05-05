@@ -98,6 +98,7 @@ round_float = _common_mod.round_float
 require_demo_generation_baseline_for_output = (
     _common_mod.require_demo_generation_baseline_for_output
 )
+assert_safe_output_root = _common_mod.assert_safe_output_root
 write_json_file = _common_mod.write_json_file
 
 # =============================================================================
@@ -2677,6 +2678,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output directory root for generated demo dataset",
     )
     parser.add_argument(
+        "--commit-canonical",
+        action="store_true",
+        help=(
+            "Permit writes to committed canonical demo paths "
+            "(docs/data, artifacts/demo-enterprise, "
+            "artifacts/demo-enterprise-comments-off). Reserved for the "
+            "CI demo-regeneration workflow; local invocations must omit "
+            "this flag and target a scratch output root."
+        ),
+    )
+    parser.add_argument(
         "--comments-metrics",
         choices=("true", "false"),
         default="true",
@@ -2720,6 +2732,7 @@ def main(argv: list[str] | None = None) -> int:
             "artifacts to a scratch directory for developer inspection; "
             "pass --output-root <other-path> to direct output elsewhere."
         )
+    assert_safe_output_root(output_dir, commit_canonical=args.commit_canonical)
     require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, output_dir)
     print("Generating demo data with seed=42...")
     print(f"Output directory: {output_dir}")

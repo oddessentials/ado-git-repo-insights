@@ -15,6 +15,7 @@ import {
   isLocalMode,
   getLocalDatasetPath,
   getLocalCollectionUri,
+  getRuntimeLocalCollectionUri,
   LOCAL_DASHBOARD_COLLECTION_URI,
   isSdkInitialized,
   resetSdkState,
@@ -24,6 +25,7 @@ import {
   getCollectionUri,
   getAccessToken,
 } from "../../ui/modules/sdk";
+import { resolvePrUrl } from "../../ui/modules/shared/pr-url";
 
 import {
   mockSdkModule,
@@ -738,6 +740,60 @@ describe("SDK Module", () => {
       expect(LOCAL_DASHBOARD_COLLECTION_URI).toBe(
         "https://dev.azure.com/oddessentials/",
       );
+    });
+  });
+
+  describe("getRuntimeLocalCollectionUri (hotfix: customer org for offline serve)", () => {
+    afterEach(() => {
+      delete (window as { LOCAL_COLLECTION_URI?: string }).LOCAL_COLLECTION_URI;
+    });
+
+    it("returns null when window.LOCAL_COLLECTION_URI is unset", () => {
+      expect(getRuntimeLocalCollectionUri()).toBeNull();
+    });
+
+    it("appends a trailing slash when the runtime URI lacks one", () => {
+      // Locks the trailing-slash normalization for runtime injection. Pairs
+      // with the integration test below (which supplies an already-terminated
+      // value) so both branches of the `endsWith("/")` ternary are covered
+      // and the partial-branch ratchet stays at zero for sdk.ts.
+      (window as { LOCAL_COLLECTION_URI?: string }).LOCAL_COLLECTION_URI =
+        "https://dev.azure.com/ITPayerApplications";
+
+      expect(getRuntimeLocalCollectionUri()).toBe(
+        "https://dev.azure.com/ITPayerApplications/",
+      );
+    });
+
+    it("composes PR URLs under the CLI-supplied org (acceptance gate)", () => {
+      // Acceptance gate for `stage-artifacts --org ITPayerApplications --serve`:
+      // the dashboard's local-mode init resolves `currentCollectionUri` from
+      // this getter (preferred over the synthetic-demo fallback), and every
+      // drill-down composes PR hrefs through `resolvePrUrl`. Pin the chain so
+      // a regression that re-hardcodes the demo literal in the offline serve
+      // path fails this test.
+      (window as { LOCAL_COLLECTION_URI?: string }).LOCAL_COLLECTION_URI =
+        "https://dev.azure.com/ITPayerApplications/";
+
+      const collectionUri = getRuntimeLocalCollectionUri();
+      expect(collectionUri).not.toBeNull();
+
+      const url = resolvePrUrl(
+        { id: 8242, repository_id: "repo-guid-1" },
+        [
+          {
+            repository_id: "repo-guid-1",
+            repository_name: "ado-git-repo-insights",
+            project_name: "IT Payer Applications",
+          },
+        ],
+        { collectionUri: collectionUri as string },
+      );
+
+      expect(url).toBe(
+        "https://dev.azure.com/ITPayerApplications/IT%20Payer%20Applications/_git/ado-git-repo-insights/pullrequest/8242",
+      );
+      expect(url).not.toContain("oddessentials");
     });
   });
 

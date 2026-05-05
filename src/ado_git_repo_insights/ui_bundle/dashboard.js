@@ -6001,6 +6001,12 @@ var PRInsightsDashboard = (() => {
   function getLocalCollectionUri() {
     return LOCAL_DASHBOARD_COLLECTION_URI;
   }
+  function getRuntimeLocalCollectionUri() {
+    if (typeof LOCAL_COLLECTION_URI === "undefined" || typeof LOCAL_COLLECTION_URI !== "string" || LOCAL_COLLECTION_URI.length === 0) {
+      return null;
+    }
+    return LOCAL_COLLECTION_URI.endsWith("/") ? LOCAL_COLLECTION_URI : `${LOCAL_COLLECTION_URI}/`;
+  }
 
   // ../ui/modules/shared/svg-path.ts
   function buildLinePath(points) {
@@ -11675,7 +11681,7 @@ var PRInsightsDashboard = (() => {
         const datasetPath = getLocalDatasetPath();
         loader = new DatasetLoader(datasetPath);
         currentBuildId = null;
-        currentCollectionUri = getLocalCollectionUri();
+        currentCollectionUri = getRuntimeLocalCollectionUri() ?? getLocalCollectionUri();
         const projectNameEl = document.getElementById("current-project-name");
         if (projectNameEl) {
           projectNameEl.textContent = "Local Dashboard";

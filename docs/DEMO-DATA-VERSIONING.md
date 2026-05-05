@@ -32,7 +32,7 @@ python scripts/build_demo.py
 The data-only refresh path is:
 
 ```bash
-python scripts/build-demo-dataset.py
+python scripts/build-demo-dataset.py --commit-canonical
 ```
 
 The supported manual generated-surface sync commands are:
@@ -55,7 +55,7 @@ pnpm run build:ui
 
 cd ..
 python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
-python scripts/build-demo-dataset.py
+python scripts/build-demo-dataset.py --commit-canonical
 
 cd docs
 python -m http.server 8080
@@ -71,7 +71,7 @@ pnpm run build:ui
 
 cd ..
 python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
-python scripts/build-demo-dataset.py
+python scripts/build-demo-dataset.py --commit-canonical
 
 cd docs
 python -m http.server 8080

@@ -19,7 +19,7 @@ from the same dashboard bundle contract used by the extension and is backed by
 the canonical enterprise synthetic dataset generated via:
 
 ```bash
-python scripts/build-demo-dataset.py
+python scripts/build-demo-dataset.py --commit-canonical
 ```
 
 That dataset is promoted into `docs/data/` for publishing and is intended to
