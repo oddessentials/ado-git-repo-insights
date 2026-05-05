@@ -1443,17 +1443,21 @@ def main(argv: list[str] | None = None) -> int:
             "--allow-dirty-inputs must be combined with --no-promote; promotion "
             "onto docs/data/ requires a staged snapshot (contract: byte-determinism-regen.md §11)."
         )
+    # ARTIFACT_DATA_DIR is written in BOTH modes (validate-only delete+
+    # recreate from docs/data via prepare_validate_only_artifact_root();
+    # generator path delete+regenerate), so the canonical-path guard MUST
+    # fire before any setup. VARIANT_OFF_DATA_DIR is written only on the
+    # generator path (build_variant_off_artifact never runs in validate-
+    # only), so its guard is scoped to that mode.
+    assert_safe_output_root(ARTIFACT_DATA_DIR, commit_canonical=args.commit_canonical)
     if not args.validate_only:
-        assert_safe_output_root(
-            ARTIFACT_DATA_DIR, commit_canonical=args.commit_canonical
-        )
         assert_safe_output_root(
             VARIANT_OFF_DATA_DIR, commit_canonical=args.commit_canonical
         )
-        if not args.no_promote:
-            assert_safe_output_root(
-                args.promote_dir, commit_canonical=args.commit_canonical
-            )
+    if not args.no_promote:
+        assert_safe_output_root(
+            args.promote_dir, commit_canonical=args.commit_canonical
+        )
     assert_inputs_clean(
         REPO_ROOT,
         DEMO_BUILD_INPUTS,

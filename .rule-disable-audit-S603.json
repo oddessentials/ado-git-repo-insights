@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 131,
+  "total_call_sites": 134,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -413,7 +413,7 @@
     },
     {
       "file": "tests/demo/test_regen_byte_stability.py",
-      "line": 133,
+      "line": 137,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -421,7 +421,7 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 123,
+      "line": 131,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -429,7 +429,7 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 136,
+      "line": 144,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -437,7 +437,7 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 286,
+      "line": 294,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -445,7 +445,7 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 324,
+      "line": 332,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -786,6 +786,30 @@
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/unit/test_demo_canonical_path_guard.py",
+      "line": 105,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_demo_canonical_path_guard.py",
+      "line": 143,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_demo_canonical_path_guard.py",
+      "line": 182,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
     },
     {
       "file": "tests/unit/test_demo_generation_contract.py",
