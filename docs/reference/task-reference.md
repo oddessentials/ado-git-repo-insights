@@ -1,6 +1,6 @@
 # Task Input Reference
 
-Complete reference for the `ExtractPullRequests@2` Azure DevOps pipeline task.
+Complete reference for the `ExtractPullRequests@3` Azure DevOps pipeline task.
 
 ---
 
@@ -8,7 +8,7 @@ Complete reference for the `ExtractPullRequests@2` Azure DevOps pipeline task.
 
 | Property | Value |
 |----------|-------|
-| **Task name** | `ExtractPullRequests@2` |
+| **Task name** | `ExtractPullRequests@3` |
 | **Friendly name** | Extract Pull Request Metrics |
 | **Publisher** | OddEssentials |
 
@@ -113,7 +113,7 @@ End date defaults to yesterday to avoid incomplete data — PRs closed today may
 
 **Include today's data:**
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'MyOrg'
     projects: 'Project1'
@@ -123,7 +123,7 @@ End date defaults to yesterday to avoid incomplete data — PRs closed today may
 
 **Historical extraction:**
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'MyOrg'
     projects: 'Project1'
@@ -139,7 +139,7 @@ End date defaults to yesterday to avoid incomplete data — PRs closed today may
 Re-extracts recent data to catch late changes (reviewer votes, status updates):
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'MyOrg'
     projects: 'Project1'
@@ -157,7 +157,7 @@ Projects can be specified multiple ways:
 
 **One per line:**
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     projects: |
       Project1
@@ -167,14 +167,14 @@ Projects can be specified multiple ways:
 
 **Comma-separated:**
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     projects: 'Project1,Project2,Project3'
 ```
 
 **URL-encoded names:**
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     projects: |
       Project%20With%20Spaces
@@ -225,7 +225,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
 
           # Extract
-          - task: ExtractPullRequests@2
+          - task: ExtractPullRequests@3
             inputs:
               organization: 'MyOrg'
               projects: |

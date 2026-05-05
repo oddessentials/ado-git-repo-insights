@@ -16,7 +16,7 @@ const delegatedContainers = new WeakSet<HTMLElement>();
 /**
  * YAML snippet for enabling predictions in ADO pipeline.
  */
-const PREDICTIONS_YAML = `- task: ExtractPullRequests@2
+const PREDICTIONS_YAML = `- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true`;
@@ -24,7 +24,7 @@ const PREDICTIONS_YAML = `- task: ExtractPullRequests@2
 /**
  * YAML snippet for enabling AI insights in ADO pipeline.
  */
-const INSIGHTS_YAML = `- task: ExtractPullRequests@2
+const INSIGHTS_YAML = `- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enableInsights: true

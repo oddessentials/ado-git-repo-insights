@@ -27,7 +27,7 @@ Predictions work out-of-the-box with **no additional dependencies**. The built-i
 Simply enable predictions - no Prophet installation needed:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true
@@ -72,7 +72,7 @@ The system automatically detects Prophet and uses it when available, falling bac
 Add the new inputs to your pipeline YAML:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: $(System.CollectionUri)
     projects: |
@@ -114,7 +114,7 @@ stages:
               versionSpec: '3.12'
               addToPath: true
 
-          - task: ExtractPullRequests@2
+          - task: ExtractPullRequests@3
             inputs:
               organization: $(System.CollectionUri)
               projects: |

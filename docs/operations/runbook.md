@@ -247,7 +247,7 @@ After backfill, row counts should be non-decreasing. Compare `run_summary.json` 
 ### Pipeline Broken
 
 1. Check extension is installed in organization
-2. Verify task name: `ExtractPullRequests@2`
+2. Verify task name: `ExtractPullRequests@3`
 3. Test with minimal pipeline configuration
 4. Check agent connectivity to marketplace
 

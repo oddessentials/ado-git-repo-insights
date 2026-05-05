@@ -151,7 +151,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
 
           # Run the extraction task
-          - task: ExtractPullRequests@2
+          - task: ExtractPullRequests@3
             displayName: 'Extract PR Metrics'
             inputs:
               organization: 'YOUR_ORG_NAME'      # CHANGE THIS
@@ -274,7 +274,7 @@ schedules:
 Add backfill on Sundays to catch late PR changes:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     # ... other inputs ...
     backfillDays: 60  # Re-extract last 60 days
@@ -291,7 +291,7 @@ By default, the first extraction covers PRs from January 1st of the current year
 **To extract the past year of PR history**, add date overrides to your first run:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'YOUR_ORG_NAME'
     projects: 'YOUR_PROJECT_1'
@@ -325,10 +325,10 @@ maintains coverage going forward.
 ### One-line YAML change
 
 Add a second pipeline (or a separate stage) that flips the same
-`ExtractPullRequests@2` task into backfill mode:
+`ExtractPullRequests@3` task into backfill mode:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'YOUR_ORG'
     pat: '$(PAT_SECRET)'
@@ -375,7 +375,7 @@ one stopped.
 Narrow what a single run covers:
 
 ```yaml
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     organization: 'YOUR_ORG'
     projects: 'ProjectA'             # single project instead of all

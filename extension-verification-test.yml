@@ -62,9 +62,10 @@ stages:
             displayName: 'Check Database Status'
 
           # Step 4: Run the extension task
-          # Task Major version: 2 (update only on BREAKING TASK CHANGE)
-          # generateAggregates defaults to true in v2.7.0+
-          - task: ExtractPullRequests@2
+          # Task Major version: 3 (bumped from 2 to force agents to refresh
+          # their task cache; previously published 2.33.2 was higher than
+          # post-stamping 2.x.y output, so agents kept the stale 2.33.2.)
+          - task: ExtractPullRequests@3
             displayName: 'Extract PR Metrics'
             inputs:
               organization: 'oddessentials'

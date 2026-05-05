@@ -43,7 +43,7 @@ Explore a working dashboard with sample data: [View Live Demo](https://oddessent
 2. **Enable the Dashboard** — A project or organization administrator must go to **Project Settings > Preview Features** and turn on **[GRI] PR Insights Dashboard**.
 3. **Create a PAT** — Generate a Personal Access Token with **Code (Read)** scope in Azure DevOps.
 4. **Store the PAT** — Add the PAT to a pipeline Variable Group named `ado-insights-secrets` as a secret variable `PAT_SECRET`.
-5. **Add the Pipeline Task** — Add `ExtractPullRequests@2` to a pipeline definition (see [Pipeline Task Reference](https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/reference/task-reference.md) for all inputs).
+5. **Add the Pipeline Task** — Add `ExtractPullRequests@3` to a pipeline definition (see [Pipeline Task Reference](https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/reference/task-reference.md) for all inputs).
 6. **View the Dashboard** — After a successful pipeline run, navigate to your project's Repos menu and select **PR Insights**.
 
 ![ExtractPullRequests pipeline task configuration in Azure DevOps](screenshots/pipeline-task.png)
