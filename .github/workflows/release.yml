@@ -21,12 +21,12 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v3.1.1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -39,7 +39,7 @@ jobs:
 
       - name: Semantic Release
         id: semantic
-        uses: cycjimmy/semantic-release-action@v6.0.0
+        uses: cycjimmy/semantic-release-action@v4
         # Plugins are installed as devDependencies - do NOT use extra_plugins
         # as it uses npm internally which triggers the pnpm-only preinstall guard
         env:
@@ -66,13 +66,13 @@ jobs:
     if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -85,7 +85,7 @@ jobs:
         run: python -m build
 
       - name: Upload Python artifacts
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: python-dist
           path: dist/
@@ -95,7 +95,7 @@ jobs:
     if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v4
         with:
           ref: v${{ needs.release.outputs.new_release_version }}  # Checkout release TAG
 
@@ -148,7 +148,7 @@ jobs:
         run: pnpm run build
 
       - name: Set up Python (for docs sync validation)
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -225,7 +225,7 @@ jobs:
         run: pnpm exec tfx extension create --manifest-globs vss-extension.json
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: vsix-extension
           path: extension/*.vsix
@@ -239,7 +239,7 @@ jobs:
     # https://pypi.org/manage/project/ado-git-repo-insights/settings/publishing/
     steps:
       - name: Download Python artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v4
         with:
           name: python-dist
           path: dist/
@@ -255,13 +255,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Python artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v4
         with:
           name: python-dist
           path: dist/
 
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v4
         with:
           name: vsix-extension
           path: extension/
@@ -286,7 +286,7 @@ jobs:
     continue-on-error: false  # Fail hard, never warn
     steps:
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v4
         with:
           name: vsix-extension
           path: extension/

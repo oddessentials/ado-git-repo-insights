@@ -56,10 +56,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -68,10 +68,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - uses: actions/setup-node@v6.4.0
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: ''
 
       - uses: ./.github/actions/setup-pnpm
 
@@ -89,7 +88,7 @@ jobs:
         run: python scripts/build-demo-dataset.py --commit-canonical
 
       - name: Upload regenerated data
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: regenerated-data
           path: docs/
@@ -103,10 +102,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Download regenerated data
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v4
         with:
           name: regenerated-data
           path: docs/
@@ -132,7 +131,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Check docs/ size
         run: |
@@ -158,10 +157,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -251,10 +250,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
