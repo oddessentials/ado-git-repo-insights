@@ -231,7 +231,7 @@ progress lines and a zero-count closing line.
 
 **Solution:**
 1. Verify extension is installed: Organization Settings → Extensions
-2. Check task name is exactly `ExtractPullRequests@2`
+2. Check task name is exactly `ExtractPullRequests@3`
 3. Ensure pipeline agent can reach the marketplace
 4. Try creating a new pipeline
 

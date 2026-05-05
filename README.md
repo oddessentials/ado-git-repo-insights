@@ -79,7 +79,7 @@ variables:
     - group: ado-insights-secrets # Contains PAT_SECRET
 
 steps:
-    - task: ExtractPullRequests@2
+    - task: ExtractPullRequests@3
       inputs:
           organization: "MyOrg"
           projects: "Project1,Project2"

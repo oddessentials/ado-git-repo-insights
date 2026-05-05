@@ -6999,11 +6999,11 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/ml/setup-guides.ts
   var yamlStore = /* @__PURE__ */ new Map();
   var delegatedContainers = /* @__PURE__ */ new WeakSet();
-  var PREDICTIONS_YAML = `- task: ExtractPullRequests@2
+  var PREDICTIONS_YAML = `- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true`;
-  var INSIGHTS_YAML = `- task: ExtractPullRequests@2
+  var INSIGHTS_YAML = `- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enableInsights: true

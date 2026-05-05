@@ -14,19 +14,19 @@ class TestYamlSnippetGeneration:
     def test_predictions_yaml_snippet_structure(self) -> None:
         """Predictions YAML snippet should have correct structure."""
         yaml_snippet = """
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true
 """.strip()
 
-        assert "- task: ExtractPullRequests@2" in yaml_snippet
+        assert "- task: ExtractPullRequests@3" in yaml_snippet
         assert "enablePredictions: true" in yaml_snippet
         assert "generateAggregates: true" in yaml_snippet
 
     def test_predictions_yaml_indentation(self) -> None:
         """Predictions YAML should use 2-space indentation under inputs."""
-        yaml_snippet = """- task: ExtractPullRequests@2
+        yaml_snippet = """- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true"""
@@ -41,14 +41,14 @@ class TestYamlSnippetGeneration:
     def test_insights_yaml_snippet_structure(self) -> None:
         """Insights YAML snippet should have correct structure."""
         yaml_snippet = """
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enableInsights: true
     openaiApiKey: $(OPENAI_API_KEY)
 """.strip()
 
-        assert "- task: ExtractPullRequests@2" in yaml_snippet
+        assert "- task: ExtractPullRequests@3" in yaml_snippet
         assert "enableInsights: true" in yaml_snippet
         assert "openaiApiKey" in yaml_snippet
 
@@ -65,7 +65,7 @@ class TestYamlSnippetGeneration:
     def test_combined_yaml_snippet(self) -> None:
         """Combined YAML should enable both features."""
         yaml_snippet = """
-- task: ExtractPullRequests@2
+- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true
@@ -86,7 +86,7 @@ class TestClipboardCopy:
 
     def test_copy_content_is_string(self) -> None:
         """Content to copy should be a string."""
-        content = """- task: ExtractPullRequests@2
+        content = """- task: ExtractPullRequests@3
   inputs:
     generateAggregates: true
     enablePredictions: true"""

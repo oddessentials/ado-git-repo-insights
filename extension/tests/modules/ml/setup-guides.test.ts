@@ -27,7 +27,7 @@ describe("setup-guides", () => {
 
     it("includes predictions YAML snippet", () => {
       const html = renderPredictionsSetupGuide();
-      expect(html).toContain("- task: ExtractPullRequests@2");
+      expect(html).toContain("- task: ExtractPullRequests@3");
       expect(html).toContain("enablePredictions: true");
       expect(html).toContain("generateAggregates: true");
     });
@@ -59,7 +59,7 @@ describe("setup-guides", () => {
 
     it("includes insights YAML snippet", () => {
       const html = renderInsightsSetupGuide();
-      expect(html).toContain("- task: ExtractPullRequests@2");
+      expect(html).toContain("- task: ExtractPullRequests@3");
       expect(html).toContain("enableInsights: true");
       expect(html).toContain("openaiApiKey: $(OPENAI_API_KEY)");
     });
@@ -452,14 +452,14 @@ describe("setup-guides", () => {
   describe("getters", () => {
     it("getPredictionsYaml returns correct YAML", () => {
       const yaml = getPredictionsYaml();
-      expect(yaml).toContain("- task: ExtractPullRequests@2");
+      expect(yaml).toContain("- task: ExtractPullRequests@3");
       expect(yaml).toContain("generateAggregates: true");
       expect(yaml).toContain("enablePredictions: true");
     });
 
     it("getInsightsYaml returns correct YAML", () => {
       const yaml = getInsightsYaml();
-      expect(yaml).toContain("- task: ExtractPullRequests@2");
+      expect(yaml).toContain("- task: ExtractPullRequests@3");
       expect(yaml).toContain("generateAggregates: true");
       expect(yaml).toContain("enableInsights: true");
       expect(yaml).toContain("openaiApiKey: $(OPENAI_API_KEY)");

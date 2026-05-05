@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * Real-task-lib reproducer test for ExtractPullRequests@2.
+ * Real-task-lib reproducer test for ExtractPullRequests@3.
  *
  * The companion test (extract-prs-runtime.test.ts) jest.mocks
  * azure-pipelines-task-lib/task entirely with a stub. That bypasses the
@@ -57,8 +57,7 @@ const state: RuntimeState = { spawnCalls: [], logLines: [] };
 
 jest.mock("child_process", () => {
   const real = jest.requireActual<typeof ChildProcessNS>("child_process");
-  const { EventEmitter } =
-    jest.requireActual<typeof EventsNS>("events");
+  const { EventEmitter } = jest.requireActual<typeof EventsNS>("events");
   const getState = (): RuntimeState =>
     (globalThis as Record<string, unknown>)[
       "__realTasklibTestState"
@@ -249,7 +248,7 @@ function failureContext(): string {
 // azure-pipelines-task-lib env→vault→getInput plumbing.
 // ---------------------------------------------------------------------------
 
-describe("ExtractPullRequests@2 with REAL azure-pipelines-task-lib", () => {
+describe("ExtractPullRequests@3 with REAL azure-pipelines-task-lib", () => {
   it("Step 1 (INPUT_INCLUDECOMMENTS=true) must invoke CLI extract subcommand WITH --include-comments", async () => {
     setStep1ExtractEnv();
     const taskModule = await loadTaskWithFreshEnv();

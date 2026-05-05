@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * Packaged-runtime regression test for ExtractPullRequests@2.
+ * Packaged-runtime regression test for ExtractPullRequests@3.
  *
  * Loads the actual shipped extension/tasks/extract-prs/index.js with
  * azure-pipelines-task-lib and child_process mocked, then drives the
@@ -229,7 +229,7 @@ function failureContext(): string {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("packaged ExtractPullRequests@2 runtime — customer YAML contract", () => {
+describe("packaged ExtractPullRequests@3 runtime — customer YAML contract", () => {
   it("Step 1 (extract with includeComments: true) invokes the CLI extract subcommand WITH --include-comments", async () => {
     seedInputs({
       ...commonInputs(),
