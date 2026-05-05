@@ -1,3 +1,10 @@
+## [101.27.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.0...v101.27.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* prevent canonical demo artifact mutation (3-layer guard) ([#376](https://github.com/oddessentials/ado-git-repo-insights/issues/376)) ([12208e5](https://github.com/oddessentials/ado-git-repo-insights/commit/12208e5cfa79c9eac6fb61704067ca949fe0af04))
+
 # [101.27.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.26.1...v101.27.0) (2026-05-04)
 
 
