@@ -17,33 +17,31 @@
  * Why this test exists: a customer artifact (samples/) showed
  * `pr_threads = 0` and `comments_extracted_at = 0/45,715` even though
  * their pipeline YAML enabled both code paths and ran successfully for
- * weeks. Either (a) the task wiring drops the inputs, or (b) the
- * customer's installed task version diverges from HEAD. This test
- * proves which by exercising HEAD's runtime end-to-end.
+ * weeks. This test exercises HEAD's runtime end-to-end with mocked
+ * task-lib so we lock the if-then contract: given the inputs, the
+ * wiring routes them correctly.
  *
- * Notes on packaged equivalence: stage:tasks (npm install for tfx-flat
- * node_modules) does NOT transform `index.js`, so testing source equals
- * testing the packaged runtime today. If `stage:tasks` ever bundles or
- * transpiles, this test must be updated to load the staged artifact.
+ * Module isolation: under `pnpm test:coverage` (--runInBand), this file
+ * runs in the same jest worker as the sibling
+ * extract-prs-runtime-real-tasklib.test.ts which loads the REAL
+ * task-lib via dynamic import. Module-scope `jest.mock` + module-scope
+ * `require` would race against that sibling's resolution and the mock
+ * would be bypassed in CI. Each test here therefore owns its module
+ * registry: `jest.resetModules()` clears the cache, `jest.doMock(...)`
+ * installs the mock at runtime (not hoisted), then `await import(...)`
+ * loads a fresh `index.js` that picks up the doMock'd dependencies.
  */
 
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { run } from "../tasks/extract-prs/index";
-
-// Type-only imports so the jest.mock factories can reference module
-// shapes via `typeof X` without triggering @typescript-eslint/consistent-
-// type-imports on inline `import()` type annotations.
 import type * as ChildProcessNS from "child_process";
 import type * as EventsNS from "events";
 
 // ---------------------------------------------------------------------------
-// Shared mutable state placed on globalThis (under an inline literal key)
-// so the hoisted jest.mock() factories can read it without referencing any
-// closure-captured module-scope identifier (a reference jest's hoister would
-// reject). Factories are passed by value at hoist time but only invoked when
-// the mocked module is required, by which point this assignment has run.
+// Shared mutable state on globalThis under an inline literal key. Per-test
+// jest.doMock factories read this without referencing any closure variable,
+// matching the pattern in extract-prs-runtime-real-tasklib.test.ts.
 //
 // `inputs` and `boolInputs` use Map (not Record) so dynamic-key access in
 // the factories doesn't trip security/detect-object-injection.
@@ -72,18 +70,23 @@ const state: RuntimeState = {
 
 (globalThis as Record<string, unknown>)["__extractPrsTaskMockState"] = state;
 
-// ---------------------------------------------------------------------------
-// Mock azure-pipelines-task-lib/task — every getInput / getBoolInput /
-// setResult is routed through the shared state object.
-//
-// `virtual: true` because the package only exists in
-// extension/tasks/extract-prs/node_modules (staged for VSIX), not on the
-// test's resolution path under extension/tests/.
-// ---------------------------------------------------------------------------
+interface TaskRuntime {
+  run: () => Promise<void>;
+}
 
-jest.mock(
-  "azure-pipelines-task-lib/task",
-  () => {
+/**
+ * Per-test module isolation. Resets the registry, installs the
+ * azure-pipelines-task-lib/task and child_process mocks via
+ * `jest.doMock` (runtime, not hoisted), then dynamically imports
+ * `../tasks/extract-prs/index` so it picks up the freshly-mocked
+ * dependencies. Mirrors the sibling real-task-lib test's
+ * `loadTaskWithFreshEnv` shape so both files own their module
+ * registries independently of jest's worker order.
+ */
+async function loadTaskWithMocks(): Promise<TaskRuntime> {
+  jest.resetModules();
+
+  jest.doMock("azure-pipelines-task-lib/task", () => {
     const TaskResult = { Failed: 1, Succeeded: 0 };
     const getState = (): RuntimeState =>
       (globalThis as Record<string, unknown>)[
@@ -105,60 +108,51 @@ jest.mock(
       },
       debug: (): void => undefined,
     };
-  },
-  { virtual: true },
-);
+  });
 
-// ---------------------------------------------------------------------------
-// Mock child_process — capture spawn args, no real process launches; stub
-// execSync probes used by validatePythonEnvironment / installPackage.
-// ---------------------------------------------------------------------------
+  jest.doMock("child_process", () => {
+    const real = jest.requireActual<typeof ChildProcessNS>("child_process");
+    const { EventEmitter } = jest.requireActual<typeof EventsNS>("events");
+    const getState = (): RuntimeState =>
+      (globalThis as Record<string, unknown>)[
+        "__extractPrsTaskMockState"
+      ] as RuntimeState;
+    return {
+      ...real,
+      spawn: (cmd: string, args: readonly string[]) => {
+        getState().spawnCalls.push({ cmd, args: [...args] });
+        const proc = new EventEmitter() as InstanceType<typeof EventEmitter> & {
+          kill: () => void;
+        };
+        proc.kill = () => undefined;
+        setImmediate(() => proc.emit("close", 0));
+        return proc;
+      },
+      execSync: (cmd: string): string => {
+        const s = String(cmd);
+        // validatePythonEnvironment probes "<cmd> --version 2>&1"
+        if (/--version/.test(s)) return "Python 3.12.0\n";
+        // installPackage probes "<py> -c \"import ado_git_repo_insights\""
+        if (/import ado_git_repo_insights/.test(s)) return "";
+        // A real pip install must never run inside a unit test.
+        if (/pip install/.test(s)) {
+          throw new Error(`pip install must not run in test; cmd=${s}`);
+        }
+        return "";
+      },
+    };
+  });
 
-jest.mock("child_process", () => {
-  const real = jest.requireActual<typeof ChildProcessNS>("child_process");
-  const { EventEmitter } = jest.requireActual<typeof EventsNS>("events");
-  const getState = (): RuntimeState =>
-    (globalThis as Record<string, unknown>)[
-      "__extractPrsTaskMockState"
-    ] as RuntimeState;
-  return {
-    ...real,
-    spawn: (cmd: string, args: readonly string[]) => {
-      getState().spawnCalls.push({ cmd, args: [...args] });
-      const proc = new EventEmitter() as InstanceType<typeof EventEmitter> & {
-        kill: () => void;
-      };
-      proc.kill = () => undefined;
-      setImmediate(() => proc.emit("close", 0));
-      return proc;
-    },
-    execSync: (cmd: string): string => {
-      const s = String(cmd);
-      // validatePythonEnvironment probes "<cmd> --version 2>&1"
-      if (/--version/.test(s)) return "Python 3.12.0\n";
-      // installPackage probes "<py> -c \"import ado_git_repo_insights\""
-      if (/import ado_git_repo_insights/.test(s)) return "";
-      // A real pip install must never run inside a unit test.
-      if (/pip install/.test(s)) {
-        throw new Error(`pip install must not run in test; cmd=${s}`);
-      }
-      return "";
-    },
-  };
-});
-
-// Capture console output during each test only. Module-scope override
-// would conflict with the sibling real-task-lib test file under
-// `pnpm test:coverage` (--runInBand): whichever file loaded second
-// would win and intercept the other's banners. Per-test install/restore
-// keeps each file's state.logLines isolated from sibling test files.
-let realLog: typeof console.log | null = null;
+  const mod = (await import("../tasks/extract-prs/index")) as unknown;
+  return mod as TaskRuntime;
+}
 
 // ---------------------------------------------------------------------------
 // Per-test scaffolding
 // ---------------------------------------------------------------------------
 
 let workRoot: string;
+let realLog: typeof console.log | null = null;
 
 beforeEach(() => {
   workRoot = fs.mkdtempSync(path.join(os.tmpdir(), "extract-prs-runtime-"));
@@ -167,9 +161,8 @@ beforeEach(() => {
   state.lastResult = null;
   state.logLines = [];
   state.spawnCalls = [];
-  // Install console.log capture for THIS test only (sibling test file
-  // also captures; module-scope override would race with whichever
-  // file loaded last winning).
+  // Install console.log capture for THIS test only. Module-scope override
+  // races with the sibling real-task-lib test under --runInBand.
   realLog = console.log;
   console.log = (...args: unknown[]): void => {
     state.logLines.push(args.map((a) => String(a)).join(" "));
@@ -181,9 +174,6 @@ afterEach(() => {
     console.log = realLog;
     realLog = null;
   }
-  // rmSync with force:true is a no-op on missing paths, so we don't need
-  // a separate existsSync probe (which would also trip
-  // security/detect-non-literal-fs-filename without value).
   if (workRoot) {
     fs.rmSync(workRoot, { recursive: true, force: true });
   }
@@ -241,7 +231,8 @@ describe("packaged ExtractPullRequests@3 runtime — customer YAML contract", ()
     // task.json defaultValue "true" — Azure passes through to getBoolInput.
     state.boolInputs.set("generateAggregates", true);
 
-    await run();
+    const taskModule = await loadTaskWithMocks();
+    await taskModule.run();
 
     if (state.lastResult === null || state.lastResult.result !== 0) {
       throw new Error(`expected Succeeded; ${failureContext()}`);
@@ -277,7 +268,8 @@ describe("packaged ExtractPullRequests@3 runtime — customer YAML contract", ()
     // returns false from getBoolInput; mock mirrors that by default.
     state.boolInputs.set("generateAggregates", true);
 
-    await run();
+    const taskModule = await loadTaskWithMocks();
+    await taskModule.run();
 
     if (state.lastResult === null || state.lastResult.result !== 0) {
       throw new Error(`expected Succeeded; ${failureContext()}`);
