@@ -805,6 +805,7 @@ module.exports = {
   normalizeCommentsMaxPrsPerRunRaw,
   validateModeInputs,
   validateNonNegativeInt,
+  run,
 };
 
 if (require.main === module) {
