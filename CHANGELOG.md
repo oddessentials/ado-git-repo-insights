@@ -1,3 +1,10 @@
+## [101.27.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.1...v101.27.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* **task:** publish ExtractPullRequests v3 ([#379](https://github.com/oddessentials/ado-git-repo-insights/issues/379)) ([cf0e4c9](https://github.com/oddessentials/ado-git-repo-insights/commit/cf0e4c910001369e40758f7a276cd67ad588716e))
+
 ## [101.27.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.0...v101.27.1) (2026-05-05)
 
 
