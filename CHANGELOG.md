@@ -1,3 +1,10 @@
+## [101.27.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.2...v101.27.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* release bug ([#382](https://github.com/oddessentials/ado-git-repo-insights/issues/382)) ([9e7516e](https://github.com/oddessentials/ado-git-repo-insights/commit/9e7516ebc87a312c8ddcdc1f71aa86bb3b114f63))
+
 ## [101.27.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.1...v101.27.2) (2026-05-06)
 
 
