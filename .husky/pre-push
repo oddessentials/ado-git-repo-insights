@@ -3,28 +3,13 @@ set -eu
 
 entire hooks git pre-push "$1" || true
 
-# Prefer the project virtualenv. `uv sync --extra dev` (recommended) and
-# `python -m venv .venv` (pip fallback, still in setup.md) both produce
-# ./.venv containing the interpreter version pinned by pyproject.toml.
-# Falling back to `py -3` / `python3` / `python` would pick the shell's
-# default Python, which on machines with multiple installs is version-blind
-# and can land on a Python whose pandas (or other pinned deps) disagree
-# with pyproject.toml — a silent parity hole with CI.
-if [ -x ".venv/Scripts/python.exe" ]; then
-    exec ".venv/Scripts/python.exe" scripts/run_repo_hook.py pre-push
-elif [ -x ".venv/bin/python" ]; then
-    exec ".venv/bin/python" scripts/run_repo_hook.py pre-push
-elif command -v py >/dev/null 2>&1 && py -3 -c "import sys" >/dev/null 2>&1; then
-    exec py -3 scripts/run_repo_hook.py pre-push
-elif command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
-    exec python3 scripts/run_repo_hook.py pre-push
-elif command -v python >/dev/null 2>&1 && python -c "import sys" >/dev/null 2>&1; then
-    exec python scripts/run_repo_hook.py pre-push
-else
-    echo "[pre-push] Python is required to run repository hooks."
-    echo "[pre-push] Recommended:  uv sync --extra dev   (creates .venv with Python 3.12)"
-    echo "[pre-push] Pip fallback: python -m venv .venv && .venv/bin/pip install -e .[dev]"
-    echo "[pre-push]               (Windows: .venv\\Scripts\\pip install -e .[dev])"
-    echo "[pre-push] See docs/development/setup.md for details."
-    exit 1
-fi
+# Source the venv resolver: prepends .venv/{bin,Scripts} to PATH and exports
+# VENV_PYTHON. Fails fast with an actionable setup message if the venv is
+# missing — `pre-commit run` underneath spawns `language: system` hooks that
+# resolve bare `python` through PATH, so making the resolver canonical here
+# is the single source of truth for interpreter choice across the entire
+# hook chain (the prior cascade through `py -3 / python3 / python` recreated
+# the platform skew this helper was written to eliminate).
+. ./.husky/_python_path.sh
+
+exec "$VENV_PYTHON" scripts/run_repo_hook.py pre-push
