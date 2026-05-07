@@ -601,3 +601,96 @@ class TestResolvePrBaseRef:
         assert "BASE_REF=main" in combined
         assert "BASE_REF=release-101.7" in combined
         assert "#280" in combined
+
+
+class TestResolvePnpm:
+    """Platform-aware lookup for the pnpm executable.
+
+    On native Windows, pnpm installs as ``pnpm.cmd``. On Linux/macOS it is
+    a plain ``pnpm`` shim. Under WSL the Windows ``%APPDATA%\\npm`` directory
+    leaks onto the Linux PATH, so probing ``pnpm.cmd`` first would resolve
+    a Windows batch file that Linux cannot exec — the authoritative
+    preflight then crashes with ``OSError: [Errno 8] Exec format error``
+    before any gate runs. The fix gates the ``.cmd`` probe on
+    ``sys.platform == 'win32'``; these tests lock both halves of that
+    contract so the WSL path can never silently regress.
+    """
+
+    def test_non_windows_skips_cmd_probe_even_when_windows_cmd_on_path(self) -> None:
+        """WSL parity: ``pnpm.cmd`` must NEVER be probed off win32."""
+
+        def fake_which(name: str) -> str | None:
+            if name == "pnpm.cmd":
+                return "/mnt/c/Users/dev/AppData/Roaming/npm/pnpm.cmd"
+            if name == "pnpm":
+                return "/home/dev/.nvm/versions/node/v22.22.2/bin/pnpm"
+            return None
+
+        with (
+            patch.object(_module.sys, "platform", "linux"),
+            patch.object(_module.shutil, "which", side_effect=fake_which) as mock_which,
+        ):
+            assert (
+                _module.resolve_pnpm()
+                == "/home/dev/.nvm/versions/node/v22.22.2/bin/pnpm"
+            )
+            probed = [call.args[0] for call in mock_which.call_args_list]
+            assert "pnpm.cmd" not in probed, (
+                f"pnpm.cmd must not be probed on non-Windows platforms; got {probed!r}"
+            )
+            assert probed == ["pnpm"]
+
+    def test_windows_still_prefers_pnpm_cmd_when_both_resolvable(self) -> None:
+        """Native Windows preference for ``pnpm.cmd`` is preserved."""
+
+        def fake_which(name: str) -> str | None:
+            if name == "pnpm.cmd":
+                return r"C:\Users\dev\AppData\Roaming\npm\pnpm.cmd"
+            if name == "pnpm":
+                return r"C:\Users\dev\AppData\Roaming\npm\pnpm"
+            return None
+
+        with (
+            patch.object(_module.sys, "platform", "win32"),
+            patch.object(_module.shutil, "which", side_effect=fake_which),
+        ):
+            assert (
+                _module.resolve_pnpm() == r"C:\Users\dev\AppData\Roaming\npm\pnpm.cmd"
+            )
+
+    def test_no_unguarded_pnpm_cmd_literal_in_repo_scripts(self) -> None:
+        """Systemic lock: every ``pnpm.cmd`` literal in repo scripts must
+        live in a file that also gates on ``sys.platform == "win32"``.
+
+        ``resolve_pnpm()`` was originally duplicated across five scripts;
+        the WSL ``Errno 8`` regression hit at the second one (artifact
+        parity gate) only after the first was fixed. A behavior test
+        per resolver would lock each call site, but a future copy of the
+        idiom into a new script would silently regress. This file-scoped
+        scan refuses to merge any new script that probes ``pnpm.cmd``
+        without naming the platform guard in the same file.
+        """
+        repo_root = Path(__file__).resolve().parents[2]
+        scan_roots = [
+            repo_root / "scripts",
+            repo_root / ".github" / "scripts",
+        ]
+        offenders: list[str] = []
+        for scan_root in scan_roots:
+            if not scan_root.exists():
+                continue
+            for py_file in sorted(scan_root.rglob("*.py")):
+                source = py_file.read_text(encoding="utf-8")
+                if '"pnpm.cmd"' not in source and "'pnpm.cmd'" not in source:
+                    continue
+                if (
+                    'sys.platform == "win32"' not in source
+                    and "sys.platform == 'win32'" not in source
+                ):
+                    offenders.append(str(py_file.relative_to(repo_root)))
+
+        assert not offenders, (
+            "pnpm.cmd probes must be guarded by sys.platform == 'win32' "
+            "(see TestResolvePnpm for WSL parity rationale). "
+            f"Unguarded offenders: {offenders}"
+        )

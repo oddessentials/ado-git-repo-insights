@@ -823,7 +823,11 @@ def resolve_baseline_python() -> str:
 
 
 def resolve_pnpm() -> str:
-    for candidate in ("pnpm.cmd", "pnpm"):
+    # `.cmd` is only a real executable on native Windows. Under WSL the Windows
+    # `%APPDATA%\npm` directory is on PATH, so probing `pnpm.cmd` first would
+    # find a Windows batch file that Linux cannot exec (Errno 8).
+    candidates = ("pnpm.cmd", "pnpm") if sys.platform == "win32" else ("pnpm",)
+    for candidate in candidates:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
