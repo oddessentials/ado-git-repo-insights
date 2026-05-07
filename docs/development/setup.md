@@ -14,6 +14,7 @@ How to set up a development environment for contributing to ado-git-repo-insight
 | pnpm | 9.15.0 | Enforced by `packageManager` field. Enable via `corepack enable`. |
 | Git | Any recent version | Windows: must include Git Bash (Husky requires `sh`). |
 | gitleaks | Any recent version | Secret scanning (CI parity). Preflight fails closed if missing — no silent skip. Install: `winget install -e --id Gitleaks.Gitleaks` (Windows), `brew install gitleaks` (macOS), `apt install gitleaks` or a [release binary](https://github.com/gitleaks/gitleaks/releases) (Linux). **Windows note:** winget updates PATH for future shells only; if `gitleaks --version` fails in your current shell after install, restart it. |
+| unzip | Any recent version | macOS/Linux only — used by the VSIX-artifact inspection test (`extension/tests/vsix-artifact-inspection.test.ts`) to read the packaged extension contents. Windows uses PowerShell instead. Install: `apt install unzip` (Linux) or pre-installed on macOS. The test fails with an explicit remediation message if `unzip` is missing under `VSIX_REQUIRED=true`. |
 
 ---
 
