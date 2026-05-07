@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -170,7 +171,7 @@ class TestFR012NoAnyIdentifiersInSrc:
         """Verify no .py file in src/ defines a variable/class/function named Any."""
         result = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "-c",
                 (
                     "import ast, pathlib, sys\n"

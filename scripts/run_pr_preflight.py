@@ -1015,6 +1015,40 @@ def ensure_paths() -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
 
 
+def prepend_venv_to_path() -> None:
+    """Prepend the project venv's bin directory to ``PATH`` for subprocesses.
+
+    The husky-driven hook chain prepends ``.venv/{bin,Scripts}`` via
+    ``.husky/_python_path.sh``; that's how pre-commit's ``language: system``
+    hooks find ``python`` without the developer running
+    ``source .venv/bin/activate``. Direct invocations of preflight
+    (``python scripts/run_pr_preflight.py`` or ``.venv/bin/python …``)
+    bypass that helper, so any test that shells out to bare ``python``
+    fails on a fresh non-activated shell.
+
+    Mirror the helper here: deterministic, platform-aware, and a no-op
+    when the venv is absent (callers already see clear errors from the
+    existing tool resolvers in that case). Linux/macOS use ``.venv/bin``;
+    Windows uses ``.venv/Scripts``. We deliberately do NOT cross-fall-back
+    — a Windows-created ``.venv/Scripts`` in a Linux clone would otherwise
+    route subprocesses to a Windows-side interpreter.
+    """
+    if sys.platform == "win32":
+        venv_bin = REPO_ROOT / ".venv" / "Scripts"
+    else:
+        venv_bin = REPO_ROOT / ".venv" / "bin"
+    if not venv_bin.is_dir():
+        return
+    venv_bin_str = str(venv_bin)
+    current_path = os.environ.get("PATH", "")
+    # Idempotent: if the venv is already first on PATH, do nothing.
+    if current_path.split(os.pathsep)[:1] == [venv_bin_str]:
+        return
+    os.environ["PATH"] = (
+        venv_bin_str if not current_path else venv_bin_str + os.pathsep + current_path
+    )
+
+
 def prepare_hermetic_state(
     pnpm_executable: str,
     *,
@@ -1079,6 +1113,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    # Prepend the project venv to PATH before any subprocess is spawned so
+    # tests that invoke bare `python` (or other venv-only tools) resolve the
+    # canonical interpreter even when the caller did not
+    # `source .venv/bin/activate`. Mirrors `.husky/_python_path.sh` for
+    # hook-invoked preflight runs.
+    prepend_venv_to_path()
     python_executable = resolve_baseline_python()
     python_version = probe_python_version(python_executable) or BASELINE_PYTHON
 
