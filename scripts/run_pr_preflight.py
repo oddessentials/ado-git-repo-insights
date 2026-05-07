@@ -1015,6 +1015,38 @@ def ensure_paths() -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
 
 
+def prepare_hermetic_state(
+    pnpm_executable: str,
+    *,
+    verbose: bool = False,
+) -> None:
+    """Reset volatile worktree state before the gate loop runs.
+
+    A previous preflight run that reached the VSIX-package gate stages task
+    runtime dependencies into ``extension/tasks/<task>/node_modules/``. That
+    bundled tree shadows ``extension/node_modules/`` for Jest's path-keyed
+    mocks (``extract-prs-runtime.test.ts``), which then fails the next
+    preflight's Extension Jest CI gate with a misleading
+    ``TypeError: Cannot read properties of undefined (reading 'retrieveSecret')``.
+    CI's ``extension-tests`` job is hermetic by virtue of running on a fresh
+    runner; locally we must clean explicitly.
+    """
+    safe_print("\nPreflight setup: cleaning staged task dependencies")
+    result = run_subprocess(
+        [pnpm_executable, "--dir", "extension", "run", "clean:tasks"],
+        cwd=REPO_ROOT,
+    )
+    if result.returncode != 0:
+        safe_print("[SETUP] clean:tasks failed during preflight setup:")
+        if result.stdout:
+            safe_print(result.stdout.rstrip())
+        if result.stderr:
+            safe_print(result.stderr.rstrip())
+        raise SystemExit(EXIT_SETUP)
+    if verbose and result.stdout:
+        safe_print(result.stdout.rstrip())
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the authoritative local PR preflight.",
@@ -1085,6 +1117,7 @@ def main() -> int:
             "[degraded] Non-authoritative local run: skipped CI-hard gates will "
             "still be enforced in CI"
         )
+    prepare_hermetic_state(pnpm_executable, verbose=args.verbose)
     commands = build_commands(
         main_branch_suppression_baseline(
             allow_local_degraded=args.allow_local_degraded

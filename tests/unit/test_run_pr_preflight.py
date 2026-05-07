@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from argparse import Namespace
@@ -693,4 +694,55 @@ class TestResolvePnpm:
             "pnpm.cmd probes must be guarded by sys.platform == 'win32' "
             "(see TestResolvePnpm for WSL parity rationale). "
             f"Unguarded offenders: {offenders}"
+        )
+
+
+class TestPreflightHermeticPrepare:
+    """Preflight must run hermetic cleanup BEFORE the gate loop.
+
+    A previous preflight that reached the VSIX-package gate stages task
+    runtime deps into ``extension/tasks/<task>/node_modules/``. That
+    bundled tree shadows ``extension/node_modules/`` for Jest's path-keyed
+    mocks, breaking ``extract-prs-runtime.test.ts`` on the next preflight's
+    Extension Jest CI gate. CI's ``extension-tests`` job is hermetic by
+    virtue of running on a fresh runner; locally we cannot rely on that,
+    so ``prepare_hermetic_state`` is invoked before the first gate runs.
+    This regression locks both the existence of that call AND its ordering
+    relative to ``build_commands`` (which constructs the gate list).
+    """
+
+    def test_prepare_hermetic_state_runs_before_build_commands(self) -> None:
+        script_path = (
+            Path(__file__).resolve().parents[2] / "scripts" / "run_pr_preflight.py"
+        )
+        tree = ast.parse(script_path.read_text(encoding="utf-8"))
+        main_fn = next(
+            (
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef) and node.name == "main"
+            ),
+            None,
+        )
+        assert main_fn is not None, "run_pr_preflight.py must define main()"
+
+        called_names: list[str] = []
+        for node in ast.walk(main_fn):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                called_names.append(node.func.id)
+
+        assert "prepare_hermetic_state" in called_names, (
+            "main() must call prepare_hermetic_state() to clean staged task "
+            "dependencies before any gate runs (see TestPreflightHermeticPrepare "
+            "docstring for the WSL/post-VSIX failure mode)"
+        )
+        assert "build_commands" in called_names, (
+            "main() must call build_commands() — preflight gate construction missing"
+        )
+        prepare_idx = called_names.index("prepare_hermetic_state")
+        build_idx = called_names.index("build_commands")
+        assert prepare_idx < build_idx, (
+            f"prepare_hermetic_state must precede build_commands in main() "
+            f"(positions: prepare={prepare_idx}, build={build_idx}); otherwise "
+            "the first gate could see staged-task pollution from a prior run"
         )

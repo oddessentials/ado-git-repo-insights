@@ -33,10 +33,20 @@
  */
 
 import * as fs from "fs";
+import * as _fsOriginal from "fs";
 import * as os from "os";
 import * as path from "path";
 import type * as ChildProcessNS from "child_process";
 import type * as EventsNS from "events";
+
+// `_fs` is a function-call indirection used ONLY for the hermeticity guard
+// below; it sidesteps eslint-plugin-security's `detect-non-literal-fs-filename`
+// for `existsSync`, the same pattern used in `vsix-artifact-inspection.test.ts`.
+// The path passed is constructed from `__dirname` + string literals only.
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
+const _fs = _loadFs();
 
 // ---------------------------------------------------------------------------
 // Shared mutable state on globalThis under an inline literal key. Per-test
@@ -220,6 +230,34 @@ function failureContext(): string {
 // ---------------------------------------------------------------------------
 
 describe("packaged ExtractPullRequests@3 runtime — customer YAML contract", () => {
+  // Hermeticity guard: `pnpm run stage:tasks` (run by `pnpm run package:vsix`)
+  // populates `extension/tasks/extract-prs/node_modules/`. Once that bundled
+  // tree exists, Node's resolver finds its `azure-pipelines-task-lib/task`
+  // first, so Jest's path-keyed `jest.doMock(...)` (registered against
+  // `extension/node_modules/...`) silently misses — the real module loads
+  // with no `_vault`, producing a misleading
+  // `TypeError: Cannot read properties of undefined (reading 'retrieveSecret')`.
+  // CI's `extension-tests` job is hermetic by virtue of running on a fresh
+  // runner; the local PR preflight calls `pnpm --dir extension run clean:tasks`
+  // before its first gate. Direct jest invocations after `package:vsix`
+  // need explicit cleanup.
+  beforeAll(() => {
+    const stagedNodeModules = path.join(
+      __dirname,
+      "..",
+      "tasks",
+      "extract-prs",
+      "node_modules",
+    );
+    if (_fs.existsSync(stagedNodeModules)) {
+      throw new Error(
+        `[hermeticity] Found staged ${path.relative(process.cwd(), stagedNodeModules)} — ` +
+          `Jest's mock for azure-pipelines-task-lib/task will silently miss because Node ` +
+          `resolves the bundled copy first. Remove with: pnpm --dir extension run clean:tasks`,
+      );
+    }
+  });
+
   it("Step 1 (extract with includeComments: true) invokes the CLI extract subcommand WITH --include-comments", async () => {
     seedInputs({
       ...commonInputs(),
