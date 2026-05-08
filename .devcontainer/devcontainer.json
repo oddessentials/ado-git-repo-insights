@@ -1,0 +1,20 @@
+{
+    "name": "ado-git-repo-insights",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "remoteUser": "vscode",
+    "workspaceFolder": "/workspaces/ado-git-repo-insights",
+    "postCreateCommand": "git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "ms-playwright.playwright"
+            ]
+        }
+    }
+}

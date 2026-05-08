@@ -98,6 +98,13 @@ csv_output/
 .taskkey
 node_modules/
 
+# Caches that pnpm/Node may write to the project root when running inside
+# a dev container with bind-mounted source + volume-mounted node_modules
+# (different filesystems → pnpm/Node sometimes spill these onto the bind
+# mount). Suppress so they never appear as untracked changes.
+.pnpm-store/
+node-compile-cache/
+
 # OS files
 .DS_Store
 Thumbs.db
