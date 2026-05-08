@@ -35,10 +35,7 @@ const PROBE_IMPORT = "import numpy, pandas, ado_git_repo_insights";
 // Injectable probe for testability — defaults to the real exec.
 type Probe = (command: string, prefixArgs: readonly string[]) => boolean;
 
-function defaultProbe(
-  command: string,
-  prefixArgs: readonly string[],
-): boolean {
+function defaultProbe(command: string, prefixArgs: readonly string[]): boolean {
   try {
     execFileSync(command, [...prefixArgs, "-c", PROBE_IMPORT], {
       stdio: "pipe",

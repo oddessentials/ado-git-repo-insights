@@ -98,9 +98,7 @@ describe("resolvePythonInvocation", () => {
 
   it("throws actionable error only when NO candidate has the required deps", () => {
     // No override, no .venv, AND no system interpreter has the deps.
-    expect(() =>
-      resolvePythonInvocation(() => null, probeAlwaysFalse),
-    ).toThrow(
+    expect(() => resolvePythonInvocation(() => null, probeAlwaysFalse)).toThrow(
       /No Python interpreter with project deps.*uv sync --extra dev.*pip install -e \.\[dev\]/s,
     );
   });
