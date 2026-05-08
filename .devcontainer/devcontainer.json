@@ -5,6 +5,24 @@
     },
     "remoteUser": "vscode",
     "workspaceFolder": "/workspaces/ado-git-repo-insights",
+    // postCreateCommand runs once after the container is created, with the
+    // workspace bind-mounted. Step ordering is load-bearing:
+    //
+    //   1. `git config core.autocrlf false` — repo-local LF policy.
+    //   2. `pnpm install --frozen-lockfile` — root deps + Husky activation.
+    //      This MUST run before any `git commit`/`git push` is attempted,
+    //      because Husky writes its dispatcher into `.husky/_/` here.
+    //   3. `uv sync --locked --extra dev` — creates `.venv/` and installs
+    //      the project in editable mode. The husky helper's import probe
+    //      (`import ado_git_repo_insights`) requires this step to have
+    //      completed; do not commit between step 2 and step 3.
+    //   4. `pnpm --dir extension install --frozen-lockfile` — extension
+    //      deps; triggers the Playwright postinstall (~110 MB Chromium
+    //      download into ~/.cache/ms-playwright).
+    //
+    // VS Code Dev Containers waits for this command to finish before
+    // marking the container "ready," so the only risk window is a
+    // mid-build retry started manually before sync completes.
     "postCreateCommand": "git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile",
     "customizations": {
         "vscode": {
