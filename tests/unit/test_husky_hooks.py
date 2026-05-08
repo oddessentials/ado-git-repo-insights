@@ -199,16 +199,49 @@ class TestHuskyPythonPathHelper:
             f"Helper must succeed via system fallback; got rc={result.returncode}\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
-        # HOOK_PYTHON must point at the planted stub (which is the first
-        # python3 on PATH and passes the probe via sys.executable).
-        assert f"HOOK_PYTHON={sys_bin}/python3" in result.stdout, (
-            f"Helper must export HOOK_PYTHON pointing at the system-fallback "
-            f"stub on PATH; stdout={result.stdout!r}"
+
+        # Path-format note: Windows Git Bash echoes paths in POSIX form
+        # (e.g. /c/Users/...) which differs from Python's str(Path) on
+        # Windows (C:\Users\...). Compare suffixes/semantics, never absolute
+        # path equality, so the assertion is platform-stable.
+        hook_python_line = next(
+            (
+                line
+                for line in result.stdout.splitlines()
+                if line.startswith("HOOK_PYTHON=")
+            ),
+            "",
         )
-        # PATH must NOT have been prepended with a tmp_path/.venv/bin entry —
-        # only the .venv-wins branch prepends, and that branch did not fire.
-        assert f"PATH_HEAD={tmp_path}/.venv/bin" not in result.stdout
-        assert f"PATH_HEAD={tmp_path}/.venv/Scripts" not in result.stdout
+        hook_python_path = hook_python_line[len("HOOK_PYTHON=") :]
+        assert hook_python_path.endswith(("/sys-bin/python3", "\\sys-bin\\python3")), (
+            f"HOOK_PYTHON should end with sys-bin/python3 to confirm the "
+            f"planted system-fallback stub was selected; "
+            f"got {hook_python_path!r}"
+        )
+
+        path_head_line = next(
+            (
+                line
+                for line in result.stdout.splitlines()
+                if line.startswith("PATH_HEAD=")
+            ),
+            "",
+        )
+        path_head = path_head_line[len("PATH_HEAD=") :]
+        # Negative invariant: this test specifically proves the system-fallback
+        # branch, so the .venv-wins branch must NOT have fired and PATH must
+        # NOT contain any `.venv` path component (POSIX or NT separators).
+        venv_absence_msg = (
+            f"Helper must not have prepended .venv (option 1 did not fire); "
+            f"got {path_head!r}"
+        )
+        assert "/.venv/" not in path_head, venv_absence_msg
+        assert "\\.venv\\" not in path_head, venv_absence_msg
+        # Positive: PATH_HEAD ends with the sys-bin we prepended ourselves
+        # to demonstrate the system fallback.
+        assert path_head.endswith(("/sys-bin", "\\sys-bin")), (
+            f"PATH_HEAD should be the planted system-fallback dir; got {path_head!r}"
+        )
 
     def test_helper_fails_when_no_candidate_has_project_deps(
         self, tmp_path: Path
