@@ -1,393 +1,180 @@
 # Troubleshooting
 
-Common issues and solutions for both CLI and Extension users.
+Common issues and fixes for both CLI and Extension users.
 
 ---
 
-## Installation Issues
+## Installation
 
 ### "ado-insights: command not found"
 
-**Run the doctor command** to diagnose:
-
-```bash
-python -m ado_git_repo_insights.cli doctor
-```
-
-**Cause:** Scripts directory is not on PATH.
-
-**Solutions by installation method:**
+Diagnose: `python -m ado_git_repo_insights.cli doctor`. Cause is typically that the install method's scripts directory isn't on PATH.
 
 | Method | Fix |
-|--------|-----|
-| pipx | Run: `pipx ensurepath` then restart terminal |
-| uv | Run: `uv tool update-shell` then restart terminal |
-| pip | Run: `ado-insights setup-path` then restart terminal |
-
-**Manual fix:** Add the scripts directory to your PATH. Use `ado-insights setup-path --print-only` to see the command.
+|---|---|
+| pipx | `pipx ensurepath`, restart terminal |
+| uv | `uv tool update-shell`, restart terminal |
+| pip | `ado-insights setup-path` (or `ado-insights setup-path --print-only` to preview) |
 
 ### Multiple installations conflict
 
-**Symptoms:** Wrong version runs, or commands behave unexpectedly.
-
-**Diagnose:**
+Symptoms: wrong version runs, or commands behave unexpectedly. `ado-insights doctor` flags this.
 
 ```bash
-ado-insights doctor
-```
-
-If doctor shows "Multiple installations found":
-
-1. **Keep pipx/uv, remove pip:**
-   ```bash
-   pip uninstall ado-git-repo-insights
-   ```
-
-2. **Keep uv, remove pipx:**
-   ```bash
-   pipx uninstall ado-git-repo-insights
-   ```
-
-3. **Start fresh:**
-   ```bash
-   pip uninstall ado-git-repo-insights
-   pipx uninstall ado-git-repo-insights
-   uv tool uninstall ado-git-repo-insights
-   # Then reinstall with your preferred method
-   pipx install ado-git-repo-insights
-   ```
-
-### Upgrade issues
-
-**Upgrade commands by installation method:**
-
-```bash
-# pipx
-pipx upgrade ado-git-repo-insights
-
-# uv
-uv tool upgrade ado-git-repo-insights
-
-# pip
-pip install --upgrade ado-git-repo-insights
-```
-
-### Uninstallation
-
-**If you used setup-path, remove it first:**
-
-```bash
-ado-insights setup-path --remove
-```
-
-**Then uninstall:**
-
-```bash
-# pipx
+# Pick one and remove the others:
 pipx uninstall ado-git-repo-insights
-
-# uv
 uv tool uninstall ado-git-repo-insights
-
-# pip
 pip uninstall ado-git-repo-insights
+# Then reinstall via the method you want to keep.
 ```
 
----
+### Upgrade / uninstall
 
-## Authentication Issues
-
-### "401 Unauthorized"
-
-**Cause:** PAT is invalid, expired, or lacks permissions.
-
-**Solution:**
-1. Create a new PAT with **Code (Read)** scope
-2. Ensure PAT has access to all target projects
-3. For multi-org setups, enable "All accessible organizations"
-4. Update the PAT in your variable group or environment variable
-
-### "403 Forbidden"
-
-**Cause:** PAT lacks access to specific projects.
-
-**Solution:**
-1. Verify the PAT organization matches your target
-2. Check project-level permissions
-3. Try creating a PAT with "All accessible organizations" scope
+Use whichever installer you originally used: `pipx upgrade`, `uv tool upgrade`, or `pip install --upgrade`. Same shape for `uninstall`. If you ran `ado-insights setup-path`, undo with `ado-insights setup-path --remove` before the uninstall.
 
 ---
 
-## Extraction Issues
+## Authentication
+
+| Error | Cause | Fix |
+|---|---|---|
+| `401 Unauthorized` | PAT invalid, expired, or wrong scope | Regenerate with **Code (Read)** scope. For multi-org setups, enable "All accessible organizations." |
+| `403 Forbidden` | PAT lacks access to the targeted project(s) | Verify the PAT's organization matches; check project-level permissions. |
+
+PAT setup canonical reference: [extension guide § Step 2](extension.md#step-2--create-a-personal-access-token-pat).
+
+---
+
+## Extraction
 
 ### "No PRs extracted" but PRs exist
 
-**Causes:**
-
-1. **End date defaults to yesterday**
-   - PRs closed today are excluded to ensure complete data
-   - Use `--end-date` or `endDate` to include today:
-     ```bash
-     # CLI
-     ado-insights extract --end-date $(date +%Y-%m-%d) ...
-
-     # Extension task
-     endDate: '2026-01-19'
-     ```
-
-2. **Only completed PRs are extracted**
-   - Active, draft, and abandoned PRs are not extracted
-   - The tool captures only successfully merged PRs
-
-3. **Timezone differences**
-   - Tool uses local dates; ADO API uses UTC
-   - A PR closed late in your timezone may appear as closed "tomorrow" in UTC
-
-4. **Project names are case-sensitive**
-   - Verify exact project names in Azure DevOps
-
-5. **Start date is too recent**
-   - First run defaults to Jan 1 of current year
-   - Use `--start-date` for historical data
+| Cause | Fix |
+|---|---|
+| End date defaults to yesterday (excludes today's PRs to ensure complete data) | Pass `--end-date $(date +%Y-%m-%d)` (CLI) or `endDate: '<today>'` (task input) |
+| Only completed (merged) PRs are extracted; active/draft/abandoned are not | By design |
+| Timezone — tool uses local dates, ADO API uses UTC | Late-day local times may roll into "tomorrow" UTC |
+| Project names are case-sensitive | Match the exact ADO project name |
+| Start date too recent (default: Jan 1 of current year) | `--start-date YYYY-MM-DD` for older data |
 
 ### Extraction hangs or is slow
 
-**Causes:**
-
-1. **Rate limiting**
-   - Check logs for retry messages
-   - Increase `rate_limit_sleep_seconds` in config
-
-2. **Large date range**
-   - Break into smaller ranges
-   - Try extracting one date at a time with debug logging
-
-3. **Network issues**
-   - Verify connectivity to `dev.azure.com`
-   - Check firewall/proxy settings
-
-**Debug:**
-```bash
-export PYTHONLOGLEVEL=DEBUG
-ado-insights extract ...
-```
-
-### "Connection timeout"
-
-**Solution:**
-1. Increase `retry_delay_seconds` in config
-2. Check network connectivity
-3. Verify proxy settings if applicable
+Check logs for retry messages (rate limiting). Increase `rate_limit_sleep_seconds` and `retry_delay_seconds` in `config.yaml`. Break a large date range into smaller chunks. Verify connectivity to `dev.azure.com`. Debug verbosely with `PYTHONLOGLEVEL=DEBUG`.
 
 ---
 
-## Comment Extraction and Backfill
+## Comment extraction & backfill
 
 ### "Backfill exited 0 but no PRs were processed"
 
-**Cause:** The database schema predates the thread storage tables.
-The subcommand logs a legacy-schema warning and exits 0 without work.
-
-**Check:** Look for the legacy-schema warning in the backfill
-`run_summary.json` artifact (`warnings` list) or the pipeline log.
-
-**Fix:** Run the extract pipeline once under the current CLI / task
-version — schema migrations add the thread tables automatically — then
-re-run backfill.
+The DB schema predates the thread storage tables. The subcommand logs `backfill-comments: skipped (legacy schema; no thread storage tables)` and exits 0 with zero work done. Run the extract pipeline once under the current CLI/task version (schema migrations add the tables automatically), then re-run backfill.
 
 ### Per-PR failures reported but the run exited 0
 
-**By design.** A per-PR extraction error leaves that PR's coverage
-marker NULL so the next invocation reselects it. The loop continues
-with the next PR, and the run exits 0 as long as the loop reached the
-end.
+By design. A per-PR error leaves that PR's coverage marker NULL so the next invocation reselects it; the loop continues with the next PR. Inspect `run_summary.json`'s `warnings` list for the normalized error message of the failing PR.
 
-**Fix:** Re-run backfill. For a persistently-failing PR, inspect its
-entry in the `run_summary.json` artifact's `warnings` list for the
-normalized error message.
+### Backfill hits pipeline timeout
 
-### "Backfill hits pipeline timeout"
-
-**Fix:** Size `--limit` (CLI) / `backfillLimit` (task) to fit inside
-your job timeout at an empirical rate of roughly ~1 PR/sec — see the
-[sizing table](extension.md#sizing-backfilllimit). Interrupted runs are
-resumable: PRs whose per-PR transaction already committed stay covered;
-the next run picks up where the previous one stopped.
+Size `--limit` (CLI) / `backfillLimit` (task) to fit your job timeout. Sizing table: [extension guide § Sizing backfillLimit](extension.md#sizing-backfilllimit). Interrupted runs are resumable: PRs already committed stay covered, the next run picks up where the previous stopped.
 
 ### "How do I know backfill is done?"
 
-See the [extension guide's observable-signals
-table](extension.md#how-to-tell-its-working). A drained backlog is a
-run whose opening log line reports an empty selection, with no per-PR
-progress lines and a zero-count closing line.
+See [extension guide § How to tell it's working](extension.md#how-to-tell-its-working). A drained backlog is a run whose opening line reports an empty selection, with no per-PR progress lines and a zero-count closing line.
 
 ---
 
-## Pipeline Issues (Extension)
+## Pipeline (Extension)
 
-### "Task not found" error
-
-**Cause:** Extension not installed or not visible to the pipeline.
-
-**Solution:**
-1. Verify extension is installed: Organization Settings → Extensions
-2. Check task name is exactly `ExtractPullRequests@3`
-3. Ensure pipeline agent can reach the marketplace
-4. Try creating a new pipeline
-
-### "Python not found" error
-
-**Cause:** Self-hosted agent missing Python.
-
-**Solution:**
-1. The extension auto-installs Python dependencies
-2. Ensure agent has internet access
-3. Verify pip is available on the agent
-4. Use `UsePythonVersion@0` task if needed
-
-### First run downloads nothing
-
-**This is expected.** The "Download Previous Database" step will show a warning on the first run because there's no prior artifact. Subsequent runs will download the previous database for incremental updates.
-
-### Pipeline succeeds but no data
-
-**Check:**
-1. Verify the pipeline published an `aggregates` artifact
-2. Ensure `run_summary.json` shows success
-3. Check that projects in the task inputs are correct
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Task not found` | Extension not installed, or pipeline can't see it | Verify install (Org Settings → Extensions); confirm task name `ExtractPullRequests@3`; ensure agent can reach the marketplace |
+| `Python not found` | Self-hosted agent missing Python | Add a `UsePythonVersion@0` step before the task |
+| First run "downloads nothing" warning | No prior artifact yet | Expected on first run; subsequent runs download the previous DB |
+| Pipeline succeeds but no data | Missing `aggregates` artifact, or wrong projects | Verify the publish step ran; cross-check `run_summary.json`; confirm project names |
 
 ---
 
-## Dashboard Issues
+## Dashboard
 
-### Dashboard not showing / "PR Insights" menu missing
+### "PR Insights" menu missing / dashboard not showing
 
-**Causes:**
+| Cause | Fix |
+|---|---|
+| No `aggregates` artifact | Confirm pipeline published it; the artifact must contain `dataset-manifest.json` |
+| Missing **Build (Read)** permission | The dashboard reads pipeline artifacts; ask an admin to grant access |
+| Artifact retention expired | Configure extended retention (90+ days) in pipeline settings |
 
-1. **No aggregates artifact**
-   - Verify the pipeline published an `aggregates` artifact
-   - Check that the artifact contains `dataset-manifest.json`
-
-2. **Permissions**
-   - You need **Build (Read)** permission on the pipeline
-   - The dashboard reads data from pipeline artifacts
-
-3. **Artifact retention**
-   - Artifacts may have expired
-   - Configure extended retention in pipeline settings
-
-**Debug:** Add `?pipelineId=<id>` to the dashboard URL to force a specific pipeline.
-
-### "No access to analytics pipeline artifacts"
-
-**Solution:** Ask an admin to grant Build Read permission on the analytics pipeline.
+Force a specific pipeline with `?pipelineId=<id>` in the dashboard URL.
 
 ### Dashboard shows wrong pipeline
 
-**Solution:**
-1. Go to **Project Settings** → **PR Insights Settings**
-2. Select the correct default pipeline
-3. Or use `?pipelineId=<id>` query parameter
+**Project Settings** → **PR Insights Settings** → select the correct default pipeline. Or use the `?pipelineId=<id>` URL parameter.
 
 ---
 
-## Data Issues
+## Data
 
 ### Duplicate PRs in database
 
-**This should not happen** — the system uses UPSERT semantics.
+Should not happen — UPSERT semantics. If they do, file an issue. Diagnose:
 
-**Debug:**
 ```sql
-SELECT pull_request_uid, COUNT(*)
-FROM pull_requests
-GROUP BY pull_request_uid
-HAVING COUNT(*) > 1
+SELECT pull_request_uid, COUNT(*) FROM pull_requests
+GROUP BY pull_request_uid HAVING COUNT(*) > 1;
 ```
-
-If duplicates exist, check if `pull_request_uid` generation is consistent. File an issue if this occurs.
 
 ### CSV has wrong columns
 
-**This is a contract violation.** The CSV schema is guaranteed stable.
-
-**Expected headers:**
-```
-pull_requests.csv: pull_request_uid,pull_request_id,organization_name,project_name,repository_id,user_id,title,status,description,creation_date,closed_date,cycle_time_minutes
-```
-
-File an issue if column order or names differ.
+The CSV schema is a stable contract. If column order or names differ, file an issue. Reference: [CSV Schema](../reference/csv-schema.md).
 
 ### Missing historical data
 
-**Solution:**
-1. Run with explicit date range:
-   ```bash
-   ado-insights extract --start-date 2024-01-01 --end-date 2024-12-31 ...
-   ```
-2. For Extension, add `startDate` and `endDate` task inputs
+Re-extract the historical range explicitly:
+
+```bash
+ado-insights extract --start-date 2024-01-01 --end-date 2024-12-31 ...
+```
+
+Extension equivalent: pass `startDate` and `endDate` task inputs.
 
 ---
 
-## Recovery Procedures
+## Recovery
 
 ### Database corruption
 
-**Option A:** Delete and re-extract
 ```bash
 rm ado-insights.sqlite
-ado-insights extract --start-date 2024-01-01 ...
+ado-insights extract --start-date YYYY-MM-DD ...
 ```
 
-**Option B:** Restore from prior artifact
-1. Go to Pipelines → Runs → [last successful run] → Artifacts
-2. Download `ado-insights-db` artifact
+Or restore from a prior pipeline artifact: **Pipelines** → **Runs** → last successful run → Artifacts → download `ado-insights-db`.
 
 ### Missing/expired pipeline artifact
 
-**Behavior:** System treats it as first-run and creates a fresh database.
-
-**Prevention:** Configure extended artifact retention (90+ days) in pipeline settings.
-
-**Recovery:** Use `--start-date` to re-extract historical data.
+The system treats it as first-run and creates a fresh database. Prevention: extended artifact retention (90+ days) in pipeline settings.
 
 ---
 
-## Logging and Debugging
+## Logging
 
-### Enable debug logging
-
-**CLI:**
 ```bash
-export PYTHONLOGLEVEL=DEBUG
-ado-insights extract ...
+PYTHONLOGLEVEL=DEBUG ado-insights extract ...           # verbose console
+ado-insights --log-format jsonl extract ...             # JSONL → run_artifacts/logs.jsonl
 ```
 
-**JSONL logging:**
-```bash
-ado-insights --log-format jsonl extract ...
-# Check run_artifacts/logs.jsonl
-```
-(`--log-format` is a global flag and must precede the subcommand — see
-[CLI Reference § Global Options](../reference/cli-reference.md#global-options).)
+`--log-format` is a global flag and must precede the subcommand — see [CLI Reference § Global Options](../reference/cli-reference.md#global-options).
 
-### Run summary location
-
-Always written to `run_artifacts/run_summary.json`, even on failure.
-
-Contains:
-- Status (success/failure)
-- Per-project results
-- First fatal error
-- Timing and counts
+`run_artifacts/run_summary.json` is always written, even on failure (status, per-project results, first fatal error, timing).
 
 ---
 
-## Getting Help
+## Getting help
 
-1. Check the [GitHub Issues](https://github.com/oddessentials/ado-git-repo-insights/issues) for known issues
-2. Open a new issue with:
-   - Command/task configuration (with PAT redacted)
-   - Error message
-   - `run_summary.json` contents
-   - Debug logs if available
+Check [existing GitHub issues](https://github.com/oddessentials/ado-git-repo-insights/issues) first. When opening a new one, include:
+
+- Command or task configuration (PAT redacted)
+- Error message
+- `run_summary.json` contents
+- Debug logs if available
+</content>

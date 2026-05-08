@@ -1,114 +1,71 @@
 # Extension User Guide
 
-This guide walks you through installing and using the **Git Repo Insights** extension in Azure DevOps.
+How to install and use the **Git Repo Insights** Azure DevOps extension.
 
 ---
 
-## What You Get
+## What you get
 
-- **PR Insights Dashboard** — Visual analytics directly in your ADO project
-- **PowerBI-compatible CSVs** — Export data for custom reporting
-- **SQLite Database** — Persistent storage of PR history via pipeline artifacts
-- **Incremental Updates** — Efficient daily extraction with optional backfill
-- **Parity with the CLI dashboard** — The extension and CLI consume the same dashboard bundle contract
-
-## Demo Parity Reference
-
-The published GitHub Pages demo is not a separate product surface. It is built
-from the same dashboard bundle contract used by the extension and is backed by
-the canonical enterprise synthetic dataset generated via:
-
-```bash
-python scripts/build-demo-dataset.py --commit-canonical
-```
-
-That dataset is promoted into `docs/data/` for publishing and is intended to
-exercise the same supported dashboard capabilities users should expect in an
-enterprise environment.
+- **PR Insights Dashboard** — visual analytics in your ADO project
+- **PowerBI-compatible CSVs** — exported per pipeline run for custom reporting
+- **SQLite Database** — persistent PR history via pipeline artifacts
+- **Incremental Updates** — efficient daily extraction with optional backfill
 
 ---
 
 ## Prerequisites
 
 | Requirement | Details |
-|-------------|---------|
-| Azure DevOps Organization | Any ADO organization (cloud) |
-| Extension Install Permission | Organization admin OR "Manage extensions" permission |
-| Project Access | Access to project(s) you want to analyze |
+|---|---|
+| Azure DevOps Organization | Any cloud-hosted ADO organization |
+| Permission | Organization admin OR "Manage extensions" |
+| Project access | Access to project(s) you want to analyze |
 
 ---
 
-## Step 1: Install the Extension
+## Step 1 — Install the extension
 
-### Option A: Install from Marketplace (Recommended)
+**From Marketplace (recommended)**: visit [Git Repo Insights on the Marketplace](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights), click **Get it free**, select your organization, click **Install**.
 
-1. Go to: [Git Repo Insights on Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
-2. Click **Get it free**
-3. Select your organization from the dropdown
-4. Click **Install**
-5. Click **Proceed to organization**
-
-### Option B: Install from VSIX (Private/Testing)
-
-1. Download the `.vsix` from [GitHub Releases](https://github.com/oddessentials/ado-git-repo-insights/releases)
-2. Go to: `https://dev.azure.com/{your-org}/_settings/extensions`
-3. Click **Browse local extensions** → **Manage extensions** → **Upload extension**
-4. Select the `.vsix` file and upload
-5. Click **Get it free** → Select your organization → **Install**
+**From VSIX (private/testing)**: download the `.vsix` from [GitHub Releases](https://github.com/oddessentials/ado-git-repo-insights/releases). In ADO go to `https://dev.azure.com/{your-org}/_settings/extensions` → **Browse local extensions** → **Manage extensions** → **Upload extension**.
 
 ---
 
-## Step 2: Create a Personal Access Token (PAT)
+## Step 2 — Create a Personal Access Token (PAT)
 
-The extension needs a PAT to read Pull Request data from your repositories.
+The extension reads PR data via the Azure DevOps REST API; it needs a PAT with **Code (Read)** scope.
 
-1. In Azure DevOps, click your profile picture (top right) → **Personal access tokens**
-2. Click **+ New Token**
-3. Configure:
+1. ADO → profile picture (top right) → **Personal access tokens** → **+ New Token**.
+2. Configure:
    | Field | Value |
-   |-------|-------|
+   |---|---|
    | Name | `pr-insights-extraction` |
-   | Organization | Your target organization |
+   | Organization | Your target org |
    | Expiration | 90+ days recommended |
-   | Scopes | Click "Show all scopes" → check **Code → Read** |
-4. Click **Create**
-5. **Copy the token immediately** — you won't see it again
+   | Scopes | "Show all scopes" → check **Code → Read** |
+3. **Copy the token immediately** — you can't see it again.
+
+This is the canonical PAT setup; the [CLI guide](local-cli.md) and [troubleshooting](troubleshooting.md) link back here.
 
 ---
 
-## Step 3: Store PAT in a Variable Group
+## Step 3 — Store PAT in a Variable Group
 
-Secrets should never be stored in pipeline YAML files. Use a Variable Group instead.
+Never put secrets in pipeline YAML.
 
-1. Navigate to: **Pipelines** → **Library**
-2. Click **+ Variable group**
-3. Configure:
-   | Field | Value |
-   |-------|-------|
-   | Variable group name | `ado-insights-secrets` |
-4. Click **+ Add** and enter:
-   | Name | Value |
-   |------|-------|
-   | `PAT_SECRET` | Your PAT from Step 2 |
-5. Click the lock icon to mark as secret
-6. Click **Save**
+1. **Pipelines** → **Library** → **+ Variable group**.
+2. Name it `ado-insights-secrets`.
+3. Add a variable `PAT_SECRET` with your PAT value; click the **lock** icon to mark it secret.
+4. **Save**.
 
 ---
 
-## Step 4: Create the Pipeline
+## Step 4 — Create the pipeline
 
-### Using an Existing Repository
-
-You can store the pipeline YAML in any repository you have access to. Common choices:
-- A dedicated "pipelines" or "infrastructure" repository
-- The main repository of the project being analyzed
-
-### Pipeline YAML
-
-Create a new file (e.g., `pr-insights-pipeline.yml`) with:
+The pipeline YAML can live in any repo you can access. Create a new file (e.g. `pr-insights-pipeline.yml`):
 
 ```yaml
-trigger: none  # Configure schedule below or run manually
+trigger: none
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -121,25 +78,21 @@ stages:
     displayName: 'Extract PR Metrics'
     jobs:
       - job: ExtractPRs
-        displayName: 'Extract and Publish'
         steps:
-          # Create required directories
           - pwsh: |
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/aggregates" | Out-Null
-            displayName: 'Create Directories'
+            displayName: 'Create directories'
 
-          # Ensure Node.js is available
           - task: UseNode@1
             displayName: 'Install Node.js 22'
             inputs:
               version: '22.x'
 
-          # Download previous database (enables incremental extraction)
           - task: DownloadPipelineArtifact@2
-            displayName: 'Download Previous Database'
-            continueOnError: true  # First run will have no artifact
+            displayName: 'Download previous database'
+            continueOnError: true
             inputs:
               buildType: 'specific'
               project: '$(System.TeamProjectId)'
@@ -150,36 +103,32 @@ stages:
               artifactName: 'ado-insights-db'
               targetPath: '$(Pipeline.Workspace)/data'
 
-          # Run the extraction task
           - task: ExtractPullRequests@3
-            displayName: 'Extract PR Metrics'
+            displayName: 'Extract PR metrics'
             inputs:
-              organization: 'YOUR_ORG_NAME'      # CHANGE THIS
+              organization: 'YOUR_ORG_NAME'
               projects: |
-                YOUR_PROJECT_1                    # CHANGE THIS
-                YOUR_PROJECT_2                    # Add more as needed
+                YOUR_PROJECT_1
+                YOUR_PROJECT_2
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
               aggregatesDir: '$(Pipeline.Workspace)/aggregates'
 
-          # Publish database (enables incremental runs)
           - task: PublishPipelineArtifact@1
-            displayName: 'Publish Database'
+            displayName: 'Publish database'
             condition: succeeded()
             inputs:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: 'ado-insights-db'
 
-          # Publish aggregates (enables dashboard)
           - task: PublishPipelineArtifact@1
-            displayName: 'Publish Aggregates'
+            displayName: 'Publish aggregates'
             condition: succeeded()
             inputs:
               targetPath: '$(Pipeline.Workspace)/aggregates'
               artifact: 'aggregates'
 
-          # Publish CSVs for download
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: succeeded()
@@ -188,144 +137,93 @@ stages:
               artifact: 'csv-output'
 ```
 
-**Customize the placeholders:**
+Replace `YOUR_ORG_NAME` and project names. Then in ADO: **Pipelines** → **New pipeline** → select your repo → **Existing Azure Pipelines YAML file** → choose the file → **Save and run**.
 
-| Placeholder | Replace With |
-|-------------|--------------|
-| `YOUR_ORG_NAME` | Your Azure DevOps organization name |
-| `YOUR_PROJECT_1` | Name of a project to analyze |
-| `YOUR_PROJECT_2` | Additional projects (or remove) |
-
-### Create the Pipeline in Azure DevOps
-
-1. Navigate to **Pipelines** → **Pipelines** → **New pipeline**
-2. Select **Azure Repos Git** (or GitHub)
-3. Select your repository
-4. Select **Existing Azure Pipelines YAML file** and choose your YAML file
-5. Click **Save and run**
+The full reference template lives at [`pr-insights-pipeline.yml`](../../pr-insights-pipeline.yml) at repo root.
 
 ---
 
-## Step 5: Verify the Pipeline Run
+## Step 5 — Verify the run
 
-After the pipeline completes:
-
-1. Navigate to **Pipelines** → Click your pipeline → View the latest run
-2. All steps should show green checkmarks
-3. View the **Artifacts** section:
+After the pipeline completes, check the **Artifacts** section:
 
 | Artifact | Purpose |
-|----------|---------|
+|---|---|
 | `ado-insights-db` | SQLite database (enables incremental runs) |
 | `aggregates` | Dashboard data (enables PR Insights hub) |
 | `csv-output` | PowerBI-compatible CSVs |
 
 ---
 
-## Step 6: View the PR Insights Dashboard
+## Step 6 — View the dashboard
 
-After a successful pipeline run with the `aggregates` artifact:
+After a successful run that publishes the `aggregates` artifact:
 
-1. Navigate to your Azure DevOps project
-2. Find **PR Insights** in the left navigation under **Repos**
-3. The dashboard automatically discovers pipelines that publish aggregates
+1. Navigate to your ADO project.
+2. Find **PR Insights** in the left navigation under **Repos**.
+3. The dashboard auto-discovers pipelines that publish aggregates.
 
-### Dashboard Configuration
+If you have multiple pipelines publishing aggregates, set a default in **Project Settings** → **PR Insights Settings**.
 
-If you have multiple pipelines publishing aggregates, configure a default:
+The dashboard also accepts `?dataset=<url>` (dev/testing) or `?pipelineId=<id>` (override) URL parameters.
 
-1. Go to **Project Settings** → **PR Insights Settings**
-2. Select your preferred default pipeline
-
-**Configuration precedence:**
-1. `?dataset=<url>` — Direct URL (dev/testing only)
-2. `?pipelineId=<id>` — Query parameter override
-3. Extension settings — User-scoped saved preference
-4. Auto-discovery — Find pipelines with 'aggregates' artifact
-
-### Filter Behavior Notes
-
-- **Author filter** is a searchable single-select control keyed by stable author identity.
-- **Author + team** is constrained: the dashboard keeps the team selection visible but computes author-only metrics.
-- **Author + repository** uses exact metrics when the dataset exposes `by_author_and_repo`; otherwise legacy datasets fall back safely.
-- **Reviewer + repository** is constrained and uses reviewer-only metrics while retaining repository state.
-- **Reviewer + team** is disallowed and the dashboard clears the team selection with explicit UI messaging.
-- **Comments coverage** is shown as `full` or `partial`; `partial` means extraction was capped and comments remain an auxiliary analytics surface rather than part of the PowerBI CSV contract.
+For details on filter behavior — author/team/repository constraints, comments-coverage indicator (`full` vs `partial`) — see [`docs/reference/dataset-contract.md`](../reference/dataset-contract.md).
 
 ---
 
-## Setting Up a Schedule
+## Schedule the pipeline
 
-For continuous metrics, add a schedule trigger:
+For continuous metrics:
 
 ```yaml
-trigger: none
-
 schedules:
-  - cron: "0 6 * * *"  # Daily at 6 AM UTC
+  - cron: "0 6 * * *"        # daily at 6 AM UTC
     displayName: "Daily PR Extraction"
     branches:
       include: [main]
     always: true
 ```
 
-### Weekly Backfill (Recommended)
+### Weekly backfill (recommended)
 
-Add backfill on Sundays to catch late PR changes:
+Add a weekly task that re-extracts the recent window to converge late changes:
 
 ```yaml
 - task: ExtractPullRequests@3
   inputs:
     # ... other inputs ...
-    backfillDays: 60  # Re-extract last 60 days
+    backfillDays: 60
 ```
 
-Or use the production-ready template: [pr-insights-pipeline.yml](../../pr-insights-pipeline.yml)
+A production-ready template with both daily and weekly stages lives at [`pr-insights-pipeline.yml`](../../pr-insights-pipeline.yml).
 
 ---
 
-## Extracting Historical Data
+## Extracting historical data
 
-By default, the first extraction covers PRs from January 1st of the current year through yesterday.
-
-**To extract the past year of PR history**, add date overrides to your first run:
+By default, the first extraction covers PRs from January 1st of the current year through yesterday. To extend further back, add date overrides on your first run only:
 
 ```yaml
 - task: ExtractPullRequests@3
   inputs:
-    organization: 'YOUR_ORG_NAME'
-    projects: 'YOUR_PROJECT_1'
-    pat: '$(PAT_SECRET)'
-    database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
-    # Add for historical extraction (remove after first run)
+    # ... other inputs ...
     startDate: '2025-01-01'
     endDate: '2026-01-19'
 ```
 
-After the first run, remove `startDate` and `endDate` — subsequent runs automatically do incremental daily extraction.
+After the first run, remove `startDate`/`endDate` — subsequent runs do incremental daily extraction automatically.
 
 ---
 
-## Backfilling Historical PR Comments
+## Backfilling historical PR comments
 
-When you enable `includeComments: true` on your extract pipeline, incremental
-runs start fetching thread data for newly-closed PRs — but historical PRs
-already in the database (`comments_extracted_at IS NULL`) are not retroactively
-covered. For organizations with large histories, you need a **one-time backfill
-pipeline** to catch everything up. After that, the regular extract pipeline
-maintains coverage going forward.
+When you enable `includeComments: true` on your extract pipeline, incremental runs start fetching comment threads for newly-closed PRs — but historical PRs already in the database (`comments_extracted_at IS NULL`) are not retroactively covered. For organizations with large histories, run a **one-time backfill pipeline** to catch up. After the backlog is drained, the regular extract pipeline maintains coverage going forward.
 
-> **Precondition.** Your DB artifact must already contain the
-> `pr_threads` / `pr_comments` tables (schema migrations add them on any
-> modern extract run). Backfill against an older DB logs
-> `backfill-comments: skipped (legacy schema; no thread storage tables)`
-> and exits 0 with zero work done — run your extract pipeline once under
-> the current task version first, then start the backfill.
+> **Precondition.** The DB artifact must already contain `pr_threads` / `pr_comments` tables (added by schema migrations on any modern extract run). Backfill against an older DB logs `backfill-comments: skipped (legacy schema; no thread storage tables)` and exits 0 with zero work done — run your extract pipeline once under the current task version first, then start the backfill.
 
 ### One-line YAML change
 
-Add a second pipeline (or a separate stage) that flips the same
-`ExtractPullRequests@3` task into backfill mode:
+A separate pipeline (or stage) flips the `ExtractPullRequests@3` task into backfill mode:
 
 ```yaml
 - task: ExtractPullRequests@3
@@ -333,122 +231,78 @@ Add a second pipeline (or a separate stage) that flips the same
     organization: 'YOUR_ORG'
     pat: '$(PAT_SECRET)'
     database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
-    mode: backfill-comments          # <-- the only line that changes
-    backfillLimit: 2500              # <-- sized to fit inside a 60-min timeout
+    mode: backfill-comments          # the only line that changes
+    backfillLimit: 2500              # sized to fit a 60-min job timeout
 ```
 
-The task downloads the existing DB artifact (same pattern as incremental
-extract), drains up to `backfillLimit` uncovered PRs (oldest by `closed_date`
-first), and republishes the updated DB artifact. Runs that find nothing
-uncovered exit without any upstream API calls, so scheduling the backfill
-daily is safe even after the backlog is fully drained.
+The task downloads the existing DB, drains up to `backfillLimit` uncovered PRs (oldest by `closed_date` first), and republishes. Runs that find nothing uncovered exit without API calls, so daily scheduling is safe even after the backlog is drained.
 
 ### Sizing `backfillLimit`
 
-> **Empirical guidance, not a guarantee.** Backfill throughput measured on
-> hosted Ubuntu agents against the Azure DevOps cloud REST API is
-> approximately **one PR per second steady-state**. Actual throughput
-> depends on thread volume per PR and upstream rate limiting; treat every
-> estimate derived from this rate as order-of-magnitude.
+> **Empirical guidance, not a guarantee.** Backfill throughput measured on hosted Ubuntu agents against the Azure DevOps cloud REST API is approximately **one PR per second steady-state**. Actual throughput depends on thread volume per PR and upstream rate limiting; treat every estimate derived from this rate as order-of-magnitude.
 
-Pick `backfillLimit` so each run fits inside your pipeline's job timeout
-with room for setup, artifact publish, and aggregate regeneration:
+| Pipeline job timeout | Suggested `backfillLimit` (~1 PR/sec) |
+|---|---|
+| 60 min (default hosted) | `2500` |
+| 120 min | `6000` |
+| 360 min (hosted max / self-hosted) | `18000` |
 
-| Pipeline job timeout                | Suggested `backfillLimit` (derived at ~1 PR/sec) |
-|-------------------------------------|--------------------------------------------------|
-| 60 min (default hosted)             | `2500`  |
-| 120 min                             | `6000`  |
-| 360 min (hosted max / self-hosted)  | `18000` |
-
-For organizations with tens of thousands of historical PRs, a daily or
-weekly scheduled backfill drains the backlog over repeated runs — nothing
-to tune per-run beyond a `backfillLimit` that fits your timeout.
-Resumability is automatic: the selection query filters on
-`comments_extracted_at IS NULL`, so re-runs only see PRs that haven't been
-covered yet. If a run is interrupted (pipeline timeout, SIGINT, transient
-failure), PRs that already committed stay stamped and the in-progress PR
-rolls back untouched — the next run picks up exactly where the previous
-one stopped.
+Resumability is automatic: the selection query filters on `comments_extracted_at IS NULL`, so re-runs only see PRs that haven't been covered yet. Interrupted runs (timeout, SIGINT, transient failure) leave already-committed PRs stamped and roll back the in-progress PR untouched — the next run resumes from where the previous stopped.
 
 ### Optional scope filters
-
-Narrow what a single run covers:
 
 ```yaml
 - task: ExtractPullRequests@3
   inputs:
     organization: 'YOUR_ORG'
-    projects: 'ProjectA'             # single project instead of all
+    projects: 'ProjectA'             # single project
     pat: '$(PAT_SECRET)'
     database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
     mode: backfill-comments
-    backfillSince: '2024-01-01'      # closed on or after this date
-    backfillUntil: '2025-01-01'      # closed strictly before (exclusive)
+    backfillSince: '2024-01-01'      # closed on or after
+    backfillUntil: '2025-01-01'      # closed strictly before
     backfillLimit: 1000
 ```
 
-Leaving all three filter inputs empty drains every uncovered PR across every
-project. `backfillSince` / `backfillUntil` are strict `YYYY-MM-DD`.
+`backfillSince`/`backfillUntil` are strict `YYYY-MM-DD`. Leaving all three empty drains every uncovered PR across every project.
 
 ### Inputs rejected in this mode (fail fast)
 
-The task rejects mixed-intent input combinations at start-up so the run
-fails before any API call. In `mode: backfill-comments`, the following
-extract-only inputs cause an immediate task failure — remove them from
-your backfill pipeline:
+In `mode: backfill-comments`, these extract-only inputs cause an immediate task failure:
 
-| Input                   | Backfill equivalent or reason |
-|-------------------------|-------------------------------|
+| Input | Backfill equivalent or reason |
+|---|---|
 | `startDate` / `endDate` | Use `backfillSince` / `backfillUntil`. |
-| `backfillDays`          | Not applicable; backfill does not re-fetch PR metadata. |
+| `backfillDays` | N/A — backfill does not re-fetch PR metadata. |
 | `includeComments: true` | Backfill always fetches comments; this is the mode. |
-| `commentsMaxPrsPerRun`  | Use `backfillLimit`. |
+| `commentsMaxPrsPerRun` | Use `backfillLimit`. |
 
-Symmetrically, `backfillSince` / `backfillUntil` / `backfillLimit` in
-`mode: extract` also fail fast. Keep backfill and extract as separate
-pipelines (or separate stages) with clean input surfaces.
+Symmetrically, `backfillSince` / `backfillUntil` / `backfillLimit` in `mode: extract` also fail fast. Keep backfill and extract as separate pipelines (or stages) with clean input surfaces.
 
 ### How to tell it's working
 
-The task's console log emits three signals; every line is prefixed
-`backfill-comments: `.
+Console logs are prefixed `backfill-comments:`.
 
 | Signal | What it means |
-|--------|---------------|
-| `backfill run over N pull request(s)` | Opening line. `N` is the size of the selection this run will attempt. |
-| `covered PR <uid> (ordinal of total) [Processed]` or `[Failed]` | Per-PR progress; one line per PR in the selection. `Processed` = coverage marker stamped this run; `Failed` = marker left NULL so the PR is reselected on the next run. |
-| `processed N pull requests (K failures)` | Closing line after the last PR, including on empty-selection runs (`processed 0 pull requests (0 failures)`). |
+|---|---|
+| `backfill run over N pull request(s)` | Opening line. `N` is the size of the selection. |
+| `covered PR <uid> (ordinal of total) [Processed]` or `[Failed]` | Per-PR progress. `Processed` = coverage marker stamped; `Failed` = marker left NULL so the PR is reselected next run. |
+| `processed N pull requests (K failures)` | Closing line — same on empty-selection runs (`processed 0 pull requests (0 failures)`). |
 
-The backlog is drained when a run's opening line reports `over 0 pull
-request(s)` and no per-PR lines appear before
-`processed 0 pull requests (0 failures)`. At that point the regular
-extract pipeline (with `includeComments: true`) maintains coverage going
-forward.
+The backlog is drained when a run's opening line reports `over 0 pull request(s)` and no per-PR lines appear before the closing line. After that, the regular extract pipeline (with `includeComments: true`) maintains coverage going forward.
 
-The published `run_summary.json` artifact carries a matching
-`backfill-comments: loop-complete: processed=X failed=Y` entry in its
-`warnings` list for programmatic consumers; console log users read the
-`processed N pull requests (K failures)` line above.
+The published `run_summary.json` artifact carries a matching `backfill-comments: loop-complete: processed=X failed=Y` entry in its `warnings` list for programmatic consumers; console-log readers grep for `processed N pull requests (K failures)`.
 
-After the loop the task re-runs `generate-csv` and `generate-aggregates`
-exactly like extract does, so the dashboard's `review_time_p50` /
-`review_time_p90` and the PowerBI `auxiliary/comments/` CSVs refresh in
-the next published artifact. The comments-coverage indicator (shown as
-`full` or `partial` on the dashboard) updates on the next dashboard load.
+After the loop, the task re-runs `generate-csv` and `generate-aggregates` exactly like extract, so dashboard percentiles (`review_time_p50`/`review_time_p90`) and the PowerBI `auxiliary/comments/` CSVs refresh in the next published artifact. The dashboard's comments-coverage indicator (`full`/`partial`) updates on the next load.
 
 ---
 
-## Next Steps
+## Next steps
 
-- [Task Input Reference](../reference/task-reference.md) — All configuration options
-- [Troubleshooting](troubleshooting.md) — Common issues and solutions
-- [Runbook](../operations/runbook.md) — Operational procedures
-- [CSV Schema](../reference/csv-schema.md) — Output file specifications
+- [Task Input Reference](../reference/task-reference.md) — all task inputs
+- [Troubleshooting](troubleshooting.md)
+- [Runbook](../operations/runbook.md) — operational procedures
+- [CSV Schema](../reference/csv-schema.md)
 
----
-
-## Support
-
-For issues and feature requests, visit the [GitHub repository](https://github.com/oddessentials/ado-git-repo-insights).
-
-**Publisher**: OddEssentials
+For issues and feature requests: [GitHub repository](https://github.com/oddessentials/ado-git-repo-insights). Publisher: OddEssentials.
+</content>
