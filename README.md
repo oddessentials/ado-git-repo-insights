@@ -199,18 +199,9 @@ The dashboard supports optional ML-powered features: **time-series forecasting**
 
 ## 🛠️ Developer Setup
 
-Prerequisites: Node.js 22+, Python 3.12+, pnpm (extension only).
-
-```bash
-# Python (uv-managed)
-uv sync --extra dev
-
-# Extension (pnpm)
-corepack enable
-cd extension && pnpm install && pnpm run build
-```
-
-For full setup, contribution workflow, and quality gates: [Contributing Guide](CONTRIBUTING.md) and [Development Setup](docs/development/setup.md). For the canonical demo build, see [Demo Data Versioning](docs/DEMO-DATA-VERSIONING.md).
+- **Recommended**: open in a [Dev Container](.devcontainer/) — handles all per-platform tooling automatically.
+- **Native setup (advanced)**: [`docs/development/setup.md`](docs/development/setup.md).
+- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 

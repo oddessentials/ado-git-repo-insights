@@ -1,128 +1,52 @@
 # CLI User Guide
 
-This guide covers using the Python CLI for local PR analysis and custom CI/CD integration.
-
----
-
-## What You Get
-
-- **Command-line tool** for extraction and CSV generation
-- **Local dashboard server** for viewing metrics
-- **Configuration file support** for complex setups
-- **Works anywhere Python runs** — local machines, GitHub Actions, Jenkins, etc.
+How to use the Python CLI for local PR analysis and custom CI/CD integration.
 
 ---
 
 ## Prerequisites
 
 | Requirement | Details |
-|-------------|---------|
+|---|---|
 | Python | 3.12, 3.13, or 3.14 |
-| Azure DevOps PAT | Code (Read) scope |
+| Azure DevOps PAT | Code (Read) scope — see [PAT setup in the extension guide](extension.md#step-2--create-a-personal-access-token-pat) (canonical) |
 
 ---
 
-## Installation
-
-### Recommended: pipx (Frictionless)
-
-pipx handles PATH configuration automatically and isolates dependencies:
+## Install
 
 ```bash
-# Install pipx if needed
-python -m pip install --user pipx
-pipx ensurepath
-
-# Install ado-insights
-pipx install ado-git-repo-insights
-
-# Verify
-ado-insights --version
+pipx install ado-git-repo-insights        # recommended — isolated, PATH handled
+uv tool install ado-git-repo-insights     # alternative — same frictionless shape
+pip install ado-git-repo-insights         # advanced — may need `ado-insights setup-path`
 ```
 
-### Alternative: uv (Frictionless)
+Verify with `ado-insights --version`. Diagnose install issues with `ado-insights doctor` (prints install location, PATH status, conflicts) — see [troubleshooting](troubleshooting.md) for installer-specific recipes (Ansible, Docker, scripted PATH setup, validation in CI/CD).
 
-uv is a fast, modern alternative with similar frictionless installation:
-
-```bash
-# Install uv if needed (see https://astral.sh/uv)
-# Then install ado-insights
-uv tool install ado-git-repo-insights
-
-# Verify
-ado-insights --version
-```
-
-### Advanced: pip (Manual PATH Setup)
-
-For developers who prefer pip directly:
+### ML extras
 
 ```bash
-pip install ado-git-repo-insights
-```
-
-If `ado-insights` is not found after installation, run:
-
-```bash
-# Option 1: Automatic PATH setup
-ado-insights setup-path
-
-# Option 2: See the command without modifying files
-ado-insights setup-path --print-only
-```
-
-Then restart your terminal.
-
-### Verify Installation
-
-```bash
-ado-insights --version
-```
-
-### Diagnose Issues
-
-If you encounter problems:
-
-```bash
-ado-insights doctor
-```
-
-This shows installation location, PATH status, and detects conflicts.
-
-### Optional: ML Features
-
-For Prophet forecasting and AI insights:
-
-```bash
-# pipx
 pipx inject ado-git-repo-insights prophet openai
-
-# pip
+# or:
 pip install ado-git-repo-insights[ml]
 ```
+
+Setup details and AI-insights configuration: [Enable ML Features](enable-ml-features.md).
 
 ---
 
 ## Quick Start
 
-### 1. Set Up Your PAT
-
-Create a PAT in Azure DevOps with **Code (Read)** scope:
-1. Azure DevOps → Profile → Personal access tokens → + New Token
-2. Scope: Code → Read
-3. For multi-org setups, enable "All accessible organizations"
-
-Store it as an environment variable:
+Set your PAT (one-time):
 
 ```bash
 # Linux/macOS
 export ADO_PAT="your-pat-here"
-
 # Windows PowerShell
 $env:ADO_PAT = "your-pat-here"
 ```
 
-### 2. Extract PR Data
+### 1. Extract PRs
 
 ```bash
 ado-insights extract \
@@ -132,12 +56,9 @@ ado-insights extract \
   --database ./ado-insights.sqlite
 ```
 
-**What happens:**
-1. Creates a SQLite database (or updates existing)
-2. Fetches completed PRs from the Azure DevOps API
-3. Stores data with UPSERT semantics
+Creates or updates a SQLite database with PR data using UPSERT semantics.
 
-### 3. Generate CSVs
+### 2. Generate CSVs
 
 ```bash
 ado-insights generate-csv \
@@ -145,189 +66,89 @@ ado-insights generate-csv \
   --output ./csv_output
 ```
 
-**Output files:**
-- `organizations.csv`
-- `projects.csv`
-- `repositories.csv`
-- `pull_requests.csv`
-- `users.csv`
-- `reviewers.csv`
+Output files (one per dimension): `organizations.csv`, `projects.csv`, `repositories.csv`, `pull_requests.csv`, `users.csv`, `reviewers.csv`. Schema: [CSV Schema](../reference/csv-schema.md).
 
-### 4. View the Dashboard
+### 3. View the dashboard
 
-**Option A: Production Artifacts (Recommended)**
-
-Download artifacts from your Azure DevOps pipeline:
+**From production pipeline artifacts (recommended)**:
 
 ```bash
 ado-insights stage-artifacts \
-  --org MyOrg \
-  --project MyProject \
-  --pipeline-id 123 \
-  --pat $ADO_PAT \
-  --out ./run_artifacts
-
-# Start the dashboard server
+  --org MyOrg --project MyProject --pipeline-id 123 \
+  --pat $ADO_PAT --out ./run_artifacts
 ado-insights dashboard --dataset ./run_artifacts --open
 ```
 
-> **Build Selection:** The command selects the most recent completed build with
-> result `succeeded` or `partiallySucceeded`. Artifacts from partially succeeded
-> builds are valid and usable — only non-critical pipeline stages failed.
+`stage-artifacts` selects the most recent completed build (status `succeeded` or `partiallySucceeded`); legacy nested `aggregates/aggregates` layouts are auto-flattened.
 
-> **Layout Normalization:** If the artifact has a nested `aggregates/aggregates`
-> structure (legacy layout), it is automatically flattened during extraction.
-> The normalized layout has `dataset-manifest.json` at the root.
-
-
-
-**Option B: Local Database (Dev Mode)**
-
-Generate from a local SQLite database:
+**From a local database (dev)**:
 
 ```bash
-# Generate aggregates first
-ado-insights build-aggregates \
-  --db ./ado-insights.sqlite \
-  --out ./run_artifacts
-
-# Start the dashboard server
+ado-insights build-aggregates --db ./ado-insights.sqlite --out ./run_artifacts
 ado-insights dashboard --dataset ./run_artifacts --open
 ```
 
-> ⚠️ **Note:** `build-aggregates` is intended for local development. For production use, prefer `stage-artifacts` to download validated pipeline artifacts.
+Use `stage-artifacts` for production analysis; `build-aggregates` is for local iteration.
 
-**Option C: Synthetic Testing**
-
-Generate synthetic data for UI testing:
+**Synthetic / demo data**:
 
 ```bash
-# Generate the canonical enterprise demo dataset (writes to artifacts/demo-enterprise/)
 python scripts/build-demo-dataset.py --commit-canonical
-
-# Start the dashboard server against the canonical artifact
 ado-insights dashboard --dataset ./artifacts/demo-enterprise/data --open
 ```
 
-`docs/data/` is the published GitHub Pages mirror of the same canonical dataset.
-Use [DEMO-DATA-VERSIONING.md](../DEMO-DATA-VERSIONING.md)
-for the generation and promotion policy.
+The same canonical dataset backs the [public demo](https://oddessentials.github.io/ado-git-repo-insights/) (mirrored in `docs/data/`). Promotion policy: [DEMO-DATA-VERSIONING.md](../DEMO-DATA-VERSIONING.md).
 
-Dashboard options:
-- `--port 8080` — HTTP server port (default: 8080)
-- `--open` — Automatically open browser
+Dashboard flags: `--port 8080` (default), `--open` (auto-launch browser).
 
 ---
 
-## Date Range Behavior
+## Date range behavior
 
-### Default Behavior
+| Mode | Start date | End date |
+|---|---|---|
+| First run | Jan 1 of current year | Yesterday |
+| Incremental | Last extraction + 1 day | Yesterday |
+| Backfill | Today − backfill days | Yesterday |
 
-| Mode | Start Date | End Date |
-|------|------------|----------|
-| First run | January 1 of current year | Yesterday |
-| Incremental | Last extraction date + 1 day | Yesterday |
-| Backfill | Today minus backfill days | Yesterday |
-
-**Why yesterday?** PRs closed today may still receive updates (reviewer votes, comments). Extracting yesterday ensures complete data.
-
-### Override Dates
-
-```bash
-# Include today's data
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite \
-  --end-date $(date +%Y-%m-%d)
-
-# Extract specific range
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite \
-  --start-date 2024-01-01 \
-  --end-date 2024-12-31
-```
+**Why yesterday?** PRs closed today may still receive updates (reviewer votes, comments). Override with `--start-date YYYY-MM-DD` and/or `--end-date YYYY-MM-DD` for historical extraction or to include today's data.
 
 ---
 
-## Incremental vs Backfill Mode
+## Incremental vs backfill mode
 
-### Daily Incremental (Default)
+Daily incremental (default): `ado-insights extract ...` — only new PRs since last run.
 
-Extracts only new PRs since last run:
-
-```bash
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite
-```
-
-### Backfill Mode
-
-Re-extracts recent data to catch late changes (reviewer votes, status updates):
+Recent-window backfill (catches late changes like reviewer votes):
 
 ```bash
-ado-insights extract \
-  --organization MyOrg \
-  --projects "Project1" \
-  --pat $ADO_PAT \
-  --database ./ado-insights.sqlite \
-  --backfill-days 60
+ado-insights extract ... --backfill-days 60
 ```
 
-**Recommended schedule:**
-| Schedule | Mode | Purpose |
-|----------|------|---------|
-| Daily | Incremental | Capture new PRs |
-| Weekly (Sundays) | Backfill 60 days | Convergence for late changes |
+Recommended schedule: daily incremental + weekly Sunday backfill of last 60 days.
 
-### Backfill Historical Comments
+### Backfill historical PR comments
 
-The `--backfill-days` flag above re-extracts PR metadata to converge
-late reviewer votes and status updates. It does **not** backfill PR
-comment thread data.
-
-If you enable `--include-comments` on extract after historical PRs are
-already in the database, those historical PRs are never retroactively
-covered by incremental runs. Use the separate `backfill-comments`
-subcommand for a one-time catch-up:
+`--backfill-days` does not backfill comment thread data — for comments coverage on historical PRs (after enabling `--include-comments` on extract), use the dedicated subcommand:
 
 ```bash
 ado-insights backfill-comments \
-  --organization MyOrg \
-  --pat $ADO_PAT \
+  --organization MyOrg --pat $ADO_PAT \
   --database ./ado-insights.sqlite \
   --limit 2500
 ```
 
-**Precondition:** the database must already contain the `pr_threads` /
-`pr_comments` tables (created by schema migrations on any modern
-extract run). Running backfill against an older schema exits 0 without
-processing — run your extract pipeline once under the current CLI
-version first.
-
-See [CLI Command Reference § backfill-comments](../reference/cli-reference.md#backfill-comments)
-for the full flag list, and the [Extension User Guide § Backfilling
-Historical PR Comments](extension.md#backfilling-historical-pr-comments)
-for sizing guidance and observable-signals reference (same behavior
-whether you run the CLI or the ADO extension task).
+The behavior, sizing guidance, observable signals, and inputs-rejected-in-this-mode constraints are identical to the ADO task. See the canonical narrative: [Backfilling Historical PR Comments](extension.md#backfilling-historical-pr-comments). CLI-specific flag reference: [cli-reference.md § backfill-comments](../reference/cli-reference.md#backfill-comments).
 
 ---
 
-## Configuration File
+## Configuration file
 
-For complex setups, use a YAML configuration file:
+For complex setups:
 
 ```yaml
 # config.yaml
 organization: MyOrg
-
 projects:
   - ProjectOne
   - ProjectTwo
@@ -346,8 +167,6 @@ backfill:
   window_days: 60
 ```
 
-Use with:
-
 ```bash
 ado-insights extract --config config.yaml --pat $ADO_PAT
 ```
@@ -360,10 +179,9 @@ ado-insights extract --config config.yaml --pat $ADO_PAT
 
 ```yaml
 name: PR Metrics
-
 on:
   schedule:
-    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -371,44 +189,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Install
-        run: pip install ado-git-repo-insights
-
-      - name: Download previous database
-        uses: actions/download-artifact@v4
+      - run: pip install ado-git-repo-insights
+      - uses: actions/download-artifact@v4
         with:
           name: ado-insights-db
           path: ./data
         continue-on-error: true
-
-      - name: Extract
-        run: |
+      - run: |
           ado-insights extract \
             --organization ${{ vars.ADO_ORG }} \
             --projects "${{ vars.ADO_PROJECTS }}" \
             --pat ${{ secrets.ADO_PAT }} \
             --database ./data/ado-insights.sqlite
-
-      - name: Generate CSVs
-        run: |
+      - run: |
           ado-insights generate-csv \
             --database ./data/ado-insights.sqlite \
             --output ./csv_output
-
-      - name: Upload database
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ado-insights-db
           path: ./data/ado-insights.sqlite
-
-      - name: Upload CSVs
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: csv-output
           path: ./csv_output/
@@ -418,7 +222,6 @@ jobs:
 
 ```yaml
 trigger: none
-
 pool:
   vmImage: 'ubuntu-latest'
 
@@ -426,37 +229,29 @@ steps:
   - task: UsePythonVersion@0
     inputs:
       versionSpec: '3.12'
-
   - script: pip install ado-git-repo-insights
     displayName: 'Install'
-
   - task: DownloadPipelineArtifact@2
-    displayName: 'Download Previous DB'
     continueOnError: true
     inputs:
       artifact: ado-insights-db
       path: $(System.DefaultWorkingDirectory)/data
-
   - script: |
       ado-insights extract \
-        --organization $(ADO_ORG) \
-        --projects "$(ADO_PROJECTS)" \
+        --organization $(ADO_ORG) --projects "$(ADO_PROJECTS)" \
         --pat $(PAT_SECRET) \
         --database $(System.DefaultWorkingDirectory)/data/ado-insights.sqlite
     displayName: 'Extract PRs'
-
   - script: |
       ado-insights generate-csv \
         --database $(System.DefaultWorkingDirectory)/data/ado-insights.sqlite \
         --output $(System.DefaultWorkingDirectory)/csv_output
     displayName: 'Generate CSVs'
-
   - task: PublishPipelineArtifact@1
     condition: succeeded()
     inputs:
       targetPath: $(System.DefaultWorkingDirectory)/data/ado-insights.sqlite
       artifact: ado-insights-db
-
   - task: PublishPipelineArtifact@1
     condition: succeeded()
     inputs:
@@ -464,160 +259,51 @@ steps:
       artifact: csv-output
 ```
 
----
-
-## Enterprise & Scripted Deployment
-
-All installation commands are **non-interactive** and suitable for automated deployments.
-
-### Non-Interactive Installation
-
-```bash
-# All methods work without user prompts:
-pipx install ado-git-repo-insights       # No prompts
-uv tool install ado-git-repo-insights    # No prompts
-pip install ado-git-repo-insights        # No prompts
-```
-
-### Scripted PATH Configuration
-
-For automated deployments where PATH setup needs to be scripted:
-
-**Option 1: Capture and Execute**
-
-```bash
-# Bash/Linux
-PATH_CMD=$(python -m ado_git_repo_insights.cli setup-path --print-only)
-echo "$PATH_CMD" >> ~/.bashrc
-source ~/.bashrc
-```
-
-```powershell
-# PowerShell/Windows
-$pathCmd = python -m ado_git_repo_insights.cli setup-path --print-only
-Add-Content $PROFILE $pathCmd
-. $PROFILE
-```
-
-**Option 2: Direct Execution**
-
-```bash
-# Bash - append to profile automatically
-ado-insights setup-path
-
-# Verify (in new shell)
-ado-insights --version
-```
-
-### Ansible Playbook Example
-
-```yaml
-- name: Install ado-insights
-  hosts: analytics_servers
-  tasks:
-    - name: Install via pipx
-      community.general.pipx:
-        name: ado-git-repo-insights
-        state: present
-
-    - name: Verify installation
-      command: ado-insights --version
-      changed_when: false
-```
-
-### Docker Deployment
-
-```dockerfile
-FROM python:3.12-slim
-
-RUN pip install --no-cache-dir pipx && \
-    pipx install ado-git-repo-insights && \
-    pipx ensurepath
-
-# pipx installs to /root/.local/bin
-ENV PATH="/root/.local/bin:$PATH"
-
-ENTRYPOINT ["ado-insights"]
-```
-
-### Validation in CI/CD
-
-```bash
-# Validate installation succeeded
-ado-insights doctor
-
-# Check exit code: 0 = OK, 1 = issues detected
-if [ $? -ne 0 ]; then
-    echo "Installation issues detected"
-    exit 1
-fi
-```
+For ADO with the bundled task UI rather than scripted CLI, use the Marketplace [extension](extension.md) instead.
 
 ---
 
-## Output Artifacts
+## Output
 
-### Run Summary
+| Path | Purpose |
+|---|---|
+| `./ado-insights.sqlite` | Authoritative PR data store |
+| `./csv_output/*.csv` | PowerBI-compatible exports |
+| `./run_artifacts/` | Logs (`logs.jsonl` with `--log-format jsonl`) and `run_summary.json` |
+| `./run_artifacts/run_summary.json` | Always written, even on failure — useful for debugging |
 
-Every extraction writes `run_artifacts/run_summary.json`:
+`run_summary.json` shape:
 
 ```json
 {
   "status": "success",
   "start_time": "2026-01-19T06:00:00Z",
   "end_time": "2026-01-19T06:05:23Z",
-  "projects": [
-    {"name": "Project1", "prs_extracted": 42, "status": "success"}
-  ],
+  "projects": [{"name": "Project1", "prs_extracted": 42, "status": "success"}],
   "total_prs": 42,
   "first_error": null
 }
 ```
 
-Written even on failure for debugging.
-
-### Logging
-
-- **Default:** Console output (INFO level)
-- **JSONL logging:** `--log-format jsonl` → `run_artifacts/logs.jsonl`
-- **Debug mode:** `export PYTHONLOGLEVEL=DEBUG`
+Set `PYTHONLOGLEVEL=DEBUG` for verbose console logging.
 
 ---
 
-## Data Storage
+## Recovery
 
-### Where Data Lives
+The SQLite database is the source of truth; deleting it deletes all retained history. To recover:
 
-| File | Purpose |
-|------|---------|
-| `ado-insights.sqlite` | Authoritative PR data store |
-| `csv_output/*.csv` | Derived PowerBI-compatible exports |
-| `dataset/` | Dashboard aggregates |
-| `run_artifacts/` | Logs and run summary |
-
-### Retention
-
-- Data persists as long as the database file exists
-- Deleting the file deletes all retained history
-- Incremental runs update the same file over time
-
-### Recovery
-
-If the database is corrupted or missing:
-1. Delete the file
-2. Re-run extraction with `--start-date` to specify historical range
+```bash
+rm ./ado-insights.sqlite
+ado-insights extract ... --start-date YYYY-MM-DD       # bootstrap from a historical date
+```
 
 ---
 
-## Next Steps
+## Next steps
 
-- [CLI Command Reference](../reference/cli-reference.md) — All commands and options
-- [Troubleshooting](troubleshooting.md) — Common issues and solutions
-- [CSV Schema](../reference/csv-schema.md) — Output file specifications
-- [Architecture](../reference/architecture.md) — System design diagrams
-
----
-
-## Support
-
-For issues and feature requests, visit the [GitHub repository](https://github.com/oddessentials/ado-git-repo-insights).
+- [CLI Command Reference](../reference/cli-reference.md) — full command and flag inventory
+- [Troubleshooting](troubleshooting.md)
+- [CSV Schema](../reference/csv-schema.md) — output file specifications
+- [Architecture](../reference/architecture.md) — system design diagrams
+</content>
