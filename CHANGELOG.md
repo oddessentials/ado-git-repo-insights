@@ -1,3 +1,10 @@
+## [101.27.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.3...v101.27.4) (2026-05-08)
+
+
+### Bug Fixes
+
+* linux/wsl local environment parity hardening ([#384](https://github.com/oddessentials/ado-git-repo-insights/issues/384)) ([8a4e1d6](https://github.com/oddessentials/ado-git-repo-insights/commit/8a4e1d6e2977b96850a742b0f85d28a07dc7356e)), closes [#5](https://github.com/oddessentials/ado-git-repo-insights/issues/5) [#6](https://github.com/oddessentials/ado-git-repo-insights/issues/6)
+
 ## [101.27.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.2...v101.27.3) (2026-05-06)
 
 
