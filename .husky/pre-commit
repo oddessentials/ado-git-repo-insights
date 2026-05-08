@@ -1,10 +1,11 @@
 #!/bin/sh
 set -eu
 
-# Source the venv resolver: prepends .venv/{bin,Scripts} to PATH and exports
-# VENV_PYTHON. Fails fast with an actionable setup message if the venv is
-# missing — replaces the prior cascade through `py -3 / python3 / python`
-# which silently picked up whatever interpreter the developer's shell had.
+# Resolve a Python interpreter that can import the project package and
+# expose it via $HOOK_PYTHON. Sets PATH so subprocess `language: system`
+# hooks find a working `python`. Fails fast (exit 2) with an actionable
+# setup message if no candidate has the project deps — covers both the
+# local-no-venv case and a misconfigured CI env.
 . ./.husky/_python_path.sh
 
-exec "$VENV_PYTHON" scripts/run_repo_hook.py pre-commit
+exec "$HOOK_PYTHON" scripts/run_repo_hook.py pre-commit

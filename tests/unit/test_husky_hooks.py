@@ -68,65 +68,47 @@ class TestHuskyPythonPathHelper:
             "Helper must reference the Windows venv layout (.venv/Scripts)"
         )
 
-    def test_helper_exports_venv_python_and_path(self) -> None:
+    def test_helper_exports_hook_python_and_path(self) -> None:
         text = PYTHON_PATH_HELPER.read_text(encoding="utf-8")
-        assert "VENV_PYTHON" in text, "Helper must export VENV_PYTHON"
-        assert "PATH=" in text, "Helper must prepend PATH"
+        assert "HOOK_PYTHON" in text, "Helper must export HOOK_PYTHON"
+        assert "PATH=" in text, "Helper must prepend PATH for the .venv path"
         assert "export" in text, "Helper must export its computed values"
 
-    def test_helper_fails_with_actionable_setup_message_when_venv_missing(
-        self, tmp_path: Path
-    ) -> None:
-        """Sourcing the helper from a directory without ``.venv`` must exit
-        with the canonical ``uv sync --extra dev`` remediation, NOT silently
-        fall back to a system interpreter.
+    def _stage_helper_in(self, tmp_path: Path) -> None:
+        """Mirror ``.husky/_python_path.sh`` into ``tmp_path/.husky/`` so it
+        can be sourced with cwd=tmp_path. Tests that exercise the helper
+        in synthetic environments use this pattern uniformly.
         """
-        helper_copy = tmp_path / "helper.sh"
+        husky_dir = tmp_path / ".husky"
+        husky_dir.mkdir()
+        helper_copy = husky_dir / "_python_path.sh"
         helper_copy.write_text(
             PYTHON_PATH_HELPER.read_text(encoding="utf-8"), encoding="utf-8"
         )
-        result = subprocess.run(
-            ["sh", "-c", f". {helper_copy}; echo SHOULD_NOT_REACH"],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert result.returncode == 2, (
-            f"Helper must exit 2 (setup failure) when venv missing; got {result.returncode}"
-        )
-        assert "SHOULD_NOT_REACH" not in result.stdout, (
-            "Helper must terminate the calling shell, not fall through"
-        )
-        combined = result.stdout + result.stderr
-        assert "Python venv not found" in combined, (
-            "Helper must print a clear missing-venv message"
-        )
-        assert "uv sync --extra dev" in combined, (
-            "Helper must point users to the canonical setup command"
-        )
 
-    def test_helper_resolves_correctly_with_synthetic_venv(
+    def _real_python_stub_text(self) -> str:
+        """Stub body that delegates to the test runner's interpreter
+        (which has the project package installed because pytest is running
+        under it). The helper's import probe will then succeed against
+        the planted stub.
+        """
+        return f'#!/bin/sh\nexec "{sys.executable}" "$@"\n'
+
+    def _no_deps_stub_text(self) -> str:
+        """Stub body that always exits non-zero, so the helper's import
+        probe fails for this candidate. Used to construct an environment
+        where NO Python interpreter has the project deps.
+        """
+        return "#!/bin/sh\nexit 1\n"
+
+    def test_helper_chooses_synthetic_venv_when_present_and_probe_passes(
         self, tmp_path: Path
     ) -> None:
-        """With a synthetic ``.venv`` stub planted in ``tmp_path``, sourcing
-        the helper must export ``VENV_PYTHON`` and prepend the venv's bin
-        dir to ``PATH``.
-
-        Uses a temp fixture rather than reading the real repo's ``.venv``,
-        so the assertion runs identically on local (where ``.venv``
-        exists) AND on CI's ``test`` matrix (which uses
-        ``actions/setup-python`` + ``pip install -e .[dev]`` and never
-        creates ``.venv``). Both layouts are covered every run — the
-        sibling ``test_helper_fails_with_actionable_setup_message_when_venv_missing``
-        proves the negative path the same way (separate temp fixture,
-        no ``.venv`` planted), so together the two tests assert both
-        sides of the contract on every host without depending on
-        environment state.
+        """Plant ``.venv/<bin|Scripts>/python<.exe>`` as a wrapper around the
+        test interpreter (which has project deps), source the helper, and
+        assert the helper picks the venv path AND prepends ``.venv/<bin>``
+        to ``PATH``. Independent of the host's real ``.venv`` state.
         """
-        # Plant a stub interpreter the helper's `[ -x ... ]` check accepts.
-        # The helper does not exec it; it only needs the path to be a
-        # regular executable file to pass the existence guard.
         is_windows_shell = sys.platform == "win32"
         if is_windows_shell:
             venv_bin_rel = ".venv/Scripts"
@@ -137,24 +119,17 @@ class TestHuskyPythonPathHelper:
         venv_bin = tmp_path / venv_bin_rel
         venv_bin.mkdir(parents=True)
         stub = venv_bin / python_name
-        stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        stub.write_text(self._real_python_stub_text(), encoding="utf-8")
         stub.chmod(0o755)
 
-        # Mirror the helper into the temp tree so its `./.husky/...` path
-        # resolves relative to the cwd we'll set below.
-        husky_dir = tmp_path / ".husky"
-        husky_dir.mkdir()
-        helper_copy = husky_dir / "_python_path.sh"
-        helper_copy.write_text(
-            PYTHON_PATH_HELPER.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        self._stage_helper_in(tmp_path)
 
         result = subprocess.run(
             [
                 "sh",
                 "-c",
                 ". ./.husky/_python_path.sh"
-                ' && echo "VENV_PYTHON=$VENV_PYTHON"'
+                ' && echo "HOOK_PYTHON=$HOOK_PYTHON"'
                 ' && echo "PATH_HEAD=$(echo $PATH | cut -d: -f1)"',
             ],
             cwd=tmp_path,
@@ -164,16 +139,129 @@ class TestHuskyPythonPathHelper:
             env={**os.environ},
         )
         assert result.returncode == 0, (
-            f"Helper must succeed with synthetic venv; got rc={result.returncode}\n"
+            f"Helper must succeed with synthetic .venv; got rc={result.returncode}\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
         expected_python = f"{venv_bin_rel}/{python_name}"
-        assert f"VENV_PYTHON={expected_python}" in result.stdout, (
-            f"Helper must export VENV_PYTHON pointing at the planted stub;"
-            f" stdout={result.stdout!r}"
+        assert f"HOOK_PYTHON={expected_python}" in result.stdout, (
+            f"Helper must export HOOK_PYTHON pointing at the planted stub; "
+            f"stdout={result.stdout!r}"
         )
         assert f"PATH_HEAD={venv_bin_rel}" in result.stdout, (
-            f"Helper must prepend the venv bin dir to PATH; stdout={result.stdout!r}"
+            f"Helper must prepend .venv bin dir to PATH; stdout={result.stdout!r}"
+        )
+
+    def test_helper_falls_back_to_system_python_when_venv_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """No ``.venv`` planted; helper must fall through to ``python3``/
+        ``python`` on ``PATH``. To keep the test environment-independent,
+        plant a wrapper stub at ``<tmp>/sys-bin/python3`` (and ``python``)
+        that delegates to ``sys.executable`` — which has project deps
+        because pytest is running under it — and put that dir first on
+        ``PATH``. The helper finds the stub via ``command -v python3``,
+        the probe passes, and the helper resolves successfully WITHOUT
+        prepending any ``.venv`` to ``PATH``.
+
+        This mirrors CI's ``hook-entrypoint-test`` layout exactly:
+        ``actions/setup-python`` + ``pip install -e .[dev]`` populates a
+        system interpreter, no ``.venv`` exists, the helper must accept
+        it. The stub keeps the test correct on developer machines where
+        the host's ``/usr/bin/python3`` does NOT have project deps.
+        """
+        sys_bin = tmp_path / "sys-bin"
+        sys_bin.mkdir()
+        for name in ("python3", "python"):
+            stub = sys_bin / name
+            stub.write_text(self._real_python_stub_text(), encoding="utf-8")
+            stub.chmod(0o755)
+
+        self._stage_helper_in(tmp_path)
+
+        env = {**os.environ}
+        env["PATH"] = f"{sys_bin}{os.pathsep}{env.get('PATH', '')}"
+
+        result = subprocess.run(
+            [
+                "sh",
+                "-c",
+                ". ./.husky/_python_path.sh"
+                ' && echo "HOOK_PYTHON=$HOOK_PYTHON"'
+                ' && echo "PATH_HEAD=$(echo $PATH | cut -d: -f1)"',
+            ],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert result.returncode == 0, (
+            f"Helper must succeed via system fallback; got rc={result.returncode}\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        # HOOK_PYTHON must point at the planted stub (which is the first
+        # python3 on PATH and passes the probe via sys.executable).
+        assert f"HOOK_PYTHON={sys_bin}/python3" in result.stdout, (
+            f"Helper must export HOOK_PYTHON pointing at the system-fallback "
+            f"stub on PATH; stdout={result.stdout!r}"
+        )
+        # PATH must NOT have been prepended with a tmp_path/.venv/bin entry —
+        # only the .venv-wins branch prepends, and that branch did not fire.
+        assert f"PATH_HEAD={tmp_path}/.venv/bin" not in result.stdout
+        assert f"PATH_HEAD={tmp_path}/.venv/Scripts" not in result.stdout
+
+    def test_helper_fails_when_no_candidate_has_project_deps(
+        self, tmp_path: Path
+    ) -> None:
+        """No ``.venv`` planted AND every ``python``/``python3`` on the
+        controlled ``PATH`` is a stub that fails the import probe. Helper
+        must exit 2 with both ``uv sync --extra dev`` and
+        ``pip install -e .[dev]`` in the message.
+        """
+        no_deps_bin = tmp_path / "no-deps-bin"
+        no_deps_bin.mkdir()
+        for name in ("python3", "python"):
+            stub = no_deps_bin / name
+            stub.write_text(self._no_deps_stub_text(), encoding="utf-8")
+            stub.chmod(0o755)
+
+        self._stage_helper_in(tmp_path)
+
+        # Minimal PATH so command -v finds ONLY our deps-less stubs.
+        # /bin and /usr/bin are kept so `sh` itself works on Linux/macOS.
+        # The stubs come first so they shadow any system python that might
+        # otherwise have project deps (e.g. on CI).
+        controlled_path = f"{no_deps_bin}{os.pathsep}/bin{os.pathsep}/usr/bin"
+        env = {
+            "PATH": controlled_path,
+            "HOME": os.environ.get("HOME", ""),
+        }
+
+        result = subprocess.run(
+            ["sh", "-c", ". ./.husky/_python_path.sh; echo SHOULD_NOT_REACH"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert result.returncode == 2, (
+            f"Helper must exit 2 when no candidate has project deps; "
+            f"got rc={result.returncode}\nstdout={result.stdout!r}\n"
+            f"stderr={result.stderr!r}"
+        )
+        assert "SHOULD_NOT_REACH" not in result.stdout, (
+            "Helper must terminate the calling shell on the no-candidates path"
+        )
+        combined = result.stdout + result.stderr
+        assert "No Python interpreter with project deps" in combined, (
+            "Helper must print a clear no-candidate-found message"
+        )
+        assert "uv sync --extra dev" in combined, (
+            "Helper must point local users to the canonical setup command"
+        )
+        assert "pip install -e" in combined, (
+            "Helper must point CI to the pip-install path"
         )
 
 
@@ -220,10 +308,10 @@ class TestHuskyHooksDelegateInterpreterResolutionToHelper:
     @pytest.mark.parametrize(
         "hook_path", [PRE_COMMIT_HOOK, PRE_PUSH_HOOK], ids=["pre-commit", "pre-push"]
     )
-    def test_hook_invokes_orchestrator_through_venv_python(
+    def test_hook_invokes_orchestrator_through_hook_python(
         self, hook_path: Path
     ) -> None:
-        """The exec line must use ``$VENV_PYTHON`` (set by the helper), not a
+        """The exec line must use ``$HOOK_PYTHON`` (set by the helper), not a
         bare ``python``/``python3``/``py``. Otherwise the orchestrator
         process itself could land on a non-canonical interpreter even though
         ``language: system`` subprocesses are PATH-correct.
@@ -232,9 +320,9 @@ class TestHuskyHooksDelegateInterpreterResolutionToHelper:
         exec_lines = [line for line in text.splitlines() if "run_repo_hook.py" in line]
         assert exec_lines, f"{hook_path.name}: no run_repo_hook.py invocation found"
         for line in exec_lines:
-            assert "$VENV_PYTHON" in line or "${VENV_PYTHON}" in line, (
-                f"{hook_path.name}: orchestrator must be invoked via $VENV_PYTHON;"
-                f" got: {line!r}"
+            assert "$HOOK_PYTHON" in line or "${HOOK_PYTHON}" in line, (
+                f"{hook_path.name}: orchestrator must be invoked via $HOOK_PYTHON; "
+                f"got: {line!r}"
             )
 
 
