@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 136,
+  "total_call_sites": 137,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -557,7 +557,7 @@
     },
     {
       "file": "tests/unit/test_any_type_scanner.py",
-      "line": 171,
+      "line": 172,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -869,7 +869,7 @@
     },
     {
       "file": "tests/unit/test_husky_hooks.py",
-      "line": 88,
+      "line": 127,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -877,7 +877,15 @@
     },
     {
       "file": "tests/unit/test_husky_hooks.py",
-      "line": 115,
+      "line": 184,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_husky_hooks.py",
+      "line": 240,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
