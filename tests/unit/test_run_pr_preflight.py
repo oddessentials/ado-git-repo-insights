@@ -58,6 +58,8 @@ class TestEnsureRequiredTools:
                 return_value=True,
             ),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "resolve_gitleaks", return_value=None),
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -72,6 +74,8 @@ class TestEnsureRequiredTools:
                 return_value=True,
             ),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "resolve_gitleaks", return_value=None),
         ):
             node_ok, gitleaks = ensure_required_tools(allow_local_degraded=True)
@@ -224,6 +228,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
         ):
             assert main() == 0
@@ -260,6 +266,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module, "main_branch_suppression_baseline", return_value=None
@@ -331,6 +339,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module, "main_branch_suppression_baseline", return_value=None
@@ -374,6 +384,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module, "main_branch_suppression_baseline", return_value=None
@@ -413,6 +425,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module, "main_branch_suppression_baseline", return_value=None
@@ -453,6 +467,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module, "main_branch_suppression_baseline", return_value=None
@@ -488,6 +504,8 @@ class TestMainBehavior:
             ),
             patch.object(_module, "ensure_paths"),
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "prepend_venv_to_path"),
+            patch.object(_module, "prepare_hermetic_state"),
             patch.object(_module, "check_runner_self"),
             patch.object(
                 _module,
