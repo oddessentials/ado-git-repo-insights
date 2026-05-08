@@ -150,7 +150,10 @@ def resolve_python() -> str:
 
 
 def resolve_pnpm() -> str:
-    for candidate in ("pnpm.cmd", "pnpm"):
+    # `.cmd` only exists on native Windows; under WSL probing it would resolve
+    # the Windows shim leaked from %APPDATA%\npm and crash on Errno 8.
+    candidates = ("pnpm.cmd", "pnpm") if sys.platform == "win32" else ("pnpm",)
+    for candidate in candidates:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved

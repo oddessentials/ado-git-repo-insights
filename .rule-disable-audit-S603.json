@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 134,
+  "total_call_sites": 137,
   "unsafe_count": 10,
   "call_sites": [
     {
@@ -37,7 +37,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 400,
+      "line": 403,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 438,
+      "line": 441,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -53,7 +53,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 446,
+      "line": 449,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -77,7 +77,7 @@
     },
     {
       "file": "scripts/build_demo.py",
-      "line": 159,
+      "line": 162,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -85,7 +85,7 @@
     },
     {
       "file": "scripts/build_demo.py",
-      "line": 175,
+      "line": 178,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -277,7 +277,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 879,
+      "line": 883,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,7 +325,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 1221,
+      "line": 1226,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -557,7 +557,7 @@
     },
     {
       "file": "tests/unit/test_any_type_scanner.py",
-      "line": 171,
+      "line": 172,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -863,6 +863,30 @@
       "file": "tests/unit/test_hook_guards.py",
       "line": 889,
       "code": "eol_inspect = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_husky_hooks.py",
+      "line": 127,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_husky_hooks.py",
+      "line": 184,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_husky_hooks.py",
+      "line": 240,
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"

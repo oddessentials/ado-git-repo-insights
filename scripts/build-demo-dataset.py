@@ -352,7 +352,10 @@ def prepare_validate_only_artifact_root() -> None:
 
 def _resolve_pnpm() -> str:
     """Resolve pnpm from PATH for canonical demo surface publication."""
-    for candidate in ("pnpm.cmd", "pnpm"):
+    # `.cmd` only exists on native Windows; under WSL probing it would resolve
+    # the Windows shim leaked from %APPDATA%\npm and crash on Errno 8.
+    candidates = ("pnpm.cmd", "pnpm") if sys.platform == "win32" else ("pnpm",)
+    for candidate in candidates:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved

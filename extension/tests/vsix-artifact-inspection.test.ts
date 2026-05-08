@@ -16,7 +16,7 @@ function _loadFs(): typeof _fsOriginal {
 }
 const _fs = _loadFs();
 import * as path from "path";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 
 describe("VSIX Artifact Inspection (Tier B)", () => {
   const extensionDir = path.join(__dirname, "..");
@@ -86,20 +86,40 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
         }
       }
     } else {
-      // Unix: Use unzip with awk
+      // Unix: invoke `unzip -l` directly via execFileSync — no shell, no
+      // pipeline. The previous form `unzip -l ... | awk ...` masked unzip's
+      // failure (e.g. binary missing) because the pipeline's exit code came
+      // from awk, which happily processes 0 lines and exits 0. With
+      // execFileSync the failure surfaces as ENOENT/non-zero exit and is
+      // caught below.
+      let output: string;
       try {
-        const output = execSync(
-          `unzip -l "${vsixPath}" | awk 'NR>3 {print $4}'`,
-          {
-            encoding: "utf-8",
-            cwd: extensionDir,
-            stdio: ["pipe", "pipe", "pipe"],
-          },
-        );
-        vsixContents = output
-          .split(/\r?\n/)
-          .filter((l) => l && !l.includes("---"));
+        output = execFileSync("unzip", ["-l", vsixPath], {
+          encoding: "utf-8",
+          cwd: extensionDir,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
       } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        // Spawn-time ENOENT/EACCES means the unzip binary itself could not
+        // be invoked. WSL's Node reports EACCES (errno -13) when the binary
+        // is not in PATH (its `/mnt/c/...` entries fail readdir during the
+        // lookup); native Linux/macOS report ENOENT. Treat both as the
+        // "unzip not installed" remediation case.
+        if (
+          (err.code === "ENOENT" || err.code === "EACCES") &&
+          err.syscall?.startsWith("spawn") &&
+          vsixRequired
+        ) {
+          const wrapped = new Error(
+            `unzip could not be invoked (${err.code}). It is required on ` +
+              "macOS/Linux for VSIX artifact inspection — install it with " +
+              "your distro package manager " +
+              "(e.g. `apt install unzip`, `brew install unzip`).",
+          );
+          (wrapped as Error & { cause?: unknown }).cause = error;
+          throw wrapped;
+        }
         if (vsixRequired) {
           const wrappedError = new Error(
             `Failed to read VSIX contents on Unix: ${error}`,
@@ -107,7 +127,47 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
           (wrappedError as Error & { cause?: unknown }).cause = error;
           throw wrappedError;
         }
+        return;
       }
+
+      // `unzip -l` output:
+      //  Length      Date    Time    Name
+      // ---------  ---------- -----   ----
+      //      161  2026-01-01 12:34   extension.vsomanifest
+      //      ...
+      // ---------                     -------
+      //   1234                        17 files
+      //
+      // Capture the rows BETWEEN the two `---`-prefixed separator lines and
+      // take column 4+ (filenames may contain spaces). Separator-driven
+      // parsing is more robust than a fixed `slice(3)` if unzip ever adjusts
+      // its banner.
+      const lines = output.split(/\r?\n/);
+      let inDataSection = false;
+      for (const line of lines) {
+        if (/^-{3,}/.test(line)) {
+          if (inDataSection) break; // footer separator: end of file list
+          inDataSection = true; // header separator: file list begins next line
+          continue;
+        }
+        if (!inDataSection) continue;
+        const cols = line.trim().split(/\s+/);
+        if (cols.length >= 4) {
+          vsixContents.push(cols.slice(3).join(" "));
+        }
+      }
+    }
+
+    // Regression lock: if the VSIX is required and content extraction yielded
+    // nothing, fail at setup time. Closes the silent-empty class — every
+    // per-file assertion would otherwise report a confusing `Received array: []`.
+    if (vsixRequired && vsixContents.length === 0) {
+      throw new Error(
+        "VSIX artifact inspection extracted an empty content list. " +
+          "The VSIX may be malformed, or the platform extractor " +
+          `(${process.platform === "win32" ? "PowerShell" : "unzip"}) ` +
+          "produced unexpected output.",
+      );
     }
   });
 

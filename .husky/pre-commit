@@ -1,13 +1,11 @@
 #!/bin/sh
 set -eu
 
-if command -v py >/dev/null 2>&1 && py -3 -c "import sys" >/dev/null 2>&1; then
-    exec py -3 scripts/run_repo_hook.py pre-commit
-elif command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
-    exec python3 scripts/run_repo_hook.py pre-commit
-elif command -v python >/dev/null 2>&1 && python -c "import sys" >/dev/null 2>&1; then
-    exec python scripts/run_repo_hook.py pre-commit
-else
-    echo "[pre-commit] Python is required to run repository hooks."
-    exit 1
-fi
+# Resolve a Python interpreter that can import the project package and
+# expose it via $HOOK_PYTHON. Sets PATH so subprocess `language: system`
+# hooks find a working `python`. Fails fast (exit 2) with an actionable
+# setup message if no candidate has the project deps — covers both the
+# local-no-venv case and a misconfigured CI env.
+. ./.husky/_python_path.sh
+
+exec "$HOOK_PYTHON" scripts/run_repo_hook.py pre-commit

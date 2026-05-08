@@ -12,6 +12,7 @@ Thank you for your interest in contributing! This document covers the essential 
 | Python | >= 3.12 | [python.org](https://python.org) (includes `py` launcher) | Package manager |
 | Node.js | 22 | [nodejs.org](https://nodejs.org) | Package manager |
 | pnpm | 9.15.0 | `corepack enable` | `corepack enable` |
+| unzip | any | not required (test uses PowerShell) | Package manager (`apt install unzip`); pre-installed on macOS. Required by the VSIX-artifact inspection test. |
 
 **Windows note:** Git for Windows must include Git Bash (provides `sh` for
 Husky hooks). Python for Windows includes the `py` launcher, which is the

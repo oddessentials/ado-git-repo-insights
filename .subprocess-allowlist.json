@@ -21,7 +21,7 @@
     },
     {
       "file": "scripts/build_demo.py",
-      "line": 159,
+      "line": 162,
       "code": "result = subprocess.run(",
       "reason": "run_step() helper: command list from callers (repo-owned tools only)"
     },

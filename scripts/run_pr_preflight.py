@@ -823,7 +823,11 @@ def resolve_baseline_python() -> str:
 
 
 def resolve_pnpm() -> str:
-    for candidate in ("pnpm.cmd", "pnpm"):
+    # `.cmd` is only a real executable on native Windows. Under WSL the Windows
+    # `%APPDATA%\npm` directory is on PATH, so probing `pnpm.cmd` first would
+    # find a Windows batch file that Linux cannot exec (Errno 8).
+    candidates = ("pnpm.cmd", "pnpm") if sys.platform == "win32" else ("pnpm",)
+    for candidate in candidates:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
@@ -1011,6 +1015,72 @@ def ensure_paths() -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
 
 
+def prepend_venv_to_path() -> None:
+    """Prepend the project venv's bin directory to ``PATH`` for subprocesses.
+
+    The husky-driven hook chain prepends ``.venv/{bin,Scripts}`` via
+    ``.husky/_python_path.sh``; that's how pre-commit's ``language: system``
+    hooks find ``python`` without the developer running
+    ``source .venv/bin/activate``. Direct invocations of preflight
+    (``python scripts/run_pr_preflight.py`` or ``.venv/bin/python …``)
+    bypass that helper, so any test that shells out to bare ``python``
+    fails on a fresh non-activated shell.
+
+    Mirror the helper here: deterministic, platform-aware, and a no-op
+    when the venv is absent (callers already see clear errors from the
+    existing tool resolvers in that case). Linux/macOS use ``.venv/bin``;
+    Windows uses ``.venv/Scripts``. We deliberately do NOT cross-fall-back
+    — a Windows-created ``.venv/Scripts`` in a Linux clone would otherwise
+    route subprocesses to a Windows-side interpreter.
+    """
+    if sys.platform == "win32":
+        venv_bin = REPO_ROOT / ".venv" / "Scripts"
+    else:
+        venv_bin = REPO_ROOT / ".venv" / "bin"
+    if not venv_bin.is_dir():
+        return
+    venv_bin_str = str(venv_bin)
+    current_path = os.environ.get("PATH", "")
+    # Idempotent: if the venv is already first on PATH, do nothing.
+    if current_path.split(os.pathsep)[:1] == [venv_bin_str]:
+        return
+    os.environ["PATH"] = (
+        venv_bin_str if not current_path else venv_bin_str + os.pathsep + current_path
+    )
+
+
+def prepare_hermetic_state(
+    pnpm_executable: str,
+    *,
+    verbose: bool = False,
+) -> None:
+    """Reset volatile worktree state before the gate loop runs.
+
+    A previous preflight run that reached the VSIX-package gate stages task
+    runtime dependencies into ``extension/tasks/<task>/node_modules/``. That
+    bundled tree shadows ``extension/node_modules/`` for Jest's path-keyed
+    mocks (``extract-prs-runtime.test.ts``), which then fails the next
+    preflight's Extension Jest CI gate with a misleading
+    ``TypeError: Cannot read properties of undefined (reading 'retrieveSecret')``.
+    CI's ``extension-tests`` job is hermetic by virtue of running on a fresh
+    runner; locally we must clean explicitly.
+    """
+    safe_print("\nPreflight setup: cleaning staged task dependencies")
+    result = run_subprocess(
+        [pnpm_executable, "--dir", "extension", "run", "clean:tasks"],
+        cwd=REPO_ROOT,
+    )
+    if result.returncode != 0:
+        safe_print("[SETUP] clean:tasks failed during preflight setup:")
+        if result.stdout:
+            safe_print(result.stdout.rstrip())
+        if result.stderr:
+            safe_print(result.stderr.rstrip())
+        raise SystemExit(EXIT_SETUP)
+    if verbose and result.stdout:
+        safe_print(result.stdout.rstrip())
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the authoritative local PR preflight.",
@@ -1043,6 +1113,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    # Prepend the project venv to PATH before any subprocess is spawned so
+    # tests that invoke bare `python` (or other venv-only tools) resolve the
+    # canonical interpreter even when the caller did not
+    # `source .venv/bin/activate`. Mirrors `.husky/_python_path.sh` for
+    # hook-invoked preflight runs.
+    prepend_venv_to_path()
     python_executable = resolve_baseline_python()
     python_version = probe_python_version(python_executable) or BASELINE_PYTHON
 
@@ -1081,6 +1157,7 @@ def main() -> int:
             "[degraded] Non-authoritative local run: skipped CI-hard gates will "
             "still be enforced in CI"
         )
+    prepare_hermetic_state(pnpm_executable, verbose=args.verbose)
     commands = build_commands(
         main_branch_suppression_baseline(
             allow_local_degraded=args.allow_local_degraded

@@ -909,7 +909,12 @@ def run_managed_artifacts(*args: str) -> None:
 
 def _require_pnpm(operation: str) -> str:
     """Resolve pnpm or fail with a SETUP error."""
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    # `.cmd` only exists on native Windows; under WSL probing it would resolve
+    # the Windows shim leaked from %APPDATA%\npm and crash on Errno 8.
+    if sys.platform == "win32":
+        pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    else:
+        pnpm = shutil.which("pnpm")
     if pnpm:
         return pnpm
     safe_print("[SETUP] pnpm not found on PATH.")
