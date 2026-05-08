@@ -106,28 +106,49 @@ class TestHuskyPythonPathHelper:
             "Helper must point users to the canonical setup command"
         )
 
-    def test_helper_resolves_correctly_on_this_repo(self, tmp_path: Path) -> None:
-        """Smoke: with the real repo's ``.venv`` present, sourcing the helper
-        must export ``VENV_PYTHON`` to the canonical path and prepend the
-        venv's bin directory to ``PATH``.
+    def test_helper_resolves_correctly_with_synthetic_venv(
+        self, tmp_path: Path
+    ) -> None:
+        """With a synthetic ``.venv`` stub planted in ``tmp_path``, sourcing
+        the helper must export ``VENV_PYTHON`` and prepend the venv's bin
+        dir to ``PATH``.
 
-        No-op early return on:
-          * Windows (POSIX path semantics — helper resolves differently),
-          * Missing ``.venv`` (CI's ``test`` matrix uses
-            ``actions/setup-python`` + ``pip install -e .[dev]`` and never
-            creates a venv).
-
-        The missing-venv branch is locked separately by
-        ``test_helper_fails_with_actionable_setup_message_when_venv_missing``,
-        so a runtime no-op here is safe. We deliberately do NOT use
-        ``pytest.mark.skipif`` or ``pytest.skip()`` because the repo
-        enforces ``--max-skips=0`` (see ``LOCAL_CI_PARITY_INVARIANTS.md``).
+        Uses a temp fixture rather than reading the real repo's ``.venv``,
+        so the assertion runs identically on local (where ``.venv``
+        exists) AND on CI's ``test`` matrix (which uses
+        ``actions/setup-python`` + ``pip install -e .[dev]`` and never
+        creates ``.venv``). Both layouts are covered every run — the
+        sibling ``test_helper_fails_with_actionable_setup_message_when_venv_missing``
+        proves the negative path the same way (separate temp fixture,
+        no ``.venv`` planted), so together the two tests assert both
+        sides of the contract on every host without depending on
+        environment state.
         """
-        if sys.platform == "win32":
-            return
-        venv_python = REPO_ROOT / ".venv" / "bin" / "python"
-        if not venv_python.exists():
-            return
+        # Plant a stub interpreter the helper's `[ -x ... ]` check accepts.
+        # The helper does not exec it; it only needs the path to be a
+        # regular executable file to pass the existence guard.
+        is_windows_shell = sys.platform == "win32"
+        if is_windows_shell:
+            venv_bin_rel = ".venv/Scripts"
+            python_name = "python.exe"
+        else:
+            venv_bin_rel = ".venv/bin"
+            python_name = "python"
+        venv_bin = tmp_path / venv_bin_rel
+        venv_bin.mkdir(parents=True)
+        stub = venv_bin / python_name
+        stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        stub.chmod(0o755)
+
+        # Mirror the helper into the temp tree so its `./.husky/...` path
+        # resolves relative to the cwd we'll set below.
+        husky_dir = tmp_path / ".husky"
+        husky_dir.mkdir()
+        helper_copy = husky_dir / "_python_path.sh"
+        helper_copy.write_text(
+            PYTHON_PATH_HELPER.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
         result = subprocess.run(
             [
                 "sh",
@@ -136,18 +157,24 @@ class TestHuskyPythonPathHelper:
                 ' && echo "VENV_PYTHON=$VENV_PYTHON"'
                 ' && echo "PATH_HEAD=$(echo $PATH | cut -d: -f1)"',
             ],
-            cwd=REPO_ROOT,
+            cwd=tmp_path,
             capture_output=True,
             text=True,
             check=False,
             env={**os.environ},
         )
         assert result.returncode == 0, (
-            f"Helper must succeed in this repo; got rc={result.returncode}\n"
+            f"Helper must succeed with synthetic venv; got rc={result.returncode}\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
-        assert "VENV_PYTHON=.venv/bin/python" in result.stdout
-        assert "PATH_HEAD=.venv/bin" in result.stdout
+        expected_python = f"{venv_bin_rel}/{python_name}"
+        assert f"VENV_PYTHON={expected_python}" in result.stdout, (
+            f"Helper must export VENV_PYTHON pointing at the planted stub;"
+            f" stdout={result.stdout!r}"
+        )
+        assert f"PATH_HEAD={venv_bin_rel}" in result.stdout, (
+            f"Helper must prepend the venv bin dir to PATH; stdout={result.stdout!r}"
+        )
 
 
 class TestHuskyHooksDelegateInterpreterResolutionToHelper:
