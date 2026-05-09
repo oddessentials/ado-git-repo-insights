@@ -1,8 +1,6 @@
 {
     "name": "ado-git-repo-insights",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
+    "image": "ghcr.io/oddessentials/ado-git-repo-insights-dev:main",
     "remoteUser": "vscode",
     "workspaceFolder": "/workspaces/ado-git-repo-insights",
     // postCreateCommand runs once after the container is created, with the
