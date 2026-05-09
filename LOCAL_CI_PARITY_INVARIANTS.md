@@ -101,6 +101,7 @@ in Tier 2 above.
 | T3-4  | task-major-guard           | Requires GitHub PR context (webhook data)                                              |
 | T3-5  | badge-publish              | Main-only post-merge artifact publish                                                  |
 | T3-6  | Verify Asset Accessibility | Requires HTTP server + curl integration test                                           |
+| T3-7  | publish-devcontainer       | Main-only multi-arch image build + GHCR publish; CI infra (buildx, QEMU, registry auth) |
 
 ## External Checks (not in our control)
 
