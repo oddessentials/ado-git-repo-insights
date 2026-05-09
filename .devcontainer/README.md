@@ -30,8 +30,39 @@ works:
 - Rancher Desktop (cross-platform)
 - Podman with Dev Containers integration
 
-Image build is roughly 5 minutes from scratch and ~849 MB compressed
-(3.24 GB uncompressed).
+## Image source — GHCR by default
+
+`devcontainer.json` references the multi-arch image published to GHCR by
+the [`publish-devcontainer` CI job](../.github/workflows/ci.yml) on every
+merge to `main`:
+
+```
+ghcr.io/oddessentials/ado-git-repo-insights-dev:main
+```
+
+Fresh clones pull this image (~30s on a warm cache) instead of building
+locally (~5 min, ~849 MB compressed / 3.24 GB uncompressed). Both
+`linux/amd64` and `linux/arm64` are published, so Apple Silicon hosts
+get a native-arch image without QEMU emulation.
+
+### When to fall back to a local build
+
+Two scenarios require a local rebuild. Both involve editing
+`devcontainer.json` in your local checkout — **do not commit** these
+edits:
+
+- **GHCR unreachable or the package is private** and you don't have
+  pull access. VS Code will surface a clear pull error.
+- **Iterating on `Dockerfile`** — the `:main` tag only reflects merged
+  changes, so an in-progress Dockerfile edit will not appear there.
+
+In either case, replace the `"image"` line with:
+
+```jsonc
+"build": { "dockerfile": "Dockerfile" }
+```
+
+and rebuild via the manual recipe below.
 
 ## Ad-hoc `docker run` verification — `--user` is mandatory
 
@@ -83,7 +114,10 @@ doesn't match the running uid. The bind mount preserves host ownership,
 which `git` flags as "dubious" until you allowlist it. Inside an
 ephemeral container, this is harmless.
 
-## Build the image manually
+## Build the image manually (fallback)
+
+Use this when GHCR is unreachable or you are iterating on the
+Dockerfile (see [When to fall back to a local build](#when-to-fall-back-to-a-local-build)):
 
 ```bash
 docker build -t ado-git-repo-insights-dev:test -f .devcontainer/Dockerfile .devcontainer/
