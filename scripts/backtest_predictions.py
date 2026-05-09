@@ -60,6 +60,7 @@ import pandas as pd
 
 from ado_git_repo_insights.ml import fallback_forecaster as fb_module
 from ado_git_repo_insights.ml.fallback_forecaster import (
+    HORIZON_WEEKS,
     MIN_WEEKS_REQUIRED,
     FallbackForecaster,
 )
@@ -277,13 +278,22 @@ def run_one_cutoff(
     full_weekly: pd.DataFrame,
     cutoff_idx: int,
     output_dir: Path,
-    horizon: int,
 ) -> list[CutoffResult] | None:
     """Run all forecasters as if today were the cutoff Monday.
 
+    Persistence is run with the same horizon linear actually emitted at
+    this cutoff (4 for `normal` data quality, 2 for `low_confidence`),
+    so every (metric, horizon) row in the side-by-side comparison has
+    matched linear+persistence pairs. If linear emits no forecasts at
+    all (e.g., insufficient_data), persistence is skipped — there is
+    nothing to compare against and a persistence-only row would mislead
+    the aggregate table.
+
     Returns:
-        List of per-forecaster result dicts (one for `linear`, one for
-        `persistence`), or None when the cutoff has insufficient history.
+        List of per-forecaster result dicts. None when the cutoff has
+        insufficient history. Empty linear forecasts (status =
+        insufficient_data) are recorded for diagnostic completeness;
+        persistence is omitted in that case.
     """
     history = full_weekly.iloc[:cutoff_idx]
     if len(history) < MIN_WEEKS_REQUIRED:
@@ -302,6 +312,8 @@ def run_one_cutoff(
         mocked_date.today.return_value = cutoff_week_start
         mocked_date.fromisocalendar = date.fromisocalendar
         wrote = linear.generate()
+
+    linear_emitted_horizon = 0
     if wrote:
         trends_path = cutoff_dir / "predictions" / "trends.json"
         if trends_path.exists():
@@ -309,6 +321,7 @@ def run_one_cutoff(
                 LinearTrendsJson,
                 json.loads(trends_path.read_text(encoding="utf-8")),
             )
+            linear_forecasts = trends["forecasts"]
             results.append(
                 {
                     "forecaster": "linear",
@@ -317,22 +330,32 @@ def run_one_cutoff(
                     "data_quality": trends["data_quality"],
                     "status": trends["status"],
                     "reason_code": trends["reason_code"],
-                    "forecasts": trends["forecasts"],
+                    "forecasts": linear_forecasts,
                 }
             )
+            if linear_forecasts:
+                # All metrics emit the same horizon (FallbackForecaster
+                # uses one _calculate_horizon() call per cutoff), so the
+                # first metric's count is authoritative.
+                linear_emitted_horizon = len(linear_forecasts[0]["values"])
 
-    # Persistence baseline: in-memory only, no on-disk artifact.
-    results.append(
-        {
-            "forecaster": "persistence",
-            "cutoff_week_start": cutoff_week_start.isoformat(),
-            "history_weeks": len(history),
-            "data_quality": None,
-            "status": "ok",
-            "reason_code": None,
-            "forecasts": persistence_forecast(history, cutoff_week_start, horizon),
-        }
-    )
+    # Persistence: only run when linear emitted forecasts, and align to
+    # linear's actual emitted horizon so every (metric, horizon) bucket
+    # has paired linear+persistence rows.
+    if linear_emitted_horizon > 0:
+        results.append(
+            {
+                "forecaster": "persistence",
+                "cutoff_week_start": cutoff_week_start.isoformat(),
+                "history_weeks": len(history),
+                "data_quality": None,
+                "status": "ok",
+                "reason_code": None,
+                "forecasts": persistence_forecast(
+                    history, cutoff_week_start, linear_emitted_horizon
+                ),
+            }
+        )
 
     return results if results else None
 
@@ -564,12 +587,6 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--horizon-weeks",
-        type=int,
-        default=4,
-        help="Number of forecast weeks to evaluate per cutoff (default 4).",
-    )
-    parser.add_argument(
         "--cutoff-stride",
         type=int,
         default=1,
@@ -607,7 +624,10 @@ def main() -> int:
     )
 
     first_cutoff = max(args.min_history, MIN_WEEKS_REQUIRED)
-    last_cutoff = n - args.horizon_weeks
+    # Use the production HORIZON_WEEKS so linear's longest possible
+    # forecast still has actuals to compare against; persistence aligns
+    # to linear's per-cutoff emitted horizon inside run_one_cutoff.
+    last_cutoff = n - HORIZON_WEEKS
     if last_cutoff < first_cutoff:
         print(
             f"Insufficient data for backtesting: need first_cutoff "
@@ -619,8 +639,8 @@ def main() -> int:
     cutoffs = list(range(first_cutoff, last_cutoff + 1, args.cutoff_stride))
     print(
         f"Running {len(cutoffs)} cutoffs (history = "
-        f"{first_cutoff}..{last_cutoff} weeks, horizon = {args.horizon_weeks}) "
-        f"x 2 forecasters [linear, persistence]..."
+        f"{first_cutoff}..{last_cutoff} weeks, production horizon = "
+        f"{HORIZON_WEEKS}) x 2 forecasters [linear, persistence]..."
     )
 
     runs_dir = args.output / "runs"
@@ -631,7 +651,7 @@ def main() -> int:
     skipped: list[int] = []
 
     for cutoff_idx in cutoffs:
-        results = run_one_cutoff(full_weekly, cutoff_idx, runs_dir, args.horizon_weeks)
+        results = run_one_cutoff(full_weekly, cutoff_idx, runs_dir)
         if results is None:
             skipped.append(cutoff_idx)
             continue
@@ -661,7 +681,7 @@ def main() -> int:
             "first_observed_week": first_week.isoformat(),
             "last_observed_week": last_week.isoformat(),
             "min_history": args.min_history,
-            "horizon_weeks": args.horizon_weeks,
+            "production_horizon_weeks": HORIZON_WEEKS,
             "cutoff_stride": args.cutoff_stride,
             "num_cutoffs_requested": len(cutoffs),
             "num_cutoffs_skipped": len(skipped),

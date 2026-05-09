@@ -18,7 +18,8 @@ chore(predictions): add backtest persistence baseline:
 from __future__ import annotations
 
 import importlib
-from datetime import date
+from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -228,3 +229,63 @@ class TestAggregateMetrics:
         assert per_h1["n"] == 2
         # No band keys -> coverage_rate is None, not zero or near-zero.
         assert per_h1["coverage_rate"] is None
+
+
+class TestRunOneCutoffHorizonAlignment:
+    """Persistence MUST emit the same horizon (and period_starts) as linear.
+
+    Regression for: a configurable --horizon-weeks that diverged from
+    FallbackForecaster's locked HORIZON_WEEKS would produce summary rows
+    where one forecaster appears at a horizon the other did not, making
+    the side-by-side comparison invalid.
+    """
+
+    def test_persistence_horizon_matches_linear_emitted_horizon(
+        self, tmp_path: Path
+    ) -> None:
+        # 10 weeks of monotonically increasing data; cutoff_idx=8 leaves
+        # an 8-week history (>= LOW_CONFIDENCE_THRESHOLD), so linear
+        # produces a normal-quality forecast at the production
+        # HORIZON_WEEKS.
+        weekly = _make_weekly(
+            [
+                (date(2025, 12, 1) + timedelta(weeks=i), 100 + i, 30.0 + i * 0.5)
+                for i in range(10)
+            ]
+        )
+
+        results = harness.run_one_cutoff(weekly, cutoff_idx=8, output_dir=tmp_path)
+        assert results is not None
+        by_forecaster = {r["forecaster"]: r for r in results}
+        assert set(by_forecaster) == {"linear", "persistence"}
+
+        # Both forecasters emit the same metrics in the same order, and
+        # within each forecaster every metric carries the same horizon.
+        linear_horizons = {
+            f["metric"]: len(f["values"]) for f in by_forecaster["linear"]["forecasts"]
+        }
+        persistence_horizons = {
+            f["metric"]: len(f["values"])
+            for f in by_forecaster["persistence"]["forecasts"]
+        }
+        assert linear_horizons == persistence_horizons, (
+            "persistence horizon must mirror linear's emitted forecast count "
+            "per metric, otherwise the side-by-side comparison is invalid"
+        )
+
+        # Period_starts must also align so each (metric, horizon) bucket
+        # holds matched linear/persistence rows downstream.
+        for metric in ("pr_throughput", "cycle_time_minutes"):
+            linear_periods = next(
+                f["values"]
+                for f in by_forecaster["linear"]["forecasts"]
+                if f["metric"] == metric
+            )
+            persistence_periods = next(
+                f["values"]
+                for f in by_forecaster["persistence"]["forecasts"]
+                if f["metric"] == metric
+            )
+            assert [v["period_start"] for v in linear_periods] == [
+                v["period_start"] for v in persistence_periods
+            ]
