@@ -229,18 +229,47 @@ def _coerce_week_start(value: object) -> date:
     raise TypeError(f"unexpected week_start cell type: {type(value).__name__}")
 
 
+def _last_finite(series: pd.Series) -> float | None:
+    """Return the last finite (non-NaN, non-inf) value in `series`, or None.
+
+    Walks the series in reverse so the most recent finite observation
+    wins. Used by persistence_forecast to anchor forecasts on a value
+    that is actually a number — propagating NaN would corrupt downstream
+    MAE/RMSE/MAPE and write non-standard `NaN` tokens to results.json.
+    """
+    for raw in reversed(series.tolist()):
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(value):
+            return value
+    return None
+
+
 def persistence_forecast(
     history: pd.DataFrame,
     cutoff_week_start: date,
     horizon: int,
 ) -> list[HarnessMetricForecast]:
-    """Naive baseline: predicted_h = last observed value, for all horizons.
+    """Naive baseline: predicted_h = last finite observed value, for all horizons.
 
     Emits NO band keys. Persistence has no inherent confidence interval,
     so coverage is reported as None rather than collapsing the band to
     predicted=lower=upper (which would be a near-zero exact-match
     probability and mislead). Downstream aggregation treats missing
     band keys as "no coverage data."
+
+    The anchor for each metric is the LAST FINITE value in that metric's
+    column across `history`. Trailing NaN/inf values (possible when every
+    PR in a week has a NULL `cycle_time_minutes`, so its `cycle_time_p50`
+    aggregates to NaN) are walked past so persistence never emits NaN
+    forecasts. NaN forecasts would propagate into MAE/RMSE/MAPE through
+    compare_to_actuals/_summarize_group and would write non-standard
+    `NaN` tokens to results.json. If no finite anchor exists in history
+    for a given metric, that metric is skipped for this cutoff — the
+    (forecaster=persistence, metric, h) summary buckets simply have no
+    rows for this cutoff.
 
     Args:
         history: weekly DataFrame strictly before the cutoff (must
@@ -251,22 +280,24 @@ def persistence_forecast(
     Returns:
         List of {metric, values: [{period_start, predicted}, ...]} dicts.
         Shape matches the linear forecaster's `forecasts` array minus the
-        two band keys.
+        two band keys; metrics with no finite anchor are omitted.
     """
-    last = history.iloc[-1]
-    metric_values = {
-        "pr_throughput": float(last["pr_count"]),
-        "cycle_time_minutes": float(last["cycle_time_p50"]),
+    metric_columns = {
+        "pr_throughput": "pr_count",
+        "cycle_time_minutes": "cycle_time_p50",
     }
     forecasts: list[HarnessMetricForecast] = []
-    for metric, value in metric_values.items():
+    for metric, column in metric_columns.items():
+        anchor = _last_finite(history[column])
+        if anchor is None:
+            continue
         values: list[HarnessForecastValue] = []
         for h_idx in range(horizon):
             period_start = cutoff_week_start + timedelta(weeks=h_idx)
             values.append(
                 {
                     "period_start": period_start.isoformat(),
-                    "predicted": value,
+                    "predicted": anchor,
                     # No lower_bound / upper_bound: persistence has no band.
                 }
             )

@@ -18,6 +18,7 @@ chore(predictions): add backtest persistence baseline:
 from __future__ import annotations
 
 import importlib
+import math
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -289,3 +290,51 @@ class TestRunOneCutoffHorizonAlignment:
             assert [v["period_start"] for v in linear_periods] == [
                 v["period_start"] for v in persistence_periods
             ]
+
+
+class TestPersistenceForecastNanAnchor:
+    """Regression: trailing NaN cycle-time anchor must not propagate NaN.
+
+    Without the walk-back guard, a week whose cycle_time_p50 is NaN
+    (every PR in that week has NULL cycle_time_minutes, so the quantile
+    aggregates to NaN) would make persistence emit `predicted: NaN` for
+    every horizon. compare_to_actuals/_summarize_group would then
+    propagate NaN into MAE/RMSE/MAPE, and json.dumps would write
+    non-standard `NaN` tokens to results.json, corrupting the baseline.
+    """
+
+    def test_walks_back_to_last_finite_value_for_trailing_nan_anchor(self) -> None:
+        # Last week's cycle_time_p50 is NaN; previous weeks are finite.
+        # Persistence must walk back to the last finite cycle_time_p50
+        # (28.0) rather than emitting NaN.
+        history = _make_weekly(
+            [
+                (date(2026, 1, 5), 100, 30.0),
+                (date(2026, 1, 12), 120, 33.0),
+                (date(2026, 1, 19), 150, 28.0),  # last finite cycle p50
+                (date(2026, 1, 26), 130, float("nan")),  # trailing NaN anchor
+            ]
+        )
+        forecasts = harness.persistence_forecast(history, date(2026, 2, 2), horizon=4)
+        by_metric = {f["metric"]: f for f in forecasts}
+
+        # Both metrics still emitted: pr_count is always finite, and
+        # cycle_time walks back past the trailing NaN.
+        assert set(by_metric) == {"pr_throughput", "cycle_time_minutes"}
+
+        # Throughput uses the last week's count (130 — pr_count is finite).
+        assert all(
+            v["predicted"] == 130.0 for v in by_metric["pr_throughput"]["values"]
+        )
+
+        # Cycle time walks back past the trailing NaN to 28.0 (the last
+        # finite cycle_time_p50), never emitting NaN for any horizon.
+        assert all(
+            v["predicted"] == 28.0 for v in by_metric["cycle_time_minutes"]["values"]
+        )
+
+        # Defensive: no horizon may emit NaN. NaN would propagate into
+        # MAE/RMSE/MAPE and write non-standard JSON via json.dumps.
+        for forecast in forecasts:
+            for value in forecast["values"]:
+                assert math.isfinite(value["predicted"])
