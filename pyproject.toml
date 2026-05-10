@@ -154,6 +154,7 @@ module = [
     "_ci_yaml_parser",
     "_platform_test_filters",
     "_pytest_count_collector",
+    "backtest_predictions",
     "build_demo",
     "check_coverage_delta",
     "check_no_any_types",
