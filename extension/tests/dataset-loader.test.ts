@@ -374,4 +374,78 @@ describe("DatasetLoader", () => {
       expect(loader.isFeatureEnabled("predictions")).toBe(false);
     });
   });
+
+  describe("predictions-only production state (--enable-predictions only)", () => {
+    // Validation for the exact dataset shape produced by `ado-insights
+    // generate-aggregates --enable-predictions` (no --enable-insights).
+    // No prior test asserts the COMBINED state where one flag is true
+    // and the other is false alongside production-shape trends.json.
+    // The trends payload below mirrors the live output of FallbackForecaster
+    // captured against samples/ado-insights-db/ado-insights.sqlite (trimmed
+    // to one forecast value per metric for compactness — shape preserved).
+
+    it("loadPredictions = ok with production trends; loadInsights = disabled", async () => {
+      loader.setManifestForTest({
+        manifest_schema_version: 1,
+        dataset_schema_version: 1,
+        aggregates_schema_version: 1,
+        features: {
+          predictions: true,
+          ai_insights: false,
+        },
+      });
+
+      const productionTrends = {
+        schema_version: 1,
+        generated_at: "2026-05-10T12:52:04.428771+00:00",
+        is_stub: false,
+        generated_by: "linear-v1.0",
+        forecaster: "linear",
+        data_quality: "normal",
+        status: "ok",
+        reason_code: null,
+        forecasts: [
+          {
+            metric: "cycle_time_minutes",
+            unit: "minutes",
+            horizon_weeks: 4,
+            values: [
+              {
+                period_start: "2026-05-11",
+                predicted: 49.83,
+                lower_bound: 14.24,
+                upper_bound: 85.42,
+                constraints_applied: [],
+              },
+            ],
+          },
+          {
+            metric: "pr_throughput",
+            unit: "count",
+            horizon_weeks: 4,
+            values: [
+              {
+                period_start: "2026-05-11",
+                predicted: 435.95,
+                lower_bound: 210.69,
+                upper_bound: 661.2,
+                constraints_applied: [],
+              },
+            ],
+          },
+        ],
+      };
+      testGlobal.fetch = jest.fn(() => mockFetchResponse(productionTrends));
+
+      const predictionsResult = await loader.loadPredictions();
+      expect(predictionsResult.state).toBe("ok");
+      expect(predictionsResult.data).toEqual(productionTrends);
+
+      // Insights short-circuits on the manifest flag without fetching, so
+      // the absence of aggregates/insights/summary.json never produces a
+      // 404/error path — the tab is simply marked disabled.
+      const insightsResult = await loader.loadInsights();
+      expect(insightsResult).toEqual({ state: "disabled" });
+    });
+  });
 });
