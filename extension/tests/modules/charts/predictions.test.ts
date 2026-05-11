@@ -345,6 +345,71 @@ describe("renderPredictionsWithCharts branch coverage", () => {
     document.body.removeChild(container);
   });
 
+  it("filters pr_throughput out of the rendered set while keeping cycle_time_minutes (PR #389 acceptance gate)", () => {
+    // Per PR #389 walk-forward backtest, the linear forecaster loses to a
+    // persistence baseline for pr_throughput at h=1, h=4, and the
+    // all-horizon aggregate. The renderer at predictions.ts:537 must filter
+    // pr_throughput before forEach so misleading throughput forecasts never
+    // reach the user-facing tab. cycle_time_minutes must still render.
+    const predictions: PredictionsRenderData = {
+      generated_at: "2026-05-11T00:00:00Z",
+      forecaster: "linear",
+      forecasts: [
+        {
+          metric: "pr_throughput",
+          unit: "count",
+          values: [
+            {
+              period_start: "2026-05-11",
+              predicted: 50,
+              lower_bound: 40,
+              upper_bound: 60,
+            },
+            {
+              period_start: "2026-05-18",
+              predicted: 55,
+              lower_bound: 45,
+              upper_bound: 65,
+            },
+          ],
+        },
+        {
+          metric: "cycle_time_minutes",
+          unit: "minutes",
+          values: [
+            {
+              period_start: "2026-05-11",
+              predicted: 4320,
+              lower_bound: 3600,
+              upper_bound: 5040,
+            },
+            {
+              period_start: "2026-05-18",
+              predicted: 4400,
+              lower_bound: 3700,
+              upper_bound: 5100,
+            },
+          ],
+        },
+      ],
+    };
+
+    renderPredictionsWithCharts(container, predictions);
+
+    // Exactly one forecast chart renders — pr_throughput is suppressed.
+    const charts = container.querySelectorAll(".forecast-chart");
+    expect(charts).toHaveLength(1);
+
+    // The surviving chart is cycle_time_minutes; its sanitized id is the
+    // metric string verbatim (sanitizeForId leaves _ and a-z alone).
+    expect(container.querySelector("#chart-cycle_time_minutes")).not.toBeNull();
+    expect(container.querySelector("#chart-pr_throughput")).toBeNull();
+
+    // Title-cased label visible to users.
+    expect(container.textContent).toContain("Cycle Time Minutes");
+    expect(container.textContent).not.toContain("Pr Throughput");
+  });
+
   it("suppresses the review-time unavailable message when a review_time_minutes forecast is present", () => {
     // `hasReviewTime` true → `!hasReviewTime && predictions.forecasts.length > 0`
     // evaluates false at the AND and the metric-unavailable notice is not

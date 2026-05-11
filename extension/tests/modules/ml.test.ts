@@ -147,17 +147,21 @@ describe("renderPredictions", () => {
   });
 
   it("does not show partial-history badge when historical data naturally has 200 points", () => {
+    // Uses cycle_time_minutes because pr_throughput is suppressed at the
+    // renderer per PR #389 backtest verdict; the truncation-badge logic
+    // is metric-agnostic but must be exercised against a metric that reaches
+    // the chart rendering path.
     const predictions: PredictionsRenderData = {
       forecasts: [
         {
-          metric: "pr_throughput",
-          unit: "count",
+          metric: "cycle_time_minutes",
+          unit: "minutes",
           values: [
             {
               period_start: "2024-W01",
-              predicted: 10,
-              lower_bound: 8,
-              upper_bound: 12,
+              predicted: 60,
+              lower_bound: 48,
+              upper_bound: 72,
             },
           ],
         },
@@ -176,17 +180,21 @@ describe("renderPredictions", () => {
   });
 
   it("shows partial-history badge when historical data exceeds 200 points", () => {
+    // Uses cycle_time_minutes because pr_throughput is suppressed at the
+    // renderer per PR #389 backtest verdict; the truncation-badge logic
+    // is metric-agnostic but must be exercised against a metric that reaches
+    // the chart rendering path.
     const predictions: PredictionsRenderData = {
       forecasts: [
         {
-          metric: "pr_throughput",
-          unit: "count",
+          metric: "cycle_time_minutes",
+          unit: "minutes",
           values: [
             {
               period_start: "2024-W01",
-              predicted: 10,
-              lower_bound: 8,
-              upper_bound: 12,
+              predicted: 60,
+              lower_bound: 48,
+              upper_bound: 72,
             },
           ],
         },
@@ -1103,19 +1111,23 @@ describe("Predictions Tab State Rendering (T017-T021)", () => {
   });
 
   it("T018: renders ready state with valid artifact", () => {
+    // Uses cycle_time_minutes because pr_throughput is suppressed at the
+    // renderer per PR #389 backtest verdict; a ready-state fixture must
+    // use a metric that survives the filter so the assertion exercises
+    // the chart-rendering path rather than the empty-message fallback.
     const state: ArtifactState = {
       type: "ready",
       data: {
         forecasts: [
           {
-            metric: "pr_throughput",
-            unit: "count",
+            metric: "cycle_time_minutes",
+            unit: "minutes",
             values: [
               {
                 period_start: "2026-01-28",
-                predicted: 15,
-                lower_bound: 12,
-                upper_bound: 18,
+                predicted: 60,
+                lower_bound: 48,
+                upper_bound: 72,
               },
             ],
           },

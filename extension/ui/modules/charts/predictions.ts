@@ -518,8 +518,17 @@ export function renderPredictionsWithCharts(
     );
   }
 
+  // pr_throughput is filtered out before rendering: PR #389 walk-forward
+  // backtest showed the linear forecaster loses to a persistence baseline
+  // for throughput (MAE 95.70 vs 92.97, MAPE 28.7% vs 26.2% at all-horizon
+  // aggregate, decisively at h=1 and h=4). Suppressing it from the
+  // user-facing tab is the acceptance gate per the throughput-model verdict.
+  const visibleForecasts = predictions.forecasts.filter(
+    (f) => f.metric !== "pr_throughput",
+  );
+
   // Check for empty forecasts
-  if (!predictions.forecasts || predictions.forecasts.length === 0) {
+  if (!visibleForecasts || visibleForecasts.length === 0) {
     appendTrustedHtml(
       content,
       `<div class="predictions-empty-message">
@@ -534,7 +543,7 @@ export function renderPredictionsWithCharts(
   // Render each forecast as a chart with historical data. The truncation
   // badge is emitted inline by renderForecastChart when wasTruncated is
   // true, so no post-append querySelector step is needed.
-  predictions.forecasts.forEach((forecast: Forecast) => {
+  visibleForecasts.forEach((forecast: Forecast) => {
     const historicalResult = rollups
       ? extractHistoricalDataResult(rollups, forecast.metric)
       : undefined;
@@ -551,10 +560,10 @@ export function renderPredictionsWithCharts(
 
   // Show informational message about review time unavailability (T016)
   // Review time forecasts were removed because they used cycle time as a misleading proxy
-  const hasReviewTime = predictions.forecasts.some(
+  const hasReviewTime = visibleForecasts.some(
     (f) => f.metric === "review_time_minutes",
   );
-  if (!hasReviewTime && predictions.forecasts.length > 0) {
+  if (!hasReviewTime && visibleForecasts.length > 0) {
     appendTrustedHtml(
       content,
       `<div class="metric-unavailable">

@@ -6956,7 +6956,10 @@ var PRInsightsDashboard = (() => {
       </div>`
       );
     }
-    if (!predictions.forecasts || predictions.forecasts.length === 0) {
+    const visibleForecasts = predictions.forecasts.filter(
+      (f2) => f2.metric !== "pr_throughput"
+    );
+    if (!visibleForecasts || visibleForecasts.length === 0) {
       appendTrustedHtml(
         content,
         `<div class="predictions-empty-message">
@@ -6967,7 +6970,7 @@ var PRInsightsDashboard = (() => {
       container.appendChild(content);
       return;
     }
-    predictions.forecasts.forEach((forecast) => {
+    visibleForecasts.forEach((forecast) => {
       const historicalResult = rollups ? extractHistoricalDataResult(rollups, forecast.metric) : void 0;
       const historicalData = historicalResult?.data;
       const wasTruncated = historicalResult?.wasTruncated === true;
@@ -6979,10 +6982,10 @@ var PRInsightsDashboard = (() => {
       );
       appendTrustedHtml(content, chartHtml);
     });
-    const hasReviewTime = predictions.forecasts.some(
+    const hasReviewTime = visibleForecasts.some(
       (f2) => f2.metric === "review_time_minutes"
     );
-    if (!hasReviewTime && predictions.forecasts.length > 0) {
+    if (!hasReviewTime && visibleForecasts.length > 0) {
       appendTrustedHtml(
         content,
         `<div class="metric-unavailable">
