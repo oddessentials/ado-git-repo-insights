@@ -496,9 +496,7 @@ describe("renderPredictionsWithCharts branch coverage", () => {
     renderPredictionsWithCharts(container, predictions);
 
     expect(container.querySelectorAll(".forecast-chart")).toHaveLength(0);
-    expect(
-      container.querySelector("#chart-review_time_minutes"),
-    ).toBeNull();
+    expect(container.querySelector("#chart-review_time_minutes")).toBeNull();
     const empty = container.querySelector(".predictions-empty-message");
     expect(empty).not.toBeNull();
     expect(empty?.textContent).toContain(
