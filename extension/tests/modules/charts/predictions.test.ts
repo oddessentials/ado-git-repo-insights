@@ -345,12 +345,14 @@ describe("renderPredictionsWithCharts branch coverage", () => {
     document.body.removeChild(container);
   });
 
-  it("filters pr_throughput out of the rendered set while keeping cycle_time_minutes (PR #389 acceptance gate)", () => {
-    // Per PR #389 walk-forward backtest, the linear forecaster loses to a
-    // persistence baseline for pr_throughput at h=1, h=4, and the
-    // all-horizon aggregate. The renderer at predictions.ts:537 must filter
-    // pr_throughput before forEach so misleading throughput forecasts never
-    // reach the user-facing tab. cycle_time_minutes must still render.
+  it("renders only cycle_time_minutes from a mixed payload (allowlist)", () => {
+    // The render allowlist accepts cycle_time_minutes only. pr_throughput
+    // is excluded per PR #389's walk-forward backtest verdict;
+    // review_time_minutes is excluded because the historical-data
+    // extractor has no mapping for it, so it would render as a bare
+    // forecast band. The mixed fixture exercises both arms of the
+    // allowlist predicate: cycle_time_minutes (kept) and the other two
+    // metrics (dropped).
     const predictions: PredictionsRenderData = {
       generated_at: "2026-05-11T00:00:00Z",
       forecaster: "linear",
@@ -391,31 +393,93 @@ describe("renderPredictionsWithCharts branch coverage", () => {
             },
           ],
         },
+        {
+          metric: "review_time_minutes",
+          unit: "minutes",
+          values: [
+            {
+              period_start: "2026-05-11",
+              predicted: 120,
+              lower_bound: 90,
+              upper_bound: 150,
+            },
+            {
+              period_start: "2026-05-18",
+              predicted: 125,
+              lower_bound: 95,
+              upper_bound: 155,
+            },
+          ],
+        },
       ],
     };
 
     renderPredictionsWithCharts(container, predictions);
 
-    // Exactly one forecast chart renders — pr_throughput is suppressed.
+    // Exactly one forecast chart renders — only cycle_time_minutes is in
+    // the allowlist.
     const charts = container.querySelectorAll(".forecast-chart");
     expect(charts).toHaveLength(1);
-
-    // The surviving chart is cycle_time_minutes; its sanitized id is the
-    // metric string verbatim (sanitizeForId leaves _ and a-z alone).
     expect(container.querySelector("#chart-cycle_time_minutes")).not.toBeNull();
     expect(container.querySelector("#chart-pr_throughput")).toBeNull();
+    expect(container.querySelector("#chart-review_time_minutes")).toBeNull();
 
-    // Title-cased label visible to users.
+    // Title-cased label visible to users; suppressed metrics never appear.
     expect(container.textContent).toContain("Cycle Time Minutes");
     expect(container.textContent).not.toContain("Pr Throughput");
+    expect(container.textContent).not.toContain("Review Time Minutes");
+
+    // No supported-metrics empty state when at least one supported metric
+    // renders.
+    expect(container.querySelector(".predictions-empty-message")).toBeNull();
   });
 
-  it("suppresses the review-time unavailable message when a review_time_minutes forecast is present", () => {
-    // `hasReviewTime` true → `!hasReviewTime && predictions.forecasts.length > 0`
-    // evaluates false at the AND and the metric-unavailable notice is not
-    // emitted. This is the missing left-hand branch on line 555.
+  it("shows the supported-metrics empty state when only pr_throughput is emitted", () => {
+    // The producer emitted a forecast, but pr_throughput is not in the
+    // render allowlist. The empty-state branch must take the
+    // `sourceEmitted === true` arm and emit the "no supported prediction
+    // metrics" copy — not the "run the pipeline" copy that would be
+    // misleading because the user already ran the pipeline.
     const predictions: PredictionsRenderData = {
-      generated_at: "2026-01-28T12:00:00Z",
+      generated_at: "2026-05-11T00:00:00Z",
+      forecaster: "linear",
+      forecasts: [
+        {
+          metric: "pr_throughput",
+          unit: "count",
+          values: [
+            {
+              period_start: "2026-05-11",
+              predicted: 50,
+              lower_bound: 40,
+              upper_bound: 60,
+            },
+          ],
+        },
+      ],
+    };
+
+    renderPredictionsWithCharts(container, predictions);
+
+    expect(container.querySelectorAll(".forecast-chart")).toHaveLength(0);
+    const empty = container.querySelector(".predictions-empty-message");
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain(
+      "No supported prediction metrics are available in this run.",
+    );
+    // The original "run the pipeline" copy must NOT appear here — the
+    // user already ran the pipeline.
+    expect(empty?.textContent).not.toContain("Run the analytics pipeline");
+  });
+
+  it("shows the supported-metrics empty state when only review_time_minutes is emitted (no bare unsupported chart)", () => {
+    // review_time_minutes is emitted but not in the render allowlist. The
+    // tab must NOT render a bare forecast band — it must take the
+    // supported-metrics empty state instead. This guards against a
+    // regression where review_time would be allowlisted again or where
+    // the filter would accidentally pass it through.
+    const predictions: PredictionsRenderData = {
+      generated_at: "2026-05-11T00:00:00Z",
       forecaster: "linear",
       forecasts: [
         {
@@ -431,7 +495,42 @@ describe("renderPredictionsWithCharts branch coverage", () => {
 
     renderPredictionsWithCharts(container, predictions);
 
-    expect(container.querySelector(".forecast-chart")).not.toBeNull();
-    expect(container.querySelector(".metric-unavailable")).toBeNull();
+    expect(container.querySelectorAll(".forecast-chart")).toHaveLength(0);
+    expect(
+      container.querySelector("#chart-review_time_minutes"),
+    ).toBeNull();
+    const empty = container.querySelector(".predictions-empty-message");
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain(
+      "No supported prediction metrics are available in this run.",
+    );
+  });
+
+  it("shows the original no-data empty state when no forecasts were emitted", () => {
+    // The producer emitted zero forecasts (e.g. insufficient data quality).
+    // The empty-state branch takes the `sourceEmitted === false` arm and
+    // emits the existing "run the pipeline" copy. This case is distinct
+    // from the supported-metrics empty state and exercises the false arm
+    // of `predictions.forecasts.length > 0`.
+    const predictions: PredictionsRenderData = {
+      generated_at: "2026-05-11T00:00:00Z",
+      forecaster: "linear",
+      forecasts: [],
+    };
+
+    renderPredictionsWithCharts(container, predictions);
+
+    expect(container.querySelectorAll(".forecast-chart")).toHaveLength(0);
+    const empty = container.querySelector(".predictions-empty-message");
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain("No forecast data available.");
+    expect(empty?.textContent).toContain(
+      "Run the analytics pipeline with predictions enabled",
+    );
+    // The supported-metrics empty state copy must NOT appear when no
+    // forecasts were emitted at all.
+    expect(empty?.textContent).not.toContain(
+      "No supported prediction metrics are available",
+    );
   });
 });

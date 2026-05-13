@@ -2,7 +2,7 @@
 
 Two opt-in dashboard tabs:
 
-- **Predictions** — 4-week forecasts for PR throughput, cycle time, and review time. Zero-config (NumPy linear forecaster) by default; Prophet upgrades the model with seasonality detection when installed.
+- **Predictions** — 4-week cycle-time forecasts in the dashboard. Zero-config (NumPy linear forecaster) by default; Prophet upgrades the model with seasonality detection when installed. The emitted `trends.json` may contain additional metrics for downstream consumers; the dashboard currently renders cycle-time only.
 - **AI Insights** — OpenAI-generated observations on bottlenecks, trends, and anomalies. Requires an OpenAI API key.
 
 Enable per pipeline run via task inputs.
@@ -61,7 +61,7 @@ aggregates/
 
 ### `predictions/trends.json`
 
-4-week forecasts per metric (`pr_throughput`, `cycle_time_minutes`, `review_time_minutes`). Each forecast value carries `predicted`, `lower_bound`, `upper_bound`, and `period_start`. Top-level `forecaster` is `linear` or `prophet`; `data_quality` is `normal` (8+ weeks), `low_confidence` (4–7 weeks), or `insufficient` (<4 weeks → no forecasts emitted).
+4-week forecasts per metric. The artifact may contain `pr_throughput`, `cycle_time_minutes`, and `review_time_minutes` for downstream consumers; the dashboard currently renders cycle-time forecasts only. Each forecast value carries `predicted`, `lower_bound`, `upper_bound`, and `period_start`. Top-level `forecaster` is `linear` or `prophet`; `data_quality` is `normal` (8+ weeks), `low_confidence` (4–7 weeks), or `insufficient` (<4 weeks → no forecasts emitted).
 
 ### `insights/summary.json`
 

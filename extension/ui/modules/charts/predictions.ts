@@ -518,31 +518,41 @@ export function renderPredictionsWithCharts(
     );
   }
 
-  // pr_throughput is filtered out before rendering: PR #389 walk-forward
-  // backtest showed the linear forecaster loses to a persistence baseline
-  // for throughput (MAE 95.70 vs 92.97, MAPE 28.7% vs 26.2% at all-horizon
-  // aggregate, decisively at h=1 and h=4). Suppressing it from the
-  // user-facing tab is the acceptance gate per the throughput-model verdict.
-  const visibleForecasts = predictions.forecasts.filter(
-    (f) => f.metric !== "pr_throughput",
+  // Render allowlist. trends.json may contain pr_throughput,
+  // cycle_time_minutes, and review_time_minutes; the dashboard currently
+  // renders cycle_time only. pr_throughput is excluded because PR #389's
+  // walk-forward backtest showed the linear forecaster loses to a
+  // persistence baseline; review_time_minutes is excluded because the
+  // historical-data extractor has no mapping for it, so it would render
+  // as a bare forecast band with no context. The model and the emitted
+  // artifact are unchanged — this filter affects the user-facing tab only.
+  const RENDERED_METRICS = new Set(["cycle_time_minutes"]);
+  const visibleForecasts = predictions.forecasts.filter((f) =>
+    RENDERED_METRICS.has(f.metric),
   );
 
-  // Check for empty forecasts
-  if (!visibleForecasts || visibleForecasts.length === 0) {
+  // Two distinct empty-state cases. `predictions.forecasts.length === 0`
+  // means the producer emitted no forecasts at all (e.g. insufficient
+  // data). `visibleForecasts.length === 0` with at least one emitted
+  // forecast means the producer emitted forecasts but the dashboard
+  // does not render any of those metrics.
+  if (visibleForecasts.length === 0) {
+    const sourceEmitted = predictions.forecasts.length > 0;
+    const message = sourceEmitted
+      ? `<p>No supported prediction metrics are available in this run.</p>`
+      : `<p>No forecast data available.</p>
+         <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>`;
     appendTrustedHtml(
       content,
-      `<div class="predictions-empty-message">
-        <p>No forecast data available.</p>
-        <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>
-      </div>`,
+      `<div class="predictions-empty-message">${message}</div>`,
     );
     container.appendChild(content);
     return;
   }
 
-  // Render each forecast as a chart with historical data. The truncation
-  // badge is emitted inline by renderForecastChart when wasTruncated is
-  // true, so no post-append querySelector step is needed.
+  // Render each supported forecast as a chart with historical data. The
+  // truncation badge is emitted inline by renderForecastChart when
+  // wasTruncated is true, so no post-append querySelector step is needed.
   visibleForecasts.forEach((forecast: Forecast) => {
     const historicalResult = rollups
       ? extractHistoricalDataResult(rollups, forecast.metric)
@@ -557,21 +567,6 @@ export function renderPredictionsWithCharts(
     );
     appendTrustedHtml(content, chartHtml);
   });
-
-  // Show informational message about review time unavailability (T016)
-  // Review time forecasts were removed because they used cycle time as a misleading proxy
-  const hasReviewTime = visibleForecasts.some(
-    (f) => f.metric === "review_time_minutes",
-  );
-  if (!hasReviewTime && visibleForecasts.length > 0) {
-    appendTrustedHtml(
-      content,
-      `<div class="metric-unavailable">
-        <span class="info-icon">&#x2139;</span>
-        <span class="info-text">Review time forecasts require dedicated review duration data collection, which is not currently available.</span>
-      </div>`,
-    );
-  }
 
   // Hide unavailable message if present
   const unavailable = container.querySelector(".feature-unavailable");

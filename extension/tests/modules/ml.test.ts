@@ -52,17 +52,20 @@ describe("renderPredictions", () => {
   });
 
   it("renders predictions content", () => {
+    // Uses cycle_time_minutes — the only metric the render allowlist
+    // accepts. The test asserts the chart-rendering path, not the
+    // specific metric.
     const predictions: PredictionsRenderData = {
       forecasts: [
         {
-          metric: "pr_count",
-          unit: "count",
+          metric: "cycle_time_minutes",
+          unit: "minutes",
           values: [
             {
               period_start: "2024-W01",
-              predicted: 10,
-              lower_bound: 8,
-              upper_bound: 12,
+              predicted: 60,
+              lower_bound: 48,
+              upper_bound: 72,
             },
           ],
         },
@@ -75,8 +78,8 @@ describe("renderPredictions", () => {
       container.querySelector(".predictions-charts-content"),
     ).not.toBeNull();
     expect(container.querySelector(".forecast-chart")).not.toBeNull();
-    expect(container.textContent).toContain("Pr Count");
-    expect(container.textContent).toContain("10");
+    expect(container.textContent).toContain("Cycle Time Minutes");
+    expect(container.textContent).toContain("60");
   });
 
   it("shows preview banner when is_stub is true", () => {
@@ -92,17 +95,21 @@ describe("renderPredictions", () => {
   });
 
   it("hides feature-unavailable element when forecasts exist", () => {
+    // Uses cycle_time_minutes so the allowlist passes through to the
+    // chart-rendering path, which is where the feature-unavailable
+    // hide step lives. A non-allowlisted metric would short-circuit to
+    // the empty-state branch and never reach the hide step.
     const predictions: PredictionsRenderData = {
       forecasts: [
         {
-          metric: "test",
-          unit: "count",
+          metric: "cycle_time_minutes",
+          unit: "minutes",
           values: [
             {
               period_start: "2024-W01",
-              predicted: 10,
-              lower_bound: 8,
-              upper_bound: 12,
+              predicted: 60,
+              lower_bound: 48,
+              upper_bound: 72,
             },
           ],
         },
@@ -115,7 +122,13 @@ describe("renderPredictions", () => {
     expect(unavailable?.classList.contains("hidden")).toBe(true);
   });
 
-  it("escapes XSS in metric names", () => {
+  it("filters non-allowlisted metric names (defense in depth against malicious metrics)", () => {
+    // The render allowlist accepts cycle_time_minutes only, so a metric
+    // name carrying an HTML/script payload is filtered out before it
+    // reaches renderForecastChart's escapeHtml call site. The allowlist
+    // is a stronger guarantee than escaping: the payload never reaches
+    // any HTML-emitting code path. renderForecastChart's escapeHtml
+    // remains the per-chart defense, exercised by predictions.test.ts.
     const predictions: PredictionsRenderData = {
       forecasts: [
         {
@@ -135,15 +148,19 @@ describe("renderPredictions", () => {
 
     renderPredictions(container, predictions);
 
-    // Script element should not be created in the DOM
+    // No chart is rendered for the malicious metric — the allowlist
+    // dropped it.
     expect(container.querySelector("script")).toBeNull();
-    // The h4 text content should contain the literal text (escaped)
-    const h4 = container.querySelector("h4");
-    expect(h4?.textContent).toContain("Script");
-    // ID attributes should be sanitized (no angle brackets)
-    const chartId = h4?.id;
-    expect(chartId).not.toContain("<");
-    expect(chartId).not.toContain(">");
+    expect(container.querySelector(".forecast-chart")).toBeNull();
+    expect(container.querySelector("h4")).toBeNull();
+
+    // The supported-metrics empty state is shown instead because the
+    // producer emitted a forecast but no metric was in the allowlist.
+    const empty = container.querySelector(".predictions-empty-message");
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain(
+      "No supported prediction metrics are available in this run.",
+    );
   });
 
   it("does not show partial-history badge when historical data naturally has 200 points", () => {

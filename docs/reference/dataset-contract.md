@@ -400,6 +400,8 @@ This flag is set from actual pipeline output (not from input conditions) to avoi
 - `cycle_time_minutes` — Predicted cycle time per period
 - `review_time_minutes` — Predicted review latency per period
 
+**Dashboard rendering:** `trends.json` may contain any subset of the metric enum; the dashboard currently renders cycle-time forecasts only. Downstream consumers reading the artifact directly receive every emitted metric.
+
 **Extensibility:** Unknown fields MUST be allowed for forward compatibility.
 
 ---

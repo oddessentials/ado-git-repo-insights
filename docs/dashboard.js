@@ -6956,16 +6956,17 @@ var PRInsightsDashboard = (() => {
       </div>`
       );
     }
+    const RENDERED_METRICS = /* @__PURE__ */ new Set(["cycle_time_minutes"]);
     const visibleForecasts = predictions.forecasts.filter(
-      (f2) => f2.metric !== "pr_throughput"
+      (f2) => RENDERED_METRICS.has(f2.metric)
     );
-    if (!visibleForecasts || visibleForecasts.length === 0) {
+    if (visibleForecasts.length === 0) {
+      const sourceEmitted = predictions.forecasts.length > 0;
+      const message = sourceEmitted ? `<p>No supported prediction metrics are available in this run.</p>` : `<p>No forecast data available.</p>
+         <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>`;
       appendTrustedHtml(
         content,
-        `<div class="predictions-empty-message">
-        <p>No forecast data available.</p>
-        <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>
-      </div>`
+        `<div class="predictions-empty-message">${message}</div>`
       );
       container.appendChild(content);
       return;
@@ -6982,18 +6983,6 @@ var PRInsightsDashboard = (() => {
       );
       appendTrustedHtml(content, chartHtml);
     });
-    const hasReviewTime = visibleForecasts.some(
-      (f2) => f2.metric === "review_time_minutes"
-    );
-    if (!hasReviewTime && visibleForecasts.length > 0) {
-      appendTrustedHtml(
-        content,
-        `<div class="metric-unavailable">
-        <span class="info-icon">&#x2139;</span>
-        <span class="info-text">Review time forecasts require dedicated review duration data collection, which is not currently available.</span>
-      </div>`
-      );
-    }
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
     container.appendChild(content);
