@@ -5,7 +5,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22",
+    "node": ">=22.12.0",
     "pnpm": "9.15.0"
   },
   "scripts": {
@@ -52,12 +52,12 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@jest/globals": "^30.3.0",
-    "@playwright/test": "1.59.1",
+    "@playwright/test": "1.60.0",
     "@types/jest": "^30.0.0",
     "@types/jsdom": "^28.0.1",
-    "@types/node": "^25.6.0",
-    "@typescript-eslint/eslint-plugin": "^8.59.2",
-    "@typescript-eslint/parser": "^8.59.2",
+    "@types/node": "^25.7.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
     "azure-pipelines-task-lib": "^5.0.0",
     "dependency-cruiser": "^17.4.0",
     "esbuild": "^0.28.0",
@@ -65,8 +65,8 @@
     "eslint-plugin-security": "^4.0.0",
     "expect-type": "^1.3.0",
     "glob": "^13.0.6",
-    "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
     "jest-junit": "^17.0.0",
     "prettier": "^3.8.3",
     "serve": "14.2.6",
@@ -74,14 +74,14 @@
     "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.3"
   },
   "jest-junit": {
     "outputDirectory": ".",
     "outputName": "test-results.xml"
   },
   "dependencies": {
-    "azure-devops-extension-api": "^4.270.0",
+    "azure-devops-extension-api": "^5.271.0",
     "azure-devops-extension-sdk": "^4.2.0"
   }
 }
