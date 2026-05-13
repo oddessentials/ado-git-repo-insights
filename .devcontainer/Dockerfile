@@ -17,7 +17,7 @@ ARG PNPM_VERSION=9.15.0
 # Pinned to match the @playwright/test version in extension/package.json
 # so `playwright install-deps` resolves the same apt-package list across
 # image rebuilds. Bump in lockstep when the extension bumps Playwright.
-ARG PLAYWRIGHT_VERSION=1.59.1
+ARG PLAYWRIGHT_VERSION=1.60.0
 # Official SHA256s from `gitleaks_${VERSION}_checksums.txt` published with
 # the gitleaks GitHub release. Bump alongside GITLEAKS_VERSION; mismatched
 # downloads fail the build at the `sha256sum -c` step.
