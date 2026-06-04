@@ -49,8 +49,17 @@ function getEsbuildCommandAndArgs(cliArgs) {
     const header = fs.readFileSync(esbuildEntrypointPath).subarray(0, 4);
     const isElf = header[0] === 0x7f && header[1] === 0x45 && header[2] === 0x4c && header[3] === 0x46;
     const isExe = header[0] === 0x4d && header[1] === 0x5a;
+    // Mach-O magic numbers — required for native esbuild on macOS (both
+    // arm64 and x86_64). Without this branch, `node bin/esbuild` would try
+    // to parse the binary as JS and throw `SyntaxError: Invalid or unexpected
+    // token` on the first non-ASCII byte (observed on Apple Silicon hosts).
+    const isMachO =
+        (header[0] === 0xcf && header[1] === 0xfa && header[2] === 0xed && header[3] === 0xfe) || // 64-bit LE
+        (header[0] === 0xfe && header[1] === 0xed && header[2] === 0xfa && header[3] === 0xcf) || // 64-bit BE
+        (header[0] === 0xca && header[1] === 0xfe && header[2] === 0xba && header[3] === 0xbe) || // Universal/fat BE
+        (header[0] === 0xbe && header[1] === 0xba && header[2] === 0xfe && header[3] === 0xca);   // Universal/fat LE
 
-    if (isElf || isExe) {
+    if (isElf || isExe || isMachO) {
         return { command: esbuildEntrypointPath, args: cliArgs };
     }
 
