@@ -1,10 +1,11 @@
 {
   "version": 2,
-  "generated_at": "2026-05-04T16:15:26Z",
+  "generated_at": "2026-06-04T11:17:53Z",
   "total": 0,
   "scope_policy": {
     "python-backend": "blocking",
     "python-ci-scripts": "blocking",
+    "python-devcontainer": "blocking",
     "python-scripts": "blocking",
     "python-tests": "blocking",
     "typescript-extension": "blocking",
@@ -17,6 +18,7 @@
   "by_scope": {
     "python-backend": 0,
     "python-ci-scripts": 0,
+    "python-devcontainer": 0,
     "python-scripts": 0,
     "python-tests": 0,
     "typescript-extension": 0,

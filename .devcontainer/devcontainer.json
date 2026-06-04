@@ -3,25 +3,79 @@
     "image": "ghcr.io/oddessentials/ado-git-repo-insights-dev:main",
     "remoteUser": "vscode",
     "workspaceFolder": "/workspaces/ado-git-repo-insights",
-    // postCreateCommand runs once after the container is created, with the
-    // workspace bind-mounted. Step ordering is load-bearing:
+    // -------------------------------------------------------------------------
+    // Image classification (per spec 364-devcontainer-refactor, FR-009):
+    // The published `:main` image is a "Dev Containers-ready base," not a
+    // standalone testable development environment. Node and pnpm are NOT in
+    // the raw image — they arrive via the `features` block below + the
+    // Corepack activation in `postCreateCommand` (per FR-021). Running
+    // `docker run` against the raw image and expecting `node` / `pnpm` to
+    // work is NOT a supported path; only the Dev Containers lifecycle
+    // produces the documented development environment.
+    // -------------------------------------------------------------------------
+
+    // features: Node 22 via the official Dev Container Feature, pinned by
+    // immutable digest (D-1a 2026-06-03 verification of
+    // ghcr.io/devcontainers/features/node:2.0.0). Per FR-003: NO community
+    // Features; `version: "22"` matches `package.json::engines.node`. pnpm is
+    // NOT installed via this Feature's `installPnpm` option (D-1a confirmed
+    // 9.15.0 not in proposals) — it's activated at first-up via Corepack in
+    // postCreateCommand per FR-021.
+    "features": {
+        "ghcr.io/devcontainers/features/node@sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f": {
+            "version": "22"
+        }
+    },
+
+    // mounts: two project-scoped named Docker volumes that persist per-user
+    // auth state across container rebuilds (FR-005). gh's auth lives in
+    // `~/.config/gh/hosts.yml`; entire's auth lives in `~/.entire/`. No token
+    // is committed, copied into image layers, or baked into the image's
+    // filesystem.
+    "mounts": [
+        "source=ado-git-repo-insights-gh-config,target=/home/vscode/.config/gh,type=volume",
+        "source=ado-git-repo-insights-entire-config,target=/home/vscode/.entire,type=volume"
+    ],
+
+    // onCreateCommand: runs ONCE per container creation, AFTER mounts are
+    // in place but BEFORE the vscode-user postCreateCommand. Dev Container
+    // lifecycle hooks run as `containerUser` (= remoteUser "vscode"), NOT
+    // as root — `sudo` is required (Microsoft base image configures
+    // passwordless sudo for vscode; verified empirically). Docker default
+    // initializes a fresh named volume's mount point as root-owned, so
+    // without this chown the contributor's first `gh auth login` / `entire
+    // login` fails with EACCES (D-2 mechanism test empirically reproduced
+    // both the failure and the fix).
+    "onCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.config/gh /home/vscode/.entire",
+
+    // postCreateCommand: FR-021 + FR-020 idempotent fail-closed chain.
+    // Step order is load-bearing:
     //
-    //   1. `git config core.autocrlf false` — repo-local LF policy.
-    //   2. `pnpm install --frozen-lockfile` — root deps + Husky activation.
-    //      This MUST run before any `git commit`/`git push` is attempted,
-    //      because Husky writes its dispatcher into `.husky/_/` here.
-    //   3. `uv sync --locked --extra dev` — creates `.venv/` and installs
-    //      the project in editable mode. The husky helper's import probe
-    //      (`import ado_git_repo_insights`) requires this step to have
-    //      completed; do not commit between step 2 and step 3.
-    //   4. `pnpm --dir extension install --frozen-lockfile` — extension
+    //   1. `corepack enable` + `corepack prepare pnpm@9.15.0 --activate` —
+    //      FIRST step (per FR-003 + FR-021). Node arrives via the Feature
+    //      above (image-build time has no Node), so pnpm must be activated
+    //      at first-up time. Corepack ships with Node ≥16.10.
+    //   2. Fail-closed `pnpm --version` validation — exits non-zero if
+    //      Corepack's activated pnpm doesn't match `9.15.0` exactly. The
+    //      literal `9.15.0` here MUST match root
+    //      `package.json::packageManager` exactly (single source of truth).
+    //   3. `git config core.autocrlf false` — repo-local LF policy.
+    //   4. `pnpm install --frozen-lockfile` — root deps + Husky activation.
+    //      Husky writes its dispatcher into `.husky/_/` here.
+    //   5. `uv sync --locked --extra dev` — creates `.venv/` and installs
+    //      the project in editable mode.
+    //   6. `pnpm --dir extension install --frozen-lockfile` — extension
     //      deps; triggers the Playwright postinstall (~110 MB Chromium
     //      download into ~/.cache/ms-playwright).
+    //   7. `entire enable --yes --agent claude-code,codex` — LAST (per
+    //      FR-020 + QG-7f). Husky's dispatcher (from step 4) is overwritten
+    //      by entire's dispatcher per the QG-7f accepted constitutional
+    //      asymmetry. CI commitlint remains authoritative.
     //
-    // VS Code Dev Containers waits for this command to finish before
-    // marking the container "ready," so the only risk window is a
-    // mid-build retry started manually before sync completes.
-    "postCreateCommand": "git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile",
+    // The chain is joined by `&&` — any failure aborts setup entirely. No
+    // `|| true` or failure suppression is permitted (FR-021).
+    "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.0 --activate && [ \"$(pnpm --version)\" = \"9.15.0\" ] || { echo \"FATAL: pnpm version mismatch\" >&2; exit 1; } && git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile && entire enable --yes --agent claude-code,codex",
+
     "customizations": {
         "vscode": {
             "extensions": [
