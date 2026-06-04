@@ -26,22 +26,68 @@ if [[ ! -f "$EXT_CONFIG" ]]; then
   exit 0
 fi
 
-# Locate a suitable Python interpreter (python3, then python).
-_python=""
-if command -v python3 >/dev/null 2>&1; then
-  _python="python3"
-elif command -v python >/dev/null 2>&1 && python --version 2>&1 | grep -q "^Python 3"; then
-  _python="python"
+# Locate a Python 3 interpreter with PyYAML available.
+# Preference order:
+#   1. $PROJECT_ROOT/.venv/bin/python   — the documented repo venv
+#                                          (uv sync installs PyYAML per FR-003 +
+#                                          FR-021 of PR #416; PyYAML is in the
+#                                          dev extra of pyproject.toml)
+#   2. `uv run --no-sync python`        — when uv is on PATH and a pyproject.toml
+#                                          exists but .venv isn't created yet
+#   3. system python3                   — fresh-clone fallback
+# Whichever is chosen, PyYAML MUST import successfully; we preflight it below
+# and exit non-zero with an actionable message if it fails. Replaces the
+# previous silent exit-0 no-op when PyYAML was absent from the selected
+# interpreter (the regression Codex flagged on PR #416).
+_python_kind=""
+if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
+  _python_kind="venv"
+elif command -v uv >/dev/null 2>&1 && [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+  _python_kind="uv"
+elif command -v python3 >/dev/null 2>&1; then
+  _python_kind="system"
 fi
 
-if [[ -z "$_python" ]]; then
-  echo "agent-context: Python 3 not found on PATH; skipping update." >&2
-  exit 0
+if [[ -z "$_python_kind" ]]; then
+  echo "agent-context: no Python 3 interpreter found (looked for .venv/bin/python, uv+pyproject.toml, python3); cannot update agent context." >&2
+  exit 1
+fi
+
+# Dispatch the chosen interpreter case-by-case. All variable expansions stay
+# fully quoted; no unquoted multi-word $_python expansion.
+_run_python() {
+  case "$_python_kind" in
+    venv)   "$PROJECT_ROOT/.venv/bin/python" "$@" ;;
+    uv)     uv run --no-sync python "$@" ;;
+    system) python3 "$@" ;;
+  esac
+}
+
+# Preflight: PyYAML must import on the selected interpreter. Without this,
+# the heredoc parse below would catch ImportError, print a stderr hint, and
+# bash would catch the non-zero exit and `exit 0` — a silent no-op that
+# leaves the agent context stale.
+if ! _run_python -c 'import yaml' >/dev/null 2>&1; then
+  case "$_python_kind" in
+    venv)
+      echo "agent-context: .venv/bin/python is present but cannot import PyYAML." >&2
+      echo "  Resolve: rerun 'uv sync --extra dev' to install dev dependencies." >&2
+      ;;
+    uv)
+      echo "agent-context: 'uv run --no-sync python' cannot import PyYAML." >&2
+      echo "  Resolve: rerun 'uv sync --extra dev' to refresh the resolved env." >&2
+      ;;
+    system)
+      echo "agent-context: system python3 cannot import PyYAML." >&2
+      echo "  Resolve: run 'uv sync --extra dev' (creates .venv with PyYAML), or 'pip install pyyaml' in the system interpreter." >&2
+      ;;
+  esac
+  exit 1
 fi
 
 # Parse extension config once; emit three newline-separated fields:
 # context_file, context_markers.start, context_markers.end
-if ! _raw_opts="$("$_python" - "$EXT_CONFIG" <<'PY'
+if ! _raw_opts="$(_run_python - "$EXT_CONFIG" <<'PY'
 import sys
 try:
     import yaml
@@ -125,7 +171,7 @@ if [[ -z "$PLAN_PATH" ]]; then
   # Pick the most recently modified plan.md one level deep (specs/<feature>/plan.md).
   # Use find + sort by modification time to avoid ls/head fragility with
   # spaces in paths or SIGPIPE from pipefail.
-  _plan_abs="$("$_python" - "$PROJECT_ROOT" <<'PY'
+  _plan_abs="$(_run_python - "$PROJECT_ROOT" <<'PY'
 import sys, os
 from pathlib import Path
 specs = Path(sys.argv[1]) / "specs"
@@ -158,7 +204,7 @@ trap 'rm -f "$TMP_SECTION"' EXIT
   echo "$MARKER_END"
 } > "$TMP_SECTION"
 
-"$_python" - "$CTX_PATH" "$MARKER_START" "$MARKER_END" "$TMP_SECTION" <<'PY'
+_run_python - "$CTX_PATH" "$MARKER_START" "$MARKER_END" "$TMP_SECTION" <<'PY'
 import sys, os
 ctx_path, start, end, section_path = sys.argv[1:5]
 with open(section_path, "r", encoding="utf-8") as fh:

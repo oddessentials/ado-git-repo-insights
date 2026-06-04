@@ -377,6 +377,62 @@ if [ "$DRY_RUN" != true ]; then
         fi
     fi
 
+    # Persist the resolved feature directory so downstream Spec Kit
+    # commands resolve the same FEATURE_DIR via common.sh.
+    # common.sh:268-292 reads .specify/feature.json before falling back
+    # to branch-prefix lookup, so without this write the pin keeps pointing
+    # at the previously created feature and /speckit-plan, /speckit-tasks,
+    # /speckit-implement all silently target the wrong directory.
+    #
+    # Discipline:
+    #   - write to a sibling tempfile, validate via the SAME reader path
+    #     common.sh uses, atomic `mv` only on round-trip match
+    #   - FATAL on any failure: no warning-only fallback, no chance of
+    #     leaving a stale pin in place
+    FEATURE_JSON="$REPO_ROOT/.specify/feature.json"
+    REL_FEATURE_DIR="${FEATURE_DIR#"$REPO_ROOT/"}"
+    FEATURE_JSON_TMP=$(mktemp "$REPO_ROOT/.specify/.feature.json.tmp.XXXXXX") || {
+        >&2 echo "FATAL: unable to create tempfile for .specify/feature.json"
+        exit 1
+    }
+    if command -v jq >/dev/null 2>&1; then
+        if ! jq -n --arg d "$REL_FEATURE_DIR" '{feature_directory: $d}' > "$FEATURE_JSON_TMP"; then
+            rm -f "$FEATURE_JSON_TMP"
+            >&2 echo "FATAL: jq failed to write .specify/feature.json content"
+            exit 1
+        fi
+    elif command -v python3 >/dev/null 2>&1; then
+        if ! python3 -c 'import json,sys; json.dump({"feature_directory": sys.argv[1]}, sys.stdout); sys.stdout.write("\n")' "$REL_FEATURE_DIR" > "$FEATURE_JSON_TMP"; then
+            rm -f "$FEATURE_JSON_TMP"
+            >&2 echo "FATAL: python3 failed to write .specify/feature.json content"
+            exit 1
+        fi
+    else
+        rm -f "$FEATURE_JSON_TMP"
+        >&2 echo "FATAL: neither jq nor python3 available; cannot persist .specify/feature.json safely"
+        exit 1
+    fi
+    # Round-trip via the canonical reader to catch writer/reader format
+    # drift. If the reader cannot extract the value we just wrote, abort
+    # rather than leave a stale or unreadable pin.
+    _written=''
+    if command -v jq >/dev/null 2>&1; then
+        _written=$(jq -r '.feature_directory // empty' "$FEATURE_JSON_TMP" 2>/dev/null || true)
+    elif command -v python3 >/dev/null 2>&1; then
+        _written=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); v=d.get('feature_directory'); print(v if v else '')" "$FEATURE_JSON_TMP" 2>/dev/null || true)
+    fi
+    if [ "$_written" != "$REL_FEATURE_DIR" ]; then
+        rm -f "$FEATURE_JSON_TMP"
+        >&2 echo "FATAL: .specify/feature.json round-trip mismatch (wrote '$REL_FEATURE_DIR', read back '$_written'); refusing to install a stale pin"
+        exit 1
+    fi
+    if ! mv -f "$FEATURE_JSON_TMP" "$FEATURE_JSON"; then
+        rm -f "$FEATURE_JSON_TMP"
+        >&2 echo "FATAL: could not move tempfile into .specify/feature.json"
+        exit 1
+    fi
+    unset _written FEATURE_JSON FEATURE_JSON_TMP REL_FEATURE_DIR
+
     # Inform the user how to persist the feature variable in their own shell
     printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2
 fi

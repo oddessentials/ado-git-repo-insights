@@ -111,8 +111,17 @@ if $PATHS_ONLY; then
     exit 0
 fi
 
-# Validate branch name
-check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
+# Validate branch name — but only when feature.json doesn't already pin a
+# matching, existing feature directory. Mirrors setup-plan.sh:35-37 and
+# setup-tasks.sh:31-33 so /speckit-tasks and /speckit-implement (which both
+# invoke this script) succeed on main or detached HEAD whenever the pin
+# resolves cleanly, matching /speckit-plan's behavior in the same state.
+# When the pin is missing, stale, or points at a directory that doesn't
+# exist, feature_json_matches_feature_dir returns non-zero and the
+# existing branch-format gate fires as before.
+if ! feature_json_matches_feature_dir "$REPO_ROOT" "$FEATURE_DIR"; then
+    check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
+fi
 
 # Validate required directories and files
 if [[ ! -d "$FEATURE_DIR" ]]; then
