@@ -17,13 +17,19 @@
     // features: Node 22 via the official Dev Container Feature, pinned by
     // immutable digest (D-1a 2026-06-03 verification of
     // ghcr.io/devcontainers/features/node:2.0.0). Per FR-003: NO community
-    // Features; `version: "22"` matches `package.json::engines.node`. pnpm is
-    // NOT installed via this Feature's `installPnpm` option (D-1a confirmed
-    // 9.15.0 not in proposals) — it's activated at first-up via Corepack in
-    // postCreateCommand per FR-021.
+    // Features; `version: "22"` matches `package.json::engines.node`. pnpm
+    // arrives via Corepack in postCreateCommand per FR-021 — the Feature's
+    // `pnpmVersion` option MUST be set to `"none"` to disable the Feature's
+    // default `npm install -g pnpm@latest` step. Without this, every rebuild
+    // would silently install an unpinned global pnpm BEFORE Corepack
+    // activates pnpm@9.15.0, causing drift across rebuilds and ambiguous
+    // PATH precedence between the two pnpm sources. Codex review (PR #416)
+    // surfaced this; Contract 1 verifier asserts the explicit `"none"` so a
+    // future drop of this option is caught at static check time.
     "features": {
         "ghcr.io/devcontainers/features/node@sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f": {
-            "version": "22"
+            "version": "22",
+            "pnpmVersion": "none"
         }
     },
 

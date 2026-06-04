@@ -30,18 +30,39 @@ readonly REPO_ROOT
 readonly PROD_DEVCONTAINER="$REPO_ROOT/.devcontainer/devcontainer.json"
 [[ -f "$PROD_DEVCONTAINER" ]] || { echo "FATAL: $PROD_DEVCONTAINER not found" >&2; exit 1; }
 
-# Production volume name from FR-005 / Contract 1. Marked readonly so it cannot
-# drift to match TEST_VOL anywhere in this script.
-readonly PROD_VOL=ado-git-repo-insights-gh-config
+# Production volume names from FR-005 / Contract 1. Both must be rewritten to
+# test-scoped names before `devcontainer up` reads the staged config —
+# otherwise the test mounts (and the production onCreateCommand chowns) the
+# contributor's REAL auth volumes. Codex review (PR #416) flagged the prior
+# single-volume-only rewrite as a real auth-data-mutation risk. Marked
+# readonly so they cannot drift to match a TEST_VOL_* anywhere in this script.
+readonly PROD_VOL_GH=ado-git-repo-insights-gh-config
+readonly PROD_VOL_ENTIRE=ado-git-repo-insights-entire-config
 
-# Unique test-scoped volume name. Timestamp+PID makes collision practically impossible.
-readonly TEST_VOL="${PROD_VOL}-c4c-test-$(date +%s%N)-$$"
+# Single timestamp+PID suffix shared by both test volumes so they're created
+# in the same logical test run and cleanup can reason about them as a pair.
+readonly TEST_SUFFIX="-c4c-test-$(date +%s%N)-$$"
+readonly TEST_VOL_GH="${PROD_VOL_GH}${TEST_SUFFIX}"
+readonly TEST_VOL_ENTIRE="${PROD_VOL_ENTIRE}${TEST_SUFFIX}"
 
-# Isolation guards
-[[ "$TEST_VOL" != "$PROD_VOL" ]] || { echo "FATAL: test/prod volume name collision" >&2; exit 1; }
-[[ "$TEST_VOL" == *-c4c-test-* ]] || { echo "FATAL: test volume name missing test marker" >&2; exit 1; }
-if docker volume inspect "$TEST_VOL" >/dev/null 2>&1; then
-  echo "FATAL: test volume $TEST_VOL already exists; refusing to risk pre-existing data" >&2
+# Isolation guards — every test name must differ from every production name
+# (including the OTHER tool's production name, defense in depth) and must
+# carry the test marker so cleanup can refuse to operate on anything else.
+[[ "$TEST_VOL_GH"     != "$PROD_VOL_GH"     ]] || { echo "FATAL: gh test/prod volume name collision"          >&2; exit 1; }
+[[ "$TEST_VOL_GH"     != "$PROD_VOL_ENTIRE" ]] || { echo "FATAL: gh test name collides with entire prod"      >&2; exit 1; }
+[[ "$TEST_VOL_ENTIRE" != "$PROD_VOL_ENTIRE" ]] || { echo "FATAL: entire test/prod volume name collision"      >&2; exit 1; }
+[[ "$TEST_VOL_ENTIRE" != "$PROD_VOL_GH"     ]] || { echo "FATAL: entire test name collides with gh prod"      >&2; exit 1; }
+[[ "$TEST_VOL_GH"     == *-c4c-test-*       ]] || { echo "FATAL: gh test volume name missing test marker"     >&2; exit 1; }
+[[ "$TEST_VOL_ENTIRE" == *-c4c-test-*       ]] || { echo "FATAL: entire test volume name missing test marker" >&2; exit 1; }
+
+# Pre-existence check — both test volumes must NOT exist on the host before
+# we proceed, otherwise we risk colliding with someone else's test residue.
+if docker volume inspect "$TEST_VOL_GH" >/dev/null 2>&1; then
+  echo "FATAL: gh test volume $TEST_VOL_GH already exists; refusing to risk pre-existing data" >&2
+  exit 1
+fi
+if docker volume inspect "$TEST_VOL_ENTIRE" >/dev/null 2>&1; then
+  echo "FATAL: entire test volume $TEST_VOL_ENTIRE already exists; refusing to risk pre-existing data" >&2
   exit 1
 fi
 
@@ -53,9 +74,18 @@ cleanup() {
   # Remove the test container by Dev Container CLI's label (no `devcontainer down` subcommand exists).
   docker ps -aq --filter "label=devcontainer.local_folder=$TESTDIR" \
     | xargs -r docker rm -f >/dev/null 2>&1 || true
-  # Remove test-scoped volume — guarded against operating on the production name.
-  if [[ "$TEST_VOL" != "$PROD_VOL" && "$TEST_VOL" == *-c4c-test-* ]]; then
-    docker volume rm "$TEST_VOL" >/dev/null 2>&1 || true
+  # Remove gh test-scoped volume — guarded against operating on EITHER
+  # production name (gh or entire), defense in depth.
+  if [[ "$TEST_VOL_GH" != "$PROD_VOL_GH" \
+        && "$TEST_VOL_GH" != "$PROD_VOL_ENTIRE" \
+        && "$TEST_VOL_GH" == *-c4c-test-* ]]; then
+    docker volume rm "$TEST_VOL_GH" >/dev/null 2>&1 || true
+  fi
+  # Remove entire test-scoped volume — same guard pattern.
+  if [[ "$TEST_VOL_ENTIRE" != "$PROD_VOL_GH" \
+        && "$TEST_VOL_ENTIRE" != "$PROD_VOL_ENTIRE" \
+        && "$TEST_VOL_ENTIRE" == *-c4c-test-* ]]; then
+    docker volume rm "$TEST_VOL_ENTIRE" >/dev/null 2>&1 || true
   fi
   # Remove temp workspace — guarded against rm outside the expected mktemp prefix.
   if [[ "$TESTDIR" == */dc-c4c-* ]]; then
@@ -66,20 +96,36 @@ cleanup() {
 trap cleanup EXIT
 
 # Stage a rewritten devcontainer.json in TESTDIR with two material changes:
-#   1. mounts → TEST_VOL (isolation)
+#   1. mounts → both BOTH gh AND entire volumes rewritten to TEST_VOL_*
+#      (isolation; the prior single-volume rewrite let the production entire
+#      volume mount unchanged, allowing the test to mutate real auth data).
 #   2. postCreateCommand → no-op (the production hook runs pnpm/uv against the
 #      workspace; TESTDIR has no package.json/pyproject.toml/extension/, so the
 #      production hook would fail before onCreateCommand's chown is verifiable)
+#
+# onCreateCommand is preserved as-is: the chown targets /home/vscode/.config/gh
+# AND /home/vscode/.entire — both mount target paths, which are unchanged by
+# the volume-name rewrite.
 #
 # devcontainer.json is JSONC (line/block comments + trailing commas allowed by
 # the Dev Containers spec). Python's strict json.load rejects it, so we strip
 # comments inline before parsing. See feedback memory:
 # `feedback_devcontainer_json_is_jsonc.md`.
 mkdir -p "$TESTDIR/.devcontainer"
-python3 - "$PROD_VOL" "$TEST_VOL" "$PROD_DEVCONTAINER" "$TESTDIR/.devcontainer/devcontainer.json" << 'PYEOF'
+python3 - \
+    "$PROD_VOL_GH" "$TEST_VOL_GH" \
+    "$PROD_VOL_ENTIRE" "$TEST_VOL_ENTIRE" \
+    "$PROD_DEVCONTAINER" "$TESTDIR/.devcontainer/devcontainer.json" << 'PYEOF'
 import json, re, sys
 
-prod_vol, test_vol, src_path, dst_path = sys.argv[1:5]
+(
+    prod_vol_gh,
+    test_vol_gh,
+    prod_vol_entire,
+    test_vol_entire,
+    src_path,
+    dst_path,
+) = sys.argv[1:7]
 
 def strip_jsonc(text):
     """Strip // line comments and /* */ block comments while preserving string
@@ -112,20 +158,35 @@ def strip_jsonc(text):
 with open(src_path) as f:
     cfg = json.loads(strip_jsonc(f.read()))
 
-# Rewrite mounts (string form per Contract 1) to use TEST_VOL.
-# Fail loudly if the production volume name isn't present anywhere — that
-# would mean isolation is illusory and the test would mount production data.
-saw_prod = False
+# Rewrite BOTH production volume names (gh + entire) to test-scoped names.
+# `elif` is safe here because the two production names are disjoint —
+# neither is a substring of the other (we asserted in bash that they don't
+# collide with each other's test names either, but inside a single mount
+# string only one production name can appear).
+# Fail loudly if EITHER production volume name isn't found in mounts —
+# missing means either isolation is illusory OR the devcontainer.json drifted
+# from the FR-005 + Contract 1 contract.
+saw_prod_gh = False
+saw_prod_entire = False
 rewritten = []
 for m in cfg.get("mounts", []):
-    if isinstance(m, str) and prod_vol in m:
-        rewritten.append(m.replace(prod_vol, test_vol))
-        saw_prod = True
+    if isinstance(m, str) and prod_vol_gh in m:
+        rewritten.append(m.replace(prod_vol_gh, test_vol_gh))
+        saw_prod_gh = True
+    elif isinstance(m, str) and prod_vol_entire in m:
+        rewritten.append(m.replace(prod_vol_entire, test_vol_entire))
+        saw_prod_entire = True
     else:
         rewritten.append(m)
-if not saw_prod:
+if not saw_prod_gh:
     sys.stderr.write(
-        f"FATAL: production volume {prod_vol!r} not found in mounts; "
+        f"FATAL: production volume {prod_vol_gh!r} not found in mounts; "
+        "test isolation cannot be verified — refusing to proceed.\n"
+    )
+    sys.exit(1)
+if not saw_prod_entire:
+    sys.stderr.write(
+        f"FATAL: production volume {prod_vol_entire!r} not found in mounts; "
         "test isolation cannot be verified — refusing to proceed.\n"
     )
     sys.exit(1)
@@ -137,7 +198,8 @@ cfg["mounts"] = rewritten
 cfg["postCreateCommand"] = "true"
 
 # Do not modify onCreateCommand: the chown targets /home/vscode/.config/gh
-# (the mount target), which is unchanged by the volume-name rewrite.
+# AND /home/vscode/.entire (both mount targets), which are unchanged by the
+# volume-name rewrite.
 with open(dst_path, "w") as f:
     json.dump(cfg, f, indent=2)
 PYEOF
@@ -146,20 +208,31 @@ PYEOF
 # (sudo chown) as part of the lifecycle.
 devcontainer up --workspace-folder "$TESTDIR" 2>&1 | tail -20
 
-# Verify ownership + writability as vscode, in the freshly-created isolated container.
+# Verify ownership + writability as vscode for BOTH mount targets in the
+# freshly-created isolated container. The FR-005 contract is that onCreateCommand
+# chowns both /home/vscode/.config/gh AND /home/vscode/.entire; testing only
+# one would let a regression on the other surface only at first contributor
+# `entire login` (which is a deferred-by-necessity verification per the spec).
 devcontainer exec --workspace-folder "$TESTDIR" bash -c '
   set -euo pipefail
-  echo "--- mount point ownership ---"
-  ls -ld /home/vscode/.config/gh
-  owner_group=$(stat -c "%U:%G" /home/vscode/.config/gh)
-  if [[ "$owner_group" != "vscode:vscode" ]]; then
-    echo "FAIL: mount owner is $owner_group, expected vscode:vscode (onCreateCommand sudo chown did not run or failed)" >&2
-    exit 1
-  fi
-  echo "--- vscode write test ---"
-  testfile=/home/vscode/.config/gh/contract-4c-write-probe
-  touch "$testfile"
-  rm "$testfile"
-  echo "OK: FR-005 contract verified on test-isolated volume ('"$TEST_VOL"')"
+  check_mount() {
+    local label="$1" path="$2"
+    echo "--- ${label} mount point ownership (${path}) ---"
+    ls -ld "$path"
+    local owner_group
+    owner_group=$(stat -c "%U:%G" "$path")
+    if [[ "$owner_group" != "vscode:vscode" ]]; then
+      echo "FAIL: ${label} mount owner is ${owner_group}, expected vscode:vscode (onCreateCommand sudo chown did not run or failed)" >&2
+      exit 1
+    fi
+    echo "--- ${label} vscode write test ---"
+    local testfile="${path}/contract-4c-write-probe"
+    touch "$testfile"
+    rm "$testfile"
+  }
+  check_mount gh     /home/vscode/.config/gh
+  check_mount entire /home/vscode/.entire
+  echo "OK: FR-005 contract verified on test-isolated volumes (gh: '"$TEST_VOL_GH"' + entire: '"$TEST_VOL_ENTIRE"')"
 '
-# trap cleanup EXIT removes ONLY the test-scoped volume, the test container, and the temp workspace.
+# trap cleanup EXIT removes ONLY the test-scoped volumes (both), the test
+# container, and the temp workspace — never any production volume.

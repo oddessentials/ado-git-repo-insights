@@ -76,6 +76,9 @@ if same_dir.is_file():
 else:
     import subprocess
 
+    # `timeout=10` guards against a hung git invocation (e.g., a credential
+    # helper that wedges on a stale IPC socket) leaving the verifier blocked
+    # forever. `shell=False` is already the default for list-form args.
     try:
         repo_root = Path(
             subprocess.check_output(
@@ -83,9 +86,14 @@ else:
                 cwd=SCRIPT.parent,
                 stderr=subprocess.DEVNULL,
                 text=True,
+                timeout=10,
             ).strip()
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ):
         sys.exit(
             f"FATAL: {same_dir} not found and git rev-parse failed; "
             "run from a git checkout or install the script next to devcontainer.json"
@@ -118,6 +126,24 @@ for k in d["features"]:
         assert forbidden not in k, (
             f"{forbidden} Feature is forbidden; gh is Dockerfile-installed"
         )
+
+# Node Feature options: `pnpmVersion: "none"` is required (FR-003 + FR-021).
+# The Feature defaults pnpmVersion to "latest" and runs
+# `npm install -g pnpm@$PNPM_VERSION` unless the option is explicitly set to
+# "none". Without this, every rebuild silently installs an unpinned global
+# pnpm before postCreateCommand's Corepack activation of pnpm@9.15.0, causing
+# drift across rebuilds and PATH precedence ambiguity. Codex review (PR #416)
+# caught this gap.
+node_options = d["features"][node_key]
+assert isinstance(node_options, dict), (
+    f"node Feature options must be a dict; saw {type(node_options).__name__}"
+)
+assert node_options.get("pnpmVersion") == "none", (
+    'node Feature MUST set `"pnpmVersion": "none"` to disable Feature-side '
+    "pnpm install; pnpm comes from Corepack in postCreateCommand per FR-003 "
+    "+ FR-021. Without this, the Feature installs pnpm@latest globally on "
+    "every rebuild and drift compounds."
+)
 
 # mounts: two named volumes (gh + entire) per FR-005
 assert "mounts" in d, "mounts block is required for gh + entire auth named volumes"
