@@ -1,3 +1,10 @@
+## [101.28.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.0...v101.28.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **devcontainer:** unblock ghcr publish — entire version probe + gitignore lock ([#417](https://github.com/oddessentials/ado-git-repo-insights/issues/417)) ([678c2a9](https://github.com/oddessentials/ado-git-repo-insights/commit/678c2a9c1926de79ed6125c60126260a6f8ec0b6)), closes [#416](https://github.com/oddessentials/ado-git-repo-insights/issues/416) [#416](https://github.com/oddessentials/ado-git-repo-insights/issues/416)
+
 # [101.28.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.4...v101.28.0) (2026-06-05)
 
 
