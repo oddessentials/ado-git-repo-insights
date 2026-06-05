@@ -165,7 +165,15 @@ RUN set -eux; \
     tar -xz -C /usr/local/bin -f /tmp/entire.tgz entire; \
     rm /tmp/entire.tgz; \
     chmod 755 /usr/local/bin/entire; \
-    installed="$(entire --version 2>&1 | awk '{print $NF}')"; \
+    # `entire --version` emits three lines (version, `go<X.Y.Z>` runtime,
+    # `linux/<arch>` target). The previous `awk '{print $NF}'` ran per-line
+    # and concatenated all three last-fields with newlines, so the equality
+    # check below could never match a single semver string and the build
+    # always failed at this step on main (CI run 26988692452, 2026-06-05).
+    # Extract the first semver-shaped token from anywhere in the output —
+    # robust to a future `entire X.Y.Z` prefix or any other line reshuffle
+    # as long as the semver remains the first three-part numeric token.
+    installed="$(entire --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"; \
     [ "$installed" = "${ENTIRE_VERSION}" ] \
        || { echo "entire version mismatch: got '$installed', expected '${ENTIRE_VERSION}'" >&2; exit 1; }
 
