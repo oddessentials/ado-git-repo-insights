@@ -1,3 +1,10 @@
+# [101.28.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.4...v101.28.0) (2026-06-05)
+
+
+### Features
+
+* **devcontainer:** atomic refactor — gh, specify, entire, Features ([#416](https://github.com/oddessentials/ado-git-repo-insights/issues/416)) ([1a32503](https://github.com/oddessentials/ado-git-repo-insights/commit/1a32503aabb7e723e8f0a6154f5e752a25463a94))
+
 ## [101.27.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.27.3...v101.27.4) (2026-05-08)
 
 
