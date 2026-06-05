@@ -1,11 +1,19 @@
 {
   "rule": "S603",
-  "total_call_sites": 137,
+  "total_call_sites": 138,
   "unsafe_count": 10,
   "call_sites": [
     {
+      "file": ".devcontainer/verify-contract.py",
+      "line": 81,
+      "code": "subprocess.check_output(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
       "file": "scripts/audit-suppressions.py",
-      "line": 1284,
+      "line": 1290,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -885,7 +893,7 @@
     },
     {
       "file": "tests/unit/test_husky_hooks.py",
-      "line": 240,
+      "line": 273,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

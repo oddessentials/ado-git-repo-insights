@@ -131,6 +131,12 @@ SCOPES: dict[str, ScopeConfig] = {
         "language": "python",
         "check_test_patterns": False,
     },
+    "python-devcontainer": {
+        "dir": ".devcontainer/",
+        "pattern": "*.py",
+        "language": "python",
+        "check_test_patterns": False,
+    },
     # TypeScript scopes
     "typescript-extension": {
         "dir": "extension/ui/",
