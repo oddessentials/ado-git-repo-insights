@@ -241,7 +241,6 @@ assert "pnpm --version" in postcreate, (
 # git-hook capture activates as soon as the contributor runs `entire login`.
 # Optional agent-specific wiring is documented as a contributor-driven step
 # in README Scenario E.
-import re
 
 # (1) Reject any tracked `entire enable` or `entire agent <subcmd>` invocation
 #     in postCreateCommand. Agent wiring belongs to contributor-driven setup,
