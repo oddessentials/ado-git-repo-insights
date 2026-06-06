@@ -87,10 +87,18 @@ RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
 # the vscode user without symlink gymnastics. The Dockerfile's specify pin
 # (SPECKIT_VERSION + SPECKIT_COMMIT) must match `.specify/init-options.json`
 # co-committed with this Dockerfile (FR-002 co-commit invariant).
+#
+# Version extraction uses the same `grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1`
+# pattern as the `entire --version` probe below. The previous `awk '{print $NF}'`
+# idiom worked only because Spec Kit 0.9.2 emits a single-line `specify 0.9.2`
+# — the entire CLI's multi-line output broke that exact pattern at this
+# Dockerfile site in PR #416 (CI run 26988692452, fixed in PR #417). Pre-empt
+# the same regression class for Spec Kit by extracting the first three-part
+# numeric token from anywhere in the output.
 RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin \
         uv tool install \
             "specify-cli @ git+https://github.com/github/spec-kit.git@${SPECKIT_COMMIT}" \
-    && installed="$(specify --version 2>&1 | awk '{print $NF}')" \
+    && installed="$(specify --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" \
     && [ "$installed" = "${SPECKIT_VERSION}" ] \
        || { echo "specify version mismatch: got '$installed', expected '${SPECKIT_VERSION}'" >&2; exit 1; }
 

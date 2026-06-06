@@ -191,8 +191,8 @@ assert "vscode:vscode" in oncreate or "vscode " in oncreate, (
 )
 
 # postCreateCommand: per FR-021, must begin with Corepack activation + pinned
-# pnpm + fail-closed validation, and per FR-020, must end with `entire enable
-# --yes --agent`. Order: corepack -> pnpm install -> entire enable.
+# pnpm + fail-closed validation. Agent-specific entire wiring is contributor-
+# driven (see README Scenario E) and MUST NOT appear in the tracked chain.
 postcreate = d.get("postCreateCommand", "")
 if isinstance(postcreate, list):
     postcreate = " && ".join(postcreate)
@@ -216,32 +216,70 @@ assert "pnpm --version" in postcreate, (
     "(FR-021 fail-closed)"
 )
 
-# FR-020: entire enable LAST
-assert "entire enable" in postcreate, (
-    "postCreateCommand must include `entire enable` per FR-020 (deterministic "
-    "entire hook wiring)"
+# FR-020 (revised 2026-06-06): the `entire` BINARY install stays in the
+# Dockerfile per FR-020. Agent-specific wiring (`entire enable --agent <X>`,
+# `entire agent add <X>`) is contributor-driven, NOT part of the tracked
+# postCreateCommand chain.
+#
+# History: PR #416 prescribed `entire enable --yes --agent claude-code,codex`
+# in postCreateCommand. That command form was invalid — entire CLI v0.7.3
+# defines `--agent` as StringVar (single value; see entireio/cli@v0.7.3/
+# cmd/entire/cli/setup.go:888), so the comma-list is treated as one agent
+# name in the registry lookup (agent/registry.go:34) and fails at runtime
+# with `unknown agent: claude-code,codex`. The first hotfix attempt swapped
+# to `entire enable --agent claude-code && entire agent add codex`, which
+# pre-wires entire for two specific agents that AREN'T installed in this
+# image (Claude Code and Codex are developer-personal per FR-008). It also
+# ships an unverified `entire agent add` subcommand into a chain CI doesn't
+# exercise (publish-devcontainer runs `docker build` only; postCreateCommand
+# never executes in CI, so runtime defects stay invisible until the first
+# contributor rebuild).
+#
+# Resolution: agent wiring moves OUT of postCreateCommand entirely. The
+# `entire` binary still ships in the image, and the repo's `.husky/_/`
+# scripts already invoke `entire hooks git <stage>` defensively, so basic
+# git-hook capture activates as soon as the contributor runs `entire login`.
+# Optional agent-specific wiring is documented as a contributor-driven step
+# in README Scenario E.
+import re
+
+# (1) Reject any tracked `entire enable` or `entire agent <subcmd>` invocation
+#     in postCreateCommand. Agent wiring belongs to contributor-driven setup,
+#     not the deterministic fail-closed chain.
+assert "entire enable" not in postcreate, (
+    "`entire enable` MUST NOT appear in postCreateCommand. Agent wiring is "
+    "contributor-driven (see README Scenario E). Re-introducing it here "
+    "couples tracked infra to a personal-agent choice and re-opens the "
+    "PR #416 / #417 failure class — CI doesn't exercise postCreateCommand, "
+    "so any agent-specific defect ships silently until first contributor "
+    "rebuild."
 )
-assert "--yes" in postcreate, (
-    "postCreateCommand's `entire enable` must use `--yes` for non-interactive run"
+assert "entire agent" not in postcreate, (
+    "`entire agent <subcommand>` MUST NOT appear in postCreateCommand. "
+    "See README Scenario E for the contributor-driven flow."
 )
 
-# Ordering invariants:
+# (2) Belt-and-braces tripwire: if a future edit reintroduces an `entire`
+#     subcommand via a different surface (e.g., list-form postCreateCommand,
+#     a flag form not caught by the substring checks above), still reject
+#     the comma-list `--agent` pattern from PR #416 with a specific error.
+for m in re.finditer(r"--agent\s+(\S+)", postcreate):
+    val = m.group(1)
+    assert "," not in val, (
+        f"entire CLI `--agent` is single-value (StringVar); saw {val!r}. "
+        "Agent wiring is contributor-driven per README Scenario E; multi-"
+        "agent setup is not expressed in tracked postCreateCommand at all."
+    )
+
+# Ordering invariant:
 #   corepack BEFORE pnpm install (Corepack must activate pnpm before any pnpm command)
-#   pnpm install BEFORE entire enable (husky's dispatcher installed first,
-#   then entire overwrites per QG-7f)
 corepack_idx = postcreate.find("corepack enable")
 pnpm_install_idx = postcreate.find("pnpm install")
-entire_idx = postcreate.find("entire enable")
 assert corepack_idx != -1, "postCreateCommand must contain `corepack enable`"
 assert pnpm_install_idx != -1, "postCreateCommand must contain `pnpm install`"
-assert entire_idx != -1, "postCreateCommand must contain `entire enable`"
 assert corepack_idx < pnpm_install_idx, (
     "postCreateCommand must run `corepack enable` BEFORE `pnpm install` "
     "(pnpm requires Corepack activation first per FR-021)"
-)
-assert pnpm_install_idx < entire_idx, (
-    "postCreateCommand must run `pnpm install` BEFORE `entire enable` "
-    "(husky dispatcher first, then entire overwrites per QG-7f)"
 )
 
 # containerEnv: no tracked PAT injection (XIX-adjacent; reserved as enterprise override per FR-007)

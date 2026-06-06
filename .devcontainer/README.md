@@ -68,7 +68,7 @@ cd /path/to/your/checkout
 devcontainer up --workspace-folder .
 ```
 
-The CLI pulls the GHCR image (or builds locally if you've overridden `image` → `build`), applies the Node Feature, runs `onCreateCommand` (`sudo chown` of the gh + entire named volume mounts), then runs `postCreateCommand` (Corepack-pinned pnpm + `pnpm install` + `uv sync` + extension install + `entire enable --yes`). When the command returns, the container is in the same post-lifecycle state VS Code would produce.
+The CLI pulls the GHCR image (or builds locally if you've overridden `image` → `build`), applies the Node Feature, runs `onCreateCommand` (`sudo chown` of the gh + entire named volume mounts), then runs `postCreateCommand` (Corepack-pinned pnpm + `pnpm install` + `uv sync` + extension install). When the command returns, the container is in the same post-lifecycle state VS Code would produce. Agent-specific `entire` wiring (`entire enable --agent <yours>`) is intentionally **not** in `postCreateCommand` — it's a contributor-driven step documented in [Scenario E](#scenario-e--entire-first-run-login-named-volume-persistence-default).
 
 ### Run gates against the post-lifecycle container
 
@@ -316,6 +316,14 @@ State persists in the named Docker volume `ado-git-repo-insights-entire-config`.
 - Sessions are captured into the `entire/checkpoints/v1` branch IN this repo (not on entire.io's servers by default).
 - Repo-level telemetry is **explicitly disabled** via the tracked `.entire/settings.json`.
 - If you choose NOT to `entire login`, the `entire` binary is still installed and the husky hooks still fire — but no session data is captured. All commits, pushes, and PR creation succeed unchanged. External fork contributors are not required to authenticate.
+
+**Optional: wire `entire` for an installed AI agent.** Once you've installed your preferred AI agent CLI (Claude Code, Codex, gemini-cli, opencode, cursor, copilot CLI, or FactoryAI — installed via your dotfiles or `npm i -g …` inside the container, **not** shipped in this image per FR-008), run the appropriate `entire` setup command to wire agent-specific hooks beyond what `.husky/_/` already provides. Check `entire enable --help` for the current invocation — at the time of writing, the documented form is:
+
+```bash
+$ entire enable --agent <name>     # e.g. claude-code, codex, gemini-cli
+```
+
+This step is **intentionally NOT in `postCreateCommand`**. Pre-wiring tracked infrastructure for agents that aren't installed in the image was the PR #416 / #417 failure class (the publish-devcontainer CI job runs `docker build` only, so postCreateCommand never executes in CI — any agent-specific defect stays invisible until the first contributor rebuild). Each contributor wires whichever agents they actually use; skip the step entirely if you don't want agent-specific capture.
 
 **Failure remediation**: if `entire login` fails with `permission denied` writing to `/home/vscode/.entire/`, the `onCreateCommand` chown did not run or did not target the entire mount path — same remediation as Scenario A.
 
