@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.7.3",
+  "checkpoint_id": "ce552623567f",
+  "session_id": "c083831d-20d9-4525-a0ca-d78bb64dd765",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-06T17:06:17.076986544Z",
+  "branch": "chore/remove-stale-specs",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".gitignore",
+    ".devcontainer/README.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8[1m]",
+  "turn_id": "695a833b4d5f",
+  "token_usage": {
+    "input_tokens": 3625,
+    "cache_creation_tokens": 185671,
+    "cache_read_tokens": 4440133,
+    "output_tokens": 59181,
+    "api_call_count": 36
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-06T17:06:17.037506544Z",
+    "agent_lines": 2,
+    "agent_removed": 7,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2,
+    "total_lines_changed": 58,
+    "agent_percentage": 15.517241379310345,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

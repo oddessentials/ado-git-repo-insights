@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.7.3",
+  "checkpoint_id": "ce552623567f",
+  "strategy": "manual-commit",
+  "branch": "chore/remove-stale-specs",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".devcontainer/README.md",
+    ".gitignore"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ce/552623567f/0/metadata.json",
+      "transcript": "/ce/552623567f/0/full.jsonl",
+      "content_hash": "/ce/552623567f/0/content_hash.txt",
+      "prompt": "/ce/552623567f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3625,
+    "cache_creation_tokens": 185671,
+    "cache_read_tokens": 4440133,
+    "output_tokens": 59181,
+    "api_call_count": 36
+  }
+}
