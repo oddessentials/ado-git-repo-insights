@@ -1,3 +1,10 @@
+## [101.28.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.1...v101.28.2) (2026-06-06)
+
+
+### Bug Fixes
+
+* **devcontainer:** move entire agent wiring out of postCreateCommand ([#418](https://github.com/oddessentials/ado-git-repo-insights/issues/418)) ([eb79dbd](https://github.com/oddessentials/ado-git-repo-insights/commit/eb79dbd116687fd6691907a98b401bb7316a100c)), closes [#416](https://github.com/oddessentials/ado-git-repo-insights/issues/416) [#416](https://github.com/oddessentials/ado-git-repo-insights/issues/416) [#417](https://github.com/oddessentials/ado-git-repo-insights/issues/417)
+
 ## [101.28.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.0...v101.28.1) (2026-06-05)
 
 
