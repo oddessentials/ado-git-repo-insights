@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.7.3",
+  "checkpoint_id": "77b32817d1fc",
+  "strategy": "manual-commit",
+  "branch": "fix/husky-entire-dispatcher-autorepair",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".test-floor-contract.json",
+    "LOCAL_CI_PARITY_INVARIANTS.md",
+    "scripts/run_repo_hook.py",
+    "tests/unit/test_hook_guards.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/77/b32817d1fc/0/metadata.json",
+      "transcript": "/77/b32817d1fc/0/full.jsonl",
+      "content_hash": "/77/b32817d1fc/0/content_hash.txt",
+      "prompt": "/77/b32817d1fc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7831,
+    "cache_creation_tokens": 106311,
+    "cache_read_tokens": 15564530,
+    "output_tokens": 92389,
+    "api_call_count": 45
+  }
+}
