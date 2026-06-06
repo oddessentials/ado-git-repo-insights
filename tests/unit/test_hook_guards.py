@@ -479,7 +479,7 @@ class TestInvariantArtifactContracts:
             patch.object(_hook_module, "run_staged_suppression_justification_guard"),
             patch.object(_hook_module, "run_command"),
             patch.object(_hook_module, "run_acl_health_check"),
-            patch.object(_hook_module, "run_commitlint_dispatcher_health_check"),
+            patch.object(_hook_module, "repair_husky_hook_dispatchers"),
             patch.object(_hook_module, "run_pre_commit_stage"),
             patch.object(_hook_module, "ensure_no_compiled_js"),
             patch.object(_hook_module, "run_pnpm_lockfile_guard"),
@@ -609,60 +609,129 @@ class TestCommitlintInfrastructure:
         )
 
 
-run_commitlint_dispatcher_health_check = (
-    _hook_module.run_commitlint_dispatcher_health_check
+repair_husky_hook_dispatchers = _hook_module.repair_husky_hook_dispatchers
+
+_HUSKY_DISPATCHER = '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n'
+_ENTIRE_WRAPPER = (
+    "#!/bin/sh\n"
+    "# Entire CLI hooks\n"
+    "if command -v entire >/dev/null 2>&1; then\n"
+    '    entire hooks git commit-msg "$1" || true\n'
+    "fi\n"
+    '_entire_hook_dir="$(dirname "$0")"\n'
+    'if [ -x "$_entire_hook_dir/commit-msg.pre-entire" ]; then\n'
+    '    "$_entire_hook_dir/commit-msg.pre-entire" "$@"\n'
+    "fi\n"
 )
 
 
-class TestCommitlintDispatcherHealthCheck:
-    """Unit tests for the runtime check that detects dispatcher corruption.
+class TestHuskyDispatcherAutoRepair:
+    """Unit tests for the pre-commit self-heal that restores husky's hook
+    dispatchers after an external tool (e.g. ``entire``) overwrites them.
 
-    Git executes .husky/_/commit-msg (set via core.hooksPath), not the
-    tracked .husky/commit-msg.  External tools can overwrite the dispatcher,
-    silently breaking commitlint.  run_commitlint_dispatcher_health_check()
-    is the function that detects this at commit time.
+    Git executes ``.husky/_/<hook>`` (via ``core.hooksPath``), not the tracked
+    ``.husky/<hook>``.  ``entire`` overwrites those dispatchers and chains to a
+    renamed backup that husky's name-based resolver never finds, silently
+    skipping commitlint (commit-msg) and the preflight (pre-push).
+    ``repair_husky_hook_dispatchers()`` restores husky's dispatcher in
+    pre-commit so both run on the same commit / next push.
     """
 
     @staticmethod
-    def _write_dispatcher(tmp_path: Path, content: str) -> None:
-        husky_internal = tmp_path / ".husky" / "_"
-        husky_internal.mkdir(parents=True, exist_ok=True)
-        (husky_internal / "commit-msg").write_text(content, encoding="utf-8")
+    def _setup(
+        tmp_path: Path,
+        *,
+        dispatchers: dict[str, str],
+        with_helper: bool = True,
+        user_hooks: tuple[str, ...] = ("commit-msg", "pre-push"),
+    ) -> None:
+        internal = tmp_path / ".husky" / "_"
+        internal.mkdir(parents=True, exist_ok=True)
+        for name, content in dispatchers.items():
+            (internal / name).write_text(content, encoding="utf-8")
+        if with_helper:
+            (internal / "h").write_text(
+                "#!/usr/bin/env sh\n# helper\n", encoding="utf-8"
+            )
+        for name in user_hooks:
+            (tmp_path / ".husky" / name).write_text(
+                "#!/bin/sh\ncommitlint\n", encoding="utf-8"
+            )
 
-    def test_passes_on_standard_husky_dispatcher(
+    def test_repairs_overwritten_commit_msg_dispatcher(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        self._write_dispatcher(tmp_path, '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n')
+        self._setup(tmp_path, dispatchers={"commit-msg": _ENTIRE_WRAPPER})
         with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()
-        captured = capsys.readouterr()
-        assert "corrupted" not in captured.out
+            repair_husky_hook_dispatchers()
+        restored = (tmp_path / ".husky" / "_" / "commit-msg").read_text(
+            encoding="utf-8"
+        )
+        assert restored == _HUSKY_DISPATCHER
+        assert "restored husky hook dispatcher" in capsys.readouterr().out
 
-    def test_warns_on_corrupted_dispatcher(
+    def test_repairs_overwritten_pre_push_dispatcher(self, tmp_path: Path) -> None:
+        # pre-push runs the authoritative preflight — the blind spot the old
+        # warn-only commit-msg check never covered.
+        self._setup(tmp_path, dispatchers={"pre-push": _ENTIRE_WRAPPER})
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            repair_husky_hook_dispatchers()
+        restored = (tmp_path / ".husky" / "_" / "pre-push").read_text(encoding="utf-8")
+        assert restored == _HUSKY_DISPATCHER
+
+    def test_leaves_clean_dispatchers_untouched(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Dispatcher overwritten by external tool — warn with fix command."""
-        self._write_dispatcher(
+        self._setup(
             tmp_path,
-            "#!/bin/sh\n"
-            "# Entire CLI hooks\n"
-            'entire hooks git commit-msg "$1" || exit 1\n',
+            dispatchers={
+                "commit-msg": _HUSKY_DISPATCHER,
+                "pre-push": _HUSKY_DISPATCHER,
+            },
         )
         with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()
-        captured = capsys.readouterr()
-        assert "corrupted" in captured.out
-        assert "pnpm exec husky" in captured.out
+            repair_husky_hook_dispatchers()
+        out = capsys.readouterr().out
+        assert "restored" not in out
+        assert (tmp_path / ".husky" / "_" / "commit-msg").read_text(
+            encoding="utf-8"
+        ) == _HUSKY_DISPATCHER
 
     def test_skips_when_dispatcher_not_yet_generated(self, tmp_path: Path) -> None:
-        """Before pnpm install, .husky/_/ does not exist — silent skip.
-
-        This is expected on first clone before bootstrapping.  The CI
-        commitlint job is the authoritative gate regardless.
-        """
-        # tmp_path has no .husky/_/ directory
+        # No .husky/_/ — fresh clone before pnpm install.  Silent, no crash.
         with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()  # should return silently
+            repair_husky_hook_dispatchers()
+
+    def test_warns_without_overwriting_when_helper_missing(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Can't safely restore a dispatcher that would source a missing helper.
+        self._setup(
+            tmp_path,
+            dispatchers={"commit-msg": _ENTIRE_WRAPPER},
+            with_helper=False,
+        )
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            repair_husky_hook_dispatchers()
+        out = capsys.readouterr().out
+        assert "pnpm exec husky" in out
+        assert (tmp_path / ".husky" / "_" / "commit-msg").read_text(
+            encoding="utf-8"
+        ) == _ENTIRE_WRAPPER
+
+    def test_does_not_touch_non_enforcement_hooks(self, tmp_path: Path) -> None:
+        # post-rewrite only calls entire (no commitlint/preflight), so entire's
+        # wrapper is left in place — minimal blast radius.
+        self._setup(
+            tmp_path,
+            dispatchers={"post-rewrite": _ENTIRE_WRAPPER},
+            user_hooks=(),
+        )
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            repair_husky_hook_dispatchers()
+        assert (tmp_path / ".husky" / "_" / "post-rewrite").read_text(
+            encoding="utf-8"
+        ) == _ENTIRE_WRAPPER
 
 
 _acl_write_probe = _hook_module._acl_write_probe
