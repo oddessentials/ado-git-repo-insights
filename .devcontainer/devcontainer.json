@@ -54,7 +54,7 @@
     // both the failure and the fix).
     "onCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.config/gh /home/vscode/.entire",
 
-    // postCreateCommand: FR-021 + FR-020 idempotent fail-closed chain.
+    // postCreateCommand: FR-021 idempotent fail-closed chain.
     // Step order is load-bearing:
     //
     //   1. `corepack enable` + `corepack prepare pnpm@9.15.0 --activate` —
@@ -73,14 +73,21 @@
     //   6. `pnpm --dir extension install --frozen-lockfile` — extension
     //      deps; triggers the Playwright postinstall (~110 MB Chromium
     //      download into ~/.cache/ms-playwright).
-    //   7. `entire enable --yes --agent claude-code,codex` — LAST (per
-    //      FR-020 + QG-7f). Husky's dispatcher (from step 4) is overwritten
-    //      by entire's dispatcher per the QG-7f accepted constitutional
-    //      asymmetry. CI commitlint remains authoritative.
     //
     // The chain is joined by `&&` — any failure aborts setup entirely. No
     // `|| true` or failure suppression is permitted (FR-021).
-    "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.0 --activate && [ \"$(pnpm --version)\" = \"9.15.0\" ] || { echo \"FATAL: pnpm version mismatch\" >&2; exit 1; } && git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile && entire enable --yes --agent claude-code,codex",
+    //
+    // NOTE: `entire enable --agent <X>` and `entire agent add <X>` are
+    // intentionally NOT in this chain — agent wiring is contributor-driven
+    // (see README Scenario E). Agents like Claude Code and Codex aren't
+    // shipped in this image per FR-008; pre-wiring tracked infra for agents
+    // that aren't installed was the PR #416 / #417 failure class (CI runs
+    // `docker build` only, so postCreateCommand never executes in CI and
+    // runtime defects stay invisible until first contributor rebuild). The
+    // `entire` BINARY still ships in the image per FR-020, and `.husky/_/`
+    // already invokes `entire hooks git <stage>` defensively, so basic git-
+    // hook capture activates as soon as the contributor runs `entire login`.
+    "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.0 --activate && [ \"$(pnpm --version)\" = \"9.15.0\" ] || { echo \"FATAL: pnpm version mismatch\" >&2; exit 1; } && git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile",
 
     "customizations": {
         "vscode": {
