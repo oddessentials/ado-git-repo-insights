@@ -3,36 +3,39 @@
   "checkpoint_id": "ce552623567f",
   "session_id": "c083831d-20d9-4525-a0ca-d78bb64dd765",
   "strategy": "manual-commit",
-  "created_at": "2026-06-06T17:06:17.076986544Z",
+  "created_at": "2026-06-06T17:50:49.664790961Z",
   "branch": "chore/remove-stale-specs",
   "checkpoints_count": 0,
   "files_touched": [
+    ".devcontainer/README.md",
     ".gitignore",
-    ".devcontainer/README.md"
+    "docs/specs-retirement.md"
   ],
   "agent": "Claude Code",
   "model": "claude-opus-4-8[1m]",
-  "turn_id": "695a833b4d5f",
+  "turn_id": "6d0fc62836ed",
+  "checkpoint_transcript_start": 240,
+  "transcript_lines_at_start": 240,
   "token_usage": {
-    "input_tokens": 3625,
-    "cache_creation_tokens": 185671,
-    "cache_read_tokens": 4440133,
-    "output_tokens": 59181,
-    "api_call_count": 36
+    "input_tokens": 467,
+    "cache_creation_tokens": 53677,
+    "cache_read_tokens": 3087969,
+    "output_tokens": 49444,
+    "api_call_count": 14
   },
   "session_metrics": {
-    "turn_count": 1
+    "turn_count": 2
   },
   "initial_attribution": {
-    "calculated_at": "2026-06-06T17:06:17.037506544Z",
-    "agent_lines": 2,
-    "agent_removed": 7,
+    "calculated_at": "2026-06-06T17:50:49.597293836Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
     "human_added": 0,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 2,
-    "total_lines_changed": 58,
-    "agent_percentage": 15.517241379310345,
+    "total_committed": 0,
+    "total_lines_changed": 0,
+    "agent_percentage": 0,
     "metric_version": 2
   },
   "prompt_attributions": [
