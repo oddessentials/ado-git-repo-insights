@@ -244,3 +244,31 @@ RUN set -eux; \
 # Microsoft devcontainer base mounts workspaces at /workspaces/<repo-name>.
 # Pre-create the directory so non-root postCreateCommand has write access.
 RUN mkdir -p /workspaces && chown vscode:vscode /workspaces
+
+# --- Deterministic git-hook entrypoints (entire-proof) ------------------------
+# git runs hooks from one directory (core.hooksPath). `entire` re-injects its
+# own wrappers there on every agent turn (.claude/settings.json ->
+# `entire hooks claude-code ...`) and silently breaks commitlint (commit-msg)
+# and the full preflight (pre-push), because husky's basename-based dispatch
+# can't follow entire's rename of the dispatcher to `<hook>.pre-entire`.
+#
+# Install the gate entrypoints root-owned and mode 0555, OUTSIDE the workspace,
+# and point git at them via devcontainer.json's postCreateCommand
+# (`git config core.hooksPath /opt/githooks`). `entire` runs as the
+# unprivileged `vscode` user and physically cannot overwrite or unlink a
+# root:root 0555 file, so the gates run on every git operation regardless of
+# entire re-injecting. Each entrypoint delegates to the tracked .husky/<hook>
+# (preserving entire's session capture, which those hooks invoke themselves).
+COPY githook-entrypoint.sh /opt/githooks/.entrypoint
+RUN set -eux; \
+    for hook in pre-commit commit-msg prepare-commit-msg post-commit post-rewrite pre-push; do \
+        cp /opt/githooks/.entrypoint /opt/githooks/"$hook"; \
+    done; \
+    rm /opt/githooks/.entrypoint; \
+    chown -R root:root /opt/githooks; \
+    chmod 0755 /opt/githooks; \
+    chmod 0555 /opt/githooks/*; \
+    # Sanity: vscode must NOT be able to overwrite an entrypoint (the whole point). \
+    su vscode -c 'echo x > /opt/githooks/pre-push' 2>/dev/null \
+      && { echo "FATAL: githook entrypoints are writable by vscode (entire could clobber)" >&2; exit 1; } \
+      || true
