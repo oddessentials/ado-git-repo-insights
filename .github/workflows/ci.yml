@@ -655,7 +655,7 @@ jobs:
         shell: bash
 
       - name: Upload Python Coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         with:
           files: ./coverage.xml
@@ -1095,7 +1095,7 @@ jobs:
         run: pnpm --dir extension run test:partial-branches
 
       - name: Upload TypeScript Coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: success()
         with:
           files: ./extension/coverage/lcov.info
