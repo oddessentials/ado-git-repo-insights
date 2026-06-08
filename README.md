@@ -215,3 +215,9 @@ PATs use minimum **Code (Read)** scope, are never logged, and are never persiste
 
 - **Issues & Features:** [GitHub Issues](https://github.com/oddessentials/ado-git-repo-insights/issues)
 - **Publisher:** OddEssentials
+
+---
+
+## 📄 License
+
+MIT
