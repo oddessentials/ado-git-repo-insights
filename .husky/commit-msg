@@ -1,3 +1,5 @@
 #!/bin/sh
-command -v entire >/dev/null 2>&1 && entire hooks git commit-msg "$1"
+# Session capture is owned by entire's installed hook wrapper (.husky/_/commit-msg),
+# which calls `entire hooks git commit-msg` before chaining here. This tracked gate
+# does NOT call entire, to avoid double-capture / a duplicate Entire-Checkpoint trailer.
 pnpm exec commitlint --edit "$1"

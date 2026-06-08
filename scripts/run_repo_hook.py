@@ -520,81 +520,15 @@ def _staged_suppression_delta_inputs(
     return baseline_counts, current_counts, tokenize_errors
 
 
-# Husky v9 writes the same canonical dispatcher to every ``.husky/_/<hook>``:
-# it sources the ``h`` helper, which runs the tracked ``.husky/<hook>`` user
-# hook.  ``entire`` overwrites these dispatchers (backing husky's up as
-# ``<hook>.pre-entire`` and chaining to it), but husky's ``h`` resolves the
-# user hook from ``$0``'s basename — so the chain lands on
-# ``.husky/<hook>.pre-entire`` (absent) and silently exits 0, skipping the
-# real hook.  See LOCAL_CI_PARITY_INVARIANTS.md row 7f for the proof.
-_HUSKY_DISPATCHER = '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n'
-
-# Only hooks whose tracked ``.husky/<hook>`` does enforcement work beyond
-# calling ``entire`` need restoring: commit-msg (commitlint) and pre-push (the
-# authoritative preflight).  post-commit / prepare-commit-msg / post-rewrite
-# merely call ``entire hooks git``, so entire's own wrapper captures them —
-# leaving those untouched keeps the blast radius minimal.
-_ENFORCEMENT_HOOK_NAMES = ("commit-msg", "pre-push")
-
-
-def _is_husky_dispatcher(content: str) -> bool:
-    """True if ``content`` is husky's canonical dispatcher (sources ``h``)
-    rather than an external-tool override."""
-    return ')/h"' in content or ")/h'" in content
-
-
-def repair_husky_hook_dispatchers() -> None:
-    """Restore husky's enforcement-hook dispatchers if an external tool
-    (e.g. ``entire``) overwrote them, so commitlint (commit-msg) and the
-    preflight (pre-push) actually run locally.
-
-    Runs in pre-commit — the one hook ``entire`` never overrides — BEFORE git
-    fires commit-msg, so a repaired commit-msg dispatcher takes effect for the
-    same commit and a repaired pre-push dispatcher is in place for the next
-    push.  ``entire`` reinstalls its wrappers at session start (not per commit,
-    verified), so this self-heals once per session on the first commit.
-
-    ``entire``'s session capture is unaffected: the restored husky dispatcher
-    runs ``.husky/<hook>``, which itself calls ``entire hooks git <stage>``.
-
-    Fail-safe: if husky's ``h`` helper is absent (``.husky/_/`` not generated
-    yet, e.g. fresh clone before ``pnpm install``), it warns instead of writing
-    a dispatcher that would source a missing helper.  CI stays authoritative.
-    """
-    husky_internal = REPO_ROOT / ".husky" / "_"
-    helper = husky_internal / "h"
-    repaired: list[str] = []
-    for hook in _ENFORCEMENT_HOOK_NAMES:
-        dispatcher = husky_internal / hook
-        user_hook = REPO_ROOT / ".husky" / hook
-        if not dispatcher.is_file() or not user_hook.is_file():
-            continue
-        if _is_husky_dispatcher(
-            dispatcher.read_text(encoding="utf-8", errors="replace")
-        ):
-            continue
-        if not helper.is_file():
-            safe_print(
-                f"[pre-commit] WARNING: .husky/_/{hook} was overwritten and "
-                "husky's helper (.husky/_/h) is missing."
-            )
-            safe_print(
-                "  Run `pnpm exec husky` to restore local enforcement; "
-                "CI stays authoritative."
-            )
-            continue
-        dispatcher.write_text(_HUSKY_DISPATCHER, encoding="utf-8")
-        dispatcher.chmod(0o755)
-        repaired.append(hook)
-    if repaired:
-        safe_print(
-            "[pre-commit] restored husky hook dispatcher(s) an external tool "
-            f"overwrote: {', '.join(repaired)}"
-        )
-        safe_print(
-            "  local commitlint/preflight re-enabled; entire still captures "
-            "via the user hooks."
-        )
+# Deterministic local hooks under entire.io: git runs ``.husky/_/<hook>`` (via
+# ``core.hooksPath``).  ``entire`` re-injects its own wrappers there every
+# session and chains to a ``<hook>.pre-entire`` backup it runs *by path*.  The
+# tracked ``.husky/_/<hook>`` dispatchers are therefore kept SELF-CONTAINED (see
+# ``scripts/install-githooks.cjs``, run from ``prepare`` after husky): they exec
+# ``.husky/<hook>`` by a hard-coded name, so entire's wrap-and-chain runs the
+# real gate in every state.  No runtime dispatcher repair is needed (an earlier
+# self-heal restored husky's *basename* dispatcher, which re-broke entire's
+# chain — removed).  See LOCAL_CI_PARITY_INVARIANTS.md row 7f.
 
 
 def run_staged_suppression_diff_guard() -> None:
@@ -1188,7 +1122,6 @@ def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] running Any-type ratchet (QG-40)")
     run_command([sys.executable, "scripts/check_no_any_types.py", "--diff"])
     run_acl_health_check()
-    repair_husky_hook_dispatchers()
     run_pre_commit_stage()
     ensure_no_compiled_js()
     run_pnpm_lockfile_guard()
