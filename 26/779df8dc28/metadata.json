@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.7.3",
+  "checkpoint_id": "26779df8dc28",
+  "strategy": "manual-commit",
+  "branch": "fix/husky-entire-dispatcher-autorepair",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".devcontainer/Dockerfile",
+    ".devcontainer/devcontainer.json",
+    ".devcontainer/githook-entrypoint.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/26/779df8dc28/0/metadata.json",
+      "transcript": "/26/779df8dc28/0/full.jsonl",
+      "content_hash": "/26/779df8dc28/0/content_hash.txt",
+      "prompt": "/26/779df8dc28/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 25288,
+    "cache_creation_tokens": 232971,
+    "cache_read_tokens": 11435664,
+    "output_tokens": 121185,
+    "api_call_count": 84
+  }
+}
