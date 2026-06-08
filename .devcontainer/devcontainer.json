@@ -74,14 +74,16 @@
     //      deps; triggers the Playwright postinstall (~110 MB Chromium
     //      download into ~/.cache/ms-playwright).
     //
-    //   7. `git config core.hooksPath /opt/githooks` — LAST. Repoints git at
-    //      the root-owned, entire-proof hook entrypoints baked into the image
-    //      (.devcontainer/Dockerfile). MUST run after step 4 (`pnpm install`
-    //      via husky resets core.hooksPath to the entire-clobberable
-    //      `.husky/_`). Without this repoint, `entire` silently overwrites the
-    //      commit-msg + pre-push dispatchers on every agent turn and the gates
-    //      stop running locally. A pre-commit guard re-asserts this if a later
-    //      `pnpm install` resets it. See LOCAL_CI_PARITY_INVARIANTS.md row 7f.
+    // Git hooks: `pnpm install` (step 4) runs husky, which sets
+    // `core.hooksPath` to `.husky/_` — the single, deterministic hook path
+    // present in every container regardless of image build/publish timing.
+    // `entire` overwrites the `.husky/_` dispatchers on session start; the
+    // pre-commit self-heal (`repair_husky_hook_dispatchers` in
+    // scripts/run_repo_hook.py) restores them before git fires commit-msg, so
+    // the CI-parity gates run on every commit/push. See
+    // LOCAL_CI_PARITY_INVARIANTS.md row 7f. postCreateCommand does NOT repoint
+    // core.hooksPath — doing so coupled hook execution to image state and
+    // silently disabled all gates whenever the image lagged the branch.
     //
     // The chain is joined by `&&` — any failure aborts setup entirely. No
     // `|| true` or failure suppression is permitted (FR-021).
@@ -96,7 +98,7 @@
     // `entire` BINARY still ships in the image per FR-020, and `.husky/_/`
     // already invokes `entire hooks git <stage>` defensively, so basic git-
     // hook capture activates as soon as the contributor runs `entire login`.
-    "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.0 --activate && [ \"$(pnpm --version)\" = \"9.15.0\" ] || { echo \"FATAL: pnpm version mismatch\" >&2; exit 1; } && git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile && git config core.hooksPath /opt/githooks",
+    "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.0 --activate && [ \"$(pnpm --version)\" = \"9.15.0\" ] || { echo \"FATAL: pnpm version mismatch\" >&2; exit 1; } && git config core.autocrlf false && pnpm install --frozen-lockfile && uv sync --locked --extra dev && pnpm --dir extension install --frozen-lockfile",
 
     "customizations": {
         "vscode": {
