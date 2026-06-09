@@ -1,3 +1,10 @@
+## [101.28.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.3...v101.28.4) (2026-06-09)
+
+
+### Bug Fixes
+
+* **dashboard:** prevent double-encoding of ADO PR hyperlinks ([#427](https://github.com/oddessentials/ado-git-repo-insights/issues/427)) ([1658ccf](https://github.com/oddessentials/ado-git-repo-insights/commit/1658ccf9af0840a778ab6c577e80b91aef646966))
+
 ## [101.28.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.2...v101.28.3) (2026-06-09)
 
 
