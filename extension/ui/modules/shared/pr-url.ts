@@ -36,6 +36,33 @@ function ensureTrailingSlash(uri: string): string {
 }
 
 /**
+ * Percent-encode a single URL path segment exactly once, idempotently.
+ *
+ * A stored project/repository name may arrive in one of two forms:
+ *   - raw, with literal spaces/special chars (e.g. `Consumer Technology`), or
+ *   - already percent-encoded (e.g. `Consumer%20Technology`) — common when a
+ *     name is copied verbatim from a browser URL during setup.
+ *
+ * Blindly calling `encodeURIComponent` on the second form double-encodes it
+ * (`%20` -> `%2520`), producing a broken link. Azure DevOps project and
+ * repository names cannot contain a literal `%`, so a valid `%NN` sequence in a
+ * stored name can only be the result of prior encoding — we therefore decode
+ * once before re-encoding, which normalizes BOTH forms to a single encoding
+ * layer. Decoding is wrapped defensively: a malformed sequence (which a legal
+ * ADO name cannot contain) falls back to encoding the value as-is rather than
+ * throwing. Pure and deterministic — no I/O, no locale/environment dependence.
+ */
+function encodePathSegmentOnce(value: string): string {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    decoded = value;
+  }
+  return encodeURIComponent(decoded);
+}
+
+/**
  * Compose the ADO web URL for a PR. Pure function — no I/O, no DOM reads.
  *
  * @param pr The PR record to link to (`id` + `repository_id`).
@@ -53,9 +80,9 @@ export function resolvePrUrl(
   const repo = repositories?.find((r) => r.repository_id === pr.repository_id);
   if (repo && repo.repository_name.length > 0 && repo.project_name.length > 0) {
     return (
-      `${base}${encodeURIComponent(repo.project_name)}/_git/` +
-      `${encodeURIComponent(repo.repository_name)}/pullrequest/${pr.id}`
+      `${base}${encodePathSegmentOnce(repo.project_name)}/_git/` +
+      `${encodePathSegmentOnce(repo.repository_name)}/pullrequest/${pr.id}`
     );
   }
-  return `${base}_git/${encodeURIComponent(pr.repository_id)}/pullrequest/${pr.id}`;
+  return `${base}_git/${encodePathSegmentOnce(pr.repository_id)}/pullrequest/${pr.id}`;
 }

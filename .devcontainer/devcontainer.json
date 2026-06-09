@@ -77,13 +77,19 @@
     // Git hooks: `pnpm install` (step 4) runs husky, which sets
     // `core.hooksPath` to `.husky/_` — the single, deterministic hook path
     // present in every container regardless of image build/publish timing.
-    // `entire` overwrites the `.husky/_` dispatchers on session start; the
-    // pre-commit self-heal (`repair_husky_hook_dispatchers` in
-    // scripts/run_repo_hook.py) restores them before git fires commit-msg, so
-    // the CI-parity gates run on every commit/push. See
-    // LOCAL_CI_PARITY_INVARIANTS.md row 7f. postCreateCommand does NOT repoint
-    // core.hooksPath — doing so coupled hook execution to image state and
-    // silently disabled all gates whenever the image lagged the branch.
+    // `entire` overwrites the `.husky/_` dispatchers on session start
+    // (backing each up to `<hook>.pre-entire` and chaining to it by path).
+    // The `prepare` script also runs scripts/install-githooks.cjs after husky,
+    // which writes SELF-CONTAINED `.husky/_/<hook>` dispatchers that exec the
+    // tracked `.husky/<hook>` gate by a hard-coded name — so entire's
+    // wrap-and-chain reaches the real CI-parity gate in every state, with no
+    // skip window and no runtime self-heal needed. (An earlier
+    // `repair_husky_hook_dispatchers` self-heal restored husky's basename
+    // dispatcher at pre-commit time, but that re-broke entire's chain and was
+    // removed.) See LOCAL_CI_PARITY_INVARIANTS.md row 7f. postCreateCommand
+    // does NOT repoint core.hooksPath — doing so coupled hook execution to
+    // image state and silently disabled all gates whenever the image lagged
+    // the branch.
     //
     // The chain is joined by `&&` — any failure aborts setup entirely. No
     // `|| true` or failure suppression is permitted (FR-021).
