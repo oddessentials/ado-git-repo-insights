@@ -1,3 +1,10 @@
+## [101.28.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.2...v101.28.3) (2026-06-09)
+
+
+### Bug Fixes
+
+* **hooks:** deterministic local commit/push gates under entire.io ([#426](https://github.com/oddessentials/ado-git-repo-insights/issues/426)) ([e19fc9e](https://github.com/oddessentials/ado-git-repo-insights/commit/e19fc9e8e05383c7f7d480d7c2c96825248fd37f))
+
 ## [101.28.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.1...v101.28.2) (2026-06-06)
 
 
