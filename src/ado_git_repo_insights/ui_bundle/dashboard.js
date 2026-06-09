@@ -10424,13 +10424,22 @@ var PRInsightsDashboard = (() => {
   function ensureTrailingSlash(uri) {
     return uri.endsWith("/") ? uri : `${uri}/`;
   }
+  function encodePathSegmentOnce(value) {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      decoded = value;
+    }
+    return encodeURIComponent(decoded);
+  }
   function resolvePrUrl(pr, repositories, webContext) {
     const base = ensureTrailingSlash(webContext.collectionUri);
     const repo = repositories?.find((r2) => r2.repository_id === pr.repository_id);
     if (repo && repo.repository_name.length > 0 && repo.project_name.length > 0) {
-      return `${base}${encodeURIComponent(repo.project_name)}/_git/${encodeURIComponent(repo.repository_name)}/pullrequest/${pr.id}`;
+      return `${base}${encodePathSegmentOnce(repo.project_name)}/_git/${encodePathSegmentOnce(repo.repository_name)}/pullrequest/${pr.id}`;
     }
-    return `${base}_git/${encodeURIComponent(pr.repository_id)}/pullrequest/${pr.id}`;
+    return `${base}_git/${encodePathSegmentOnce(pr.repository_id)}/pullrequest/${pr.id}`;
   }
 
   // ../ui/modules/drilldown/filter-support.ts

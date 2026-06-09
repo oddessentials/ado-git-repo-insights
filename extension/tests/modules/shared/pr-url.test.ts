@@ -140,4 +140,80 @@ describe("resolvePrUrl (FR-005 / FR-005a)", () => {
       );
     });
   });
+
+  describe("idempotent encoding — no double-encoding (feature 365)", () => {
+    // Demo/sample data uses only hyphenated lowercase names, which encode to
+    // themselves, so these cases (names with spaces, and names already
+    // percent-encoded) are the only ones that can surface a double-encoding
+    // regression. See specs/365-pr-url-double-encoding/spec.md.
+
+    it("does not double-encode a project name that is already percent-encoded", () => {
+      const repo: PrUrlRepositoryEntry = {
+        repository_id: "repo-guid-enc",
+        repository_name: "consumer-tech",
+        project_name: "Consumer%20Technology",
+        organization_name: "acme-org",
+      };
+      const pr: PrUrlPrRecord = { id: 77, repository_id: "repo-guid-enc" };
+      expect(resolvePrUrl(pr, [repo], CTX)).toBe(
+        "https://dev.azure.com/acme-org/Consumer%20Technology/_git/consumer-tech/pullrequest/77",
+      );
+    });
+
+    it("does not double-encode a repository name that is already percent-encoded", () => {
+      const repo: PrUrlRepositoryEntry = {
+        repository_id: "repo-guid-enc2",
+        repository_name: "iOS%20App",
+        project_name: "Mobile Team",
+        organization_name: "acme-org",
+      };
+      const pr: PrUrlPrRecord = { id: 78, repository_id: "repo-guid-enc2" };
+      expect(resolvePrUrl(pr, [repo], CTX)).toBe(
+        "https://dev.azure.com/acme-org/Mobile%20Team/_git/iOS%20App/pullrequest/78",
+      );
+    });
+
+    it("produces an identical URL whether the name is raw or already percent-encoded", () => {
+      const raw: PrUrlRepositoryEntry = {
+        repository_id: "repo-guid-idem",
+        repository_name: "Web App",
+        project_name: "Consumer Technology",
+        organization_name: "acme-org",
+      };
+      const encoded: PrUrlRepositoryEntry = {
+        ...raw,
+        repository_name: "Web%20App",
+        project_name: "Consumer%20Technology",
+      };
+      const pr: PrUrlPrRecord = { id: 79, repository_id: "repo-guid-idem" };
+      const fromRaw = resolvePrUrl(pr, [raw], CTX);
+      const fromEncoded = resolvePrUrl(pr, [encoded], CTX);
+      expect(fromRaw).toBe(fromEncoded);
+      expect(fromRaw).toBe(
+        "https://dev.azure.com/acme-org/Consumer%20Technology/_git/Web%20App/pullrequest/79",
+      );
+    });
+
+    it("never emits a double-encoded space (%2520) for an already-encoded name", () => {
+      const repo: PrUrlRepositoryEntry = {
+        repository_id: "repo-guid-no2520",
+        repository_name: "api%20server",
+        project_name: "Back%20End",
+        organization_name: "acme-org",
+      };
+      const pr: PrUrlPrRecord = { id: 80, repository_id: "repo-guid-no2520" };
+      const url = resolvePrUrl(pr, [repo], CTX);
+      expect(url).not.toContain("%2520");
+      expect(url).toBe(
+        "https://dev.azure.com/acme-org/Back%20End/_git/api%20server/pullrequest/80",
+      );
+    });
+
+    it("single-encodes an already-encoded repository_id in the fallback form", () => {
+      const pr: PrUrlPrRecord = { id: 81, repository_id: "weird%20id" };
+      expect(resolvePrUrl(pr, [], CTX)).toBe(
+        "https://dev.azure.com/acme-org/_git/weird%20id/pullrequest/81",
+      );
+    });
+  });
 });
