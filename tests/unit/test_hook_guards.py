@@ -13,6 +13,7 @@ requiring actual git state manipulation.
 """
 
 import importlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -479,7 +480,6 @@ class TestInvariantArtifactContracts:
             patch.object(_hook_module, "run_staged_suppression_justification_guard"),
             patch.object(_hook_module, "run_command"),
             patch.object(_hook_module, "run_acl_health_check"),
-            patch.object(_hook_module, "run_commitlint_dispatcher_health_check"),
             patch.object(_hook_module, "run_pre_commit_stage"),
             patch.object(_hook_module, "ensure_no_compiled_js"),
             patch.object(_hook_module, "run_pnpm_lockfile_guard"),
@@ -609,60 +609,75 @@ class TestCommitlintInfrastructure:
         )
 
 
-run_commitlint_dispatcher_health_check = (
-    _hook_module.run_commitlint_dispatcher_health_check
-)
+_REPO = Path(__file__).resolve().parents[2]
+_INSTALLER = _REPO / "scripts" / "install-githooks.cjs"
 
 
-class TestCommitlintDispatcherHealthCheck:
-    """Unit tests for the runtime check that detects dispatcher corruption.
+class TestSelfContainedHookDispatch:
+    """Contract tests for the deterministic-under-entire hook design.
 
-    Git executes .husky/_/commit-msg (set via core.hooksPath), not the
-    tracked .husky/commit-msg.  External tools can overwrite the dispatcher,
-    silently breaking commitlint.  run_commitlint_dispatcher_health_check()
-    is the function that detects this at commit time.
+    git runs ``.husky/_/<hook>`` (via ``core.hooksPath``).  ``entire`` re-injects
+    its own wrappers there every session and chains to a ``<hook>.pre-entire``
+    backup it runs BY PATH.  So ``.husky/_/<hook>`` is kept SELF-CONTAINED
+    (``scripts/install-githooks.cjs``, run from ``prepare`` after husky): it
+    exec's ``.husky/<hook>`` by a hard-coded name, so entire's wrap-and-chain
+    reaches the real gate in every state, where husky's basename dispatcher
+    would dead-end.  The cross-OS RUNTIME proof (self-contained survives entire's
+    exact wrap) lives in the ``hook-entrypoint-test`` CI job; these lock the
+    design contract in-process (no skip — repo enforces ``--max-skips=0``).
     """
 
-    @staticmethod
-    def _write_dispatcher(tmp_path: Path, content: str) -> None:
-        husky_internal = tmp_path / ".husky" / "_"
-        husky_internal.mkdir(parents=True, exist_ok=True)
-        (husky_internal / "commit-msg").write_text(content, encoding="utf-8")
+    def test_installer_dispatcher_is_self_contained_not_basename(self) -> None:
+        src = _INSTALLER.read_text(encoding="utf-8")
+        # exec's the user hook by hard-coded name (filename-independent, so it
+        # survives entire renaming it to <hook>.pre-entire)...
+        assert 'exec sh "$(dirname "$(dirname "$0")")/${hook}"' in src
+        # ...and never sources husky's basename helper `h` (the form entire breaks).
+        assert ')/h"' not in src
+        assert ")/h'" not in src
 
-    def test_passes_on_standard_husky_dispatcher(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        self._write_dispatcher(tmp_path, '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n')
-        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()
-        captured = capsys.readouterr()
-        assert "corrupted" not in captured.out
-
-    def test_warns_on_corrupted_dispatcher(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Dispatcher overwritten by external tool — warn with fix command."""
-        self._write_dispatcher(
-            tmp_path,
-            "#!/bin/sh\n"
-            "# Entire CLI hooks\n"
-            'entire hooks git commit-msg "$1" || exit 1\n',
+    def test_installer_honors_husky0_bypass(self) -> None:
+        # Parity with husky's `h`; CI semantic-release uses HUSKY=0.
+        assert '[ "${HUSKY-}" = "0" ] && exit 0' in _INSTALLER.read_text(
+            encoding="utf-8"
         )
-        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()
-        captured = capsys.readouterr()
-        assert "corrupted" in captured.out
-        assert "pnpm exec husky" in captured.out
 
-    def test_skips_when_dispatcher_not_yet_generated(self, tmp_path: Path) -> None:
-        """Before pnpm install, .husky/_/ does not exist — silent skip.
+    def test_installer_clears_stale_pre_entire_backups(self) -> None:
+        # entire keeps an existing backup verbatim on re-wrap; a stale basename
+        # backup would re-break the chain, so the installer drops it.
+        src = _INSTALLER.read_text(encoding="utf-8")
+        assert ".pre-entire" in src
+        assert "rmSync" in src
 
-        This is expected on first clone before bootstrapping.  The CI
-        commitlint job is the authoritative gate regardless.
-        """
-        # tmp_path has no .husky/_/ directory
-        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()  # should return silently
+    def test_prepare_runs_installer_after_husky(self) -> None:
+        prep = json.loads((_REPO / "package.json").read_text(encoding="utf-8"))[
+            "scripts"
+        ]["prepare"]
+        assert "install-githooks" in prep
+        assert prep.index("husky") < prep.index("install-githooks")
+
+    def test_gate_hooks_do_not_double_call_entire(self) -> None:
+        # entire's installed wrapper owns session capture; the tracked gate hooks
+        # must NOT also invoke entire (double-capture / dup trailer). Ignore
+        # comment lines (which reference the command for documentation).
+        for hook in ("commit-msg", "pre-push", "post-commit", "prepare-commit-msg"):
+            body = (_REPO / ".husky" / hook).read_text(encoding="utf-8")
+            code = "\n".join(
+                ln for ln in body.splitlines() if not ln.lstrip().startswith("#")
+            )
+            assert "entire" not in code, f".husky/{hook} still invokes entire"
+
+    def test_commit_msg_gate_still_runs_commitlint(self) -> None:
+        assert "commitlint" in (_REPO / ".husky" / "commit-msg").read_text(
+            encoding="utf-8"
+        )
+
+    def test_obsolete_dispatcher_self_heal_is_removed(self) -> None:
+        # The old self-heal restored husky's basename dispatcher, which
+        # re-broke entire's chain on every commit. It must be gone.
+        assert "repair_husky_hook_dispatchers" not in (
+            _REPO / "scripts" / "run_repo_hook.py"
+        ).read_text(encoding="utf-8")
 
 
 _acl_write_probe = _hook_module._acl_write_probe

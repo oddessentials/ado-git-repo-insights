@@ -74,6 +74,17 @@
     //      deps; triggers the Playwright postinstall (~110 MB Chromium
     //      download into ~/.cache/ms-playwright).
     //
+    // Git hooks: `pnpm install` (step 4) runs husky, which sets
+    // `core.hooksPath` to `.husky/_` — the single, deterministic hook path
+    // present in every container regardless of image build/publish timing.
+    // `entire` overwrites the `.husky/_` dispatchers on session start; the
+    // pre-commit self-heal (`repair_husky_hook_dispatchers` in
+    // scripts/run_repo_hook.py) restores them before git fires commit-msg, so
+    // the CI-parity gates run on every commit/push. See
+    // LOCAL_CI_PARITY_INVARIANTS.md row 7f. postCreateCommand does NOT repoint
+    // core.hooksPath — doing so coupled hook execution to image state and
+    // silently disabled all gates whenever the image lagged the branch.
+    //
     // The chain is joined by `&&` — any failure aborts setup entirely. No
     // `|| true` or failure suppression is permitted (FR-021).
     //

@@ -1343,6 +1343,41 @@ jobs:
           fi
           echo "[OK] Hook entrypoint test passed on ${{ matrix.os }}"
 
+      # Entire-proof dispatch: prove the self-contained .husky/_ dispatcher runs
+      # the gate even after entire.io wraps it and chains to its .pre-entire
+      # backup (the exact mechanism in entireio/cli strategy/hooks.go). Uses
+      # pre-commit as a stand-in (it runs without root deps); the dispatcher
+      # template is identical for every hook. See LOCAL_CI_PARITY_INVARIANTS.md
+      # row 7f "Entire-Proof Dispatch".
+      - name: Self-contained dispatch survives entire's wrap
+        shell: bash
+        env:
+          ADO_HOOK_ALLOW_LOCAL_DEGRADED: '1'
+        run: |
+          set -euo pipefail
+          smoke_file="entire-proof-smoke.txt"
+          printf 'entire proof smoke\n' > "$smoke_file"
+          git add "$smoke_file"
+          # Install the self-contained dispatchers (normally done by `prepare`).
+          node scripts/install-githooks.cjs
+          test -f .husky/_/pre-commit
+          grep -qF 'dirname "$(dirname "$0")")/pre-commit' .husky/_/pre-commit \
+            || { echo "::error::.husky/_/pre-commit is not self-contained"; exit 1; }
+          # Faithfully simulate entire's InstallGitHook: back the dispatcher up to
+          # <hook>.pre-entire and replace it with entire's wrapper that chains by path.
+          mv .husky/_/pre-commit .husky/_/pre-commit.pre-entire
+          printf '#!/bin/sh\n# Entire CLI hooks\n_d="$(dirname "$0")"\n[ -x "$_d/pre-commit.pre-entire" ] && "$_d/pre-commit.pre-entire" "$@"\n' > .husky/_/pre-commit
+          chmod +x .husky/_/pre-commit
+          # Run the gate THROUGH entire's wrapper -> chain -> self-contained backup.
+          sh .husky/_/pre-commit 2>&1 | tee entire-proof-output.txt
+          if ! grep -q "\[pre-commit\]" entire-proof-output.txt; then
+            echo "::error::gate did NOT run through entire's wrap-and-chain on ${{ matrix.os }}"
+            exit 1
+          fi
+          echo "[OK] entire-proof dispatch verified on ${{ matrix.os }}"
+          git reset -- "$smoke_file" >/dev/null 2>&1 || true
+          rm -f "$smoke_file" entire-proof-output.txt .husky/_/pre-commit.pre-entire
+
   # Ephemeral-cleanup smoke (issue #327 step 5). Tier 2 blocking CI job
   # that exercises the pnpm wrappers end-to-end on all three supported
   # OSes. The job invokes the cleaner ONLY via `pnpm clean` /

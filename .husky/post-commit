@@ -1,2 +1,4 @@
 #!/bin/sh
-entire hooks git post-commit 2>/dev/null || true
+# Capture-only stage. entire's installed hook wrapper (.husky/_/post-commit) owns
+# session capture; this tracked hook intentionally does nothing, to avoid
+# double-recording. Kept so .husky/_ has a self-contained dispatcher to chain to.

@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-entire hooks git pre-push "$1" || true
+# Session capture is owned by entire's installed hook wrapper (.husky/_/pre-push),
+# which calls `entire hooks git pre-push` before chaining here. This tracked gate
+# does NOT call entire, to avoid double-recording the push session.
 
 # Resolve a Python interpreter that can import the project package and
 # expose it via $HOOK_PYTHON. Sets PATH so `pre-commit run` underneath
