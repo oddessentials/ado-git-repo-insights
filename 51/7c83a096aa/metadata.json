@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.7.3",
+  "checkpoint_id": "517c83a096aa",
+  "strategy": "manual-commit",
+  "branch": "365-pr-url-double-encoding",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".test-floor-contract.json",
+    "extension/tests/modules/shared/pr-url.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/51/7c83a096aa/0/metadata.json",
+      "transcript": "/51/7c83a096aa/0/full.jsonl",
+      "content_hash": "/51/7c83a096aa/0/content_hash.txt",
+      "prompt": "/51/7c83a096aa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 290,
+    "cache_creation_tokens": 13995,
+    "cache_read_tokens": 3824027,
+    "output_tokens": 12811,
+    "api_call_count": 16
+  }
+}

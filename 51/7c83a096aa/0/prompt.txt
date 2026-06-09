@@ -1,0 +1,19 @@
+push and create a PR
+
+---
+
+<task-notification>
+<task-id>b21cv0ebz</task-id>
+<tool-use-id>toolu_01QFhfazNc5L67nLtnQNMhEB</tool-use-id>
+<output-file>/tmp/claude-1000/-workspaces-ado-git-repo-insights/a8cc39fd-fc0f-4533-916f-64a0ad61de3c/tasks/b21cv0ebz.output</output-file>
+<status>completed</status>
+<summary>Background command "Push branch (runs full pre-push preflight)" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Please review CI, it looks like our code coverage fell below the threshold somehow. Please ensure we are using our ratchet utility properly. Review thoughtfully and show me a plan to resolve before proceeding.
+
+---
+
+super. proceed
