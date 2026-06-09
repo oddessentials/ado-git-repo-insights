@@ -1,0 +1,21 @@
+Howdy! familiarize yourself with this dev container, our patterns, and best practices. We have strict invariants and important local/ci parity rules that must be understood well before we begin.
+
+---
+
+yes, fix both now but do not commit. Stop when you are confident they reflect current state accurately.
+
+---
+
+No good points. Let's leave it for now
+
+---
+
+I committed the changes to our current branch, which is now docs/update-stale-comments. Remain here until I say otherwise. Your missions now is to focus very carefully on a bug in our project. Our dashboard has several entry points and very strict rules around which files can be edited. Plan carefully and thoughtfully. The bug is related to the Azure DevOps pull request hyperlinks we render in the dashboard for users to navigate to the PR. The problem is that are incorrectly encoding the URL. Its results in broken URLs. Determine if you can identify this encoding problem and report back how you think we can solve it safely and deterministically.
+
+---
+
+/speckit-specify Yes, you've narrowed down the issue. There are very likely instances where we are adding the %20 in the config as part of the name (because that was copied verbatim from the URL during setup). We should design tests around preventing double encoding when encoding is already present.
+
+---
+
+NO, you can run as you are supposed to. It will cut from this branch, not main. Unless you switch to main
