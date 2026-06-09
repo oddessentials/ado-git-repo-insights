@@ -215,5 +215,18 @@ describe("resolvePrUrl (FR-005 / FR-005a)", () => {
         "https://dev.azure.com/acme-org/_git/weird%20id/pullrequest/81",
       );
     });
+
+    it("never throws on a malformed percent-escape; encodes it as a literal", () => {
+      // `bad%zz` is not valid percent-encoding, so decodeURIComponent throws.
+      // The encoder must fall back to encoding the value as-is (the `%` becomes
+      // `%25`) rather than propagating the error — honoring the documented
+      // "never throws; always returns a string" contract. ADO names cannot
+      // contain a literal `%`, so this input cannot occur in practice; the test
+      // exists to lock the defensive branch.
+      const pr: PrUrlPrRecord = { id: 82, repository_id: "bad%zz" };
+      expect(resolvePrUrl(pr, [], CTX)).toBe(
+        "https://dev.azure.com/acme-org/_git/bad%25zz/pullrequest/82",
+      );
+    });
   });
 });
