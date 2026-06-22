@@ -267,7 +267,7 @@ jobs:
           path: extension/
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: v${{ needs.release.outputs.new_release_version }}
           files: |
