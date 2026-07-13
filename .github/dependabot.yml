@@ -1,12 +1,22 @@
 # Dependabot Configuration
-# Automatically creates PRs for dependency updates
 # Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# DISABLED: every ecosystem below sets `open-pull-requests-limit: 0`, which is
+# Dependabot's supported switch for turning version updates off while keeping a
+# valid config. No scheduled dependency PRs are opened. The ecosystem blocks,
+# schedules, groups, and labels are retained so re-enabling is a matter of
+# removing the limit from whichever block(s) you want back.
+#
+# Note: this only governs *version* updates. Dependabot *security* updates are a
+# repository setting (Settings -> Code security), not a file setting, and are
+# unaffected by this config.
 
 version: 2
 updates:
   # Root npm dependencies (semantic-release, repo-standards)
   - package-ecosystem: "npm"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "monday"
@@ -26,6 +36,7 @@ updates:
   # Extension npm dependencies (TypeScript, Jest, ESLint, etc.)
   - package-ecosystem: "npm"
     directory: "/extension"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "monday"
@@ -52,6 +63,7 @@ updates:
   # Python dependencies (pandas, ruff, pytest, etc.)
   - package-ecosystem: "pip"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "monday"
@@ -66,6 +78,7 @@ updates:
   # GitHub Actions (actions/checkout, actions/setup-node, etc.)
   - package-ecosystem: "github-actions"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "monday"
