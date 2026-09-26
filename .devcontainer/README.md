@@ -118,7 +118,7 @@ The image carries the deterministic system layer — interpreters, system librar
 |---|---|---|
 | Python 3.12 | Base image (`mcr.microsoft.com/devcontainers/python:3.12-bookworm`) | major.minor |
 | `uv` | Dockerfile install from `astral.sh/uv` | `UV_VERSION` ARG |
-| `gh` (GitHub CLI) | Dockerfile install from `cli.github.com` apt + signed keyring + `apt-mark hold` | `GH_VERSION` ARG |
+| `gh` (GitHub CLI) | Dockerfile install of SHA256-verified GitHub release `.deb` (multi-arch dispatcher) + `apt-mark hold`; not the `cli.github.com` apt repo, which only carries the newest release so an exact-version apt pin cannot stay resolvable | `GH_VERSION` + per-arch SHA256 ARGs |
 | `specify` (Spec Kit) | Dockerfile `uv tool install` from an immutable git commit pin against `github/spec-kit` | `SPECKIT_VERSION` + `SPECKIT_COMMIT` ARGs |
 | `entire` (entire.io CLI) | Dockerfile install of SHA256-verified GitHub release-binary tarball (multi-arch dispatcher); install.sh disqualified for lack of version pinning | `ENTIRE_VERSION` + `ENTIRE_SHA256_AMD64` + `ENTIRE_SHA256_ARM64` ARGs |
 | `gitleaks` | Dockerfile install of SHA256-verified release tarball (multi-arch dispatcher) | `GITLEAKS_VERSION` + per-arch SHA256 ARGs |
