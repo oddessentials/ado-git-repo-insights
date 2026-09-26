@@ -752,10 +752,18 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install dependencies (toolchain pinned to uv.lock)
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[dev]
+          # Local/CI parity (LOCAL_CI_PARITY_INVARIANTS.md row 10): the pre-push
+          # hook type-checks against the uv.lock-pinned toolchain (uv sync
+          # --locked). Constrain pip to the same lock so mypy, numpy and the
+          # stub packages are the versions the local gate ran, not whatever
+          # PyPI has today. --locked fails if pyproject.toml and uv.lock drift.
+          pip install uv
+          uv export --locked --extra dev --no-hashes --no-emit-project \
+            --format requirements-txt -o /tmp/constraints.txt
+          pip install -c /tmp/constraints.txt -e .[dev]
 
       - name: Run mypy type check
         run: |
