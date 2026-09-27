@@ -1,3 +1,10 @@
+## [101.28.5](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.4...v101.28.5) (2026-09-27)
+
+
+### Bug Fixes
+
+* **extension:** make overview screenshots addressable in the Marketplace listing ([#448](https://github.com/oddessentials/ado-git-repo-insights/issues/448)) ([df263d0](https://github.com/oddessentials/ado-git-repo-insights/commit/df263d010eb6033fd3e3e8eadbb3c21ea254b02b))
+
 ## [101.28.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.28.3...v101.28.4) (2026-06-09)
 
 
