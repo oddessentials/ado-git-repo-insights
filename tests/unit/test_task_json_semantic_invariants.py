@@ -323,12 +323,12 @@ def _find_boolean_rhs_violations(inputs: list[dict[str, object]]) -> list[str]:
 
 
 def _iter_vss_source_paths(manifest: dict[str, object]) -> list[tuple[str, str]]:
-    """Collect ``(context_label, rel_path)`` for every non-build-output
+    """Collect ``(context_label, rel_path)`` for every
     path in ``vss-extension.json``.
 
     Skipped categories:
 
-    * ``files[]`` entries with ``addressable: true`` — bundler output.
+    * ``files[]`` entries with ``addressable: true``.
     * Any path starting with ``dist/`` — clean-checkout safety.
 
     Both omissions are intentional: the test must pass in a clean
@@ -377,9 +377,6 @@ def _iter_vss_source_paths(manifest: dict[str, object]) -> list[tuple[str, str]]
 def _find_missing_vss_paths(
     manifest: dict[str, object], extension_dir: Path
 ) -> list[str]:
-    """Return human-readable descriptors for every non-build-output
-    manifest path that does not resolve to a real file or directory.
-    """
     missing: list[str] = []
     for context, rel_path in _iter_vss_source_paths(manifest):
         resolved = extension_dir / rel_path
@@ -729,10 +726,6 @@ def test_vss_path_checker_rejects_missing_screenshot(tmp_path: Path) -> None:
 
 
 def test_vss_path_checker_skips_addressable_build_outputs(tmp_path: Path) -> None:
-    """``addressable: true`` file entries are bundler output; the
-    checker MUST NOT flag them even when they don't exist, so the
-    test stays green in clean checkouts.
-    """
     manifest: dict[str, object] = {
         "files": [
             {"path": "dist/ui", "addressable": True},
