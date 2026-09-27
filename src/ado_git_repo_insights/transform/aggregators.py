@@ -712,16 +712,16 @@ class AggregateGenerator:
                 start_date=start_date.isoformat(),
                 end_date=end_date.isoformat(),
                 pr_count=len(group),
-                cycle_time_p50=group["cycle_time_minutes"].quantile(0.5)
+                cycle_time_p50=float(group["cycle_time_minutes"].quantile(0.5))
                 if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
-                cycle_time_p90=group["cycle_time_minutes"].quantile(0.9)
+                cycle_time_p90=float(group["cycle_time_minutes"].quantile(0.9))
                 if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
-                review_time_p50=group["review_time_minutes"].quantile(0.5)
+                review_time_p50=float(group["review_time_minutes"].quantile(0.5))
                 if group["review_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
-                review_time_p90=group["review_time_minutes"].quantile(0.9)
+                review_time_p90=float(group["review_time_minutes"].quantile(0.9))
                 if group["review_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 authors_count=group["user_id"].nunique(),

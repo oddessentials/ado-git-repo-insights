@@ -34,11 +34,19 @@ ARG PLAYWRIGHT_VERSION=1.60.0
 ARG GITLEAKS_SHA256_AMD64=ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
 ARG GITLEAKS_SHA256_ARM64=bf5f7f466ebfade1296c8bd32cf7d3f592c2aa78836aa9980ffbe2cadca7a861
 
-# GitHub CLI (FR-001). Apt-installed via signed keyring from cli.github.com
-# with apt-mark hold to prevent future apt-get upgrade drift. The exact
-# version string must match what cli.github.com publishes for both arches;
-# D-1b verifies multi-arch availability at PR time.
+# GitHub CLI (FR-001). Installed from the SHA256-verified release .deb that
+# cli/cli publishes with every GitHub release (same immutable-asset pattern
+# as gitleaks and entire below). NOT from the cli.github.com apt repository:
+# that repo only carries the newest release, so an exact-version apt pin
+# stops resolving the moment upstream ships -- CI run 29251145427
+# (2026-07-13) failed the image build with
+# `E: Version '2.93.0*' for 'gh' was not found` after weeks of GHA layer-
+# cache hits had masked the rot. SHA256 values come from
+# https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt
+# Bump all three ARGs together; a mismatched download fails at `sha256sum -c`.
 ARG GH_VERSION=2.93.0
+ARG GH_SHA256_AMD64=5371f77155e5dd81b6e897c379431f734949b99b99ae1f01c5e3ab6d3795cf4d
+ARG GH_SHA256_ARM64=ac30768545cc31bbef9ffef27d2f2218b2739375019883b8095acf2f734e7b7f
 
 # GitHub Spec Kit (FR-002). Installed via `uv tool install` from an immutable
 # git commit pin against github.com/github/spec-kit. Version 0.9.2 is NOT on
@@ -103,23 +111,26 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin \
        || { echo "specify version mismatch: got '$installed', expected '${SPECKIT_VERSION}'" >&2; exit 1; }
 
 # --- GitHub CLI (gh) ----------------------------------------------------------
-# FR-001: Install via cli.github.com apt repository with signed keyring,
-# pinned version, and apt-mark hold to prevent future apt-get upgrade drift.
-# Chosen over the Dev Container Feature for stronger determinism + auditability
-# (E-1 decision, research.md). D-1b confirmed gh ${GH_VERSION} is published
-# for both linux/amd64 and linux/arm64 by the apt repo.
-RUN install -m 0755 -d /usr/share/keyrings \
-    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && chmod a+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-        > /etc/apt/sources.list.d/github-cli.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends gh="${GH_VERSION}*" \
-    && apt-mark hold gh \
-    && rm -rf /var/lib/apt/lists/* \
-    && installed="$(gh --version | awk '/^gh version/ {print $3}')" \
-    && [ "$installed" = "${GH_VERSION}" ] \
+# FR-001: SHA256-verified release .deb, selected per build architecture (the
+# amd64 and arm64 packages are distinct binaries). The .deb depends only on
+# git, which the base image provides. `apt-mark hold` keeps a later
+# `apt-get upgrade` from replacing the pinned build if a gh apt source is
+# ever added to the image.
+RUN set -eux; \
+    ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    case "$ARCH" in \
+        amd64|x86_64) GH_ARCH="amd64"; GH_SHA256="$GH_SHA256_AMD64" ;; \
+        arm64|aarch64) GH_ARCH="arm64"; GH_SHA256="$GH_SHA256_ARM64" ;; \
+        *) echo "Unsupported architecture for gh: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/gh.deb \
+        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.deb"; \
+    echo "${GH_SHA256}  /tmp/gh.deb" | sha256sum -c -; \
+    dpkg -i /tmp/gh.deb; \
+    rm /tmp/gh.deb; \
+    apt-mark hold gh; \
+    installed="$(gh --version | awk '/^gh version/ {print $3}')"; \
+    [ "$installed" = "${GH_VERSION}" ] \
        || { echo "gh version mismatch: got '$installed', expected '${GH_VERSION}'" >&2; exit 1; }
 
 # --- gitleaks ----------------------------------------------------------------
